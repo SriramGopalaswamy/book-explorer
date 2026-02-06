@@ -474,6 +474,74 @@ export type Database = {
         }
         Relationships: []
       }
+      payroll_records: {
+        Row: {
+          basic_salary: number
+          created_at: string
+          hra: number
+          id: string
+          net_pay: number
+          notes: string | null
+          other_allowances: number
+          other_deductions: number
+          pay_period: string
+          pf_deduction: number
+          processed_at: string | null
+          profile_id: string | null
+          status: string
+          tax_deduction: number
+          transport_allowance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          basic_salary?: number
+          created_at?: string
+          hra?: number
+          id?: string
+          net_pay?: number
+          notes?: string | null
+          other_allowances?: number
+          other_deductions?: number
+          pay_period: string
+          pf_deduction?: number
+          processed_at?: string | null
+          profile_id?: string | null
+          status?: string
+          tax_deduction?: number
+          transport_allowance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          basic_salary?: number
+          created_at?: string
+          hra?: number
+          id?: string
+          net_pay?: number
+          notes?: string | null
+          other_allowances?: number
+          other_deductions?: number
+          pay_period?: string
+          pf_deduction?: number
+          processed_at?: string | null
+          profile_id?: string | null
+          status?: string
+          tax_deduction?: number
+          transport_allowance?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
