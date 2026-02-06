@@ -47,6 +47,21 @@ export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  const { data: attendance = [], isLoading } = useAttendance(selectedDate);
+  const { data: stats } = useAttendanceStats(selectedDate);
+  const { data: weekData = [] } = useWeeklyAttendanceStats();
+  const { data: myAttendance, isLoading: isLoadingMyAttendance } = useMyTodayAttendance();
+  
+  const checkIn = useSelfCheckIn();
+  const checkOut = useSelfCheckOut();
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { data: attendance = [], isLoading } = useAttendance(selectedDate);
   const { data: stats } = useAttendanceStats(selectedDate);
