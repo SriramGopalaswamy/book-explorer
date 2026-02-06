@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useMonthlyRevenueData } from "@/hooks/useFinancialData";
+import { useMonthlyRevenueData, DateRangeFilter } from "@/hooks/useFinancialData";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formatCurrency = (value: number) => {
@@ -17,8 +17,12 @@ const formatCurrency = (value: number) => {
   return `₹${value.toLocaleString("en-IN")}`;
 };
 
-export function RevenueChart() {
-  const { data: revenueData, isLoading } = useMonthlyRevenueData();
+interface RevenueChartProps {
+  dateRange?: DateRangeFilter;
+}
+
+export function RevenueChart({ dateRange }: RevenueChartProps) {
+  const { data: revenueData, isLoading } = useMonthlyRevenueData(dateRange);
 
   if (isLoading) {
     return (
