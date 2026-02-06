@@ -129,23 +129,27 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   });
 }
 
-export function useExpenseBreakdown() {
+export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["expense-breakdown", user?.id],
+    queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<CategoryData[]> => {
       if (!user) return getDefaultExpenseData();
 
-      const currentMonth = new Date();
-      const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const fromDate = dateRange?.from || (() => {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth(), 1);
+      })();
+      const toDate = dateRange?.to || new Date();
 
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
         .eq("user_id", user.id)
         .eq("type", "expense")
-        .gte("record_date", firstDay.toISOString().split("T")[0]);
+        .gte("record_date", fromDate.toISOString().split("T")[0])
+        .lte("record_date", toDate.toISOString().split("T")[0]);
 
       if (error) throw error;
 
