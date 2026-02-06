@@ -37,6 +37,7 @@ const financialNav: NavItem[] = [
   { name: "Invoicing", path: "/financial/invoicing", icon: FileText, module: "financial" },
   { name: "Banking", path: "/financial/banking", icon: Building2, module: "financial" },
   { name: "Cash Flow", path: "/financial/cashflow", icon: TrendingUp, module: "financial" },
+  { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
 ];
 
 const hrmsNav: NavItem[] = [

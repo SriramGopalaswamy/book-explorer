@@ -49,6 +49,7 @@ const App = () => (
             <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
             <Route path="/financial/banking" element={<ProtectedRoute><Banking /></ProtectedRoute>} />
             <Route path="/financial/cashflow" element={<ProtectedRoute><CashFlow /></ProtectedRoute>} />
+            <Route path="/financial/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
             
             {/* HRMS */}
             <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
