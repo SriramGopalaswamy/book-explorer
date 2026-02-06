@@ -95,6 +95,11 @@ export default function Dashboard() {
           <RecentActivity />
           <RevenueChart />
         </div>
+
+        {/* Expense Chart */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ExpenseBreakdownChart />
+        </div>
       </div>
     </MainLayout>
   );
