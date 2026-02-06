@@ -7,12 +7,12 @@ import {
   Wallet,
   Users,
   Target,
-  TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
   UserCheck,
 } from "lucide-react";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
 
 export default function Dashboard() {
   return (
@@ -92,21 +92,7 @@ export default function Dashboard() {
         {/* Recent Activity & Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
           <RecentActivity />
-          
-          {/* Revenue Chart Placeholder */}
-          <div className="rounded-xl border bg-card p-6 shadow-card">
-            <h3 className="mb-4 text-lg font-semibold text-foreground">
-              Revenue Trend
-            </h3>
-            <div className="flex h-64 items-center justify-center rounded-lg bg-secondary/50">
-              <div className="text-center">
-                <TrendingUp className="mx-auto mb-2 h-12 w-12 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">
-                  Revenue chart will appear here
-                </p>
-              </div>
-            </div>
-          </div>
+          <RevenueChart />
         </div>
       </div>
     </MainLayout>
