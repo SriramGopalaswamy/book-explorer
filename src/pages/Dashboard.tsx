@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
+import { subMonths } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ModuleCard } from "@/components/dashboard/ModuleCard";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -5,6 +8,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
+import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
 import {
   Wallet,
   Users,
@@ -16,6 +20,15 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subMonths(new Date(), 6),
+    to: new Date(),
+  });
+
+  const filterRange = dateRange?.from && dateRange?.to
+    ? { from: dateRange.from, to: dateRange.to }
+    : undefined;
+
   return (
     <MainLayout
       title="Dashboard"
@@ -90,15 +103,21 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* Date Range Filter */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Financial Overview</h2>
+          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+        </div>
+
         {/* Recent Activity & Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
           <RecentActivity />
-          <RevenueChart />
+          <RevenueChart dateRange={filterRange} />
         </div>
 
         {/* Expense Chart */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <ExpenseBreakdownChart />
+          <ExpenseBreakdownChart dateRange={filterRange} />
         </div>
       </div>
     </MainLayout>

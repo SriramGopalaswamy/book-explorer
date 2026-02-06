@@ -1,5 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { useExpenseBreakdown } from "@/hooks/useFinancialData";
+import { useExpenseBreakdown, DateRangeFilter } from "@/hooks/useFinancialData";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formatCurrency = (value: number) => {
@@ -46,8 +46,12 @@ const renderCustomizedLabel = ({
   );
 };
 
-export function ExpenseBreakdownChart() {
-  const { data: expenseData, isLoading } = useExpenseBreakdown();
+interface ExpenseBreakdownChartProps {
+  dateRange?: DateRangeFilter;
+}
+
+export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps) {
+  const { data: expenseData, isLoading } = useExpenseBreakdown(dateRange);
 
   if (isLoading) {
     return (
