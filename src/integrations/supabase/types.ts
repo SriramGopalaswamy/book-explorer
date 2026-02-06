@@ -597,6 +597,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
