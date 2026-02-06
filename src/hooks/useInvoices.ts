@@ -35,6 +35,32 @@ export interface CreateInvoiceData {
   items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
 }
 
+export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await supabase.functions.invoke("generate-invoice-pdf", {
+    body: { invoiceId },
+  });
+
+  if (response.error) {
+    throw new Error(response.error.message || "Failed to generate PDF");
+  }
+
+  // The response.data is already a Blob when Content-Type is application/pdf
+  const blob = response.data;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `invoice-${invoiceId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function useInvoices() {
   const { user } = useAuth();
 
