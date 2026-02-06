@@ -4,6 +4,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
+import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import {
   Wallet,
   Users,
