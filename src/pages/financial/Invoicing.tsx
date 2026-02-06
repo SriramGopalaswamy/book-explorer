@@ -49,6 +49,7 @@ import {
   useCreateInvoice,
   useUpdateInvoiceStatus,
   useDeleteInvoice,
+  downloadInvoicePdf,
   Invoice,
 } from "@/hooks/useInvoices";
 
