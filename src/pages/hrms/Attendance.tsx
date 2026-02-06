@@ -63,9 +63,6 @@ export default function Attendance() {
     return () => clearInterval(timer);
   }, []);
 
-  const { data: attendance = [], isLoading } = useAttendance(selectedDate);
-  const { data: stats } = useAttendanceStats(selectedDate);
-  const { data: weekData = [] } = useWeeklyAttendanceStats();
 
   const filteredAttendance = attendance.filter((record) => {
     const matchesStatus = statusFilter === "all" || record.status === statusFilter;
