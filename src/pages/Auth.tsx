@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.svg";
+import { lovable } from "@/integrations/lovable";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
