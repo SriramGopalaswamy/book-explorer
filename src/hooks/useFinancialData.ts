@@ -26,6 +26,11 @@ export interface CategoryData {
   color: string;
 }
 
+export interface DateRangeFilter {
+  from: Date;
+  to: Date;
+}
+
 const categoryColors: Record<string, string> = {
   "Salaries": "hsl(222, 47%, 14%)",
   "Operations": "hsl(262, 52%, 47%)",
@@ -59,22 +64,27 @@ export function useFinancialRecords() {
   });
 }
 
-export function useMonthlyRevenueData() {
+export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["monthly-revenue", user?.id],
+    queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<MonthlyData[]> => {
       if (!user) return getDefaultMonthlyData();
 
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const fromDate = dateRange?.from || (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 6);
+        return d;
+      })();
+      const toDate = dateRange?.to || new Date();
 
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
         .eq("user_id", user.id)
-        .gte("record_date", sixMonthsAgo.toISOString().split("T")[0]);
+        .gte("record_date", fromDate.toISOString().split("T")[0])
+        .lte("record_date", toDate.toISOString().split("T")[0]);
 
       if (error) throw error;
 
@@ -88,7 +98,7 @@ export function useMonthlyRevenueData() {
 
       data.forEach((record) => {
         const date = new Date(record.record_date);
-        const monthKey = months[date.getMonth()];
+        const monthKey = `${months[date.getMonth()]} ${date.getFullYear()}`;
         
         if (!monthlyMap.has(monthKey)) {
           monthlyMap.set(monthKey, { revenue: 0, expenses: 0 });
@@ -102,15 +112,15 @@ export function useMonthlyRevenueData() {
         }
       });
 
-      // Return last 6 months in order
+      // Generate all months in range
       const result: MonthlyData[] = [];
-      const currentMonth = new Date().getMonth();
+      const currentDate = new Date(fromDate);
       
-      for (let i = 5; i >= 0; i--) {
-        const monthIndex = (currentMonth - i + 12) % 12;
-        const monthName = months[monthIndex];
-        const data = monthlyMap.get(monthName) || { revenue: 0, expenses: 0 };
-        result.push({ month: monthName, ...data });
+      while (currentDate <= toDate) {
+        const monthKey = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+        const data = monthlyMap.get(monthKey) || { revenue: 0, expenses: 0 };
+        result.push({ month: months[currentDate.getMonth()], ...data });
+        currentDate.setMonth(currentDate.getMonth() + 1);
       }
 
       return result;
