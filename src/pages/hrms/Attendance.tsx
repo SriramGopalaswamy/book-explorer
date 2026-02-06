@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Clock, UserCheck, UserX, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
-import { useAttendance, useAttendanceStats, useWeeklyAttendanceStats } from "@/hooks/useAttendance";
+import { 
+  Calendar, 
+  Clock, 
+  UserCheck, 
+  UserX, 
+  Search, 
+  Download, 
+  ChevronLeft, 
+  ChevronRight,
+  LogIn,
+  LogOut,
+  Timer
+} from "lucide-react";
+import { 
+  useAttendance, 
+  useAttendanceStats, 
+  useWeeklyAttendanceStats,
+  useMyTodayAttendance,
+  useSelfCheckIn,
+  useSelfCheckOut
+} from "@/hooks/useAttendance";
 import { format, addDays, subDays } from "date-fns";
 
 export default function Attendance() {
