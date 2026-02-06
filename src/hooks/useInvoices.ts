@@ -35,6 +35,15 @@ export interface CreateInvoiceData {
   items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
 }
 
+export interface UpdateInvoiceData {
+  id: string;
+  client_name: string;
+  client_email: string;
+  amount: number;
+  due_date: string;
+  items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
+}
+
 export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
@@ -180,6 +189,70 @@ export function useUpdateInvoiceStatus() {
       toast({
         title: "Error",
         description: `Failed to update status: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdateInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateInvoiceData) => {
+      // Update the invoice
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("invoices")
+        .update({
+          client_name: data.client_name,
+          client_email: data.client_email,
+          amount: data.amount,
+          due_date: data.due_date,
+        })
+        .eq("id", data.id)
+        .select()
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      // Delete existing items and recreate them
+      const { error: deleteError } = await supabase
+        .from("invoice_items")
+        .delete()
+        .eq("invoice_id", data.id);
+
+      if (deleteError) throw deleteError;
+
+      // Create new invoice items
+      if (data.items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("invoice_items")
+          .insert(
+            data.items.map((item) => ({
+              invoice_id: data.id,
+              description: item.description,
+              quantity: item.quantity,
+              rate: item.rate,
+              amount: item.amount,
+            }))
+          );
+
+        if (itemsError) throw itemsError;
+      }
+
+      return invoice;
+    },
+    onSuccess: (invoice) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({
+        title: "Invoice Updated",
+        description: `Invoice ${invoice.invoice_number} has been updated.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update invoice: ${error.message}`,
         variant: "destructive",
       });
     },

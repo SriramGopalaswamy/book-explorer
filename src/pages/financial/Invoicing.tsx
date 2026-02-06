@@ -47,6 +47,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   useInvoices,
   useCreateInvoice,
+  useUpdateInvoice,
   useUpdateInvoiceStatus,
   useDeleteInvoice,
   downloadInvoicePdf,
@@ -80,10 +81,14 @@ const getStatusConfig = (status: Invoice["status"]) => {
 export default function Invoicing() {
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  
   const [formData, setFormData] = useState({
     clientName: "",
     clientEmail: "",
@@ -92,6 +97,15 @@ export default function Invoicing() {
     rate: "",
     dueDate: "",
     notes: "",
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    clientName: "",
+    clientEmail: "",
+    description: "",
+    quantity: "1",
+    rate: "",
+    dueDate: "",
   });
 
   const totalOutstanding = invoices
@@ -107,6 +121,65 @@ export default function Invoicing() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    const firstItem = invoice.invoice_items?.[0];
+    setEditFormData({
+      clientName: invoice.client_name,
+      clientEmail: invoice.client_email,
+      description: firstItem?.description || "",
+      quantity: String(firstItem?.quantity || 1),
+      rate: String(firstItem?.rate || invoice.amount),
+      dueDate: invoice.due_date,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateInvoice = () => {
+    if (!editingInvoice) return;
+    
+    if (!editFormData.clientName.trim() || !editFormData.clientEmail.trim() || !editFormData.rate || !editFormData.dueDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const quantity = parseInt(editFormData.quantity) || 1;
+    const rate = parseFloat(editFormData.rate) || 0;
+    const amount = quantity * rate;
+
+    updateInvoice.mutate(
+      {
+        id: editingInvoice.id,
+        client_name: editFormData.clientName.trim(),
+        client_email: editFormData.clientEmail.trim(),
+        amount,
+        due_date: editFormData.dueDate,
+        items: [
+          {
+            description: editFormData.description || "Services",
+            quantity,
+            rate,
+            amount,
+          },
+        ],
+      },
+      {
+        onSuccess: () => {
+          setEditingInvoice(null);
+          setIsEditDialogOpen(false);
+        },
+      }
+    );
   };
 
   const handleCreateInvoice = () => {
@@ -317,6 +390,105 @@ export default function Invoicing() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Edit Invoice Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Invoice</DialogTitle>
+                  <DialogDescription>
+                    Update the invoice details. Changes will be saved immediately.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editClientName">Client Name *</Label>
+                    <Input
+                      id="editClientName"
+                      placeholder="Enter client name"
+                      value={editFormData.clientName}
+                      onChange={(e) => handleEditInputChange("clientName", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editClientEmail">Client Email *</Label>
+                    <Input
+                      id="editClientEmail"
+                      type="email"
+                      placeholder="client@example.com"
+                      value={editFormData.clientEmail}
+                      onChange={(e) => handleEditInputChange("clientEmail", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editDescription">Description</Label>
+                    <Input
+                      id="editDescription"
+                      placeholder="Services rendered"
+                      value={editFormData.description}
+                      onChange={(e) => handleEditInputChange("description", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="editQuantity">Quantity</Label>
+                      <Input
+                        id="editQuantity"
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={editFormData.quantity}
+                        onChange={(e) => handleEditInputChange("quantity", e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="editRate">Rate (₹) *</Label>
+                      <Input
+                        id="editRate"
+                        type="number"
+                        min="0"
+                        placeholder="Enter amount"
+                        value={editFormData.rate}
+                        onChange={(e) => handleEditInputChange("rate", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editDueDate">Due Date *</Label>
+                    <Input
+                      id="editDueDate"
+                      type="date"
+                      value={editFormData.dueDate}
+                      onChange={(e) => handleEditInputChange("dueDate", e.target.value)}
+                    />
+                  </div>
+                  {editFormData.rate && (
+                    <div className="rounded-lg bg-secondary/50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total Amount</span>
+                        <span className="text-lg font-semibold text-foreground">
+                          {formatCurrency(
+                            (parseInt(editFormData.quantity) || 1) * (parseFloat(editFormData.rate) || 0)
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpdateInvoice}
+                    disabled={updateInvoice.isPending}
+                    className="bg-gradient-financial text-white hover:opacity-90"
+                  >
+                    {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {isLoading ? (
@@ -385,7 +557,7 @@ export default function Invoicing() {
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit Invoice
                             </DropdownMenuItem>
