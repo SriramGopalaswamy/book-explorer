@@ -74,11 +74,11 @@ export default function Attendance() {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      present: "bg-green-100 text-green-700 border-green-200",
-      late: "bg-amber-100 text-amber-700 border-amber-200",
-      absent: "bg-red-100 text-red-700 border-red-200",
-      leave: "bg-blue-100 text-blue-700 border-blue-200",
-      half_day: "bg-purple-100 text-purple-700 border-purple-200",
+      present: "bg-success/20 text-success border-success/30",
+      late: "bg-warning/20 text-warning border-warning/30",
+      absent: "bg-destructive/20 text-destructive border-destructive/30",
+      leave: "bg-primary/20 text-primary border-primary/30",
+      half_day: "bg-secondary text-secondary-foreground border-secondary",
     };
     return styles[status] || "";
   };
