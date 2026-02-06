@@ -1,13 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-
-const expenseData = [
-  { name: "Salaries", value: 1850000, color: "hsl(222, 47%, 14%)" },
-  { name: "Operations", value: 420000, color: "hsl(262, 52%, 47%)" },
-  { name: "Marketing", value: 280000, color: "hsl(38, 92%, 50%)" },
-  { name: "Rent & Utilities", value: 180000, color: "hsl(199, 89%, 48%)" },
-  { name: "Software", value: 120000, color: "hsl(142, 76%, 36%)" },
-  { name: "Others", value: 150000, color: "hsl(220, 9%, 46%)" },
-];
+import { useExpenseBreakdown } from "@/hooks/useFinancialData";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -54,7 +47,19 @@ const renderCustomizedLabel = ({
 };
 
 export function ExpenseBreakdownChart() {
-  const total = expenseData.reduce((sum, item) => sum + item.value, 0);
+  const { data: expenseData, isLoading } = useExpenseBreakdown();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border bg-card p-6 shadow-card">
+        <Skeleton className="h-6 w-48 mb-2" />
+        <Skeleton className="h-4 w-64 mb-4" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  const total = expenseData?.reduce((sum, item) => sum + item.value, 0) || 0;
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">
@@ -66,7 +71,7 @@ export function ExpenseBreakdownChart() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={expenseData}
+              data={expenseData || []}
               cx="50%"
               cy="50%"
               labelLine={false}
@@ -76,7 +81,7 @@ export function ExpenseBreakdownChart() {
               paddingAngle={2}
               dataKey="value"
             >
-              {expenseData.map((entry, index) => (
+              {(expenseData || []).map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
               ))}
             </Pie>
@@ -96,7 +101,7 @@ export function ExpenseBreakdownChart() {
               verticalAlign="middle"
               iconType="circle"
               iconSize={8}
-              formatter={(value: string, entry: any) => (
+              formatter={(value: string) => (
                 <span className="text-sm text-muted-foreground">{value}</span>
               )}
             />

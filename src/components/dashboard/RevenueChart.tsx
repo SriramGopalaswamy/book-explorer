@@ -7,15 +7,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-const revenueData = [
-  { month: "Jan", revenue: 2850000, expenses: 1800000 },
-  { month: "Feb", revenue: 3200000, expenses: 2100000 },
-  { month: "Mar", revenue: 2900000, expenses: 1900000 },
-  { month: "Apr", revenue: 3800000, expenses: 2400000 },
-  { month: "May", revenue: 4100000, expenses: 2600000 },
-  { month: "Jun", revenue: 4523000, expenses: 2900000 },
-];
+import { useMonthlyRevenueData } from "@/hooks/useFinancialData";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -25,6 +18,17 @@ const formatCurrency = (value: number) => {
 };
 
 export function RevenueChart() {
+  const { data: revenueData, isLoading } = useMonthlyRevenueData();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border bg-card p-6 shadow-card">
+        <Skeleton className="h-6 w-40 mb-4" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">
       <div className="mb-4 flex items-center justify-between">
@@ -43,7 +47,7 @@ export function RevenueChart() {
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
-            data={revenueData}
+            data={revenueData || []}
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
           >
             <defs>
