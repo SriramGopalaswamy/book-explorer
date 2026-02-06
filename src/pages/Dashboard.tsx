@@ -3,6 +3,7 @@ import { ModuleCard } from "@/components/dashboard/ModuleCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import {
   Wallet,
   Users,
@@ -12,7 +13,6 @@ import {
   DollarSign,
   UserCheck,
 } from "lucide-react";
-import { RevenueChart } from "@/components/dashboard/RevenueChart";
 
 export default function Dashboard() {
   return (
