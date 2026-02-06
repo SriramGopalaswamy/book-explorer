@@ -35,6 +35,15 @@ export interface CreateInvoiceData {
   items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
 }
 
+export interface UpdateInvoiceData {
+  id: string;
+  client_name: string;
+  client_email: string;
+  amount: number;
+  due_date: string;
+  items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
+}
+
 export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
