@@ -47,6 +47,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   useInvoices,
   useCreateInvoice,
+  useUpdateInvoice,
   useUpdateInvoiceStatus,
   useDeleteInvoice,
   downloadInvoicePdf,
