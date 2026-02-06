@@ -4,6 +4,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
+import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import {
   Wallet,
   Users,
@@ -93,6 +94,11 @@ export default function Dashboard() {
         <div className="grid gap-6 lg:grid-cols-2">
           <RecentActivity />
           <RevenueChart />
+        </div>
+
+        {/* Expense Chart */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ExpenseBreakdownChart />
         </div>
       </div>
     </MainLayout>
