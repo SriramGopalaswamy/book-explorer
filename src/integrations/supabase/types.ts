@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_records: {
+        Row: {
+          check_in: string | null
+          check_out: string | null
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          profile_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          check_in?: string | null
+          check_out?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          profile_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          check_in?: string | null
+          check_out?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          profile_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_number: string
@@ -136,6 +183,72 @@ export type Database = {
         }
         Relationships: []
       }
+      goals: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          owner: string | null
+          progress: number
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          progress?: number
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          progress?: number
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      holidays: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          name: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          name: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          name?: string
+          year?: number
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           amount: number
@@ -210,6 +323,154 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      leave_balances: {
+        Row: {
+          created_at: string
+          id: string
+          leave_type: string
+          profile_id: string | null
+          total_days: number
+          updated_at: string
+          used_days: number
+          user_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leave_type: string
+          profile_id?: string | null
+          total_days?: number
+          updated_at?: string
+          used_days?: number
+          user_id: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leave_type?: string
+          profile_id?: string | null
+          total_days?: number
+          updated_at?: string
+          used_days?: number
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_balances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_requests: {
+        Row: {
+          created_at: string
+          days: number
+          from_date: string
+          id: string
+          leave_type: string
+          profile_id: string | null
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          to_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          days?: number
+          from_date: string
+          id?: string
+          leave_type: string
+          profile_id?: string | null
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          to_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          days?: number
+          from_date?: string
+          id?: string
+          leave_type?: string
+          profile_id?: string | null
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          to_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memos: {
+        Row: {
+          author_name: string
+          content: string | null
+          created_at: string
+          department: string
+          excerpt: string | null
+          id: string
+          priority: string
+          published_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+          views: number
+        }
+        Insert: {
+          author_name: string
+          content?: string | null
+          created_at?: string
+          department?: string
+          excerpt?: string | null
+          id?: string
+          priority?: string
+          published_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          views?: number
+        }
+        Update: {
+          author_name?: string
+          content?: string | null
+          created_at?: string
+          department?: string
+          excerpt?: string | null
+          id?: string
+          priority?: string
+          published_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          views?: number
         }
         Relationships: []
       }
