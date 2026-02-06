@@ -19,29 +19,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Clock, UserCheck, UserX, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
-
-const attendanceData = [
-  { id: 1, name: "Rahul Sharma", department: "Engineering", date: "2024-01-15", checkIn: "09:02 AM", checkOut: "06:15 PM", hours: "9h 13m", status: "present" },
-  { id: 2, name: "Priya Patel", department: "Design", date: "2024-01-15", checkIn: "09:30 AM", checkOut: "06:45 PM", hours: "9h 15m", status: "present" },
-  { id: 3, name: "Amit Kumar", department: "Sales", date: "2024-01-15", checkIn: "10:15 AM", checkOut: "07:00 PM", hours: "8h 45m", status: "late" },
-  { id: 4, name: "Sneha Reddy", department: "HR", date: "2024-01-15", checkIn: "-", checkOut: "-", hours: "-", status: "absent" },
-  { id: 5, name: "Vikram Singh", department: "Engineering", date: "2024-01-15", checkIn: "08:45 AM", checkOut: "05:30 PM", hours: "8h 45m", status: "present" },
-  { id: 6, name: "Ananya Gupta", department: "Marketing", date: "2024-01-15", checkIn: "09:00 AM", checkOut: "-", hours: "Working", status: "present" },
-  { id: 7, name: "Karthik Nair", department: "Finance", date: "2024-01-15", checkIn: "-", checkOut: "-", hours: "-", status: "leave" },
-];
-
-const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const weekData = [
-  { day: "Mon", present: 42, absent: 3, late: 2, leave: 1 },
-  { day: "Tue", present: 44, absent: 1, late: 3, leave: 0 },
-  { day: "Wed", present: 40, absent: 4, late: 1, leave: 3 },
-  { day: "Thu", present: 43, absent: 2, late: 2, leave: 1 },
-  { day: "Fri", present: 41, absent: 3, late: 3, leave: 1 },
-];
+import { useAttendance, useAttendanceStats, useWeeklyAttendanceStats } from "@/hooks/useAttendance";
+import { format, addDays, subDays } from "date-fns";
 
 export default function Attendance() {
-  const [selectedDate, setSelectedDate] = useState("2024-01-15");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const { data: attendance = [], isLoading } = useAttendance(selectedDate);
+  const { data: stats } = useAttendanceStats(selectedDate);
+  const { data: weekData = [] } = useWeeklyAttendanceStats();
+
+  const filteredAttendance = attendance.filter((record) => {
+    const matchesStatus = statusFilter === "all" || record.status === statusFilter;
+    const matchesSearch = !searchTerm || 
+      record.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.profiles?.department?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -49,8 +47,35 @@ export default function Attendance() {
       late: "bg-amber-100 text-amber-700 border-amber-200",
       absent: "bg-red-100 text-red-700 border-red-200",
       leave: "bg-blue-100 text-blue-700 border-blue-200",
+      half_day: "bg-purple-100 text-purple-700 border-purple-200",
     };
     return styles[status] || "";
+  };
+
+  const formatTime = (timestamp: string | null) => {
+    if (!timestamp) return "-";
+    return format(new Date(timestamp), "hh:mm a");
+  };
+
+  const calculateHours = (checkIn: string | null, checkOut: string | null) => {
+    if (!checkIn) return "-";
+    if (!checkOut) return "Working";
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diffMs = end.getTime() - start.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
+
+  const handlePrevDay = () => {
+    const prev = subDays(new Date(selectedDate), 1);
+    setSelectedDate(prev.toISOString().split("T")[0]);
+  };
+
+  const handleNextDay = () => {
+    const next = addDays(new Date(selectedDate), 1);
+    setSelectedDate(next.toISOString().split("T")[0]);
   };
 
   return (
@@ -63,8 +88,8 @@ export default function Attendance() {
             <UserCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">42</div>
-            <p className="text-xs text-muted-foreground">Out of 48 employees</p>
+            <div className="text-2xl font-bold">{stats?.present || 0}</div>
+            <p className="text-xs text-muted-foreground">Out of {stats?.total || 0} employees</p>
           </CardContent>
         </Card>
         <Card>
@@ -73,7 +98,7 @@ export default function Attendance() {
             <UserX className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">3</div>
+            <div className="text-2xl font-bold text-red-600">{stats?.absent || 0}</div>
             <p className="text-xs text-muted-foreground">Unplanned absences</p>
           </CardContent>
         </Card>
@@ -83,7 +108,7 @@ export default function Attendance() {
             <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">2</div>
+            <div className="text-2xl font-bold text-amber-600">{stats?.late || 0}</div>
             <p className="text-xs text-muted-foreground">After 9:30 AM</p>
           </CardContent>
         </Card>
@@ -93,7 +118,7 @@ export default function Attendance() {
             <Calendar className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">1</div>
+            <div className="text-2xl font-bold text-blue-600">{stats?.leave || 0}</div>
             <p className="text-xs text-muted-foreground">Approved leaves</p>
           </CardContent>
         </Card>
@@ -107,7 +132,7 @@ export default function Attendance() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-5 gap-4">
-            {weekData.map((day, idx) => (
+            {weekData.length > 0 ? weekData.map((day, idx) => (
               <div key={day.day} className={`p-4 rounded-lg border ${idx === 0 ? "border-primary bg-primary/5" : ""}`}>
                 <p className="text-sm font-medium text-center mb-3">{day.day}</p>
                 <div className="space-y-2">
@@ -129,7 +154,11 @@ export default function Attendance() {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <Skeleton key={idx} className="h-32" />
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
@@ -142,7 +171,7 @@ export default function Attendance() {
             <CardDescription>Employee check-in and check-out records</CardDescription>
           </div>
           <div className="flex gap-2 items-center">
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" onClick={handlePrevDay}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Input
@@ -151,14 +180,19 @@ export default function Attendance() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-40"
             />
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" onClick={handleNextDay}>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <div className="relative ml-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search employee..." className="pl-9 w-48" />
+              <Input 
+                placeholder="Search employee..." 
+                className="pl-9 w-48" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Select defaultValue="all">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
@@ -177,34 +211,48 @@ export default function Attendance() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Check In</TableHead>
-                <TableHead>Check Out</TableHead>
-                <TableHead>Working Hours</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attendanceData.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell className="font-medium">{record.name}</TableCell>
-                  <TableCell>{record.department}</TableCell>
-                  <TableCell>{record.checkIn}</TableCell>
-                  <TableCell>{record.checkOut}</TableCell>
-                  <TableCell>{record.hours}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getStatusBadge(record.status)}>
-                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
+          {isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : filteredAttendance.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No attendance records found for this date
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Check In</TableHead>
+                  <TableHead>Check Out</TableHead>
+                  <TableHead>Working Hours</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAttendance.map((record) => (
+                  <TableRow key={record.id}>
+                    <TableCell className="font-medium">
+                      {record.profiles?.full_name || "Unknown"}
+                    </TableCell>
+                    <TableCell>{record.profiles?.department || "-"}</TableCell>
+                    <TableCell>{formatTime(record.check_in)}</TableCell>
+                    <TableCell>{formatTime(record.check_out)}</TableCell>
+                    <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getStatusBadge(record.status)}>
+                        {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </MainLayout>

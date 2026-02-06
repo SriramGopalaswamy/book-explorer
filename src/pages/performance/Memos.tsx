@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -24,75 +25,73 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Plus, Search, Clock, CheckCircle, Eye, Edit, Send, Users, AlertCircle } from "lucide-react";
-
-const memos = [
-  { 
-    id: 1, 
-    title: "Q1 2024 Company Update", 
-    author: "Sriram G.", 
-    department: "Leadership", 
-    date: "Jan 15, 2024", 
-    status: "published",
-    priority: "high",
-    views: 45,
-    excerpt: "Key updates on company performance, new initiatives, and Q1 goals..."
-  },
-  { 
-    id: 2, 
-    title: "New Remote Work Policy", 
-    author: "Sneha Reddy", 
-    department: "HR", 
-    date: "Jan 12, 2024", 
-    status: "published",
-    priority: "medium",
-    views: 38,
-    excerpt: "Updated guidelines for remote work arrangements and expectations..."
-  },
-  { 
-    id: 3, 
-    title: "IT Security Guidelines", 
-    author: "Vikram Singh", 
-    department: "IT", 
-    date: "Jan 10, 2024", 
-    status: "draft",
-    priority: "high",
-    views: 0,
-    excerpt: "Important security protocols all employees must follow..."
-  },
-  { 
-    id: 4, 
-    title: "Holiday Calendar 2024", 
-    author: "Sneha Reddy", 
-    department: "HR", 
-    date: "Jan 8, 2024", 
-    status: "published",
-    priority: "low",
-    views: 52,
-    excerpt: "Complete list of company holidays and observances for 2024..."
-  },
-  { 
-    id: 5, 
-    title: "Product Roadmap Q1", 
-    author: "Rahul Sharma", 
-    department: "Engineering", 
-    date: "Jan 5, 2024", 
-    status: "pending",
-    priority: "medium",
-    views: 0,
-    excerpt: "Technical roadmap and sprint planning for Q1 deliverables..."
-  },
-];
-
-const memoStats = {
-  total: 24,
-  published: 18,
-  drafts: 4,
-  pending: 2,
-};
+import { FileText, Plus, Search, Clock, CheckCircle, Eye, Edit, Send, AlertCircle, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { 
+  useMemos, 
+  useMemoStats, 
+  useCreateMemo, 
+  usePublishMemo,
+  useDeleteMemo,
+  useIncrementMemoViews,
+  type Memo,
+} from "@/hooks/useMemos";
 
 export default function Memos() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [department, setDepartment] = useState("All");
+  const [priority, setPriority] = useState<Memo["priority"]>("medium");
+
+  const { user } = useAuth();
+  const { data: memos = [], isLoading } = useMemos(activeTab);
+  const { data: stats } = useMemoStats();
+  const createMemo = useCreateMemo();
+  const publishMemo = usePublishMemo();
+  const deleteMemo = useDeleteMemo();
+  const incrementViews = useIncrementMemoViews();
+
+  const filteredMemos = memos.filter((memo) =>
+    !searchTerm || 
+    memo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    memo.author_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleCreateMemo = async (status: "draft" | "published") => {
+    if (!title) return;
+    
+    const authorName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Unknown";
+    
+    await createMemo.mutateAsync({
+      title,
+      content,
+      department,
+      priority,
+      status,
+      author_name: authorName,
+    });
+    
+    setIsDialogOpen(false);
+    setTitle("");
+    setContent("");
+    setDepartment("All");
+    setPriority("medium");
+  };
+
+  const handleViewMemo = (memo: Memo) => {
+    setSelectedMemo(memo);
+    setViewDialogOpen(true);
+    if (memo.status === "published") {
+      incrementViews.mutate(memo.id);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, { class: string; icon: typeof CheckCircle }> = {
@@ -133,7 +132,7 @@ export default function Memos() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{memoStats.total}</div>
+            <div className="text-2xl font-bold">{stats?.total || 0}</div>
             <p className="text-xs text-muted-foreground">This year</p>
           </CardContent>
         </Card>
@@ -143,7 +142,7 @@ export default function Memos() {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{memoStats.published}</div>
+            <div className="text-2xl font-bold text-green-600">{stats?.published || 0}</div>
             <p className="text-xs text-muted-foreground">Active memos</p>
           </CardContent>
         </Card>
@@ -153,7 +152,7 @@ export default function Memos() {
             <Edit className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{memoStats.drafts}</div>
+            <div className="text-2xl font-bold">{stats?.drafts || 0}</div>
             <p className="text-xs text-muted-foreground">In progress</p>
           </CardContent>
         </Card>
@@ -163,7 +162,7 @@ export default function Memos() {
             <AlertCircle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{memoStats.pending}</div>
+            <div className="text-2xl font-bold text-amber-600">{stats?.pending || 0}</div>
             <p className="text-xs text-muted-foreground">Awaiting approval</p>
           </CardContent>
         </Card>
@@ -179,19 +178,13 @@ export default function Memos() {
           <div className="flex gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search memos..." className="pl-9 w-64" />
+              <Input 
+                placeholder="Search memos..." 
+                className="pl-9 w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="published">Published</SelectItem>
-                <SelectItem value="draft">Drafts</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-              </SelectContent>
-            </Select>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -207,27 +200,33 @@ export default function Memos() {
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label>Title</Label>
-                    <Input placeholder="Enter memo title" />
+                    <Input 
+                      placeholder="Enter memo title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Department</Label>
-                      <Select>
+                      <Select value={department} onValueChange={setDepartment}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Departments</SelectItem>
-                          <SelectItem value="engineering">Engineering</SelectItem>
-                          <SelectItem value="hr">HR</SelectItem>
-                          <SelectItem value="sales">Sales</SelectItem>
-                          <SelectItem value="marketing">Marketing</SelectItem>
+                          <SelectItem value="All">All Departments</SelectItem>
+                          <SelectItem value="Engineering">Engineering</SelectItem>
+                          <SelectItem value="HR">HR</SelectItem>
+                          <SelectItem value="Sales">Sales</SelectItem>
+                          <SelectItem value="Marketing">Marketing</SelectItem>
+                          <SelectItem value="Finance">Finance</SelectItem>
+                          <SelectItem value="Leadership">Leadership</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-2">
                       <Label>Priority</Label>
-                      <Select>
+                      <Select value={priority} onValueChange={(v) => setPriority(v as Memo["priority"])}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
@@ -241,14 +240,28 @@ export default function Memos() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Content</Label>
-                    <Textarea placeholder="Write your memo content here..." className="min-h-[200px]" />
+                    <Textarea 
+                      placeholder="Write your memo content here..." 
+                      className="min-h-[200px]"
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Save Draft</Button>
-                  <Button onClick={() => setIsDialogOpen(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleCreateMemo("draft")}
+                    disabled={createMemo.isPending || !title}
+                  >
+                    Save Draft
+                  </Button>
+                  <Button 
+                    onClick={() => handleCreateMemo("published")}
+                    disabled={createMemo.isPending || !title}
+                  >
                     <Send className="h-4 w-4 mr-2" />
-                    Publish
+                    {createMemo.isPending ? "Publishing..." : "Publish"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -256,59 +269,125 @@ export default function Memos() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="published">Published</TabsTrigger>
-              <TabsTrigger value="drafts">Drafts</TabsTrigger>
+              <TabsTrigger value="draft">Drafts</TabsTrigger>
               <TabsTrigger value="pending">Pending</TabsTrigger>
             </TabsList>
-            <TabsContent value="all">
-              <div className="space-y-4">
-                {memos.map((memo) => (
-                  <div key={memo.id} className="p-4 rounded-lg border hover:bg-secondary/30 transition-colors cursor-pointer">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-lg">{memo.title}</h3>
-                          {getStatusBadge(memo.status)}
-                          {getPriorityBadge(memo.priority)}
-                        </div>
-                        <p className="text-muted-foreground mb-3">{memo.excerpt}</p>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarFallback className="text-xs">{memo.author.split(" ").map(n => n[0]).join("")}</AvatarFallback>
-                            </Avatar>
-                            <span>{memo.author}</span>
+            <TabsContent value={activeTab}>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              ) : filteredMemos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No memos found
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredMemos.map((memo) => (
+                    <div key={memo.id} className="p-4 rounded-lg border hover:bg-secondary/30 transition-colors">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-semibold text-lg">{memo.title}</h3>
+                            {getStatusBadge(memo.status)}
+                            {getPriorityBadge(memo.priority)}
                           </div>
-                          <span>•</span>
-                          <span>{memo.department}</span>
-                          <span>•</span>
-                          <span>{memo.date}</span>
-                          {memo.status === "published" && (
-                            <>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                {memo.views} views
-                              </span>
-                            </>
+                          {memo.excerpt && (
+                            <p className="text-muted-foreground mb-3">{memo.excerpt}</p>
                           )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-xs">
+                                  {memo.author_name.split(" ").map(n => n[0]).join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span>{memo.author_name}</span>
+                            </div>
+                            <span>•</span>
+                            <span>{memo.department}</span>
+                            <span>•</span>
+                            <span>{format(new Date(memo.created_at), "MMM d, yyyy")}</span>
+                            {memo.status === "published" && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <Eye className="h-3 w-3" />
+                                  {memo.views} views
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewMemo(memo)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                          {memo.status === "draft" && (
+                            <Button 
+                              size="sm"
+                              onClick={() => publishMemo.mutate(memo.id)}
+                              disabled={publishMemo.isPending}
+                            >
+                              <Send className="h-4 w-4 mr-1" />
+                              Publish
+                            </Button>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteMemo.mutate(memo.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* View Memo Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedMemo?.title}</DialogTitle>
+            <DialogDescription>
+              By {selectedMemo?.author_name} • {selectedMemo?.department} • {selectedMemo && format(new Date(selectedMemo.created_at), "MMM d, yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex gap-2 mb-4">
+              {selectedMemo && getStatusBadge(selectedMemo.status)}
+              {selectedMemo && getPriorityBadge(selectedMemo.priority)}
+            </div>
+            <div className="prose prose-sm max-w-none">
+              {selectedMemo?.content || "No content"}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
