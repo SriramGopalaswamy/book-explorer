@@ -49,6 +49,7 @@ import {
   useCreateInvoice,
   useUpdateInvoiceStatus,
   useDeleteInvoice,
+  downloadInvoicePdf,
   Invoice,
 } from "@/hooks/useInvoices";
 
@@ -388,7 +389,27 @@ export default function Invoicing() {
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit Invoice
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                try {
+                                  toast({
+                                    title: "Generating PDF",
+                                    description: "Please wait while we generate your invoice...",
+                                  });
+                                  await downloadInvoicePdf(invoice.id);
+                                  toast({
+                                    title: "Download Complete",
+                                    description: `Invoice ${invoice.invoice_number} has been downloaded.`,
+                                  });
+                                } catch (error) {
+                                  toast({
+                                    title: "Download Failed",
+                                    description: error instanceof Error ? error.message : "Failed to download PDF",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                            >
                               <Download className="mr-2 h-4 w-4" />
                               Download PDF
                             </DropdownMenuItem>
