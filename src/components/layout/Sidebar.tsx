@@ -7,6 +7,7 @@ import {
   Target,
   FileText,
   Building2,
+  BarChart3,
   Clock,
   Calendar,
   CreditCard,
