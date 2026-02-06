@@ -81,10 +81,14 @@ const getStatusConfig = (status: Invoice["status"]) => {
 export default function Invoicing() {
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  
   const [formData, setFormData] = useState({
     clientName: "",
     clientEmail: "",
@@ -93,6 +97,15 @@ export default function Invoicing() {
     rate: "",
     dueDate: "",
     notes: "",
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    clientName: "",
+    clientEmail: "",
+    description: "",
+    quantity: "1",
+    rate: "",
+    dueDate: "",
   });
 
   const totalOutstanding = invoices
