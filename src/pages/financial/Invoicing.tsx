@@ -24,18 +24,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText,
   Plus,
@@ -50,83 +44,13 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-
-interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  clientName: string;
-  clientEmail: string;
-  amount: number;
-  dueDate: string;
-  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
-  createdAt: string;
-  items: InvoiceItem[];
-}
-
-interface InvoiceItem {
-  description: string;
-  quantity: number;
-  rate: number;
-  amount: number;
-}
-
-const initialInvoices: Invoice[] = [
-  {
-    id: "1",
-    invoiceNumber: "INV-2024-001",
-    clientName: "Acme Corporation",
-    clientEmail: "billing@acme.com",
-    amount: 250000,
-    dueDate: "2024-02-15",
-    status: "paid",
-    createdAt: "2024-01-15",
-    items: [{ description: "Consulting Services", quantity: 1, rate: 250000, amount: 250000 }],
-  },
-  {
-    id: "2",
-    invoiceNumber: "INV-2024-002",
-    clientName: "TechStart Innovations",
-    clientEmail: "accounts@techstart.io",
-    amount: 180000,
-    dueDate: "2024-02-20",
-    status: "sent",
-    createdAt: "2024-01-18",
-    items: [{ description: "Software Development", quantity: 1, rate: 180000, amount: 180000 }],
-  },
-  {
-    id: "3",
-    invoiceNumber: "INV-2024-003",
-    clientName: "Global Logistics Ltd",
-    clientEmail: "finance@globallogistics.com",
-    amount: 95000,
-    dueDate: "2024-01-25",
-    status: "overdue",
-    createdAt: "2024-01-10",
-    items: [{ description: "IT Support", quantity: 1, rate: 95000, amount: 95000 }],
-  },
-  {
-    id: "4",
-    invoiceNumber: "INV-2024-004",
-    clientName: "Design Studio Pro",
-    clientEmail: "hello@designstudio.in",
-    amount: 45000,
-    dueDate: "2024-02-28",
-    status: "draft",
-    createdAt: "2024-01-20",
-    items: [{ description: "Branding Package", quantity: 1, rate: 45000, amount: 45000 }],
-  },
-  {
-    id: "5",
-    invoiceNumber: "INV-2024-005",
-    clientName: "Retail Masters",
-    clientEmail: "payments@retailmasters.com",
-    amount: 320000,
-    dueDate: "2024-02-10",
-    status: "sent",
-    createdAt: "2024-01-22",
-    items: [{ description: "E-commerce Integration", quantity: 1, rate: 320000, amount: 320000 }],
-  },
-];
+import {
+  useInvoices,
+  useCreateInvoice,
+  useUpdateInvoiceStatus,
+  useDeleteInvoice,
+  Invoice,
+} from "@/hooks/useInvoices";
 
 const formatCurrency = (amount: number) => {
   if (amount >= 100000) {
@@ -153,7 +77,11 @@ const getStatusConfig = (status: Invoice["status"]) => {
 };
 
 export default function Invoicing() {
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const { data: invoices = [], isLoading } = useInvoices();
+  const createInvoice = useCreateInvoice();
+  const updateStatus = useUpdateInvoiceStatus();
+  const deleteInvoice = useDeleteInvoice();
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     clientName: "",
@@ -167,11 +95,11 @@ export default function Invoicing() {
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "sent" || inv.status === "overdue")
-    .reduce((sum, inv) => sum + inv.amount, 0);
+    .reduce((sum, inv) => sum + Number(inv.amount), 0);
 
   const totalPaid = invoices
     .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + inv.amount, 0);
+    .reduce((sum, inv) => sum + Number(inv.amount), 0);
 
   const overdueCount = invoices.filter((inv) => inv.status === "overdue").length;
   const draftCount = invoices.filter((inv) => inv.status === "draft").length;
@@ -194,59 +122,44 @@ export default function Invoicing() {
     const rate = parseFloat(formData.rate) || 0;
     const amount = quantity * rate;
 
-    const newInvoice: Invoice = {
-      id: Date.now().toString(),
-      invoiceNumber: `INV-2024-${String(invoices.length + 1).padStart(3, "0")}`,
-      clientName: formData.clientName.trim(),
-      clientEmail: formData.clientEmail.trim(),
-      amount,
-      dueDate: formData.dueDate,
-      status: "draft",
-      createdAt: new Date().toISOString().split("T")[0],
-      items: [
-        {
-          description: formData.description || "Services",
-          quantity,
-          rate,
-          amount,
+    createInvoice.mutate(
+      {
+        client_name: formData.clientName.trim(),
+        client_email: formData.clientEmail.trim(),
+        amount,
+        due_date: formData.dueDate,
+        items: [
+          {
+            description: formData.description || "Services",
+            quantity,
+            rate,
+            amount,
+          },
+        ],
+      },
+      {
+        onSuccess: () => {
+          setFormData({
+            clientName: "",
+            clientEmail: "",
+            description: "",
+            quantity: "1",
+            rate: "",
+            dueDate: "",
+            notes: "",
+          });
+          setIsDialogOpen(false);
         },
-      ],
-    };
-
-    setInvoices((prev) => [newInvoice, ...prev]);
-    setFormData({
-      clientName: "",
-      clientEmail: "",
-      description: "",
-      quantity: "1",
-      rate: "",
-      dueDate: "",
-      notes: "",
-    });
-    setIsDialogOpen(false);
-
-    toast({
-      title: "Invoice Created",
-      description: `Invoice ${newInvoice.invoiceNumber} has been created as a draft.`,
-    });
+      }
+    );
   };
 
   const handleStatusChange = (invoiceId: string, newStatus: Invoice["status"]) => {
-    setInvoices((prev) =>
-      prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: newStatus } : inv))
-    );
-    toast({
-      title: "Status Updated",
-      description: `Invoice status changed to ${newStatus}.`,
-    });
+    updateStatus.mutate({ id: invoiceId, status: newStatus });
   };
 
   const handleDelete = (invoiceId: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
-    toast({
-      title: "Invoice Deleted",
-      description: "The invoice has been removed.",
-    });
+    deleteInvoice.mutate(invoiceId);
   };
 
   return (
@@ -265,7 +178,7 @@ export default function Invoicing() {
           <StatCard
             title="Total Paid"
             value={formatCurrency(totalPaid)}
-            change={{ value: "8.2%", type: "increase" }}
+            change={totalPaid > 0 ? { value: "8.2%", type: "increase" } : undefined}
             icon={<CheckCircle2 className="h-4 w-4" />}
           />
           <StatCard
@@ -395,100 +308,118 @@ export default function Invoicing() {
                   </Button>
                   <Button
                     onClick={handleCreateInvoice}
+                    disabled={createInvoice.isPending}
                     className="bg-gradient-financial text-white hover:opacity-90"
                   >
-                    Create Invoice
+                    {createInvoice.isPending ? "Creating..." : "Create Invoice"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((invoice) => {
-                const statusConfig = getStatusConfig(invoice.status);
-                const StatusIcon = statusConfig.icon;
-                return (
-                  <TableRow key={invoice.id} className="cursor-pointer hover:bg-secondary/50">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{invoice.invoiceNumber}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{invoice.clientName}</p>
-                        <p className="text-sm text-muted-foreground">{invoice.clientEmail}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-semibold">
-                      {formatCurrency(invoice.amount)}
-                    </TableCell>
-                    <TableCell>{invoice.dueDate}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusConfig.variant} className={statusConfig.className}>
-                        <StatusIcon className="mr-1 h-3 w-3" />
-                        {statusConfig.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit Invoice
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download PDF
-                          </DropdownMenuItem>
-                          {invoice.status === "draft" && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, "sent")}>
-                              <Send className="mr-2 h-4 w-4" />
-                              Send Invoice
+
+          {isLoading ? (
+            <div className="p-6 space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="p-12 text-center">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold text-foreground">No invoices yet</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Create your first invoice to get started
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoices.map((invoice) => {
+                  const statusConfig = getStatusConfig(invoice.status);
+                  const StatusIcon = statusConfig.icon;
+                  return (
+                    <TableRow key={invoice.id} className="cursor-pointer hover:bg-secondary/50">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{invoice.invoice_number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{invoice.client_name}</p>
+                          <p className="text-sm text-muted-foreground">{invoice.client_email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold">
+                        {formatCurrency(Number(invoice.amount))}
+                      </TableCell>
+                      <TableCell>{invoice.due_date}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusConfig.variant} className={statusConfig.className}>
+                          <StatusIcon className="mr-1 h-3 w-3" />
+                          {statusConfig.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
                             </DropdownMenuItem>
-                          )}
-                          {(invoice.status === "sent" || invoice.status === "overdue") && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, "paid")}>
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Mark as Paid
+                            <DropdownMenuItem>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit Invoice
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDelete(invoice.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                            <DropdownMenuItem>
+                              <Download className="mr-2 h-4 w-4" />
+                              Download PDF
+                            </DropdownMenuItem>
+                            {invoice.status === "draft" && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, "sent")}>
+                                <Send className="mr-2 h-4 w-4" />
+                                Send Invoice
+                              </DropdownMenuItem>
+                            )}
+                            {(invoice.status === "sent" || invoice.status === "overdue") && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, "paid")}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Mark as Paid
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDelete(invoice.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </div>
     </MainLayout>
