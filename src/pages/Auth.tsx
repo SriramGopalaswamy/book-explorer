@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Building2, Mail, Lock, User, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
+import grx10Logo from "@/assets/grx10-logo.svg";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
@@ -128,20 +129,19 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-dark p-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
-              <Building2 className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <span className="text-2xl font-bold text-foreground">GRX10</span>
-          </div>
-          <p className="text-muted-foreground text-sm">Business Suite</p>
+          <img 
+            src={grx10Logo} 
+            alt="GRX10" 
+            className="h-12 w-auto mb-4"
+          />
+          <p className="text-white/70 text-sm">Business Suite</p>
         </div>
 
-        <Card className="shadow-xl border-border/50">
+        <Card className="shadow-xl border-border/50 bg-card/95 backdrop-blur">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">
               {showForgotPassword ? "Reset Password" : "Welcome"}
@@ -381,7 +381,7 @@ export default function Auth() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
+        <p className="text-center text-sm text-white/50 mt-6">
           By signing in, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
