@@ -15,6 +15,7 @@ import Accounting from "./pages/financial/Accounting";
 import Invoicing from "./pages/financial/Invoicing";
 import Banking from "./pages/financial/Banking";
 import CashFlow from "./pages/financial/CashFlow";
+import Analytics from "./pages/financial/Analytics";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
             <Route path="/financial/banking" element={<ProtectedRoute><Banking /></ProtectedRoute>} />
             <Route path="/financial/cashflow" element={<ProtectedRoute><CashFlow /></ProtectedRoute>} />
+            <Route path="/financial/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
             
             {/* HRMS */}
             <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
