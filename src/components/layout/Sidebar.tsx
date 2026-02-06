@@ -2,7 +2,6 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  Wallet,
   Users,
   Target,
   FileText,
@@ -17,6 +16,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import grx10Logo from "@/assets/grx10-logo.svg";
 
 interface NavItem {
   name: string;
@@ -87,28 +87,28 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
+        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-gradient-dark transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-accent">
-              <Wallet className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-sidebar-foreground">GRX10</h1>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
-                Business Suite
-              </p>
-            </div>
+          <div className="flex items-center gap-3">
+            <img 
+              src={grx10Logo} 
+              alt="GRX10" 
+              className="h-8 w-auto"
+            />
           </div>
         )}
         {collapsed && (
-          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-accent">
-            <Wallet className="h-5 w-5 text-primary" />
+          <div className="mx-auto flex h-9 w-9 items-center justify-center">
+            <img 
+              src={grx10Logo} 
+              alt="GRX10" 
+              className="h-6 w-auto"
+            />
           </div>
         )}
       </div>
