@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 
 // Financial Suite
 import Accounting from "./pages/financial/Accounting";
+import Invoicing from "./pages/financial/Invoicing";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -28,7 +29,7 @@ const App = () => (
           
           {/* Financial Suite */}
           <Route path="/financial/accounting" element={<Accounting />} />
-          <Route path="/financial/invoicing" element={<Accounting />} />
+          <Route path="/financial/invoicing" element={<Invoicing />} />
           <Route path="/financial/banking" element={<Accounting />} />
           <Route path="/financial/cashflow" element={<Accounting />} />
           
