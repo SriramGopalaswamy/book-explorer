@@ -458,7 +458,7 @@ export default function Invoicing() {
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit Invoice
                             </DropdownMenuItem>
