@@ -1,0 +1,142 @@
+import { useState } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
+} from "lucide-react";
+import { useProfitLoss, useBalanceSheet, useExpenseByCategory } from "@/hooks/useAnalytics";
+
+// Report components
+import { ProfitLossStatement } from "@/components/analytics/ProfitLossStatement";
+import { BalanceSheetSummary } from "@/components/analytics/BalanceSheetSummary";
+import { RevenueTrendChart, ProfitBarChart } from "@/components/analytics/RevenueTrendChart";
+import { ExpenseBreakdownDonut, RevenueSourceDonut } from "@/components/analytics/CategoryBreakdowns";
+import { AccountsReceivableAging } from "@/components/analytics/AccountsReceivableAging";
+import { ChartOfAccountsTable } from "@/components/analytics/ChartOfAccountsTable";
+
+const formatCurrency = (v: number) => {
+  if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
+  if (v >= 100000) return `₹${(v / 100000).toFixed(2)}L`;
+  return `₹${v.toLocaleString("en-IN")}`;
+};
+
+export default function Analytics() {
+  const pl = useProfitLoss();
+  const bs = useBalanceSheet();
+  const expenses = useExpenseByCategory();
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const topExpense = expenses.length > 0 ? expenses.reduce((a, b) => a.value > b.value ? a : b) : null;
+
+  return (
+    <MainLayout title="Analytics & Reports" subtitle="Comprehensive financial intelligence and standard reports">
+      <div className="space-y-6 animate-fade-in">
+        {/* KPI Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(pl.totalRevenue)}</div>
+              <p className="text-xs text-green-600">From {pl.revenue.length} sources</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(pl.totalExpenses)}</div>
+              <p className="text-xs text-muted-foreground">
+                Largest: {topExpense?.name || "N/A"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Net Income</CardTitle>
+              <DollarSign className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${pl.netIncome >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatCurrency(pl.netIncome)}
+              </div>
+              <p className="text-xs text-muted-foreground">{pl.grossMargin.toFixed(1)}% margin</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
+              <Layers className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(bs.totalAssets)}</div>
+              <p className="text-xs text-muted-foreground">Net worth: {formatCurrency(bs.totalAssets - bs.totalLiabilities)}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 max-w-lg">
+            <TabsTrigger value="overview" className="flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" />
+              Reports
+            </TabsTrigger>
+            <TabsTrigger value="charts" className="flex items-center gap-1.5">
+              <PieChart className="h-3.5 w-3.5" />
+              Charts
+            </TabsTrigger>
+            <TabsTrigger value="coa" className="flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5" />
+              CoA
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6 mt-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <RevenueTrendChart />
+              <ProfitBarChart />
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <ExpenseBreakdownDonut />
+              <RevenueSourceDonut />
+            </div>
+            <AccountsReceivableAging />
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports" className="space-y-6 mt-6">
+            <ProfitLossStatement />
+            <BalanceSheetSummary />
+          </TabsContent>
+
+          {/* Charts Tab */}
+          <TabsContent value="charts" className="space-y-6 mt-6">
+            <RevenueTrendChart />
+            <div className="grid md:grid-cols-2 gap-6">
+              <ExpenseBreakdownDonut />
+              <RevenueSourceDonut />
+            </div>
+            <ProfitBarChart />
+            <AccountsReceivableAging />
+          </TabsContent>
+
+          {/* Chart of Accounts Tab */}
+          <TabsContent value="coa" className="space-y-6 mt-6">
+            <ChartOfAccountsTable />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </MainLayout>
+  );
+}
