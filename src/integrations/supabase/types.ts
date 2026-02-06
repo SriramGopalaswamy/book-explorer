@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_number: string
+          account_type: string
+          balance: number
+          bank_name: string | null
+          created_at: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_number: string
+          account_type?: string
+          balance?: number
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_number?: string
+          account_type?: string
+          balance?: number
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bank_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category: string | null
+          created_at: string
+          description: string
+          id: string
+          reference: string | null
+          transaction_date: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          reference?: string | null
+          transaction_date?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          reference?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_records: {
         Row: {
           amount: number
@@ -155,6 +241,51 @@ export type Database = {
           full_name?: string | null
           id?: string
           job_title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      scheduled_payments: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          due_date: string
+          id: string
+          name: string
+          payment_type: string
+          recurrence_interval: string | null
+          recurring: boolean
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category?: string | null
+          created_at?: string
+          due_date: string
+          id?: string
+          name: string
+          payment_type?: string
+          recurrence_interval?: string | null
+          recurring?: boolean
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          due_date?: string
+          id?: string
+          name?: string
+          payment_type?: string
+          recurrence_interval?: string | null
+          recurring?: boolean
+          status?: string
           updated_at?: string
           user_id?: string
         }
