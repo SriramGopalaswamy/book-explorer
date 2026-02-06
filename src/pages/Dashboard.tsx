@@ -9,6 +9,8 @@ import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
+import { useDashboardStats, formatIndianCurrency } from "@/hooks/useDashboardStats";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Wallet,
   Users,
@@ -17,6 +19,7 @@ import {
   ArrowDownRight,
   DollarSign,
   UserCheck,
+  FileText,
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -24,6 +27,8 @@ export default function Dashboard() {
     from: subMonths(new Date(), 6),
     to: new Date(),
   });
+
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
   const filterRange = dateRange?.from && dateRange?.to
     ? { from: dateRange.from, to: dateRange.to }
@@ -37,30 +42,53 @@ export default function Dashboard() {
       <div className="space-y-6 animate-fade-in">
         {/* Key Metrics */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Revenue"
-            value="₹45,23,000"
-            change={{ value: "12.5%", type: "increase" }}
-            icon={<DollarSign className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Active Employees"
-            value="127"
-            change={{ value: "3", type: "increase" }}
-            icon={<UserCheck className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Pending Invoices"
-            value="23"
-            change={{ value: "5", type: "decrease" }}
-            icon={<ArrowDownRight className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Goals Achieved"
-            value="85%"
-            change={{ value: "8%", type: "increase" }}
-            icon={<ArrowUpRight className="h-4 w-4" />}
-          />
+          {statsLoading ? (
+            <>
+              <Skeleton className="h-28 rounded-xl" />
+              <Skeleton className="h-28 rounded-xl" />
+              <Skeleton className="h-28 rounded-xl" />
+              <Skeleton className="h-28 rounded-xl" />
+            </>
+          ) : (
+            <>
+              <StatCard
+                title="Total Revenue"
+                value={formatIndianCurrency(stats?.totalRevenue || 0)}
+                change={{
+                  value: `${Math.abs(stats?.revenueChange || 0)}%`,
+                  type: (stats?.revenueChange || 0) >= 0 ? "increase" : "decrease",
+                }}
+                icon={<DollarSign className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Active Employees"
+                value={String(stats?.activeEmployees || 0)}
+                change={{
+                  value: String(Math.abs(stats?.employeeChange || 0)),
+                  type: (stats?.employeeChange || 0) >= 0 ? "increase" : "decrease",
+                }}
+                icon={<UserCheck className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Pending Invoices"
+                value={String(stats?.pendingInvoices || 0)}
+                change={{
+                  value: String(Math.abs(stats?.invoiceChange || 0)),
+                  type: (stats?.invoiceChange || 0) <= 0 ? "decrease" : "increase",
+                }}
+                icon={<FileText className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Goals Progress"
+                value={`${stats?.goalsAchieved || 0}%`}
+                change={{
+                  value: `${Math.abs(stats?.goalsChange || 0)}%`,
+                  type: (stats?.goalsChange || 0) >= 0 ? "increase" : "decrease",
+                }}
+                icon={<Target className="h-4 w-4" />}
+              />
+            </>
+          )}
         </div>
 
         {/* Quick Actions */}
