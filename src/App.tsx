@@ -15,6 +15,7 @@ import Accounting from "./pages/financial/Accounting";
 import Invoicing from "./pages/financial/Invoicing";
 import Banking from "./pages/financial/Banking";
 import CashFlow from "./pages/financial/CashFlow";
+import Analytics from "./pages/financial/Analytics";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
