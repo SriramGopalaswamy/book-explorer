@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 // Financial Suite
@@ -20,37 +23,43 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          
-          {/* Financial Suite */}
-          <Route path="/financial/accounting" element={<Accounting />} />
-          <Route path="/financial/invoicing" element={<Invoicing />} />
-          <Route path="/financial/banking" element={<Accounting />} />
-          <Route path="/financial/cashflow" element={<Accounting />} />
-          
-          {/* HRMS */}
-          <Route path="/hrms/employees" element={<Employees />} />
-          <Route path="/hrms/attendance" element={<Employees />} />
-          <Route path="/hrms/leaves" element={<Employees />} />
-          <Route path="/hrms/payroll" element={<Employees />} />
-          
-          {/* Performance OS */}
-          <Route path="/performance/goals" element={<Goals />} />
-          <Route path="/performance/memos" element={<Goals />} />
-          
-          {/* Settings */}
-          <Route path="/settings" element={<Index />} />
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected routes */}
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            
+            {/* Financial Suite */}
+            <Route path="/financial/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+            <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
+            <Route path="/financial/banking" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+            <Route path="/financial/cashflow" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+            
+            {/* HRMS */}
+            <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+            <Route path="/hrms/attendance" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+            <Route path="/hrms/leaves" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+            <Route path="/hrms/payroll" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+            
+            {/* Performance OS */}
+            <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+            <Route path="/performance/memos" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+            
+            {/* Settings */}
+            <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
