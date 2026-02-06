@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 
 // Financial Suite
 import Accounting from "./pages/financial/Accounting";
+import Invoicing from "./pages/financial/Invoicing";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
