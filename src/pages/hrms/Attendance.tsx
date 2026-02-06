@@ -112,9 +112,28 @@ export default function Attendance() {
     setSelectedDate(next.toISOString().split("T")[0]);
   };
 
-  return (
-    <MainLayout title="Attendance" subtitle="Track employee attendance and work hours">
-      {/* Stats Cards */}
+  const handleCheckIn = () => {
+    checkIn.mutate();
+  };
+
+  const handleCheckOut = () => {
+    if (myAttendance?.id) {
+      checkOut.mutate(myAttendance.id);
+    }
+  };
+
+  const getWorkingDuration = () => {
+    if (!myAttendance?.check_in) return null;
+    const start = new Date(myAttendance.check_in);
+    const end = myAttendance.check_out ? new Date(myAttendance.check_out) : currentTime;
+    const diffMs = end.getTime() - start.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    return { hours, minutes, seconds };
+  };
+
+  const workingDuration = getWorkingDuration();
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
