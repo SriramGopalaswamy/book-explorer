@@ -7,12 +7,12 @@ import {
   Wallet,
   Users,
   Target,
-  TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
   UserCheck,
 } from "lucide-react";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
 
 export default function Dashboard() {
   return (
