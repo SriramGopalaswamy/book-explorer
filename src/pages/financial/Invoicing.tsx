@@ -123,6 +123,65 @@ export default function Invoicing() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    const firstItem = invoice.invoice_items?.[0];
+    setEditFormData({
+      clientName: invoice.client_name,
+      clientEmail: invoice.client_email,
+      description: firstItem?.description || "",
+      quantity: String(firstItem?.quantity || 1),
+      rate: String(firstItem?.rate || invoice.amount),
+      dueDate: invoice.due_date,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateInvoice = () => {
+    if (!editingInvoice) return;
+    
+    if (!editFormData.clientName.trim() || !editFormData.clientEmail.trim() || !editFormData.rate || !editFormData.dueDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const quantity = parseInt(editFormData.quantity) || 1;
+    const rate = parseFloat(editFormData.rate) || 0;
+    const amount = quantity * rate;
+
+    updateInvoice.mutate(
+      {
+        id: editingInvoice.id,
+        client_name: editFormData.clientName.trim(),
+        client_email: editFormData.clientEmail.trim(),
+        amount,
+        due_date: editFormData.dueDate,
+        items: [
+          {
+            description: editFormData.description || "Services",
+            quantity,
+            rate,
+            amount,
+          },
+        ],
+      },
+      {
+        onSuccess: () => {
+          setEditingInvoice(null);
+          setIsEditDialogOpen(false);
+        },
+      }
+    );
+  };
+
   const handleCreateInvoice = () => {
     if (!formData.clientName.trim() || !formData.clientEmail.trim() || !formData.rate || !formData.dueDate) {
       toast({
