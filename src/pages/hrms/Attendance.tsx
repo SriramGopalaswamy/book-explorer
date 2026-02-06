@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,18 +20,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Clock, UserCheck, UserX, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
-import { useAttendance, useAttendanceStats, useWeeklyAttendanceStats } from "@/hooks/useAttendance";
+import { 
+  Calendar, 
+  Clock, 
+  UserCheck, 
+  UserX, 
+  Search, 
+  Download, 
+  ChevronLeft, 
+  ChevronRight,
+  LogIn,
+  LogOut,
+  Timer
+} from "lucide-react";
+import { 
+  useAttendance, 
+  useAttendanceStats, 
+  useWeeklyAttendanceStats,
+  useMyTodayAttendance,
+  useSelfCheckIn,
+  useSelfCheckOut
+} from "@/hooks/useAttendance";
 import { format, addDays, subDays } from "date-fns";
 
 export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const { data: attendance = [], isLoading } = useAttendance(selectedDate);
   const { data: stats } = useAttendanceStats(selectedDate);
   const { data: weekData = [] } = useWeeklyAttendanceStats();
+  const { data: myAttendance, isLoading: isLoadingMyAttendance } = useMyTodayAttendance();
+  
+  const checkIn = useSelfCheckIn();
+  const checkOut = useSelfCheckOut();
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
 
   const filteredAttendance = attendance.filter((record) => {
     const matchesStatus = statusFilter === "all" || record.status === statusFilter;
@@ -43,11 +74,11 @@ export default function Attendance() {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      present: "bg-green-100 text-green-700 border-green-200",
-      late: "bg-amber-100 text-amber-700 border-amber-200",
-      absent: "bg-red-100 text-red-700 border-red-200",
-      leave: "bg-blue-100 text-blue-700 border-blue-200",
-      half_day: "bg-purple-100 text-purple-700 border-purple-200",
+      present: "bg-success/20 text-success border-success/30",
+      late: "bg-warning/20 text-warning border-warning/30",
+      absent: "bg-destructive/20 text-destructive border-destructive/30",
+      leave: "bg-primary/20 text-primary border-primary/30",
+      half_day: "bg-secondary text-secondary-foreground border-secondary",
     };
     return styles[status] || "";
   };
@@ -78,8 +109,118 @@ export default function Attendance() {
     setSelectedDate(next.toISOString().split("T")[0]);
   };
 
+  const handleCheckIn = () => {
+    checkIn.mutate();
+  };
+
+  const handleCheckOut = () => {
+    if (myAttendance?.id) {
+      checkOut.mutate(myAttendance.id);
+    }
+  };
+
+  const getWorkingDuration = () => {
+    if (!myAttendance?.check_in) return null;
+    const start = new Date(myAttendance.check_in);
+    const end = myAttendance.check_out ? new Date(myAttendance.check_out) : currentTime;
+    const diffMs = end.getTime() - start.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    return { hours, minutes, seconds };
+  };
+
+  const workingDuration = getWorkingDuration();
+
   return (
     <MainLayout title="Attendance" subtitle="Track employee attendance and work hours">
+      {/* Self Check-in/Check-out Card */}
+      <Card className="mb-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Timer className="h-5 w-5 text-primary" />
+                My Attendance - {format(currentTime, "EEEE, MMMM d, yyyy")}
+              </CardTitle>
+              <CardDescription>
+                Current time: {format(currentTime, "hh:mm:ss a")}
+              </CardDescription>
+            </div>
+            {myAttendance?.status && (
+              <Badge 
+                variant="outline" 
+                className={getStatusBadge(myAttendance.status)}
+              >
+                {myAttendance.status.charAt(0).toUpperCase() + myAttendance.status.slice(1)}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingMyAttendance ? (
+            <Skeleton className="h-20 w-full" />
+          ) : (
+            <div className="flex items-center gap-6">
+              {/* Check-in/Check-out Status */}
+              <div className="flex-1 grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Check In</p>
+                  <p className="text-lg font-semibold">
+                    {myAttendance?.check_in ? format(new Date(myAttendance.check_in), "hh:mm a") : "--:--"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Check Out</p>
+                  <p className="text-lg font-semibold">
+                    {myAttendance?.check_out ? format(new Date(myAttendance.check_out), "hh:mm a") : "--:--"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Working Hours</p>
+                  <p className="text-lg font-semibold">
+                    {workingDuration 
+                      ? `${workingDuration.hours}h ${workingDuration.minutes}m ${!myAttendance?.check_out ? `${workingDuration.seconds}s` : ''}`
+                      : "--:--"
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {!myAttendance?.check_in ? (
+                  <Button 
+                    onClick={handleCheckIn}
+                    disabled={checkIn.isPending}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    size="lg"
+                  >
+                    <LogIn className="mr-2 h-5 w-5" />
+                    {checkIn.isPending ? "Checking in..." : "Check In"}
+                  </Button>
+                ) : !myAttendance?.check_out ? (
+                  <Button 
+                    onClick={handleCheckOut}
+                    disabled={checkOut.isPending}
+                    variant="destructive"
+                    size="lg"
+                  >
+                    <LogOut className="mr-2 h-5 w-5" />
+                    {checkOut.isPending ? "Checking out..." : "Check Out"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <UserCheck className="h-5 w-5 text-green-500" />
+                    <span className="font-medium">Attendance recorded for today</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <Card>
