@@ -390,6 +390,105 @@ export default function Invoicing() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Edit Invoice Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Invoice</DialogTitle>
+                  <DialogDescription>
+                    Update the invoice details. Changes will be saved immediately.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editClientName">Client Name *</Label>
+                    <Input
+                      id="editClientName"
+                      placeholder="Enter client name"
+                      value={editFormData.clientName}
+                      onChange={(e) => handleEditInputChange("clientName", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editClientEmail">Client Email *</Label>
+                    <Input
+                      id="editClientEmail"
+                      type="email"
+                      placeholder="client@example.com"
+                      value={editFormData.clientEmail}
+                      onChange={(e) => handleEditInputChange("clientEmail", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editDescription">Description</Label>
+                    <Input
+                      id="editDescription"
+                      placeholder="Services rendered"
+                      value={editFormData.description}
+                      onChange={(e) => handleEditInputChange("description", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="editQuantity">Quantity</Label>
+                      <Input
+                        id="editQuantity"
+                        type="number"
+                        min="1"
+                        placeholder="1"
+                        value={editFormData.quantity}
+                        onChange={(e) => handleEditInputChange("quantity", e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="editRate">Rate (₹) *</Label>
+                      <Input
+                        id="editRate"
+                        type="number"
+                        min="0"
+                        placeholder="Enter amount"
+                        value={editFormData.rate}
+                        onChange={(e) => handleEditInputChange("rate", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editDueDate">Due Date *</Label>
+                    <Input
+                      id="editDueDate"
+                      type="date"
+                      value={editFormData.dueDate}
+                      onChange={(e) => handleEditInputChange("dueDate", e.target.value)}
+                    />
+                  </div>
+                  {editFormData.rate && (
+                    <div className="rounded-lg bg-secondary/50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total Amount</span>
+                        <span className="text-lg font-semibold text-foreground">
+                          {formatCurrency(
+                            (parseInt(editFormData.quantity) || 1) * (parseFloat(editFormData.rate) || 0)
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpdateInvoice}
+                    disabled={updateInvoice.isPending}
+                    className="bg-gradient-financial text-white hover:opacity-90"
+                  >
+                    {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {isLoading ? (
