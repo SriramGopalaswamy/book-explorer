@@ -137,6 +137,106 @@ export function useWeeklyAttendanceStats() {
   });
 }
 
+export function useMyTodayAttendance() {
+  const { user } = useAuth();
+  const today = new Date().toISOString().split("T")[0];
+
+  return useQuery({
+    queryKey: ["my-attendance-today", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as AttendanceRecord | null;
+    },
+    enabled: !!user,
+  });
+}
+
+export function useSelfCheckIn() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+
+      const today = new Date().toISOString().split("T")[0];
+      const now = new Date().toISOString();
+      const hour = new Date().getHours();
+      const status = hour >= 10 ? "late" : "present";
+
+      // First get user's profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .insert({
+          user_id: user.id,
+          profile_id: profile?.id || null,
+          date: today,
+          check_in: now,
+          status,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-attendance-today"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
+      toast.success("Checked in successfully!");
+    },
+    onError: (error) => {
+      toast.error("Failed to check in: " + error.message);
+    },
+  });
+}
+
+export function useSelfCheckOut() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (recordId: string) => {
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .update({ check_out: now })
+        .eq("id", recordId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-attendance-today"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      toast.success("Checked out successfully!");
+    },
+    onError: (error) => {
+      toast.error("Failed to check out: " + error.message);
+    },
+  });
+}
+
 export function useCheckIn() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
