@@ -134,6 +134,97 @@ export default function Attendance() {
   };
 
   const workingDuration = getWorkingDuration();
+
+  return (
+    <MainLayout title="Attendance" subtitle="Track employee attendance and work hours">
+      {/* Self Check-in/Check-out Card */}
+      <Card className="mb-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Timer className="h-5 w-5 text-primary" />
+                My Attendance - {format(currentTime, "EEEE, MMMM d, yyyy")}
+              </CardTitle>
+              <CardDescription>
+                Current time: {format(currentTime, "hh:mm:ss a")}
+              </CardDescription>
+            </div>
+            {myAttendance?.status && (
+              <Badge 
+                variant="outline" 
+                className={getStatusBadge(myAttendance.status)}
+              >
+                {myAttendance.status.charAt(0).toUpperCase() + myAttendance.status.slice(1)}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingMyAttendance ? (
+            <Skeleton className="h-20 w-full" />
+          ) : (
+            <div className="flex items-center gap-6">
+              {/* Check-in/Check-out Status */}
+              <div className="flex-1 grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Check In</p>
+                  <p className="text-lg font-semibold">
+                    {myAttendance?.check_in ? format(new Date(myAttendance.check_in), "hh:mm a") : "--:--"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Check Out</p>
+                  <p className="text-lg font-semibold">
+                    {myAttendance?.check_out ? format(new Date(myAttendance.check_out), "hh:mm a") : "--:--"}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border">
+                  <p className="text-xs text-muted-foreground mb-1">Working Hours</p>
+                  <p className="text-lg font-semibold">
+                    {workingDuration 
+                      ? `${workingDuration.hours}h ${workingDuration.minutes}m ${!myAttendance?.check_out ? `${workingDuration.seconds}s` : ''}`
+                      : "--:--"
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {!myAttendance?.check_in ? (
+                  <Button 
+                    onClick={handleCheckIn}
+                    disabled={checkIn.isPending}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    size="lg"
+                  >
+                    <LogIn className="mr-2 h-5 w-5" />
+                    {checkIn.isPending ? "Checking in..." : "Check In"}
+                  </Button>
+                ) : !myAttendance?.check_out ? (
+                  <Button 
+                    onClick={handleCheckOut}
+                    disabled={checkOut.isPending}
+                    variant="destructive"
+                    size="lg"
+                  >
+                    <LogOut className="mr-2 h-5 w-5" />
+                    {checkOut.isPending ? "Checking out..." : "Check Out"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <UserCheck className="h-5 w-5 text-green-500" />
+                    <span className="font-medium">Attendance recorded for today</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
