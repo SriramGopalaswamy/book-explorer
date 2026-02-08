@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, RefreshCw, CreditCard, Wallet, MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const } },
+};
 import {
   useBankAccounts,
   useBankTransactions,
@@ -148,54 +159,41 @@ export default function Banking() {
   return (
     <MainLayout title="Banking" subtitle="Manage bank accounts and transactions">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">Across {accounts.length} accounts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">This Month Inflow</CardTitle>
-            <ArrowDownLeft className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(monthlyStats?.inflow || 0)}</div>
-            <p className="text-xs text-muted-foreground">Credits received</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">This Month Outflow</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatCurrency(monthlyStats?.outflow || 0)}</div>
-            <p className="text-xs text-muted-foreground">Debits paid</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Accounts</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{accounts.length}</div>
-            <p className="text-xs text-muted-foreground">Connected accounts</p>
-          </CardContent>
-        </Card>
-      </div>
+      <motion.div
+        className="grid gap-4 md:grid-cols-4 mb-6"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+      >
+        {[
+          { label: "Total Balance", value: formatCurrency(totalBalance), sub: `Across ${accounts.length} accounts`, icon: Wallet, iconClass: "text-primary" },
+          { label: "This Month Inflow", value: formatCurrency(monthlyStats?.inflow || 0), sub: "Credits received", icon: ArrowDownLeft, iconClass: "text-green-500", valueClass: "text-green-500" },
+          { label: "This Month Outflow", value: formatCurrency(monthlyStats?.outflow || 0), sub: "Debits paid", icon: ArrowUpRight, iconClass: "text-red-500", valueClass: "text-red-500" },
+          { label: "Accounts", value: String(accounts.length), sub: "Connected accounts", icon: CreditCard, iconClass: "text-primary" },
+        ].map((stat) => (
+          <motion.div key={stat.label} variants={fadeUp}>
+            <Card className="glass-card glow-on-hover group transition-all duration-300 hover:-translate-y-1">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:shadow-glow transition-shadow">
+                  <stat.icon className={`h-4 w-4 ${stat.iconClass}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${stat.valueClass || ""}`}>{stat.value}</div>
+                <p className="text-xs text-muted-foreground">{stat.sub}</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
 
       {/* Bank Accounts */}
-      <Card className="mb-6">
+      <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}>
+      <Card className="mb-6 glass-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Bank Accounts</CardTitle>
+            <CardTitle className="text-gradient-primary">Bank Accounts</CardTitle>
             <CardDescription>Connected bank accounts and balances</CardDescription>
           </div>
           <div className="flex gap-2">
@@ -286,12 +284,13 @@ export default function Banking() {
               <p className="mt-2 text-muted-foreground">No bank accounts added yet</p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-3">
+            <motion.div className="grid gap-4 md:grid-cols-3" variants={staggerContainer} initial="hidden" animate="show">
               {accounts.map((account) => (
-                <Card key={account.id} className="border-2 hover:border-primary/50 transition-colors">
+                <motion.div key={account.id} variants={fadeUp}>
+                <Card className="glass-morphism glow-on-hover group transition-all duration-300 hover:-translate-y-1 hover:shadow-glow">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shimmer group-hover:shadow-glow transition-shadow">
                         <Building2 className="h-5 w-5 text-primary" />
                       </div>
                       <DropdownMenu>
@@ -321,17 +320,20 @@ export default function Banking() {
                     </Badge>
                   </CardContent>
                 </Card>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </CardContent>
       </Card>
+      </motion.div>
 
       {/* Recent Transactions */}
-      <Card>
+      <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.5 }}>
+      <Card className="glass-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Recent Transactions</CardTitle>
+            <CardTitle className="text-gradient-primary">Recent Transactions</CardTitle>
             <CardDescription>Latest banking activity across all accounts</CardDescription>
           </div>
           <div className="flex gap-2">
@@ -492,6 +494,7 @@ export default function Banking() {
           )}
         </CardContent>
       </Card>
+      </motion.div>
     </MainLayout>
   );
 }
