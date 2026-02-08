@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Wallet, Users, Calendar, TrendingUp, Download, Search, FileText,
-  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap,
+  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -32,6 +33,17 @@ import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
   useDeletePayroll, useProcessPayroll, type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
+import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const } },
+};
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
@@ -79,6 +91,7 @@ export default function Payroll() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRecord | null>(null);
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
+  const [paySlipRecord, setPaySlipRecord] = useState<PayrollRecord | null>(null);
 
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
   const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
@@ -229,69 +242,52 @@ export default function Payroll() {
           ))}
         </div>
       </div>
-      <div className="rounded-lg border bg-muted/50 p-3 flex justify-between items-center">
+      <div className="rounded-lg border bg-primary/5 border-primary/20 p-3 flex justify-between items-center">
         <span className="font-medium">Net Pay</span>
-        <span className="text-lg font-bold">{formatCurrency(form.net_pay)}</span>
+        <span className="text-lg font-bold text-gradient-primary">{formatCurrency(form.net_pay)}</span>
       </div>
     </div>
   );
 
   return (
     <MainLayout title="Payroll" subtitle="Manage salaries and compensation">
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Payroll</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.totalPayroll)}</div>
-              <p className="text-xs text-muted-foreground">For {periodLabel(selectedPeriod)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Employees</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalEmployees}</div>
-              <p className="text-xs text-muted-foreground">In payroll this period</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Processed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.processed}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.totalEmployees > 0
-                  ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete`
-                  : "No records"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
-              <Clock className="h-4 w-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
-              <p className="text-xs text-muted-foreground">Awaiting processing</p>
-            </CardContent>
-          </Card>
-        </div>
+        <motion.div
+          className="grid gap-4 md:grid-cols-4"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+        >
+          {[
+            { label: "Total Payroll", value: formatCurrency(stats.totalPayroll), sub: `For ${periodLabel(selectedPeriod)}`, icon: Wallet, iconClass: "text-primary" },
+            { label: "Employees", value: String(stats.totalEmployees), sub: "In payroll this period", icon: Users, iconClass: "text-primary" },
+            { label: "Processed", value: String(stats.processed), sub: stats.totalEmployees > 0 ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete` : "No records", icon: CheckCircle, iconClass: "text-green-500", valueClass: "text-green-500" },
+            { label: "Pending", value: String(stats.pending), sub: "Awaiting processing", icon: Clock, iconClass: "text-amber-500", valueClass: "text-amber-500" },
+          ].map((stat) => (
+            <motion.div key={stat.label} variants={fadeUp}>
+              <Card className="glass-card glow-on-hover group transition-all duration-300 hover:-translate-y-1">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:shadow-glow transition-shadow">
+                    <stat.icon className={`h-4 w-4 ${stat.iconClass}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${stat.valueClass || ""}`}>{stat.value}</div>
+                  <p className="text-xs text-muted-foreground">{stat.sub}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
 
         {/* Payroll Table */}
-        <Card>
+        <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}>
+        <Card className="glass-card">
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Payroll Register</CardTitle>
+              <CardTitle className="text-gradient-primary">Payroll Register</CardTitle>
               <CardDescription>Salary breakdown for {periodLabel(selectedPeriod)}</CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -345,9 +341,9 @@ export default function Payroll() {
                     Add Record
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md glass-morphism">
                   <DialogHeader>
-                    <DialogTitle>Add Payroll Record</DialogTitle>
+                    <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
                     <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
                   </DialogHeader>
                   <SalaryFormFields />
@@ -404,8 +400,12 @@ export default function Payroll() {
                       const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
                       const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
                       return (
-                        <TableRow key={r.id}>
-                          <TableCell>
+                        <TableRow
+                          key={r.id}
+                          className="cursor-pointer hover:bg-primary/5 transition-colors"
+                          onClick={() => setPaySlipRecord(r)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={selectedIds.includes(r.id)}
                               onCheckedChange={() => toggleSelect(r.id)}
@@ -420,14 +420,14 @@ export default function Payroll() {
                           <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
                           <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
                           <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
-                          <TableCell className="text-right text-red-600">-{formatCurrency(totalDeduct)}</TableCell>
+                          <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
                           <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
                               {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -435,6 +435,9 @@ export default function Payroll() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setPaySlipRecord(r)}>
+                                  <Eye className="mr-2 h-4 w-4" /> View Pay Slip
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => openEdit(r)}>
                                   <Pencil className="mr-2 h-4 w-4" /> Edit
                                 </DropdownMenuItem>
@@ -462,7 +465,7 @@ export default function Payroll() {
 
             {/* Summary footer */}
             {filtered.length > 0 && (
-              <div className="mt-4 rounded-lg border bg-muted/30 p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div className="mt-4 rounded-xl glass-morphism p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Total Basic</p>
                   <p className="font-semibold">{formatCurrency(stats.totalBasic)}</p>
@@ -473,23 +476,31 @@ export default function Payroll() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total Deductions</p>
-                  <p className="font-semibold text-red-600">{formatCurrency(stats.totalDeductions)}</p>
+                  <p className="font-semibold text-destructive">{formatCurrency(stats.totalDeductions)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Net Payroll</p>
-                  <p className="font-bold text-lg">{formatCurrency(stats.totalPayroll)}</p>
+                  <p className="font-bold text-lg text-gradient-primary">{formatCurrency(stats.totalPayroll)}</p>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
+        </motion.div>
       </div>
+
+      {/* Pay Slip Dialog */}
+      <PaySlipDialog
+        record={paySlipRecord}
+        open={!!paySlipRecord}
+        onOpenChange={(open) => !open && setPaySlipRecord(null)}
+      />
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md glass-morphism">
           <DialogHeader>
-            <DialogTitle>Edit Payroll</DialogTitle>
+            <DialogTitle className="text-gradient-primary">Edit Payroll</DialogTitle>
             <DialogDescription>
               Update salary for {editTarget?.profiles?.full_name || "employee"}
             </DialogDescription>
