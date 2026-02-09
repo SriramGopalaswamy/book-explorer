@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -87,6 +87,66 @@ export function useChartOfAccounts() {
       return data as ChartAccount[];
     },
     enabled: !!user,
+  });
+}
+
+export type ChartAccountInput = {
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  description?: string | null;
+  opening_balance?: number;
+  current_balance?: number;
+  is_active?: boolean;
+  parent_id?: string | null;
+};
+
+export function useCreateAccount() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ChartAccountInput) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .insert({ ...input, user_id: user.id })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chart-of-accounts"] }),
+  });
+}
+
+export function useUpdateAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: ChartAccountInput & { id: string }) => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .update(input)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chart-of-accounts"] }),
+  });
+}
+
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("chart_of_accounts")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chart-of-accounts"] }),
   });
 }
 
