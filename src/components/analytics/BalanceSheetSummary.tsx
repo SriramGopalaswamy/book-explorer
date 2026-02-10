@@ -42,8 +42,36 @@ export function BalanceSheetSummary() {
 
   return (
     <Card className="col-span-full">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Balance Sheet Summary</CardTitle>
+        <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
+          title: "Balance Sheet",
+          subtitle: "Assets = Liabilities + Equity",
+          sections: [
+            {
+              title: "Assets",
+              items: bs.assets.map(a => ({ label: `${a.code} — ${a.name}`, value: formatCurrency(a.balance) })),
+              total: { label: "Total Assets", value: formatCurrency(bs.totalAssets), color: "#3b82f6" },
+            },
+            {
+              title: "Liabilities",
+              items: bs.liabilities.map(l => ({ label: `${l.code} — ${l.name}`, value: formatCurrency(l.balance) })),
+              total: { label: "Total Liabilities", value: formatCurrency(bs.totalLiabilities), color: "#f59e0b" },
+            },
+            {
+              title: "Equity",
+              items: bs.equity.map(e => ({ label: `${e.code} — ${e.name}`, value: formatCurrency(e.balance) })),
+              total: { label: "Total Equity", value: formatCurrency(bs.totalEquity), color: "#22c55e" },
+            },
+          ],
+          footer: [
+            { label: "Total Assets", value: formatCurrency(bs.totalAssets) },
+            { label: "Total Liabilities", value: formatCurrency(bs.totalLiabilities) },
+            { label: "Total Equity", value: formatCurrency(bs.totalEquity) },
+          ],
+        })}>
+          <Download className="h-4 w-4 mr-1" /> Export PDF
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-3 gap-6">
