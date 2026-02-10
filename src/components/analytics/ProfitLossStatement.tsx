@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { useProfitLoss } from "@/hooks/useAnalytics";
+import { exportReportAsPDF } from "@/lib/pdf-export";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -15,9 +18,33 @@ export function ProfitLossStatement() {
     <Card className="col-span-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Profit & Loss Statement</CardTitle>
-        <Badge variant="outline" className={pl.netIncome >= 0 ? "bg-green-500/10 text-green-600 border-green-500/30" : "bg-red-500/10 text-red-600 border-red-500/30"}>
-          {pl.grossMargin.toFixed(1)}% Margin
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={pl.netIncome >= 0 ? "bg-green-500/10 text-green-600 border-green-500/30" : "bg-red-500/10 text-red-600 border-red-500/30"}>
+            {pl.grossMargin.toFixed(1)}% Margin
+          </Badge>
+          <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
+            title: "Profit & Loss Statement",
+            subtitle: "Financial Year Summary",
+            sections: [
+              {
+                title: "Revenue",
+                items: pl.revenue.map(r => ({ label: r.name, value: formatCurrency(r.amount), color: "#16a34a" })),
+                total: { label: "Total Revenue", value: formatCurrency(pl.totalRevenue), color: "#16a34a" },
+              },
+              {
+                title: "Expenses",
+                items: pl.expenses.map(e => ({ label: e.name, value: formatCurrency(e.amount), color: "#dc2626" })),
+                total: { label: "Total Expenses", value: formatCurrency(pl.totalExpenses), color: "#dc2626" },
+              },
+            ],
+            footer: [
+              { label: "Net Income", value: formatCurrency(pl.netIncome) },
+              { label: "Gross Margin", value: `${pl.grossMargin.toFixed(1)}%` },
+            ],
+          })}>
+            <Download className="h-4 w-4 mr-1" /> Export PDF
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-2 gap-6">
