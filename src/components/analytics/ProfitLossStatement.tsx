@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, ChevronRight } from "lucide-react";
 import { useProfitLoss } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { PLDrillDownDialog } from "./PLDrillDownDialog";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -13,6 +15,7 @@ const formatCurrency = (v: number) => {
 
 export function ProfitLossStatement() {
   const pl = useProfitLoss();
+  const [drillDown, setDrillDown] = useState<{ name: string; type: "revenue" | "expense" } | null>(null);
 
   return (
     <Card className="col-span-full">
@@ -53,10 +56,13 @@ export function ProfitLossStatement() {
             <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Revenue</h4>
             <div className="space-y-2">
               {pl.revenue.map((r) => (
-                <div key={r.name} className="flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <span className="text-sm">{r.name}</span>
+                <button key={r.name} onClick={() => setDrillDown({ name: r.name, type: "revenue" })} className="w-full flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left">
+                  <span className="text-sm flex items-center gap-1">
+                    {r.name}
+                    <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                  </span>
                   <span className="text-sm font-medium text-green-600">{formatCurrency(r.amount)}</span>
-                </div>
+                </button>
               ))}
               <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-green-500/10 border border-green-500/20 mt-2">
                 <span className="font-semibold">Total Revenue</span>
@@ -70,10 +76,13 @@ export function ProfitLossStatement() {
             <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Expenses</h4>
             <div className="space-y-2">
               {pl.expenses.map((e) => (
-                <div key={e.name} className="flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <span className="text-sm">{e.name}</span>
+                <button key={e.name} onClick={() => setDrillDown({ name: e.name, type: "expense" })} className="w-full flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left">
+                  <span className="text-sm flex items-center gap-1">
+                    {e.name}
+                    <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                  </span>
                   <span className="text-sm font-medium text-red-600">{formatCurrency(e.amount)}</span>
-                </div>
+                </button>
               ))}
               <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-red-500/10 border border-red-500/20 mt-2">
                 <span className="font-semibold">Total Expenses</span>
@@ -97,6 +106,12 @@ export function ProfitLossStatement() {
           </div>
         </div>
       </CardContent>
+      <PLDrillDownDialog
+        open={!!drillDown}
+        onOpenChange={(open) => !open && setDrillDown(null)}
+        categoryName={drillDown?.name ?? ""}
+        type={drillDown?.type ?? "revenue"}
+      />
     </Card>
   );
 }
