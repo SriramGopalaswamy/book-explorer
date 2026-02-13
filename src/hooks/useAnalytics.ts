@@ -338,3 +338,50 @@ function getDefaultMonthlyTrend(): MonthlyTrendData[] {
     profit: (revBase[i] - expBase[i]) * 1000,
   }));
 }
+
+// P&L computed from financial_records filtered by date range
+export function useProfitLossForPeriod(from?: Date, to?: Date) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["pl-period", user?.id, from?.toISOString(), to?.toISOString()],
+    queryFn: async (): Promise<ProfitLossData> => {
+      if (!user) return { revenue: [], expenses: [], totalRevenue: 0, totalExpenses: 0, netIncome: 0, grossMargin: 0 };
+
+      let query = supabase
+        .from("financial_records")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (from) query = query.gte("record_date", from.toISOString().split("T")[0]);
+      if (to) query = query.lte("record_date", to.toISOString().split("T")[0]);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Group by category
+      const revenueMap = new Map<string, number>();
+      const expenseMap = new Map<string, number>();
+
+      (data || []).forEach((r) => {
+        const map = r.type === "revenue" ? revenueMap : expenseMap;
+        map.set(r.category, (map.get(r.category) || 0) + Number(r.amount));
+      });
+
+      const revenue = Array.from(revenueMap.entries()).map(([name, amount]) => ({ name, amount }));
+      const expenses = Array.from(expenseMap.entries()).map(([name, amount]) => ({ name, amount }));
+      const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0);
+      const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+
+      return {
+        revenue,
+        expenses,
+        totalRevenue,
+        totalExpenses,
+        netIncome: totalRevenue - totalExpenses,
+        grossMargin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0,
+      };
+    },
+    enabled: !!user && (!!from || !!to),
+  });
+}

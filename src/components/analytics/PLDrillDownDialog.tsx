@@ -12,6 +12,8 @@ interface PLDrillDownDialogProps {
   onOpenChange: (open: boolean) => void;
   categoryName: string;
   type: "revenue" | "expense";
+  from?: Date;
+  to?: Date;
 }
 
 const formatCurrency = (v: number) => {
@@ -20,19 +22,24 @@ const formatCurrency = (v: number) => {
   return `₹${v.toLocaleString("en-IN")}`;
 };
 
-export function PLDrillDownDialog({ open, onOpenChange, categoryName, type }: PLDrillDownDialogProps) {
+export function PLDrillDownDialog({ open, onOpenChange, categoryName, type, from, to }: PLDrillDownDialogProps) {
   const { user } = useAuth();
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["pl-drilldown", user?.id, categoryName, type],
+    queryKey: ["pl-drilldown", user?.id, categoryName, type, from?.toISOString(), to?.toISOString()],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("financial_records")
         .select("*")
         .eq("user_id", user.id)
         .eq("type", type)
         .order("record_date", { ascending: false });
+
+      if (from) query = query.gte("record_date", from.toISOString().split("T")[0]);
+      if (to) query = query.lte("record_date", to.toISOString().split("T")[0]);
+
+      const { data, error } = await query;
       if (error) throw error;
 
       // Try exact match first, then fuzzy match on category name
