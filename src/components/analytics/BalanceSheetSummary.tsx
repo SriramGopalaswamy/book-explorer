@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, ChevronRight } from "lucide-react";
 import { useBalanceSheet } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { BSDrillDownDialog } from "./BSDrillDownDialog";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -13,24 +15,34 @@ const formatCurrency = (v: number) => {
 export function BalanceSheetSummary() {
   const bs = useBalanceSheet();
 
-  const Section = ({ title, items, total, totalLabel, color }: {
+  const [drillDown, setDrillDown] = useState<{ name: string; code: string; type: "asset" | "liability" | "equity"; balance: number } | null>(null);
+
+  const Section = ({ title, items, total, totalLabel, color, type }: {
     title: string;
     items: { name: string; code: string; balance: number }[];
     total: number;
     totalLabel: string;
     color: string;
+    type: "asset" | "liability" | "equity";
   }) => (
     <div>
       <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">{title}</h4>
       <div className="space-y-1">
         {items.map((item) => (
-          <div key={item.code} className="flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+          <button
+            key={item.code}
+            onClick={() => setDrillDown({ name: item.name, code: item.code, type, balance: item.balance })}
+            className="w-full flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
+          >
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground font-mono">{item.code}</span>
               <span className="text-sm">{item.name}</span>
             </div>
-            <span className="text-sm font-medium">{formatCurrency(item.balance)}</span>
-          </div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium">{formatCurrency(item.balance)}</span>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </button>
         ))}
         <div className={`flex justify-between items-center py-2 px-3 rounded-lg ${color} mt-2`}>
           <span className="font-semibold">{totalLabel}</span>
@@ -75,9 +87,9 @@ export function BalanceSheetSummary() {
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-3 gap-6">
-          <Section title="Assets" items={bs.assets} total={bs.totalAssets} totalLabel="Total Assets" color="bg-blue-500/10 border border-blue-500/20 text-blue-600" />
-          <Section title="Liabilities" items={bs.liabilities} total={bs.totalLiabilities} totalLabel="Total Liabilities" color="bg-amber-500/10 border border-amber-500/20 text-amber-600" />
-          <Section title="Equity" items={bs.equity} total={bs.totalEquity} totalLabel="Total Equity" color="bg-green-500/10 border border-green-500/20 text-green-600" />
+          <Section title="Assets" items={bs.assets} total={bs.totalAssets} totalLabel="Total Assets" color="bg-blue-500/10 border border-blue-500/20 text-blue-600" type="asset" />
+          <Section title="Liabilities" items={bs.liabilities} total={bs.totalLiabilities} totalLabel="Total Liabilities" color="bg-amber-500/10 border border-amber-500/20 text-amber-600" type="liability" />
+          <Section title="Equity" items={bs.equity} total={bs.totalEquity} totalLabel="Total Equity" color="bg-green-500/10 border border-green-500/20 text-green-600" type="equity" />
         </div>
         
         {/* Accounting Equation */}
@@ -98,6 +110,17 @@ export function BalanceSheetSummary() {
           </div>
         </div>
       </CardContent>
+
+      {drillDown && (
+        <BSDrillDownDialog
+          open={!!drillDown}
+          onOpenChange={(open) => !open && setDrillDown(null)}
+          accountName={drillDown.name}
+          accountCode={drillDown.code}
+          accountType={drillDown.type}
+          balance={drillDown.balance}
+        />
+      )}
     </Card>
   );
 }
