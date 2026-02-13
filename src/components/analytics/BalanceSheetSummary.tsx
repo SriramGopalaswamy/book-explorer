@@ -5,6 +5,7 @@ import { Download, ChevronRight } from "lucide-react";
 import { useBalanceSheet } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { BSDrillDownDialog } from "./BSDrillDownDialog";
+import { format } from "date-fns";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -12,7 +13,11 @@ const formatCurrency = (v: number) => {
   return `₹${v.toLocaleString("en-IN")}`;
 };
 
-export function BalanceSheetSummary() {
+interface BalanceSheetSummaryProps {
+  asOfDate?: Date;
+}
+
+export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
   const bs = useBalanceSheet();
 
   const [drillDown, setDrillDown] = useState<{ name: string; code: string; type: "asset" | "liability" | "equity"; balance: number } | null>(null);
@@ -55,7 +60,10 @@ export function BalanceSheetSummary() {
   return (
     <Card className="col-span-full">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Balance Sheet Summary</CardTitle>
+        <CardTitle className="text-lg">
+          Balance Sheet Summary
+          {asOfDate && <span className="text-sm font-normal text-muted-foreground ml-2">as of {format(asOfDate, "dd MMM yyyy")}</span>}
+        </CardTitle>
         <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
           title: "Balance Sheet",
           subtitle: "Assets = Liabilities + Equity",

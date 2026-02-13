@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
 } from "lucide-react";
-import { useProfitLoss, useBalanceSheet, useExpenseByCategory } from "@/hooks/useAnalytics";
+import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod } from "@/hooks/useAnalytics";
 
 // Report components
 import { ProfitLossStatement } from "@/components/analytics/ProfitLossStatement";
@@ -14,6 +14,7 @@ import { RevenueTrendChart, ProfitBarChart } from "@/components/analytics/Revenu
 import { ExpenseBreakdownDonut, RevenueSourceDonut } from "@/components/analytics/CategoryBreakdowns";
 import { AccountsReceivableAging } from "@/components/analytics/AccountsReceivableAging";
 import { ChartOfAccountsTable } from "@/components/analytics/ChartOfAccountsTable";
+import { ReportsDateFilter } from "@/components/analytics/ReportsDateFilter";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -26,6 +27,12 @@ export default function Analytics() {
   const bs = useBalanceSheet();
   const expenses = useExpenseByCategory();
   const [activeTab, setActiveTab] = useState("overview");
+  
+  // Date range filter for Reports tab
+  const [reportFrom, setReportFrom] = useState<Date | undefined>();
+  const [reportTo, setReportTo] = useState<Date | undefined>();
+  const { data: periodPL } = useProfitLossForPeriod(reportFrom, reportTo);
+  const hasDateFilter = !!(reportFrom || reportTo);
 
   const topExpense = expenses.length > 0 ? expenses.reduce((a, b) => a.value > b.value ? a : b) : null;
 
@@ -116,8 +123,20 @@ export default function Analytics() {
 
           {/* Reports Tab */}
           <TabsContent value="reports" className="space-y-6 mt-6">
-            <ProfitLossStatement />
-            <BalanceSheetSummary />
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {hasDateFilter ? "Showing filtered period" : "Showing all-time (CoA balances)"}
+              </h3>
+              <ReportsDateFilter
+                from={reportFrom}
+                to={reportTo}
+                onFromChange={setReportFrom}
+                onToChange={setReportTo}
+                onClear={() => { setReportFrom(undefined); setReportTo(undefined); }}
+              />
+            </div>
+            <ProfitLossStatement periodData={hasDateFilter ? periodPL : undefined} from={reportFrom} to={reportTo} />
+            <BalanceSheetSummary asOfDate={reportTo} />
           </TabsContent>
 
           {/* Charts Tab */}

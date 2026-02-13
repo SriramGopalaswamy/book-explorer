@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download, ChevronRight } from "lucide-react";
-import { useProfitLoss } from "@/hooks/useAnalytics";
+import { useProfitLoss, type ProfitLossData } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { PLDrillDownDialog } from "./PLDrillDownDialog";
+import { format } from "date-fns";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -13,9 +14,20 @@ const formatCurrency = (v: number) => {
   return `₹${v.toLocaleString("en-IN")}`;
 };
 
-export function ProfitLossStatement() {
-  const pl = useProfitLoss();
+interface ProfitLossStatementProps {
+  periodData?: ProfitLossData;
+  from?: Date;
+  to?: Date;
+}
+
+export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatementProps) {
+  const defaultPL = useProfitLoss();
+  const pl = periodData || defaultPL;
   const [drillDown, setDrillDown] = useState<{ name: string; type: "revenue" | "expense" } | null>(null);
+
+  const subtitle = from || to
+    ? `${from ? format(from, "dd MMM yyyy") : "Start"} — ${to ? format(to, "dd MMM yyyy") : "Present"}`
+    : "Financial Year Summary";
 
   return (
     <Card className="col-span-full">
@@ -27,7 +39,7 @@ export function ProfitLossStatement() {
           </Badge>
           <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
             title: "Profit & Loss Statement",
-            subtitle: "Financial Year Summary",
+            subtitle: subtitle,
             sections: [
               {
                 title: "Revenue",
@@ -111,6 +123,8 @@ export function ProfitLossStatement() {
         onOpenChange={(open) => !open && setDrillDown(null)}
         categoryName={drillDown?.name ?? ""}
         type={drillDown?.type ?? "revenue"}
+        from={from}
+        to={to}
       />
     </Card>
   );
