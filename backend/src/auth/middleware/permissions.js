@@ -59,9 +59,11 @@ const ROLE_PERMISSIONS = {
 
 /**
  * Check if user has required permission
+ * @param {string} role - Role to check (can be effectiveRole or actualRole)
+ * @param {string} requiredPermission - Permission string to check
  */
-const hasPermission = (userRole, requiredPermission) => {
-  const rolePermissions = ROLE_PERMISSIONS[userRole] || [];
+const hasPermission = (role, requiredPermission) => {
+  const rolePermissions = ROLE_PERMISSIONS[role] || [];
   
   // Admin has all permissions
   if (rolePermissions.includes('*')) {
@@ -78,6 +80,7 @@ const hasPermission = (userRole, requiredPermission) => {
 
 /**
  * Middleware to require specific permission
+ * Uses effectiveRole if set (for dev mode impersonation), otherwise falls back to user.role
  */
 const requirePermission = (permission) => {
   return (req, res, next) => {
@@ -88,12 +91,17 @@ const requirePermission = (permission) => {
       });
     }
     
-    if (!hasPermission(req.user.role, permission)) {
+    // Use effectiveRole if available (set by resolveEffectiveRole middleware)
+    // Otherwise fall back to user.role for backwards compatibility
+    const roleToCheck = req.effectiveRole || req.user.role;
+    
+    if (!hasPermission(roleToCheck, permission)) {
       return res.status(403).json({ 
         error: 'Insufficient permissions',
         message: `You do not have the required permission: ${permission}`,
         required: permission,
-        userRole: req.user.role
+        effectiveRole: roleToCheck,
+        isImpersonating: req.isImpersonating || false
       });
     }
     
@@ -116,6 +124,7 @@ const requireAuth = (req, res, next) => {
 
 /**
  * Middleware to require admin role
+ * Uses effectiveRole if set (for dev mode impersonation), otherwise falls back to user.role
  */
 const requireAdmin = (req, res, next) => {
   if (!req.user) {
@@ -125,10 +134,16 @@ const requireAdmin = (req, res, next) => {
     });
   }
   
-  if (req.user.role !== 'admin') {
+  // Use effectiveRole if available (set by resolveEffectiveRole middleware)
+  // Otherwise fall back to user.role for backwards compatibility
+  const roleToCheck = req.effectiveRole || req.user.role;
+  
+  if (roleToCheck !== 'admin') {
     return res.status(403).json({ 
       error: 'Admin access required',
-      message: 'This resource requires administrator privileges.'
+      message: 'This resource requires administrator privileges.',
+      effectiveRole: roleToCheck,
+      isImpersonating: req.isImpersonating || false
     });
   }
   
