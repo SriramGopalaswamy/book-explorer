@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMode } from "@/contexts/AppModeContext";
+import { api } from "@/lib/api";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 
 export interface FinancialRecord {
@@ -46,10 +48,26 @@ const categoryColors: Record<string, string> = {
 
 export function useFinancialRecords() {
   const { user } = useAuth();
+  const { appMode, isDeveloperAuthenticated } = useAppMode();
+  
+  const usesBackendAPI = appMode === 'developer' && isDeveloperAuthenticated;
 
   return useQuery({
-    queryKey: ["financial-records", user?.id],
+    queryKey: ["financial-records", user?.id, appMode],
     queryFn: async () => {
+      // Developer mode: use backend API
+      if (usesBackendAPI) {
+        try {
+          const response = await api.get<{ records: FinancialRecord[] }>('/financial/records');
+          console.log('📊 Financial records from backend API:', response.records?.length || 0);
+          return response.records || [];
+        } catch (error) {
+          console.error('Failed to fetch financial records from backend:', error);
+          return [];
+        }
+      }
+      
+      // Production mode: use Supabase
       if (!user) return [];
       
       const { data, error } = await supabase
@@ -61,16 +79,44 @@ export function useFinancialRecords() {
       if (error) throw error;
       return data as FinancialRecord[];
     },
-    enabled: !!user,
+    enabled: usesBackendAPI || !!user,
   });
 }
 
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const { user } = useAuth();
+  const { appMode, isDeveloperAuthenticated } = useAppMode();
+  
+  const usesBackendAPI = appMode === 'developer' && isDeveloperAuthenticated;
 
   return useQuery({
-    queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString(), appMode],
     queryFn: async (): Promise<MonthlyData[]> => {
+      // Developer mode: use backend API
+      if (usesBackendAPI) {
+        try {
+          const fromDate = dateRange?.from || (() => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - 6);
+            return d;
+          })();
+          const toDate = dateRange?.to || new Date();
+          
+          const params = new URLSearchParams({
+            fromDate: fromDate.toISOString().split('T')[0],
+            toDate: toDate.toISOString().split('T')[0]
+          });
+          
+          const response = await api.get<{ monthlyData: MonthlyData[] }>(`/financial/monthly-revenue?${params}`);
+          console.log('📊 Monthly revenue from backend API:', response.monthlyData?.length || 0);
+          return response.monthlyData || getDefaultMonthlyData();
+        } catch (error) {
+          console.error('Failed to fetch monthly revenue from backend:', error);
+          return getDefaultMonthlyData();
+        }
+      }
+      
+      // Production mode: use Supabase
       if (!user) return getDefaultMonthlyData();
 
       const fromDate = dateRange?.from || (() => {
@@ -126,16 +172,43 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       return result;
     },
-    enabled: !!user,
+    enabled: usesBackendAPI || !!user,
   });
 }
 
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const { user } = useAuth();
+  const { appMode, isDeveloperAuthenticated } = useAppMode();
+  
+  const usesBackendAPI = appMode === 'developer' && isDeveloperAuthenticated;
 
   return useQuery({
-    queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString(), appMode],
     queryFn: async (): Promise<CategoryData[]> => {
+      // Developer mode: use backend API
+      if (usesBackendAPI) {
+        try {
+          const fromDate = dateRange?.from || (() => {
+            const d = new Date();
+            return new Date(d.getFullYear(), d.getMonth(), 1);
+          })();
+          const toDate = dateRange?.to || new Date();
+          
+          const params = new URLSearchParams({
+            fromDate: fromDate.toISOString().split('T')[0],
+            toDate: toDate.toISOString().split('T')[0]
+          });
+          
+          const response = await api.get<{ breakdown: CategoryData[] }>(`/financial/expense-breakdown?${params}`);
+          console.log('📊 Expense breakdown from backend API:', response.breakdown?.length || 0);
+          return response.breakdown || getDefaultExpenseData();
+        } catch (error) {
+          console.error('Failed to fetch expense breakdown from backend:', error);
+          return getDefaultExpenseData();
+        }
+      }
+      
+      // Production mode: use Supabase
       if (!user) return getDefaultExpenseData();
 
       const fromDate = dateRange?.from || (() => {
@@ -172,7 +245,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         color: categoryColors[name] || "hsl(220, 9%, 46%)",
       }));
     },
-    enabled: !!user,
+    enabled: usesBackendAPI || !!user,
   });
 }
 
