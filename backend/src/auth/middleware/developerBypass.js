@@ -22,10 +22,12 @@ const { DEV_MODE, NODE_ENV } = require('../../config/systemFlags');
 /**
  * Create mock user for developer bypass
  * Returns user object with superadmin role (highest authority)
+ * Each session gets a unique ID to prevent log correlation
  */
 const createMockDeveloperUser = () => {
+  const sessionId = `dev-bypass-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   return {
-    id: 'dev-bypass-user',
+    id: sessionId,
     email: 'developer@internal.local',
     role: 'superadmin',
     full_name: 'Developer (Bypass Mode)',
