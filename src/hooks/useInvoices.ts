@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { createInvoiceSchema, updateInvoiceSchema } from "@/lib/validation-schemas";
 
 export interface Invoice {
   id: string;
@@ -102,6 +103,8 @@ export function useCreateInvoice() {
     mutationFn: async (data: CreateInvoiceData) => {
       if (!user) throw new Error("User not authenticated");
 
+      const validated = createInvoiceSchema.parse(data);
+
       // Generate invoice number
       const { count } = await supabase
         .from("invoices")
@@ -116,10 +119,10 @@ export function useCreateInvoice() {
         .insert({
           user_id: user.id,
           invoice_number: invoiceNumber,
-          client_name: data.client_name,
-          client_email: data.client_email,
-          amount: data.amount,
-          due_date: data.due_date,
+          client_name: validated.client_name,
+          client_email: validated.client_email,
+          amount: validated.amount,
+          due_date: validated.due_date,
           status: "draft",
         })
         .select()
@@ -128,11 +131,11 @@ export function useCreateInvoice() {
       if (invoiceError) throw invoiceError;
 
       // Create invoice items
-      if (data.items.length > 0) {
+      if (validated.items.length > 0) {
         const { error: itemsError } = await supabase
           .from("invoice_items")
           .insert(
-            data.items.map((item) => ({
+            validated.items.map((item) => ({
               invoice_id: invoice.id,
               description: item.description,
               quantity: item.quantity,
@@ -200,16 +203,18 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      const validated = updateInvoiceSchema.parse(data);
+
       // Update the invoice
       const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .update({
-          client_name: data.client_name,
-          client_email: data.client_email,
-          amount: data.amount,
-          due_date: data.due_date,
+          client_name: validated.client_name,
+          client_email: validated.client_email,
+          amount: validated.amount,
+          due_date: validated.due_date,
         })
-        .eq("id", data.id)
+        .eq("id", validated.id)
         .select()
         .single();
 
@@ -219,17 +224,17 @@ export function useUpdateInvoice() {
       const { error: deleteError } = await supabase
         .from("invoice_items")
         .delete()
-        .eq("invoice_id", data.id);
+        .eq("invoice_id", validated.id);
 
       if (deleteError) throw deleteError;
 
       // Create new invoice items
-      if (data.items.length > 0) {
+      if (validated.items.length > 0) {
         const { error: itemsError } = await supabase
           .from("invoice_items")
           .insert(
-            data.items.map((item) => ({
-              invoice_id: data.id,
+            validated.items.map((item) => ({
+              invoice_id: validated.id,
               description: item.description,
               quantity: item.quantity,
               rate: item.rate,

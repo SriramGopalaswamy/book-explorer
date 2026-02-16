@@ -58,22 +58,39 @@ export function useIsAdminOrHR() {
   });
 }
 
-// Fetch all employees (profiles)
+// Fetch all employees (profiles) - managers get limited view, admins/HR get full view
 export function useEmployees() {
   const { user } = useAuth();
+  const { data: isAdmin } = useIsAdminOrHR();
 
   return useQuery({
-    queryKey: ["employees", user?.id],
+    queryKey: ["employees", user?.id, isAdmin],
     queryFn: async () => {
       if (!user) return [];
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("full_name", { ascending: true });
+      if (isAdmin) {
+        // Admins and HR can see all fields including email/phone
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("full_name", { ascending: true });
 
-      if (error) throw error;
-      return data as Employee[];
+        if (error) throw error;
+        return data as Employee[];
+      } else {
+        // Managers get the safe view (no email/phone)
+        const { data, error } = await supabase
+          .from("profiles_safe" as any)
+          .select("*")
+          .order("full_name", { ascending: true });
+
+        if (error) throw error;
+        return (data as any[]).map((d) => ({
+          ...d,
+          email: null,
+          phone: null,
+        })) as Employee[];
+      }
     },
     enabled: !!user,
   });

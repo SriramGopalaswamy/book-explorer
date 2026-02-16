@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { createBankAccountSchema, createTransactionSchema } from "@/lib/validation-schemas";
 
 export interface BankAccount {
   id: string;
@@ -74,9 +75,17 @@ export function useCreateBankAccount() {
   return useMutation({
     mutationFn: async (data: CreateBankAccountData) => {
       if (!user) throw new Error("Not authenticated");
+      const validated = createBankAccountSchema.parse(data);
       const { data: account, error } = await supabase
         .from("bank_accounts")
-        .insert({ ...data, user_id: user.id })
+        .insert({
+          name: validated.name,
+          account_type: validated.account_type,
+          account_number: validated.account_number,
+          balance: validated.balance,
+          bank_name: validated.bank_name ?? null,
+          user_id: user.id,
+        })
         .select()
         .single();
       if (error) throw error;
@@ -139,10 +148,20 @@ export function useCreateTransaction() {
     mutationFn: async (data: CreateTransactionData) => {
       if (!user) throw new Error("Not authenticated");
 
+      const validated = createTransactionSchema.parse(data);
+
       // Create transaction
       const { data: transaction, error } = await supabase
         .from("bank_transactions")
-        .insert({ ...data, user_id: user.id })
+        .insert({
+          account_id: validated.account_id,
+          transaction_type: validated.transaction_type,
+          amount: validated.amount,
+          description: validated.description,
+          category: validated.category ?? null,
+          transaction_date: validated.transaction_date,
+          user_id: user.id,
+        })
         .select()
         .single();
       if (error) throw error;
@@ -151,18 +170,18 @@ export function useCreateTransaction() {
       const { data: account } = await supabase
         .from("bank_accounts")
         .select("balance")
-        .eq("id", data.account_id)
+        .eq("id", validated.account_id)
         .single();
 
       if (account) {
-        const newBalance = data.transaction_type === "credit"
-          ? Number(account.balance) + Number(data.amount)
-          : Number(account.balance) - Number(data.amount);
+        const newBalance = validated.transaction_type === "credit"
+          ? Number(account.balance) + Number(validated.amount)
+          : Number(account.balance) - Number(validated.amount);
 
         await supabase
           .from("bank_accounts")
           .update({ balance: newBalance })
-          .eq("id", data.account_id);
+          .eq("id", validated.account_id);
       }
 
       return transaction;
