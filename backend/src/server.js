@@ -13,6 +13,8 @@ const { sequelize } = require('./config/database');
 const models = require('./modules'); // Load all models with associations
 const passport = require('./auth/strategies');
 const demoModeMiddleware = require('./auth/middleware/demoMode');
+const { resolveEffectiveRole } = require('./auth/middleware/resolveEffectiveRole');
+const { logSystemFlags } = require('./config/systemFlags');
 
 // Import routes
 const authRoutes = require('./auth/auth.routes');
@@ -21,6 +23,7 @@ const authorRoutes = require('./modules/authors/author.routes');
 const reviewRoutes = require('./modules/reviews/review.routes');
 const userRoutes = require('./modules/users/user.routes');
 const securityRoutes = require('./modules/security/security.routes');
+const devRoutes = require('./modules/dev/dev.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,6 +74,10 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Resolve effective role (for dev mode impersonation)
+// Must come AFTER passport initialization
+app.use(resolveEffectiveRole);
+
 // CSRF protection (only for mutation routes, not for API reads)
 const csrfProtection = csrf({ cookie: true });
 
@@ -94,6 +101,7 @@ app.use('/api/authors', authorRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/dev', devRoutes);
 
 // CSRF token endpoint for clients
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
@@ -122,6 +130,9 @@ app.use((err, req, res, next) => {
 // Database initialization and server start
 const startServer = async () => {
   try {
+    // Log system flags
+    logSystemFlags();
+    
     // Test database connection
     await sequelize.authenticate();
     console.log('✓ Database connection established successfully');
