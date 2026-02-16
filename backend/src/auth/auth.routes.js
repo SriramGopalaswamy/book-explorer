@@ -8,13 +8,18 @@ const router = express.Router();
 
 // Generate JWT token
 const generateToken = (user) => {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error('SESSION_SECRET is not configured');
+  }
+  
   return jwt.sign(
     { 
       id: user.id, 
       email: user.email,
       role: user.role 
     },
-    process.env.SESSION_SECRET || 'your-secret-key',
+    secret,
     { expiresIn: '7d' }
   );
 };

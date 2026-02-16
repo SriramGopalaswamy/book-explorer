@@ -37,8 +37,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Session configuration
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  console.error('ERROR: SESSION_SECRET environment variable is not set!');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET must be set in production');
+  }
+  console.warn('WARNING: Using default session secret for development only');
+}
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  secret: sessionSecret || 'dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -100,7 +109,9 @@ const startServer = async () => {
     console.log('✓ Database connection established successfully');
     
     // Sync models (create tables if they don't exist)
-    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+    // Use force: false to avoid dropping existing tables
+    // Use alter: false to avoid trying to modify existing schemas
+    await sequelize.sync({ force: false, alter: false });
     console.log('✓ Database models synchronized');
     
     // Start server

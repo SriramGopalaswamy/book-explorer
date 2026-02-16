@@ -111,7 +111,7 @@ exports.deleteUser = async (req, res) => {
     if (user.id === req.user.id) {
       return res.status(400).json({ 
         error: 'Cannot delete own account',
-        message: 'You cannot delete your own account while logged in.'
+        message: 'You cannot delete your own account while logged in. Please contact another administrator to delete your account.'
       });
     }
     

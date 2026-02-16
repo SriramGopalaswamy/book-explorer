@@ -63,12 +63,19 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        // Validate that profile has emails
+        if (!profile.emails || profile.emails.length === 0) {
+          return done(new Error('Microsoft profile does not include email address'));
+        }
+        
         // Find or create user based on Microsoft ID
         let user = await User.findOne({ where: { microsoftId: profile.id } });
         
         if (!user) {
+          const email = profile.emails[0].value;
+          
           // Check if user exists with same email
-          user = await User.findOne({ where: { email: profile.emails[0].value } });
+          user = await User.findOne({ where: { email } });
           
           if (user) {
             // Link Microsoft account to existing user
@@ -76,8 +83,8 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
           } else {
             // Create new user
             user = await User.create({
-              username: profile.emails[0].value.split('@')[0],
-              email: profile.emails[0].value,
+              username: email.split('@')[0],
+              email,
               displayName: profile.displayName,
               microsoftId: profile.id,
               role: 'reader',
