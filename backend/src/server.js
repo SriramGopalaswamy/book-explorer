@@ -8,6 +8,7 @@ const path = require('path');
 require('dotenv').config();
 
 const { sequelize } = require('./config/database');
+const models = require('./modules'); // Load all models with associations
 const passport = require('./auth/strategies');
 const demoModeMiddleware = require('./auth/middleware/demoMode');
 
