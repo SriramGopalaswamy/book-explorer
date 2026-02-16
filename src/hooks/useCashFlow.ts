@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
 
 export interface ScheduledPayment {
   id: string;
@@ -55,9 +56,19 @@ export function useCreateScheduledPayment() {
   return useMutation({
     mutationFn: async (data: CreateScheduledPaymentData) => {
       if (!user) throw new Error("Not authenticated");
+      const validated = createScheduledPaymentSchema.parse(data);
       const { data: payment, error } = await supabase
         .from("scheduled_payments")
-        .insert({ ...data, user_id: user.id })
+        .insert({
+          name: validated.name,
+          amount: validated.amount,
+          due_date: validated.due_date,
+          payment_type: validated.payment_type,
+          category: validated.category ?? null,
+          recurring: validated.recurring ?? false,
+          recurrence_interval: validated.recurrence_interval ?? null,
+          user_id: user.id,
+        })
         .select()
         .single();
       if (error) throw error;

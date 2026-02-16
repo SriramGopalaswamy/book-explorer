@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { createPayrollSchema } from "@/lib/validation-schemas";
 
 export interface PayrollRecord {
   id: string;
@@ -96,17 +97,30 @@ export function useCreatePayroll() {
     mutationFn: async (data: CreatePayrollData) => {
       if (!user) throw new Error("Not authenticated");
 
+      const validated = createPayrollSchema.parse(data);
+
       // Get the profile to find their user_id
       const { data: profile } = await supabase
         .from("profiles")
         .select("user_id")
-        .eq("id", data.profile_id)
+        .eq("id", validated.profile_id)
         .single();
 
       const { data: record, error } = await supabase
         .from("payroll_records")
         .insert({
-          ...data,
+          profile_id: validated.profile_id,
+          pay_period: validated.pay_period,
+          basic_salary: validated.basic_salary,
+          hra: validated.hra,
+          transport_allowance: validated.transport_allowance,
+          other_allowances: validated.other_allowances,
+          pf_deduction: validated.pf_deduction,
+          tax_deduction: validated.tax_deduction,
+          other_deductions: validated.other_deductions,
+          net_pay: validated.net_pay,
+          status: validated.status ?? "draft",
+          notes: validated.notes ?? null,
           user_id: profile?.user_id || user.id,
         })
         .select("*, profiles(full_name, email, department, job_title)")

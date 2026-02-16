@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { financialRecordSchema } from "@/lib/validation-schemas";
 
 export interface FinancialRecord {
   id: string;
@@ -183,10 +184,16 @@ export function useAddFinancialRecord() {
     mutationFn: async (record: Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">) => {
       if (!user) throw new Error("User not authenticated");
 
+      const validated = financialRecordSchema.parse(record);
+
       const { data, error } = await supabase
         .from("financial_records")
         .insert({
-          ...record,
+          type: validated.type,
+          category: validated.category,
+          amount: validated.amount,
+          description: validated.description ?? null,
+          record_date: validated.record_date,
           user_id: user.id,
         })
         .select()
