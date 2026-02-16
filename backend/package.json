@@ -9,9 +9,12 @@
     "dev": "nodemon src/server.js",
     "migrate": "node database/setup.js migrate",
     "seed": "node database/setup.js seed",
-    "db:reset": "node database/setup.js reset"
+    "db:reset": "node database/setup.js reset",
+    "seed:dev": "node database/seed-medium.js",
+    "seed:dev:reset": "node database/seed-medium.js --reset"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.3.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
