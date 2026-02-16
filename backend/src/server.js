@@ -48,6 +48,7 @@ app.use(cors({
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'http://localhost:8080', // Vite alternate port
     'http://localhost:5174', // Another common Vite port
+    'http://localhost:4173', // Vite preview port
   ],
   credentials: true
 }));
