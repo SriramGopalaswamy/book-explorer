@@ -18,7 +18,7 @@
     "backend:seed": "cd backend && npm run seed",
     "backend:reset": "cd backend && npm run db:reset",
     "backend:start": "cd backend && npm start",
-    "supabase:seed": "node scripts/seed-supabase.js",
+    "supabase:seed": "node scripts/seed-supabase.cjs",
     "seed:all": "npm run backend:seed && npm run supabase:seed",
     "postinstall": "npm run backend:install"
   },
