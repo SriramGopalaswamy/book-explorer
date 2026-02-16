@@ -174,7 +174,12 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("payroll_records").delete().eq("id", id);
+      // Use soft delete instead of hard delete
+      // Addresses CRITICAL Issue #6 from system audit
+      const { error } = await supabase
+        .from("payroll_records")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
