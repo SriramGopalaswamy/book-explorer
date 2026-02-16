@@ -4,9 +4,11 @@ const Permission = require('./security/permission.model');
 const Book = require('./books/book.model');
 const Author = require('./authors/author.model');
 const Review = require('./reviews/review.model');
+const FinancialRecord = require('./financial/financialRecord.model');
 
 // User associations
 User.hasMany(Review, { foreignKey: 'userId', as: 'reviews' });
+User.hasMany(FinancialRecord, { foreignKey: 'userId', as: 'financialRecords' });
 
 // Author associations
 Author.hasMany(Book, { foreignKey: 'authorId', as: 'books' });
@@ -19,11 +21,15 @@ Book.hasMany(Review, { foreignKey: 'bookId', as: 'reviews' });
 Review.belongsTo(Book, { foreignKey: 'bookId', as: 'book' });
 Review.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// FinancialRecord associations
+FinancialRecord.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 module.exports = {
   User,
   Role,
   Permission,
   Book,
   Author,
-  Review
+  Review,
+  FinancialRecord
 };

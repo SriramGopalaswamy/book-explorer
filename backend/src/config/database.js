@@ -38,12 +38,16 @@ if (env === 'production' && dbConfig.url) {
     logging: dbConfig.logging,
     pool: dbConfig.pool
   });
+  console.log('📊 DATABASE: PostgreSQL (Production)');
+  console.log('   Connection: DATABASE_URL (environment variable)');
 } else {
   sequelize = new Sequelize({
     dialect: dbConfig.dialect,
     storage: dbConfig.storage,
     logging: dbConfig.logging
   });
+  console.log('📊 DATABASE: SQLite (Development)');
+  console.log('   Storage:', dbConfig.storage);
 }
 
 module.exports = { sequelize, Sequelize };
