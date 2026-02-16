@@ -14,6 +14,29 @@ This project includes a comprehensive RBAC introspection and governance layer fo
 - Switch roles at runtime to test different permission levels
 - View permission matrices and debug access control
 
+## Database Seeding
+
+The project includes a **medium-density database seeding system** for development and testing. See [SEEDING_GUIDE.md](./SEEDING_GUIDE.md) for complete documentation.
+
+**Quick Start:**
+```bash
+cd backend
+
+# Seed realistic test data (48 users, 45 authors, 275 books, 550+ reviews)
+npm run seed:dev
+
+# Reset and re-seed (destructive)
+npm run seed:dev:reset
+```
+
+**Features:**
+- ✅ Production-safe (blocked in production environments)
+- ✅ Realistic data using Faker library
+- ✅ RBAC testing support (multiple roles and permissions)
+- ✅ Complete referential integrity
+- ✅ Idempotent operation
+- ✅ API endpoints available: `POST /api/dev/seed-medium` and `POST /api/dev/reset-dev-data`
+
 ## Environment Variables
 
 ### Backend (.env)
