@@ -16,6 +16,14 @@
  */
 
 const { DEV_MODE } = require('../../config/systemFlags');
+const { ROLE_PERMISSIONS } = require('./permissions');
+
+/**
+ * Validate role name against known roles
+ */
+const isValidRole = (roleName) => {
+  return ROLE_PERMISSIONS.hasOwnProperty(roleName.toLowerCase());
+};
 
 /**
  * Resolve the effective role for the current request
@@ -41,12 +49,21 @@ const resolveEffectiveRole = (req, res, next) => {
     const devRoleHeader = req.get('x-dev-role');
     
     if (devRoleHeader && devRoleHeader.trim()) {
-      // Use header role for impersonation
-      req.effectiveRole = devRoleHeader.trim().toLowerCase();
-      req.isImpersonating = true;
+      const requestedRole = devRoleHeader.trim().toLowerCase();
       
-      // Log role switch for audit trail
-      console.log(`🔄 DEV ROLE SWITCH → ${req.effectiveRole} (actual: ${actualRole}, user: ${req.user.id || req.user.email})`);
+      // Validate role name against known roles
+      if (isValidRole(requestedRole)) {
+        // Use header role for impersonation
+        req.effectiveRole = requestedRole;
+        req.isImpersonating = true;
+        
+        // Log role switch for audit trail
+        console.log(`🔄 DEV ROLE SWITCH → ${req.effectiveRole} (actual: ${actualRole}, user: ${req.user.id || req.user.email})`);
+      } else {
+        // Invalid role requested - log warning and use actual role
+        console.warn(`⚠️  Invalid role '${requestedRole}' requested for impersonation (user: ${req.user.id || req.user.email})`);
+        req.effectiveRole = actualRole;
+      }
     } else {
       // No impersonation, use actual role
       req.effectiveRole = actualRole;
