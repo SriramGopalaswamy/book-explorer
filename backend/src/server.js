@@ -5,6 +5,8 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const compression = require('compression');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
 require('dotenv').config();
 
 const { sequelize } = require('./config/database');
@@ -25,7 +27,14 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false // Disable for development
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  }
 }));
 app.use(compression());
 app.use(morgan('dev'));
@@ -33,6 +42,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -61,10 +71,13 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// CSRF protection (only for mutation routes, not for API reads)
+const csrfProtection = csrf({ cookie: true });
+
 // Demo mode middleware (applies to all routes)
 app.use(demoModeMiddleware);
 
-// Health check
+// Health check (no CSRF needed for GET)
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok',
@@ -81,6 +94,11 @@ app.use('/api/authors', authorRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/security', securityRoutes);
+
+// CSRF token endpoint for clients
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 // Serve static files from React build
 const frontendBuildPath = path.join(__dirname, '../../dist');

@@ -3,6 +3,16 @@ const passport = require('./strategies');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../modules/users/user.model');
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: 'Too many authentication attempts from this IP, please try again after 15 minutes',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const router = express.Router();
 
@@ -26,6 +36,7 @@ const generateToken = (user) => {
 
 // Local login
 router.post('/login',
+  authLimiter,
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
   (req, res, next) => {
@@ -69,6 +80,7 @@ router.post('/login',
 
 // Register new user
 router.post('/register',
+  authLimiter,
   body('username').isLength({ min: 3, max: 50 }),
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
