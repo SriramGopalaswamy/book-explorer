@@ -14,6 +14,22 @@ interface MainLayoutProps {
 export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
+      {/* DEPLOYMENT VERIFICATION MARKER - BUILD HASH CHECK */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          bottom: 0, 
+          left: 0, 
+          background: 'red', 
+          color: 'white', 
+          padding: '10px', 
+          zIndex: 9999,
+          fontWeight: 'bold',
+          fontSize: '14px'
+        }}
+      >
+        BUILD VERIFICATION v{Date.now()} - FRONTEND REBUILT
+      </div>
       {/* Developer Mode Banner - Only renders in developer mode */}
       <DeveloperModeBanner />
       <Sidebar />

@@ -141,6 +141,23 @@ app.use((err, req, res, next) => {
 // Database initialization and server start
 const startServer = async () => {
   try {
+    // ========================================
+    // DEPLOYMENT VERIFICATION - SERVER RESTART CHECK
+    // ========================================
+    console.log("\n" + "=".repeat(60));
+    console.log("🔴 SERVER RESTARTED AT:", new Date().toISOString());
+    console.log("🔴 TIMESTAMP:", Date.now());
+    console.log("=".repeat(60) + "\n");
+    
+    // ========================================
+    // DEPLOYMENT VERIFICATION - ENV MODE CHECK
+    // ========================================
+    console.log("🔴 DEV_MODE:", process.env.DEV_MODE);
+    console.log("🔴 NODE_ENV:", process.env.NODE_ENV);
+    console.log("🔴 DEMO_MODE:", process.env.DEMO_MODE);
+    console.log("🔴 PORT:", PORT);
+    console.log("=".repeat(60) + "\n");
+    
     // Log system flags
     logSystemFlags();
     
