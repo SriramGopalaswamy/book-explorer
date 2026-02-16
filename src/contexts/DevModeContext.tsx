@@ -113,7 +113,19 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
         api.get<{ matrix: PermissionMatrix }>('/dev/role-permissions'),
       ]);
       
-      setAvailableRoles(rolesRes.roles);
+      console.log('🔍 ROLES API RESPONSE:', rolesRes);
+      console.log('🔍 Roles received:', rolesRes.roles?.length || 0);
+      console.log('🔍 Roles data:', rolesRes.roles);
+      
+      if (!rolesRes.roles || rolesRes.roles.length === 0) {
+        console.error('❌ NO ROLES RECEIVED FROM API');
+        toast.error('No roles available - check server configuration');
+        setAvailableRoles([]);
+      } else {
+        setAvailableRoles(rolesRes.roles);
+        toast.success(`✅ Loaded ${rolesRes.roles.length} roles for dev mode`);
+      }
+      
       setPermissions(permissionsRes.permissions);
       setPermissionMatrix(matrixRes.matrix);
       
