@@ -234,9 +234,10 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       
       // Refresh data
       await fetchDevData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update role permissions:', error);
-      toast.error(error.message || 'Failed to update permissions');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update permissions';
+      toast.error(errorMessage);
       throw error;
     }
   }, [fetchDevData]);
