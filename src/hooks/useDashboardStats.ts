@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMode } from "@/contexts/AppModeContext";
+import { api } from "@/lib/api";
 import { subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 export interface DashboardStats {
@@ -16,10 +18,27 @@ export interface DashboardStats {
 
 export function useDashboardStats() {
   const { user } = useAuth();
+  const { appMode, isDeveloperAuthenticated } = useAppMode();
+  
+  // In developer mode, use backend API; otherwise use Supabase
+  const usesBackendAPI = appMode === 'developer' && isDeveloperAuthenticated;
 
   return useQuery({
-    queryKey: ["dashboard-stats", user?.id],
+    queryKey: ["dashboard-stats", user?.id, appMode],
     queryFn: async (): Promise<DashboardStats> => {
+      // Developer mode: use backend API
+      if (usesBackendAPI) {
+        try {
+          const stats = await api.get<DashboardStats>('/financial/dashboard-stats');
+          console.log('📊 Dashboard stats from backend API:', stats);
+          return stats;
+        } catch (error) {
+          console.error('Failed to fetch dashboard stats from backend:', error);
+          return getDefaultStats();
+        }
+      }
+      
+      // Production mode: use Supabase
       if (!user) {
         return getDefaultStats();
       }
@@ -131,7 +150,7 @@ export function useDashboardStats() {
         goalsChange: 0,
       };
     },
-    enabled: !!user,
+    enabled: usesBackendAPI || !!user,
     staleTime: 30000, // Cache for 30 seconds
   });
 }
