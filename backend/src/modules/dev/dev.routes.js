@@ -93,6 +93,50 @@ router.get('/system-flags', requireAuth, requireDevMode, (req, res) => {
 });
 
 /**
+ * GET /api/dev/database-status
+ * Returns database connection and seed data status
+ */
+router.get('/database-status', requireAuth, requireDevMode, async (req, res) => {
+  try {
+    const { sequelize } = require('../../config/database');
+    const models = require('../index');
+    
+    // Get counts from all tables
+    const [userCount, roleCount, permissionCount, bookCount, reviewCount, financialCount] = await Promise.all([
+      models.User.count(),
+      models.Role.count(),
+      models.Permission.count(),
+      models.Book.count(),
+      models.Review.count(),
+      models.FinancialRecord.count()
+    ]);
+    
+    res.json({
+      database: {
+        dialect: sequelize.options.dialect,
+        storage: sequelize.options.storage || 'N/A',
+        isConnected: true
+      },
+      seedData: {
+        users: userCount,
+        roles: roleCount,
+        permissions: permissionCount,
+        books: bookCount,
+        reviews: reviewCount,
+        financialRecords: financialCount
+      },
+      totalRecords: userCount + roleCount + permissionCount + bookCount + reviewCount + financialCount
+    });
+  } catch (error) {
+    console.error('Error fetching database status:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch database status', 
+      details: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/dev/roles
  * Returns all roles with their permissions and metadata
  */
