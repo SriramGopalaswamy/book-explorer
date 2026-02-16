@@ -10,20 +10,20 @@ const isProduction = NODE_ENV === 'production';
 
 /**
  * DEV_MODE - Controls developer tools visibility and features
- * - Default: true in development
- * - Forced: false in production
+ * - Default: true in development, false in production
+ * - Can be explicitly enabled in production via DEV_MODE=true
  * - Enables: Role impersonation, permission matrix debugging, live governance
  */
-const DEV_MODE = isProduction ? false : (process.env.DEV_MODE !== 'false');
+const DEV_MODE = process.env.DEV_MODE === 'true' || (!isProduction && process.env.DEV_MODE !== 'false');
 
 /**
  * ALLOW_PERMISSION_EDITING - Controls runtime permission modification
- * - Default: true in development
- * - Forced: false in production
+ * - Default: true in development, false in production
+ * - Can be explicitly enabled in production via ALLOW_PERMISSION_EDITING=true
  * - Requires: SuperAdmin role
  * - Audited: All changes logged
  */
-const ALLOW_PERMISSION_EDITING = isProduction ? false : (process.env.ALLOW_PERMISSION_EDITING !== 'false');
+const ALLOW_PERMISSION_EDITING = process.env.ALLOW_PERMISSION_EDITING === 'true' || (!isProduction && process.env.ALLOW_PERMISSION_EDITING !== 'false');
 
 /**
  * Get all system flags
