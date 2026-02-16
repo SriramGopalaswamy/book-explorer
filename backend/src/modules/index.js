@@ -20,7 +20,7 @@ let associationsInitialized = false;
  */
 function initializeAssociations() {
   if (associationsInitialized) {
-    console.log('ℹ️  Associations already initialized, skipping...');
+    // Already initialized - skip silently to avoid log clutter
     return;
   }
 
