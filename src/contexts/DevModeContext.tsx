@@ -118,17 +118,13 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
         api.get<{ matrix: PermissionMatrix }>('/dev/role-permissions'),
       ]);
       
-      console.log('🔍 ROLES API RESPONSE:', rolesRes);
-      console.log('🔍 Roles received:', rolesRes.roles?.length || 0);
-      console.log('🔍 Roles data:', rolesRes.roles);
-      
       if (!rolesRes.roles || rolesRes.roles.length === 0) {
-        console.error('❌ NO ROLES RECEIVED FROM API');
+        console.error('No roles received from API');
         toast.error('No roles available - check server configuration');
         setAvailableRoles([]);
       } else {
         setAvailableRoles(rolesRes.roles);
-        toast.success(`✅ Loaded ${rolesRes.roles.length} roles for dev mode`);
+        toast.success(`Loaded ${rolesRes.roles.length} roles for dev mode`);
       }
       
       setPermissions(permissionsRes.permissions);
@@ -151,16 +147,6 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
         const roleInfo = await api.get<CurrentRoleInfo>('/dev/current-role-info');
         setCurrentRoleInfo(roleInfo);
         setIsImpersonating(roleInfo.isImpersonating);
-        
-        console.log('📋 Dev Mode initialized:', {
-          roles: rolesRes.roles.length,
-          permissions: permissionsRes.permissions.length,
-          defaultRole: highestPriorityRole?.name,
-          currentRole: roleInfo.effectiveRole,
-          isImpersonating: roleInfo.isImpersonating
-        });
-      } else {
-        console.warn('⚠️  No roles available for dev mode');
       }
       
     } catch (error) {
