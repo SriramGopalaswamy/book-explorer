@@ -1,6 +1,5 @@
 const { sequelize } = require('../src/config/database');
 const models = require('../src/modules');
-const bcrypt = require('bcryptjs');
 
 // Seed data
 const seedData = {

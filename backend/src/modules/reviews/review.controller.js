@@ -106,7 +106,7 @@ exports.createReview = async (req, res) => {
     // Update book rating
     const allReviews = await Review.findAll({ where: { bookId } });
     const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-    await book.update({ rating: avgRating.toFixed(2) });
+    await book.update({ rating: parseFloat(avgRating.toFixed(2)) });
     
     const fullReview = await Review.findByPk(review.id, {
       include: [
@@ -142,7 +142,7 @@ exports.updateReview = async (req, res) => {
       const book = await Book.findByPk(review.bookId);
       const allReviews = await Review.findAll({ where: { bookId: review.bookId } });
       const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-      await book.update({ rating: avgRating.toFixed(2) });
+      await book.update({ rating: parseFloat(avgRating.toFixed(2)) });
     }
     
     const updatedReview = await Review.findByPk(review.id, {
@@ -181,7 +181,7 @@ exports.deleteReview = async (req, res) => {
     
     if (allReviews.length > 0) {
       const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
-      await book.update({ rating: avgRating.toFixed(2) });
+      await book.update({ rating: parseFloat(avgRating.toFixed(2)) });
     } else {
       await book.update({ rating: 0 });
     }
