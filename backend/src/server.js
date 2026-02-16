@@ -25,6 +25,7 @@ const reviewRoutes = require('./modules/reviews/review.routes');
 const userRoutes = require('./modules/users/user.routes');
 const securityRoutes = require('./modules/security/security.routes');
 const devRoutes = require('./modules/dev/dev.routes');
+const financialRoutes = require('./modules/financial/financial.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -111,6 +112,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/dev', devRoutes);
+app.use('/api/financial', financialRoutes);
 
 // CSRF token endpoint for clients
 app.get('/api/csrf-token', csrfProtection, (req, res) => {

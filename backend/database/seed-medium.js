@@ -309,6 +309,65 @@ async function seedReviews(books, users) {
   return reviewCount;
 }
 
+async function seedFinancialRecords(users) {
+  console.log('💰 Seeding financial records...');
+  let recordCount = 0;
+  
+  const revenueCategories = ['Sales', 'Services', 'Investments', 'Consulting', 'Royalties'];
+  const expenseCategories = ['Salaries', 'Operations', 'Marketing', 'Rent & Utilities', 'Software', 'Travel', 'Others'];
+  
+  // Create financial records for all users
+  for (const user of users) {
+    // Generate records for the last 12 months
+    for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
+      const recordDate = new Date();
+      recordDate.setMonth(recordDate.getMonth() - monthOffset);
+      recordDate.setDate(Math.floor(Math.random() * 28) + 1);
+      
+      // 3-8 revenue records per month
+      const revenueRecordsCount = Math.floor(Math.random() * 6) + 3;
+      for (let i = 0; i < revenueRecordsCount; i++) {
+        try {
+          await models.FinancialRecord.create({
+            userId: user.id,
+            type: 'revenue',
+            category: getRandomElement(revenueCategories),
+            amount: Math.floor(Math.random() * 500000) + 50000, // 50k - 550k
+            description: faker.lorem.sentence(),
+            recordDate: recordDate.toISOString().split('T')[0]
+          });
+          recordCount++;
+        } catch (error) {
+          // Skip duplicates
+          continue;
+        }
+      }
+      
+      // 4-10 expense records per month
+      const expenseRecordsCount = Math.floor(Math.random() * 7) + 4;
+      for (let i = 0; i < expenseRecordsCount; i++) {
+        try {
+          await models.FinancialRecord.create({
+            userId: user.id,
+            type: 'expense',
+            category: getRandomElement(expenseCategories),
+            amount: Math.floor(Math.random() * 300000) + 20000, // 20k - 320k
+            description: faker.lorem.sentence(),
+            recordDate: recordDate.toISOString().split('T')[0]
+          });
+          recordCount++;
+        } catch (error) {
+          // Skip duplicates
+          continue;
+        }
+      }
+    }
+  }
+  
+  console.log(`✓ Created ${recordCount} financial records`);
+  return recordCount;
+}
+
 // ========================================
 // RESET FUNCTION
 // ========================================
@@ -435,6 +494,7 @@ async function seedMedium(options = {}) {
     const authors = await seedAuthors(users);
     const books = await seedBooks(authors, users);
     const reviewCount = await seedReviews(books, users);
+    const financialCount = await seedFinancialRecords(users);
     
     await transaction.commit();
     
@@ -454,6 +514,7 @@ async function seedMedium(options = {}) {
     console.log(`   Authors:    ${authors.length}`);
     console.log(`   Books:      ${books.length}`);
     console.log(`   Reviews:    ${reviewCount}`);
+    console.log(`   Financial:  ${financialCount}`);
     console.log(`   Duration:   ${duration}s`);
     console.log(`   Database:   ${sequelize.options.dialect}`);
     console.log(`   Mode:       DEVELOPER`);
@@ -468,7 +529,8 @@ async function seedMedium(options = {}) {
         users: users.length,
         authors: authors.length,
         books: books.length,
-        reviews: reviewCount
+        reviews: reviewCount,
+        financialRecords: financialCount
       },
       duration,
       database: sequelize.options.dialect,
