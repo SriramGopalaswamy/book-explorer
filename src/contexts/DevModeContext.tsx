@@ -98,8 +98,6 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
   
   /**
    * Fetch all dev mode data from backend
-   * 
-   * STEP 5: VERIFY FRONTEND FETCH
    */
   const fetchDevData = useCallback(async () => {
     // Only fetch in developer mode OR if user exists (for backward compatibility)
@@ -113,13 +111,6 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔍 STEP 5: FETCHING ROLES FROM FRONTEND');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('User:', user?.email || 'developer mode');
-      console.log('App mode:', appMode);
-      console.log('Is developer authenticated:', isDeveloperAuthenticated);
-      
       // Fetch roles, permissions, and matrix in parallel
       const [rolesRes, permissionsRes, matrixRes] = await Promise.all([
         api.get<{ roles: Role[] }>('/dev/roles'),
@@ -127,22 +118,13 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
         api.get<{ matrix: PermissionMatrix }>('/dev/role-permissions'),
       ]);
       
-      console.log('ROLES RESPONSE:', rolesRes);
-      console.log('Roles received count:', rolesRes.roles?.length || 0);
-      console.log('Roles data:', rolesRes.roles);
-      
-      // STEP 6: VERIFY STATE SETTING
-      console.log('\n🔍 STEP 6: SETTING STATE');
-      
       if (!rolesRes.roles || rolesRes.roles.length === 0) {
-        console.error('❌ NO ROLES RECEIVED FROM API');
-        console.error('Response was:', rolesRes);
+        console.error('No roles received from API');
         toast.error('No roles available - check server configuration');
         setAvailableRoles([]);
       } else {
-        console.log('Setting availableRoles to:', rolesRes.roles);
         setAvailableRoles(rolesRes.roles);
-        toast.success(`✅ Loaded ${rolesRes.roles.length} roles for dev mode`);
+        toast.success(`Loaded ${rolesRes.roles.length} roles for dev mode`);
       }
       
       setPermissions(permissionsRes.permissions);
@@ -154,12 +136,8 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
           return role.priority > highest.priority ? role : highest;
         }, rolesRes.roles[0]);
         
-        console.log('Highest priority role:', highestPriorityRole.name);
-        
-        // STEP 8: VERIFY EFFECTIVE ROLE DEFAULTING
         // Set as default active role if not already set
         if (!activeRole && highestPriorityRole) {
-          console.log('🔍 STEP 8: Setting default active role:', highestPriorityRole.name);
           setActiveRoleState(highestPriorityRole.name);
           setCustomHeader('x-dev-role', highestPriorityRole.name);
           setIsImpersonating(true);
@@ -169,22 +147,10 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
         const roleInfo = await api.get<CurrentRoleInfo>('/dev/current-role-info');
         setCurrentRoleInfo(roleInfo);
         setIsImpersonating(roleInfo.isImpersonating);
-        
-        console.log('📋 Dev Mode initialized:', {
-          roles: rolesRes.roles.length,
-          permissions: permissionsRes.permissions.length,
-          defaultRole: highestPriorityRole?.name,
-          currentRole: roleInfo.effectiveRole,
-          isImpersonating: roleInfo.isImpersonating
-        });
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      } else {
-        console.warn('⚠️  No roles available for dev mode');
       }
       
     } catch (error) {
-      console.error('❌ Failed to fetch dev mode data:', error);
-      console.error('Error details:', error);
+      console.error('Failed to fetch dev mode data:', error);
       toast.error('Failed to initialize dev mode');
     } finally {
       setIsLoading(false);
@@ -214,20 +180,6 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, [user, authLoading, isDeveloperAuthenticated, appMode, fetchDevData]);
-  
-  /**
-   * STEP 6 (continued): Monitor availableRoles state changes
-   */
-  useEffect(() => {
-    console.log('\n🔍 STEP 6 (STATE MONITOR): availableRoles changed');
-    console.log('New availableRoles value:', availableRoles);
-    console.log('Length:', availableRoles.length);
-    if (availableRoles.length > 0) {
-      console.log('✅ State successfully updated with roles');
-    } else {
-      console.log('⚠️  State is empty array');
-    }
-  }, [availableRoles]);
   
   /**
    * Set active role and update header
