@@ -78,14 +78,16 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
     // Set x-dev-bypass header for all API requests
     setCustomHeader('x-dev-bypass', 'true');
     
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔓 DEVELOPER MODE ACTIVATED');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('Auth:        BYPASSED');
-    console.log('DevTools:    ENABLED');
-    console.log('Mode:        DEVELOPER');
-    console.log('Header:      x-dev-bypass: true');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log([
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '🔓 DEVELOPER MODE ACTIVATED',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      'Auth:        BYPASSED',
+      'DevTools:    ENABLED',
+      'Mode:        DEVELOPER',
+      'Header:      x-dev-bypass: true',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    ].join('\n'));
   }, [user]);
 
   /**
