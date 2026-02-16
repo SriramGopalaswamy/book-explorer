@@ -1,0 +1,877 @@
+
+========================================================================================================================
+COMPLETE STRUCTURAL SYSTEM AUDIT REPORT
+========================================================================================================================
+
+Repository: SriramGopalaswamy/book-explorer
+Generated: 2026-02-16T10:31:28.360Z
+Audit Type: FORENSIC DATABASE GOVERNANCE
+
+
+========================================================================================================================
+PHASE 1 — DATABASE FORENSICS
+========================================================================================================================
+
+
+------------------------------------------------------------------------------------------------------------------------
+A) COMPLETE TABLE INVENTORY
+------------------------------------------------------------------------------------------------------------------------
+
+
++------------------------------------------------------------------------------+
+|                          TABLE: attendance_records                           |
++------------------------------------------------------------------------------+
+| Module Owner : hrms                                                         |
+| Purpose      : Employee attendance tracking                                 |
+| Criticality  : MEDIUM                                                       |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| profile_id             | UUID            | YES   |     | Y   |      |       |      |
+| date                   | DATE            | NO    |     |     | Y    |       |      |
+| check_in               | TIMESTAMP       | YES   |     |     |      |       |      |
+| check_out              | TIMESTAMP       | YES   |     |     |      |       |      |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| notes                  | TEXT            | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 6 policies active
+
+
++------------------------------------------------------------------------------+
+|                             TABLE: bank_accounts                             |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Bank account master data                                     |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| name                   | TEXT            | NO    |     |     |      |       |      |
+| account_type           | TEXT            | NO    |     |     | Y    |       | Y    |
+| account_number         | TEXT            | NO    |     |     |      |       |      |
+| balance                | NUMERIC         | NO    |     |     | Y    |       |      |
+| bank_name              | TEXT            | YES   |     |     |      |       |      |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_bank_accounts_user_id
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                           TABLE: bank_transactions                           |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Bank transaction records                                     |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| account_id             | UUID            | YES   |     | Y   |      |       |      |
+| transaction_type       | TEXT            | NO    |     |     |      |       | Y    |
+| amount                 | NUMERIC         | NO    |     |     |      |       |      |
+| description            | TEXT            | NO    |     |     |      |       |      |
+| category               | TEXT            | YES   |     |     |      |       |      |
+| transaction_date       | DATE            | NO    |     |     | Y    |       |      |
+| reference              | TEXT            | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_bank_transactions_user_id, idx_bank_transactions_account_id, idx_bank_transactions_date
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                           TABLE: chart_of_accounts                           |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Accounting chart of accounts structure                       |
+| Criticality  : MEDIUM                                                       |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| account_code           | TEXT            | NO    |     |     |      |       |      |
+| account_name           | TEXT            | NO    |     |     |      |       |      |
+| description            | TEXT            | YES   |     |     |      |       |      |
+| is_active              | BOOLEAN         | NO    |     |     | Y    |       |      |
+| opening_balance        | NUMERIC         | NO    |     |     | Y    |       |      |
+| current_balance        | NUMERIC         | NO    |     |     | Y    |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_coa_user_type
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                           TABLE: financial_records                           |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Revenue and expense tracking                                 |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     | Y   |      |       |      |
+| type                   | TEXT            | NO    |     |     |      |       | Y    |
+| category               | TEXT            | NO    |     |     |      |       |      |
+| amount                 | DECIMAL(12      | NO    |     |     |      |       |      |
+| description            | TEXT            | YES   |     |     |      |       |      |
+| record_date            | DATE            | NO    |     |     | Y    |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_financial_records_user_date, idx_financial_records_type
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                                 TABLE: goals                                 |
++------------------------------------------------------------------------------+
+| Module Owner : performance                                                  |
+| Purpose      : Performance goal tracking                                    |
+| Criticality  : LOW                                                          |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| title                  | TEXT            | NO    |     |     |      |       |      |
+| description            | TEXT            | YES   |     |     |      |       |      |
+| progress               | INTEGER         | NO    |     |     | Y    |       | Y    |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| category               | TEXT            | NO    |     |     | Y    |       |      |
+| owner                  | TEXT            | YES   |     |     |      |       |      |
+| due_date               | DATE            | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 6 policies active
+
+
++------------------------------------------------------------------------------+
+|                               TABLE: holidays                                |
++------------------------------------------------------------------------------+
+| Module Owner : core                                                         |
+| Purpose      : Company holiday calendar                                     |
+| Criticality  : LOW                                                          |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| name                   | TEXT            | NO    |     |     |      |       |      |
+| date                   | DATE            | NO    |     |     |      |       |      |
+| year                   | INTEGER         | NO    |     |     | Y    |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 2 policies active
+
+
++------------------------------------------------------------------------------+
+|                             TABLE: invoice_items                             |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Invoice line item details                                    |
+| Criticality  : LOW                                                          |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| invoice_id             | UUID            | NO    |     | Y   |      |       |      |
+| description            | TEXT            | NO    |     |     |      |       |      |
+| quantity               | INTEGER         | NO    |     |     | Y    |       |      |
+| rate                   | NUMERIC         | NO    |     |     |      |       |      |
+| amount                 | NUMERIC         | NO    |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_invoice_items_invoice_id
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                               TABLE: invoices                                |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Invoice master records                                       |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| invoice_number         | TEXT            | NO    |     |     |      |       |      |
+| client_name            | TEXT            | NO    |     |     |      |       |      |
+| client_email           | TEXT            | NO    |     |     |      |       |      |
+| amount                 | NUMERIC         | NO    |     |     |      |       |      |
+| due_date               | DATE            | NO    |     |     |      |       |      |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_invoices_user_id, idx_invoices_status
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                            TABLE: leave_balances                             |
++------------------------------------------------------------------------------+
+| Module Owner : hrms                                                         |
+| Purpose      : Leave balance management per employee                        |
+| Criticality  : MEDIUM                                                       |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| profile_id             | UUID            | YES   |     | Y   |      |       |      |
+| leave_type             | TEXT            | NO    |     |     |      |       | Y    |
+| total_days             | INTEGER         | NO    |     |     | Y    |       |      |
+| used_days              | INTEGER         | NO    |     |     | Y    |       |      |
+| year                   | INTEGER         | NO    |     |     | Y    |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 5 policies active
+
+
++------------------------------------------------------------------------------+
+|                            TABLE: leave_requests                             |
++------------------------------------------------------------------------------+
+| Module Owner : hrms                                                         |
+| Purpose      : Leave request and approval workflow                          |
+| Criticality  : MEDIUM                                                       |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| profile_id             | UUID            | YES   |     | Y   |      |       |      |
+| leave_type             | TEXT            | NO    |     |     |      |       | Y    |
+| from_date              | DATE            | NO    |     |     |      |       |      |
+| to_date                | DATE            | NO    |     |     |      |       |      |
+| days                   | INTEGER         | NO    |     |     | Y    |       |      |
+| reason                 | TEXT            | YES   |     |     |      |       |      |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| reviewed_by            | UUID            | YES   |     |     |      |       |      |
+| reviewed_at            | TIMESTAMP       | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 7 policies active
+
+
++------------------------------------------------------------------------------+
+|                                 TABLE: memos                                 |
++------------------------------------------------------------------------------+
+| Module Owner : performance                                                  |
+| Purpose      : Company memos and announcements                              |
+| Criticality  : LOW                                                          |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| author_name            | TEXT            | NO    |     |     |      |       |      |
+| title                  | TEXT            | NO    |     |     |      |       |      |
+| content                | TEXT            | YES   |     |     |      |       |      |
+| excerpt                | TEXT            | YES   |     |     |      |       |      |
+| department             | TEXT            | NO    |     |     | Y    |       |      |
+| priority               | TEXT            | NO    |     |     | Y    |       | Y    |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| views                  | INTEGER         | NO    |     |     | Y    |       |      |
+| published_at           | TIMESTAMP       | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+RLS Policies: 6 policies active
+
+
++------------------------------------------------------------------------------+
+|                            TABLE: payroll_records                            |
++------------------------------------------------------------------------------+
+| Module Owner : hrms                                                         |
+| Purpose      : Employee payroll processing records                          |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| profile_id             | UUID            | YES   |     | Y   |      |       |      |
+| hra                    | NUMERIC         | NO    |     |     | Y    |       |      |
+| transport_allowance    | NUMERIC         | NO    |     |     | Y    |       |      |
+| other_allowances       | NUMERIC         | NO    |     |     | Y    |       |      |
+| pf_deduction           | NUMERIC         | NO    |     |     | Y    |       |      |
+| tax_deduction          | NUMERIC         | NO    |     |     | Y    |       |      |
+| other_deductions       | NUMERIC         | NO    |     |     | Y    |       |      |
+| net_pay                | NUMERIC         | NO    |     |     | Y    |       |      |
+| status                 | TEXT            | NO    |     |     | Y    |       |      |
+| processed_at           | TIMESTAMP       | YES   |     |     |      |       |      |
+| notes                  | TEXT            | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_payroll_records_profile_period, idx_payroll_records_user_id
+RLS Policies: 3 policies active
+
+
++------------------------------------------------------------------------------+
+|                               TABLE: profiles                                |
++------------------------------------------------------------------------------+
+| Module Owner : hrms                                                         |
+| Purpose      : Employee profile and personal information                    |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     | Y   |      | Y     |      |
+| full_name              | TEXT            | YES   |     |     |      |       |      |
+| department             | TEXT            | YES   |     |     |      |       |      |
+| job_title              | TEXT            | YES   |     |     |      |       |      |
+| avatar_url             | TEXT            | YES   |     |     |      |       |      |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_profiles_status, idx_profiles_department
+RLS Policies: 9 policies active
+
+
++------------------------------------------------------------------------------+
+|                          TABLE: scheduled_payments                           |
++------------------------------------------------------------------------------+
+| Module Owner : financial                                                    |
+| Purpose      : Scheduled payment tracking                                   |
+| Criticality  : MEDIUM                                                       |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | UUID            | NO    | Y   |     | Y    |       |      |
+| user_id                | UUID            | NO    |     |     |      |       |      |
+| name                   | TEXT            | NO    |     |     |      |       |      |
+| amount                 | NUMERIC         | NO    |     |     |      |       |      |
+| due_date               | DATE            | NO    |     |     |      |       |      |
+| payment_type           | TEXT            | NO    |     |     | Y    |       | Y    |
+| status                 | TEXT            | NO    |     |     | Y    |       | Y    |
+| category               | TEXT            | YES   |     |     |      |       |      |
+| recurring              | BOOLEAN         | NO    |     |     | Y    |       |      |
+| recurrence_interval    | TEXT            | YES   |     |     |      |       | Y    |
+| created_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
+| updated_at             | TIMESTAMP       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_scheduled_payments_user_id, idx_scheduled_payments_due_date
+RLS Policies: 4 policies active
+
+
++------------------------------------------------------------------------------+
+|                              TABLE: user_roles                               |
++------------------------------------------------------------------------------+
+| Module Owner : security                                                     |
+| Purpose      : User role assignments for RBAC                               |
+| Criticality  : HIGH                                                         |
++------------------------------------------------------------------------------+
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| Field                  | Type            | Null  | PK  | FK  | Def  | Uniq  | Chk  |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+| id                     | uuid            | YES   | Y   |     | Y    |       |      |
+| user_id                | uuid            | NO    |     | Y   |      |       |      |
+| role                   | app_role        | NO    |     |     |      |       |      |
+| created_at             | timestamp       | NO    |     |     | Y    |       |      |
++------------------------+-----------------+-------+-----+-----+------+-------+------+
+
+Indexes: idx_user_roles_user_id
+RLS Policies: 5 policies active
+
+
+------------------------------------------------------------------------------------------------------------------------
+B) INDEX SUMMARY
+------------------------------------------------------------------------------------------------------------------------
+
++-------------------------------------+---------------------------+----------------------------------------------------+
+| Index Name                          | Table                     | Columns                                            |
++-------------------------------------+---------------------------+----------------------------------------------------+
+| idx_financial_records_user_date     | financial_records         | user_id, record_date                               |
+| idx_financial_records_type          | financial_records         | type                                               |
+| idx_invoices_user_id                | invoices                  | user_id                                            |
+| idx_invoices_status                 | invoices                  | status                                             |
+| idx_invoice_items_invoice_id        | invoice_items             | invoice_id                                         |
+| idx_bank_accounts_user_id           | bank_accounts             | user_id                                            |
+| idx_bank_transactions_user_id       | bank_transactions         | user_id                                            |
+| idx_bank_transactions_account_id    | bank_transactions         | account_id                                         |
+| idx_bank_transactions_date          | bank_transactions         | transaction_date                                   |
+| idx_scheduled_payments_user_id      | scheduled_payments        | user_id                                            |
+| idx_scheduled_payments_due_date     | scheduled_payments        | due_date                                           |
+| idx_user_roles_user_id              | user_roles                | user_id                                            |
+| idx_profiles_status                 | profiles                  | status                                             |
+| idx_profiles_department             | profiles                  | department                                         |
+| idx_payroll_records_profile_period  | payroll_records           | profile_id, pay_period                             |
+| idx_payroll_records_user_id         | payroll_records           | user_id                                            |
+| idx_coa_user_type                   | chart_of_accounts         | user_id, account_type                              |
++-------------------------------------+---------------------------+----------------------------------------------------+
+
+------------------------------------------------------------------------------------------------------------------------
+C) ENUM TYPES
+------------------------------------------------------------------------------------------------------------------------
+
+Type: app_role
+Values: 'admin', 'hr', 'manager', 'employee'
+
+
+========================================================================================================================
+PHASE 2 — SHARED FIELD GOVERNANCE MATRIX
+========================================================================================================================
+
++----------------------+--------------------------------+--------+----------+------------+
+| Field                | Purpose                        | Count  | Indexed  | Enforced   |
++----------------------+--------------------------------+--------+----------+------------+
+| id                   | primary key                    | 16     | Yes      | Partial    |
+| created_at           | audit timestamp                | 16     | No       | Yes        |
+| user_id              | user ownership                 | 14     | Yes      | Yes        |
+| updated_at           | audit timestamp                | 12     | No       | Yes        |
+| status               | state management               | 8      | Yes      | Partial    |
+| amount               | INFERRED: amount               | 5      | No       | Partial    |
+| description          | INFERRED: description          | 5      | No       | Partial    |
+| category             | INFERRED: category             | 4      | No       | Partial    |
+| profile_id           | INFERRED: profile id           | 4      | Yes      | Partial    |
+| due_date             | INFERRED: due date             | 3      | Yes      | Partial    |
+| name                 | INFERRED: name                 | 3      | No       | Partial    |
++----------------------+--------------------------------+--------+----------+------------+
+
+========================================================================================================================
+PHASE 3 — ROLE & PERMISSION FORENSICS
+========================================================================================================================
+
+
+------------------------------------------------------------------------------------------------------------------------
+A) ROLE INVENTORY
+------------------------------------------------------------------------------------------------------------------------
+
++--------------------+--------------+----------------+------------------+
+| Role Name          | System Role  | Customizable   | Permission Count |
++--------------------+--------------+----------------+------------------+
+| superadmin         | Yes          | No             | ALL              |
+| admin              | Yes          | No             | ALL              |
+| moderator          | Yes          | No             | 7                |
+| author             | Yes          | No             | 7                |
+| reader             | Yes          | No             | 13               |
++--------------------+--------------+----------------+------------------+
+
+------------------------------------------------------------------------------------------------------------------------
+B) PERMISSION MATRIX
+------------------------------------------------------------------------------------------------------------------------
+
+Role: superadmin
+  Permissions: ALL (*)
+
+Role: admin
+  Permissions: ALL (*)
+
+Role: moderator
+  Permissions:
+    - books.books.read
+    - books.books.moderate
+    - books.authors.read
+    - reviews.reviews.read
+    - reviews.reviews.moderate
+    - reviews.reviews.delete
+    - users.profiles.read
+
+Role: author
+  Permissions:
+    - books.books.create
+    - books.books.read
+    - books.books.update
+    - books.authors.read
+    - books.authors.update
+    - books.genres.read
+    - reviews.reviews.read
+
+Role: reader
+  Permissions:
+    - books.books.read
+    - books.authors.read
+    - books.genres.read
+    - books.collections.read
+    - reviews.reviews.create
+    - reviews.reviews.read
+    - reviews.reviews.update
+    - reviews.ratings.create
+    - users.profiles.read
+    - users.profiles.update
+    - users.progress.create
+    - users.progress.update
+    - users.preferences.update
+
+
+------------------------------------------------------------------------------------------------------------------------
+C) RLS POLICY SUMMARY
+------------------------------------------------------------------------------------------------------------------------
+
++---------------------------+----------------------------------------------------+------------+
+| Table                     | Policy Name                                        | Operation  |
++---------------------------+----------------------------------------------------+------------+
+| profiles                  | Users can view their own profile                   | SELECT     |
+| profiles                  | Users can update their own profile                 | UPDATE     |
+| profiles                  | Users can insert their own profile                 | INSERT     |
+| financial_records         | Users can view their own financial records         | SELECT     |
+| financial_records         | Users can create their own financial records       | INSERT     |
+| financial_records         | Users can update their own financial records       | UPDATE     |
+| financial_records         | Users can delete their own financial records       | DELETE     |
+| invoices                  | Users can view their own invoices                  | SELECT     |
+| invoices                  | Users can create their own invoices                | INSERT     |
+| invoices                  | Users can update their own invoices                | UPDATE     |
+| invoices                  | Users can delete their own invoices                | DELETE     |
+| invoice_items             | Users can view their invoice items                 | SELECT     |
+| invoice_items             | Users can create their invoice items               | INSERT     |
+| invoice_items             | Users can update their invoice items               | UPDATE     |
+| invoice_items             | Users can delete their invoice items               | DELETE     |
+| bank_accounts             | Users can view their own bank accounts             | SELECT     |
+| bank_accounts             | Users can create their own bank accounts           | INSERT     |
+| bank_accounts             | Users can update their own bank accounts           | UPDATE     |
+| bank_accounts             | Users can delete their own bank accounts           | DELETE     |
+| bank_transactions         | Users can view their own transactions              | SELECT     |
+| bank_transactions         | Users can create their own transactions            | INSERT     |
+| bank_transactions         | Users can update their own transactions            | UPDATE     |
+| bank_transactions         | Users can delete their own transactions            | DELETE     |
+| scheduled_payments        | Users can view their own scheduled payments        | SELECT     |
+| scheduled_payments        | Users can create their own scheduled payments      | INSERT     |
+| scheduled_payments        | Users can update their own scheduled payments      | UPDATE     |
+| scheduled_payments        | Users can delete their own scheduled payments      | DELETE     |
+| user_roles                | Users can view their own roles                     | SELECT     |
+| user_roles                | Admins can view all roles                          | SELECT     |
+| user_roles                | Admins can insert roles                            | INSERT     |
+| user_roles                | Admins can update roles                            | UPDATE     |
+| user_roles                | Admins can delete roles                            | DELETE     |
+| profiles                  | Admins and HR can view all profiles                | SELECT     |
+| profiles                  | Admins and HR can update all profiles              | UPDATE     |
+| profiles                  | Admins and HR can insert profiles                  | INSERT     |
+| profiles                  | Admins and HR can delete profiles                  | DELETE     |
+| attendance_records        | Admins and HR can view all attendance              | SELECT     |
+| attendance_records        | Admins and HR can insert attendance                | INSERT     |
+| attendance_records        | Admins and HR can update attendance                | UPDATE     |
+| attendance_records        | Admins and HR can delete attendance                | DELETE     |
+| attendance_records        | Users can view own attendance                      | SELECT     |
+| leave_balances            | Admins and HR can view all leave balances          | SELECT     |
+| leave_balances            | Admins and HR can insert leave balances            | INSERT     |
+| leave_balances            | Admins and HR can update leave balances            | UPDATE     |
+| leave_balances            | Users can view own leave balances                  | SELECT     |
+| leave_requests            | Admins and HR can view all leave requests          | SELECT     |
+| leave_requests            | Admins and HR can update leave requests            | UPDATE     |
+| leave_requests            | Users can view own leave requests                  | SELECT     |
+| leave_requests            | Users can create own leave requests                | INSERT     |
+| leave_requests            | Users can delete own pending leave requests        | DELETE     |
+| goals                     | Users can view own goals                           | SELECT     |
+| goals                     | Users can create own goals                         | INSERT     |
+| goals                     | Users can update own goals                         | UPDATE     |
+| goals                     | Users can delete own goals                         | DELETE     |
+| goals                     | Admins and HR can view all goals                   | SELECT     |
+| memos                     | Authenticated users can view published memos       | SELECT     |
+| memos                     | Users can view own memos                           | SELECT     |
+| memos                     | Users can create own memos                         | INSERT     |
+| memos                     | Users can update own memos                         | UPDATE     |
+| memos                     | Users can delete own memos                         | DELETE     |
+| memos                     | Admins and HR can manage all memos                 | ALL        |
+| holidays                  | Authenticated users can view holidays              | SELECT     |
+| holidays                  | Admins can manage holidays                         | ALL        |
+| leave_requests            | Admins HR and Managers can update leave reque      | UPDATE     |
+| leave_requests            | Admins HR and Managers can view all leave req      | SELECT     |
+| profiles                  | Admins HR and Managers can view all profiles       | SELECT     |
+| attendance_records        | Admins HR and Managers can view all attendanc      | SELECT     |
+| goals                     | Admins HR and Managers can view all goals          | SELECT     |
+| leave_balances            | Admins HR and Managers can view all leave bal      | SELECT     |
+| payroll_records           | Admins and HR can manage all payroll               | ALL        |
+| payroll_records           | Managers can view payroll                          | SELECT     |
+| payroll_records           | Users can view own payroll                         | SELECT     |
+| chart_of_accounts         | Users can view own accounts                        | SELECT     |
+| chart_of_accounts         | Users can create own accounts                      | INSERT     |
+| chart_of_accounts         | Users can update own accounts                      | UPDATE     |
+| chart_of_accounts         | Users can delete own accounts                      | DELETE     |
+| profiles                  | Admins and HR can view all profiles                | SELECT     |
++---------------------------+----------------------------------------------------+------------+
+
+========================================================================================================================
+PHASE 4 — API SURFACE AUDIT
+========================================================================================================================
+
++----------+------------------------------------------+--------------+---------------------------+----------+
+| Method   | Endpoint                                 | Module       | Permission                | Dev Auth |
++----------+------------------------------------------+--------------+---------------------------+----------+
+| GET      | /                                        | authors      | NONE                      | NO       |
+| GET      | /:id                                     | authors      | NONE                      | NO       |
+| POST     | /                                        | authors      | books.authors.create      | NO       |
+| PUT      | /:id                                     | authors      | books.authors.update      | NO       |
+| DELETE   | /:id                                     | authors      | books.authors.delete      | NO       |
+| GET      | /                                        | books        | NONE                      | NO       |
+| GET      | /:id                                     | books        | NONE                      | NO       |
+| GET      | /genre/:genre                            | books        | NONE                      | NO       |
+| POST     | /                                        | books        | books.books.create        | NO       |
+| PUT      | /:id                                     | books        | books.books.update        | NO       |
+| DELETE   | /:id                                     | books        | books.books.delete        | NO       |
+| GET      | /system-flags                            | dev          | AUTHENTICATED             | YES      |
+| GET      | /roles                                   | dev          | AUTHENTICATED             | YES      |
+| GET      | /permissions                             | dev          | AUTHENTICATED             | YES      |
+| GET      | /role-permissions                        | dev          | AUTHENTICATED             | YES      |
+| GET      | /current-role-info                       | dev          | AUTHENTICATED             | YES      |
+| PUT      | /role-permissions/:roleName              | dev          | AUTHENTICATED             | YES      |
+| GET      | /                                        | reviews      | NONE                      | NO       |
+| GET      | /:id                                     | reviews      | NONE                      | NO       |
+| POST     | /                                        | reviews      | reviews.reviews.create    | NO       |
+| PUT      | /:id                                     | reviews      | AUTHENTICATED             | NO       |
+| DELETE   | /:id                                     | reviews      | AUTHENTICATED             | NO       |
+| GET      | /permissions                             | security     | ADMIN                     | NO       |
+| GET      | /roles                                   | security     | ADMIN                     | NO       |
+| POST     | /roles                                   | security     | ADMIN                     | NO       |
+| PUT      | /roles/:id                               | security     | ADMIN                     | NO       |
+| DELETE   | /roles/:id                               | security     | ADMIN                     | NO       |
+| GET      | /permission-matrix                       | security     | ADMIN                     | NO       |
+| GET      | /                                        | users        | ADMIN                     | NO       |
+| GET      | /profile                                 | users        | AUTHENTICATED             | NO       |
+| PUT      | /profile                                 | users        | AUTHENTICATED             | NO       |
+| GET      | /:id                                     | users        | NONE                      | NO       |
+| PUT      | /:id                                     | users        | AUTHENTICATED             | NO       |
+| DELETE   | /:id                                     | users        | ADMIN                     | NO       |
+| POST     | /login                                   | auth         | NONE                      | NO       |
+| POST     | /register                                | auth         | NONE                      | NO       |
+| GET      | /microsoft                               | auth         | NONE                      | NO       |
+| GET      | /microsoft/callback                      | auth         | NONE                      | NO       |
+| POST     | /logout                                  | auth         | NONE                      | NO       |
+| GET      | /me                                      | auth         | NONE                      | NO       |
++----------+------------------------------------------+--------------+---------------------------+----------+
+
+------------------------------------------------------------------------------------------------------------------------
+API SECURITY FINDINGS
+------------------------------------------------------------------------------------------------------------------------
+
+Endpoints without authentication: 3
+Endpoints with dev bypass logic: 6
+
+WARNING: Dev bypass endpoints detected:
+  - GET /system-flags (dev)
+  - GET /roles (dev)
+  - GET /permissions (dev)
+  - GET /role-permissions (dev)
+  - GET /current-role-info (dev)
+  - PUT /role-permissions/:roleName (dev)
+
+
+========================================================================================================================
+PHASE 5 — WORKFLOW RECONSTRUCTION
+========================================================================================================================
+
+
++--------------------------------------------------------------------------------------------------+
+|                                   WORKFLOW: Invoice Processing                                   |
++--------------------------------------------------------------------------------------------------+
+Status Field: status
+States: draft -> sent -> paid -> overdue -> cancelled
+Initiator: User
+Tables: invoices, invoice_items
+
++--------+--------------------+--------------------+-----------------------------------------------+
+| Step   | State              | Next State         | Trigger                                       |
++--------+--------------------+--------------------+-----------------------------------------------+
+| 1      | draft              | sent               | INFERRED: user action                         |
+| 2      | sent               | paid               | INFERRED: user action                         |
+| 3      | paid               | overdue            | INFERRED: user action                         |
+| 4      | overdue            | cancelled          | INFERRED: user action                         |
++--------+--------------------+--------------------+-----------------------------------------------+
+
+
++--------------------------------------------------------------------------------------------------+
+|                                 WORKFLOW: Leave Request Approval                                 |
++--------------------------------------------------------------------------------------------------+
+Status Field: status
+States: pending -> approved -> rejected
+Initiator: Employee
+Approvers: Manager, HR, Admin
+Tables: leave_requests, leave_balances
+
++--------+--------------------+--------------------+-----------------------------------------------+
+| Step   | State              | Next State         | Trigger                                       |
++--------+--------------------+--------------------+-----------------------------------------------+
+| 1      | pending            | approved           | INFERRED: user action                         |
+| 2      | approved           | rejected           | INFERRED: user action                         |
++--------+--------------------+--------------------+-----------------------------------------------+
+
+
++--------------------------------------------------------------------------------------------------+
+|                                   WORKFLOW: Payroll Processing                                   |
++--------------------------------------------------------------------------------------------------+
+Status Field: status
+States: draft -> processed
+Initiator: HR
+Tables: payroll_records, profiles
+
++--------+--------------------+--------------------+-----------------------------------------------+
+| Step   | State              | Next State         | Trigger                                       |
++--------+--------------------+--------------------+-----------------------------------------------+
+| 1      | draft              | processed          | INFERRED: user action                         |
++--------+--------------------+--------------------+-----------------------------------------------+
+
+
++--------------------------------------------------------------------------------------------------+
+|                                    WORKFLOW: Memo Publishing                                     |
++--------------------------------------------------------------------------------------------------+
+Status Field: status
+States: draft -> pending -> published
+Initiator: Author
+Tables: memos
+
++--------+--------------------+--------------------+-----------------------------------------------+
+| Step   | State              | Next State         | Trigger                                       |
++--------+--------------------+--------------------+-----------------------------------------------+
+| 1      | draft              | pending            | INFERRED: user action                         |
+| 2      | pending            | published          | INFERRED: user action                         |
++--------+--------------------+--------------------+-----------------------------------------------+
+
+NOTES:
+- Idempotency protection: NOT IMPLEMENTED
+- Rollback safety: INFERRED from RLS policies
+- Parallel approval: NOT DETECTED
+
+
+========================================================================================================================
+PHASE 6 — MODULE OWNERSHIP MAP
+========================================================================================================================
+
++-----------------+----------+----------+----------------------------------------------------+
+| Module          | Tables   | Routes   | Primary Purpose                                    |
++-----------------+----------+----------+----------------------------------------------------+
+| hrms            | 5        |          | Human Resources Management                         |
+| financial       | 7        |          | Financial Management                               |
+| performance     | 2        |          | Performance Management                             |
+| core            | 1        |          | Core Functionality                                 |
+| security        | 1        | 6        | Security & Access Control                          |
++-----------------+----------+----------+----------------------------------------------------+
+
+========================================================================================================================
+PHASE 7 — TRANSACTION & CONCURRENCY AUDIT
+========================================================================================================================
+
++----------------------+----------------------+------------+--------------------------------------------------------------+
+| Risk Type            | Location             | Severity   | Description                                                  |
++----------------------+----------------------+------------+--------------------------------------------------------------+
+| Transaction Safety   | Backend Models       | MEDIUM     | No explicit transaction wrappers detected in Sequelize mo... |
+| Optimistic Locking   | All Tables           | LOW        | No version columns detected for optimistic locking           |
+| Soft Delete          | All Tables           | HIGH       | No soft delete pattern (deleted_at) detected                 |
+| Tenant Isolation     | Multi-tenant Tables  | LOW        | User isolation via user_id field and RLS policies            |
+| Concurrent Updates   | Invoice/Payroll      | MEDIUM     | No locking mechanism for concurrent updates                  |
++----------------------+----------------------+------------+--------------------------------------------------------------+
+
+========================================================================================================================
+PHASE 8 — ORPHAN & DEAD LOGIC DETECTION
+========================================================================================================================
+
+Analysis Results:
+
+Backend models without database tables: authors, books, reviews, permissions, roles, users
+Tables without backend models: 16 (Supabase-only tables)
+
+Permissions defined but not enforced: 15
+  - books.books.read
+  - books.books.moderate
+  - books.authors.read
+  - reviews.reviews.read
+  - reviews.reviews.moderate
+  - reviews.reviews.delete
+  - users.profiles.read
+  - books.genres.read
+  - books.collections.read
+  - reviews.reviews.update
+  - reviews.ratings.create
+  - users.profiles.update
+  - users.progress.create
+  - users.progress.update
+  - users.preferences.update
+
+
+========================================================================================================================
+PHASE 9 — SYSTEM MATURITY SCORE
+========================================================================================================================
+
++---------------------------+----------+--------+----------------------+
+| Category                  | Score    | Max    | Assessment           |
++---------------------------+----------+--------+----------------------+
+| Schema Discipline         | 9        | 10     | GOOD                 |
+| RBAC Enforcement          | 10       | 10     | GOOD                 |
+| Workflow Integrity        | 10       | 10     | ADEQUATE             |
+| Transaction Safety        | 4        | 10     | NEEDS IMPROVEMENT    |
+| Module Isolation          | 10       | 10     | GOOD                 |
+| Audit Completeness        | 8        | 10     | GOOD                 |
+| Security Posture          | 10       | 10     | GOOD                 |
++---------------------------+----------+--------+----------------------+
+
++------------------------------------------------------------------------------+
+|                        SYSTEM MATURITY SCORE: 61 / 70                        |
++------------------------------------------------------------------------------+
+
+Overall Maturity: 87%
+Rating: MATURE
+
+
+========================================================================================================================
+EXECUTIVE SUMMARY
+========================================================================================================================
+
+System Overview:
+  - Total Tables: 16
+  - Total Indexes: 17
+  - RLS Policies: 77
+  - API Endpoints: 40
+  - Roles Defined: 5
+  - Workflows Detected: 4
+  - Modules: 5
+
+Key Strengths:
+  - Comprehensive RLS policies for data isolation
+  - Well-structured RBAC system with defined roles
+  - Good use of indexes for performance
+  - Consistent use of audit timestamps (created_at, updated_at)
+  - Clear module separation
+
+Key Risks & Recommendations:
+  - HIGH: No soft delete pattern - data deletion is permanent
+  - MEDIUM: No explicit transaction management in backend
+  - MEDIUM: Dev bypass logic detected in API routes
+  - LOW: No optimistic locking for concurrent updates
+  - INFO: Consider adding version columns for critical tables
+
+
+========================================================================================================================
+END OF AUDIT REPORT
+========================================================================================================================
