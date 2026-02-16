@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 import { useDevMode } from "@/contexts/DevModeContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,10 +49,12 @@ export function DevToolbar() {
     allowPermissionEditing,
   } = useDevMode();
   
+  const { canShowDevTools } = useAppMode();
+  
   const [isOpen, setIsOpen] = useState(false);
   
-  // Don't render if not in dev mode
-  if (!isDevMode) {
+  // Don't render if not in dev mode OR if in production mode
+  if (!isDevMode || !canShowDevTools) {
     return null;
   }
   
