@@ -20,6 +20,7 @@ const { DEV_MODE, ALLOW_PERMISSION_EDITING } = require('../../config/systemFlags
 const { PERMISSIONS, ROLE_PERMISSIONS } = require('../../auth/middleware/permissions');
 const Role = require('../security/role.model');
 const Permission = require('../security/permission.model');
+const { seedMedium, resetDevDatabase } = require('../../../database/seed-medium');
 
 /**
  * Middleware to ensure dev mode is enabled
@@ -315,6 +316,70 @@ router.put('/role-permissions/:roleName', requireAuth, requireDevMode, requireSu
     res.status(500).json({ 
       error: 'Failed to update role permissions', 
       details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/dev/seed-medium
+ * Seed the development database with medium-density realistic data
+ * 
+ * Security:
+ * - DEV_MODE must be enabled
+ * - Requires authentication
+ * - Only works in development environment
+ * - Never affects production data
+ */
+router.post('/seed-medium', requireAuth, requireDevMode, async (req, res) => {
+  try {
+    console.log('📊 Medium seeding requested by:', req.user?.email || req.user?.id);
+    
+    const result = await seedMedium({ reset: false });
+    
+    res.json({
+      success: true,
+      message: 'Development database seeded successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ Seeding failed:', error);
+    res.status(500).json({
+      error: 'Seeding failed',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * POST /api/dev/reset-dev-data
+ * Reset and re-seed the development database
+ * 
+ * Security:
+ * - DEV_MODE must be enabled
+ * - Requires authentication and SuperAdmin role
+ * - Only works in development environment
+ * - DESTRUCTIVE: Drops all tables and re-creates them
+ */
+router.post('/reset-dev-data', requireAuth, requireDevMode, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🗑️  Database reset requested by:', req.user?.email || req.user?.id);
+    console.log('⚠️  This will destroy all development data!');
+    
+    const result = await seedMedium({ reset: true });
+    
+    res.json({
+      success: true,
+      message: 'Development database reset and re-seeded successfully',
+      warning: 'All previous data was deleted',
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ Reset failed:', error);
+    res.status(500).json({
+      error: 'Reset failed',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
