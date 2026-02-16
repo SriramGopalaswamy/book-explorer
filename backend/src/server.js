@@ -14,6 +14,7 @@ const models = require('./modules'); // Load all models with associations
 const passport = require('./auth/strategies');
 const demoModeMiddleware = require('./auth/middleware/demoMode');
 const { resolveEffectiveRole } = require('./auth/middleware/resolveEffectiveRole');
+const { developerBypass } = require('./auth/middleware/developerBypass');
 const { logSystemFlags } = require('./config/systemFlags');
 
 // Import routes
@@ -73,6 +74,10 @@ app.use(session({
 // Passport initialization
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Developer bypass middleware (MUST come BEFORE passport auth check)
+// Allows bypassing authentication in developer mode
+app.use(developerBypass);
 
 // Resolve effective role (for dev mode impersonation)
 // Must come AFTER passport initialization

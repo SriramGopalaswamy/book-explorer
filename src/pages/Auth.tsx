@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, ArrowLeft, Code2 } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.svg";
 import { lovable } from "@/integrations/lovable";
+import { DEV_MODE } from "@/config/systemFlags";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
@@ -44,6 +46,7 @@ export default function Auth() {
   const [activeTab, setActiveTab] = useState("login");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
+  const { enterDeveloperMode } = useAppMode();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -146,6 +149,14 @@ export default function Auth() {
     } finally {
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleEnterDeveloperMode = () => {
+    enterDeveloperMode();
+    toast.success("Developer Mode Activated", {
+      description: "Authentication bypassed. Dev tools enabled.",
+    });
+    navigate(from);
   };
 
   return (
@@ -478,6 +489,20 @@ export default function Auth() {
             )}
           </CardContent>
         </Card>
+
+        {/* Developer Mode Button - Only visible when DEV_MODE=true */}
+        {DEV_MODE && !showForgotPassword && (
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              className="w-full border-purple-600/50 bg-purple-950/20 hover:bg-purple-900/30 text-purple-400 hover:text-purple-300"
+              onClick={handleEnterDeveloperMode}
+            >
+              <Code2 className="mr-2 h-4 w-4" />
+              Enter Developer Mode
+            </Button>
+          </div>
+        )}
 
         <p className="text-center text-sm text-white/50 mt-6">
           By signing in, you agree to our Terms of Service and Privacy Policy
