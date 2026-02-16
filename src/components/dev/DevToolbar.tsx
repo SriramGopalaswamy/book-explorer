@@ -88,7 +88,7 @@ export function DevToolbar() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <UserCog className="h-4 w-4" />
-                  Role Impersonation
+                  🔴 ROLE SWITCHER ACTIVE 🔴
                 </CardTitle>
                 <CardDescription>
                   Switch roles at runtime without database changes
