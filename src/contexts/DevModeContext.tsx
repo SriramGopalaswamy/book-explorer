@@ -19,6 +19,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { DEV_MODE, ALLOW_PERMISSION_EDITING } from "@/config/systemFlags";
 import { api, setCustomHeader, removeCustomHeader } from "@/lib/api";
 import { useAuth } from "./AuthContext";
+import { useAppMode } from "./AppModeContext";
 import { toast } from "sonner";
 
 interface Role {
@@ -85,6 +86,7 @@ const DevModeContext = createContext<DevModeContextType | undefined>(undefined);
 
 export function DevModeProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const { appMode, isDeveloperAuthenticated, canShowDevTools } = useAppMode();
   
   const [isLoading, setIsLoading] = useState(true);
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
@@ -98,7 +100,10 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
    * Fetch all dev mode data from backend
    */
   const fetchDevData = useCallback(async () => {
-    if (!DEV_MODE || !user) {
+    // Only fetch in developer mode OR if user exists (for backward compatibility)
+    const shouldFetch = (appMode === 'developer' && isDeveloperAuthenticated) || (user && DEV_MODE);
+    
+    if (!shouldFetch) {
       setIsLoading(false);
       return;
     }
@@ -164,16 +169,19 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, activeRole]);
+  }, [user, activeRole, appMode, isDeveloperAuthenticated]);
   
   /**
-   * Initialize dev mode on user login
+   * Initialize dev mode on user login OR developer mode activation
    */
   useEffect(() => {
-    if (!authLoading && user && DEV_MODE) {
+    const shouldInitialize = (!authLoading && user && DEV_MODE) || 
+                            (!authLoading && isDeveloperAuthenticated && appMode === 'developer');
+    
+    if (shouldInitialize) {
       fetchDevData();
-    } else if (!authLoading && !user) {
-      // Clean up when user logs out
+    } else if (!authLoading && !user && !isDeveloperAuthenticated) {
+      // Clean up when user logs out or exits developer mode
       setAvailableRoles([]);
       setActiveRoleState(null);
       setPermissions([]);
@@ -185,7 +193,7 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     } else if (!DEV_MODE) {
       setIsLoading(false);
     }
-  }, [user, authLoading, fetchDevData]);
+  }, [user, authLoading, isDeveloperAuthenticated, appMode, fetchDevData]);
   
   /**
    * Set active role and update header
