@@ -105,47 +105,34 @@ export function useCreateInvoice() {
 
       const validated = createInvoiceSchema.parse(data);
 
-      // Generate invoice number
-      const { count } = await supabase
-        .from("invoices")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id);
+      // Use atomic RPC function to create invoice with items
+      // This prevents orphaned invoices if items insertion fails
+      // Addresses CRITICAL Issue #3 from system audit
+      const { data: invoiceId, error: rpcError } = await supabase.rpc(
+        "create_invoice_with_items",
+        {
+          p_client_name: validated.client_name,
+          p_client_email: validated.client_email,
+          p_amount: validated.amount,
+          p_due_date: validated.due_date,
+          p_items: JSON.stringify(validated.items),
+        }
+      );
 
-      const invoiceNumber = `INV-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, "0")}`;
+      if (rpcError) throw rpcError;
+      if (!invoiceId) throw new Error("Failed to create invoice");
 
-      // Create the invoice
-      const { data: invoice, error: invoiceError } = await supabase
+      // Fetch the created invoice with items
+      const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
-        .insert({
-          user_id: user.id,
-          invoice_number: invoiceNumber,
-          client_name: validated.client_name,
-          client_email: validated.client_email,
-          amount: validated.amount,
-          due_date: validated.due_date,
-          status: "draft",
-        })
-        .select()
+        .select(`
+          *,
+          invoice_items (*)
+        `)
+        .eq("id", invoiceId)
         .single();
 
-      if (invoiceError) throw invoiceError;
-
-      // Create invoice items
-      if (validated.items.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("invoice_items")
-          .insert(
-            validated.items.map((item) => ({
-              invoice_id: invoice.id,
-              description: item.description,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-            }))
-          );
-
-        if (itemsError) throw itemsError;
-      }
+      if (fetchError) throw fetchError;
 
       return invoice;
     },
@@ -205,45 +192,35 @@ export function useUpdateInvoice() {
     mutationFn: async (data: UpdateInvoiceData) => {
       const validated = updateInvoiceSchema.parse(data);
 
-      // Update the invoice
-      const { data: invoice, error: invoiceError } = await supabase
+      // Use atomic RPC function to update invoice with items
+      // This prevents data loss if items insertion fails
+      // Addresses CRITICAL Issue #3 from system audit
+      const { data: invoiceId, error: rpcError } = await supabase.rpc(
+        "update_invoice_with_items",
+        {
+          p_invoice_id: validated.id,
+          p_client_name: validated.client_name,
+          p_client_email: validated.client_email,
+          p_amount: validated.amount,
+          p_due_date: validated.due_date,
+          p_items: JSON.stringify(validated.items),
+        }
+      );
+
+      if (rpcError) throw rpcError;
+      if (!invoiceId) throw new Error("Failed to update invoice");
+
+      // Fetch the updated invoice with items
+      const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
-        .update({
-          client_name: validated.client_name,
-          client_email: validated.client_email,
-          amount: validated.amount,
-          due_date: validated.due_date,
-        })
-        .eq("id", validated.id)
-        .select()
+        .select(`
+          *,
+          invoice_items (*)
+        `)
+        .eq("id", invoiceId)
         .single();
 
-      if (invoiceError) throw invoiceError;
-
-      // Delete existing items and recreate them
-      const { error: deleteError } = await supabase
-        .from("invoice_items")
-        .delete()
-        .eq("invoice_id", validated.id);
-
-      if (deleteError) throw deleteError;
-
-      // Create new invoice items
-      if (validated.items.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("invoice_items")
-          .insert(
-            validated.items.map((item) => ({
-              invoice_id: validated.id,
-              description: item.description,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-            }))
-          );
-
-        if (itemsError) throw itemsError;
-      }
+      if (fetchError) throw fetchError;
 
       return invoice;
     },
