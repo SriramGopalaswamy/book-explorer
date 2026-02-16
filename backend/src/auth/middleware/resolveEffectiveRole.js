@@ -15,7 +15,7 @@
  * 3. Permission checks use: req.effectiveRole (not req.user.role)
  */
 
-const { DEV_MODE } = require('../config/systemFlags');
+const { DEV_MODE } = require('../../config/systemFlags');
 
 /**
  * Resolve the effective role for the current request
