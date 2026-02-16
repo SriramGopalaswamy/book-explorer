@@ -21,6 +21,26 @@ const PERMISSIONS = {
 };
 
 const ROLE_PERMISSIONS = {
+  superadmin: ['*'], // SuperAdmin has all permissions
+  admin: ['*'], // Admin has all permissions
+  moderator: [
+    'books.books.read',
+    'books.books.moderate',
+    'books.authors.read',
+    'reviews.reviews.read',
+    'reviews.reviews.moderate',
+    'reviews.reviews.delete',
+    'users.profiles.read'
+  ],
+  author: [
+    'books.books.create',
+    'books.books.read',
+    'books.books.update',
+    'books.authors.read',
+    'books.authors.update',
+    'books.genres.read',
+    'reviews.reviews.read'
+  ],
   reader: [
     'books.books.read',
     'books.authors.read',
@@ -35,26 +55,7 @@ const ROLE_PERMISSIONS = {
     'users.progress.create',
     'users.progress.update',
     'users.preferences.update'
-  ],
-  author: [
-    'books.books.create',
-    'books.books.read',
-    'books.books.update',
-    'books.authors.read',
-    'books.authors.update',
-    'books.genres.read',
-    'reviews.reviews.read'
-  ],
-  moderator: [
-    'books.books.read',
-    'books.books.moderate',
-    'books.authors.read',
-    'reviews.reviews.read',
-    'reviews.reviews.moderate',
-    'reviews.reviews.delete',
-    'users.profiles.read'
-  ],
-  admin: ['*'] // Admin has all permissions
+  ]
 };
 
 /**

@@ -97,11 +97,16 @@ router.get('/system-flags', requireAuth, requireDevMode, (req, res) => {
  */
 router.get('/roles', requireAuth, requireDevMode, async (req, res) => {
   try {
+    console.log('🔍 ROLE_PERMISSIONS keys:', Object.keys(ROLE_PERMISSIONS));
+    console.log('🔍 ROLE_PERMISSIONS object:', ROLE_PERMISSIONS);
+    
     // Get roles from database
     const dbRoles = await Role.findAll({
       where: { isActive: true },
       order: [['name', 'ASC']]
     });
+    
+    console.log('🔍 DB Roles found:', dbRoles.length);
     
     // Merge with hardcoded role permissions
     const roles = Object.keys(ROLE_PERMISSIONS).map(roleName => {
@@ -116,6 +121,9 @@ router.get('/roles', requireAuth, requireDevMode, async (req, res) => {
         ...(dbRole ? { id: dbRole.id } : {})
       };
     });
+    
+    console.log('🔍 Generated roles array:', roles);
+    console.log('🔍 Roles count:', roles.length);
     
     // Sort by priority (highest first)
     roles.sort((a, b) => b.priority - a.priority);
