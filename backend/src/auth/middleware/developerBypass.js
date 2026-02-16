@@ -67,9 +67,15 @@ const developerBypass = (req, res, next) => {
     console.log('   Path:', req.method, req.path);
     console.log('   Mock User:', req.user.email);
     console.log('   Role:', req.user.role);
+    console.log('   Effective Role:', req.effectiveRole);
+    console.log('   Session ID:', req.user.id);
     
     // Mark response for debugging
     res.setHeader('X-Developer-Session', 'true');
+  } else {
+    console.log('ℹ️  No developer bypass header detected');
+    console.log('   Path:', req.method, req.path);
+    console.log('   x-dev-bypass header:', bypassHeader || '(not set)');
   }
   
   next();
