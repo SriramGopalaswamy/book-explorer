@@ -141,12 +141,21 @@ router.get('/database-status', requireAuth, requireDevMode, async (req, res) => 
  * Returns all roles with their permissions and metadata
  */
 router.get('/roles', requireAuth, requireDevMode, async (req, res) => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📡 API CALL: GET /api/dev/roles');
+  console.log('   User:', req.user ? req.user.email : 'null');
+  console.log('   Effective Role:', req.effectiveRole || 'none');
+  console.log('   Is Developer Session:', req.isDeveloperSession || false);
+  
   try {
     // Get roles from database
+    console.log('   Querying database for roles...');
     const dbRoles = await Role.findAll({
       where: { isActive: true },
       order: [['name', 'ASC']]
     });
+    
+    console.log('   DB roles found:', dbRoles.length);
     
     // Merge with hardcoded role permissions
     const roles = Object.keys(ROLE_PERMISSIONS).map(roleName => {
@@ -165,9 +174,18 @@ router.get('/roles', requireAuth, requireDevMode, async (req, res) => {
     // Sort by priority (highest first)
     roles.sort((a, b) => b.priority - a.priority);
     
+    console.log('   Returning', roles.length, 'roles');
+    console.log('   Roles:', roles.map(r => r.name).join(', '));
+    console.log('✓ SUCCESS');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     res.json({ roles });
   } catch (error) {
-    console.error('Error fetching roles:', error);
+    console.error('❌ ERROR in GET /api/dev/roles');
+    console.error('   Error:', error.message);
+    console.error('   Stack:', error.stack);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     res.status(500).json({ 
       error: 'Failed to fetch roles', 
       details: error.message 

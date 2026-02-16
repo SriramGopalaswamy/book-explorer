@@ -36,17 +36,25 @@ const resolveEffectiveRole = (req, res, next) => {
   req.isImpersonating = false;
   req.effectiveRole = null;
   
+  console.log('🔍 RESOLVE EFFECTIVE ROLE');
+  console.log('   Path:', req.method, req.path);
+  console.log('   User:', req.user ? `${req.user.email} (${req.user.role})` : 'null');
+  
   // If user is not authenticated, skip role resolution
   if (!req.user) {
+    console.log('   ❌ No user authenticated, skipping role resolution');
     return next();
   }
   
   // Get actual user role from database/session
   const actualRole = req.user.role;
+  console.log('   Actual role:', actualRole);
   
   // Check for dev mode role override
   if (DEV_MODE) {
     const devRoleHeader = req.get('x-dev-role');
+    console.log('   DEV_MODE active:', DEV_MODE);
+    console.log('   x-dev-role header:', devRoleHeader || '(not set)');
     
     if (devRoleHeader && devRoleHeader.trim()) {
       const requestedRole = devRoleHeader.trim().toLowerCase();
@@ -58,18 +66,21 @@ const resolveEffectiveRole = (req, res, next) => {
         req.isImpersonating = true;
         
         // Log role switch for audit trail
+        console.log(`   ✓ Role impersonation: ${actualRole} → ${req.effectiveRole}`);
         console.log(`🔄 DEV ROLE SWITCH → ${req.effectiveRole} (actual: ${actualRole}, user: ${req.user.id || req.user.email})`);
       } else {
         // Invalid role requested - log warning and use actual role
-        console.warn(`⚠️  Invalid role '${requestedRole}' requested for impersonation (user: ${req.user.id || req.user.email})`);
+        console.warn(`   ⚠️  Invalid role '${requestedRole}' requested for impersonation (user: ${req.user.id || req.user.email})`);
         req.effectiveRole = actualRole;
       }
     } else {
       // No impersonation, use actual role
+      console.log('   Using actual role (no impersonation)');
       req.effectiveRole = actualRole;
     }
   } else {
     // Production mode: ALWAYS use actual role, ignore any headers
+    console.log('   DEV_MODE disabled, using actual role');
     req.effectiveRole = actualRole;
     
     // Security: Log any attempts to use dev headers in production
@@ -79,6 +90,7 @@ const resolveEffectiveRole = (req, res, next) => {
     }
   }
   
+  console.log('   Final effective role:', req.effectiveRole);
   next();
 };
 
