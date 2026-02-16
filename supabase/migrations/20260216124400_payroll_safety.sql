@@ -38,13 +38,20 @@ BEGIN
   END IF;
   
   -- Lock rows for update (NOWAIT to fail fast if already locked)
-  SELECT COUNT(*) INTO v_locked_count
-  FROM payroll_records pr
-  WHERE pr.id = ANY(p_payroll_ids)
-  FOR UPDATE NOWAIT;
+  BEGIN
+    SELECT COUNT(*) INTO v_locked_count
+    FROM payroll_records pr
+    WHERE pr.id = ANY(p_payroll_ids)
+    FOR UPDATE NOWAIT;
+  EXCEPTION
+    WHEN lock_not_available THEN
+      RAISE EXCEPTION 'Payroll records are currently being processed by another user. Please try again.';
+  END;
   
+  -- Verify we locked all expected records
   IF v_locked_count != array_length(p_payroll_ids, 1) THEN
-    RAISE EXCEPTION 'Could not lock all payroll records - some may be in use';
+    RAISE EXCEPTION 'Some payroll record IDs were not found: expected %, found %', 
+      array_length(p_payroll_ids, 1), v_locked_count;
   END IF;
   
   -- Verify all records are in valid status for processing

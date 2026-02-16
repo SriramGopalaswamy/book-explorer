@@ -22,9 +22,8 @@ CREATE OR REPLACE FUNCTION soft_delete_record()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Instead of deleting, mark as deleted
-  UPDATE ONLY ${TG_TABLE_NAME}
-  SET deleted_at = NOW()
-  WHERE id = OLD.id;
+  EXECUTE format('UPDATE ONLY %I SET deleted_at = NOW() WHERE id = $1', TG_TABLE_NAME)
+  USING OLD.id;
   
   -- Prevent actual deletion
   RETURN NULL;

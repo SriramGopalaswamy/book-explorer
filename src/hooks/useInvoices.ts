@@ -108,6 +108,7 @@ export function useCreateInvoice() {
       // Use atomic RPC function to create invoice with items
       // This prevents orphaned invoices if items insertion fails
       // Addresses CRITICAL Issue #3 from system audit
+      // Note: Supabase client handles JSONB serialization automatically
       const { data: invoiceId, error: rpcError } = await supabase.rpc(
         "create_invoice_with_items",
         {
@@ -115,7 +116,7 @@ export function useCreateInvoice() {
           p_client_email: validated.client_email,
           p_amount: validated.amount,
           p_due_date: validated.due_date,
-          p_items: JSON.stringify(validated.items),
+          p_items: validated.items, // Supabase client converts to JSONB
         }
       );
 
@@ -195,6 +196,7 @@ export function useUpdateInvoice() {
       // Use atomic RPC function to update invoice with items
       // This prevents data loss if items insertion fails
       // Addresses CRITICAL Issue #3 from system audit
+      // Note: Supabase client handles JSONB serialization automatically
       const { data: invoiceId, error: rpcError } = await supabase.rpc(
         "update_invoice_with_items",
         {
@@ -203,7 +205,7 @@ export function useUpdateInvoice() {
           p_client_email: validated.client_email,
           p_amount: validated.amount,
           p_due_date: validated.due_date,
-          p_items: JSON.stringify(validated.items),
+          p_items: validated.items, // Supabase client converts to JSONB
         }
       );
 
