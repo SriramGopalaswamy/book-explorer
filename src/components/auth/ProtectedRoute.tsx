@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
@@ -8,6 +9,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const { appMode, isDeveloperAuthenticated } = useAppMode();
   const location = useLocation();
 
   if (loading) {
@@ -21,6 +23,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
+  // Allow access in developer mode without real authentication
+  if (appMode === 'developer' && isDeveloperAuthenticated) {
+    return <>{children}</>;
+  }
+
+  // Production mode requires real authentication
   if (!user) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
