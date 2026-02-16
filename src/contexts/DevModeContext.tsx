@@ -118,29 +118,33 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       setPermissionMatrix(matrixRes.matrix);
       
       // Determine highest authority role (by priority)
-      const highestPriorityRole = rolesRes.roles.reduce((highest, role) => {
-        return role.priority > highest.priority ? role : highest;
-      }, rolesRes.roles[0]);
-      
-      // Set as default active role if not already set
-      if (!activeRole && highestPriorityRole) {
-        setActiveRoleState(highestPriorityRole.name);
-        setCustomHeader('x-dev-role', highestPriorityRole.name);
-        setIsImpersonating(true);
+      if (rolesRes.roles.length > 0) {
+        const highestPriorityRole = rolesRes.roles.reduce((highest, role) => {
+          return role.priority > highest.priority ? role : highest;
+        }, rolesRes.roles[0]);
+        
+        // Set as default active role if not already set
+        if (!activeRole && highestPriorityRole) {
+          setActiveRoleState(highestPriorityRole.name);
+          setCustomHeader('x-dev-role', highestPriorityRole.name);
+          setIsImpersonating(true);
+        }
+        
+        // Fetch current role info
+        const roleInfo = await api.get<CurrentRoleInfo>('/dev/current-role-info');
+        setCurrentRoleInfo(roleInfo);
+        setIsImpersonating(roleInfo.isImpersonating);
+        
+        console.log('📋 Dev Mode initialized:', {
+          roles: rolesRes.roles.length,
+          permissions: permissionsRes.permissions.length,
+          defaultRole: highestPriorityRole?.name,
+          currentRole: roleInfo.effectiveRole,
+          isImpersonating: roleInfo.isImpersonating
+        });
+      } else {
+        console.warn('⚠️  No roles available for dev mode');
       }
-      
-      // Fetch current role info
-      const roleInfo = await api.get<CurrentRoleInfo>('/dev/current-role-info');
-      setCurrentRoleInfo(roleInfo);
-      setIsImpersonating(roleInfo.isImpersonating);
-      
-      console.log('📋 Dev Mode initialized:', {
-        roles: rolesRes.roles.length,
-        permissions: permissionsRes.permissions.length,
-        defaultRole: highestPriorityRole?.name,
-        currentRole: roleInfo.effectiveRole,
-        isImpersonating: roleInfo.isImpersonating
-      });
       
     } catch (error) {
       console.error('Failed to fetch dev mode data:', error);

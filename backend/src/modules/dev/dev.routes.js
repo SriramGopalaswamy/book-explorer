@@ -52,6 +52,32 @@ const requireSuperAdmin = (req, res, next) => {
 };
 
 /**
+ * Validate role name against known roles
+ */
+const isValidRole = (roleName) => {
+  return ROLE_PERMISSIONS.hasOwnProperty(roleName);
+};
+
+/**
+ * Validate permission string format
+ */
+const isValidPermission = (permission) => {
+  // Wildcard is valid
+  if (permission === '*') return true;
+  
+  // Check format: module.resource.action
+  const parts = permission.split('.');
+  if (parts.length !== 3) return false;
+  
+  // Check against known modules
+  const [module, resource, action] = parts;
+  const modulePerms = PERMISSIONS[module];
+  if (!modulePerms) return false;
+  
+  return true;
+};
+
+/**
  * GET /api/dev/system-flags
  * Returns current system flags
  */
@@ -223,7 +249,7 @@ router.put('/role-permissions/:roleName', requireAuth, requireDevMode, requireSu
     const { roleName } = req.params;
     const { permissions } = req.body;
     
-    if (!ROLE_PERMISSIONS.hasOwnProperty(roleName)) {
+    if (!isValidRole(roleName)) {
       return res.status(404).json({
         error: 'Role not found',
         message: `Role '${roleName}' does not exist.`
@@ -234,6 +260,16 @@ router.put('/role-permissions/:roleName', requireAuth, requireDevMode, requireSu
       return res.status(400).json({
         error: 'Invalid permissions format',
         message: 'Permissions must be an array of permission strings.'
+      });
+    }
+    
+    // Validate each permission
+    const invalidPermissions = permissions.filter(p => !isValidPermission(p));
+    if (invalidPermissions.length > 0) {
+      return res.status(400).json({
+        error: 'Invalid permissions',
+        message: 'Some permissions have invalid format.',
+        invalidPermissions
       });
     }
     
