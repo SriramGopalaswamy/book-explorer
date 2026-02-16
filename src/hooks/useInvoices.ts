@@ -246,9 +246,11 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Use soft delete instead of hard delete
+      // Addresses CRITICAL Issue #6 from system audit
       const { error } = await supabase
         .from("invoices")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
