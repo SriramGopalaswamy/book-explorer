@@ -165,11 +165,7 @@ router.get('/roles', requireAuth, requireDevMode, async (req, res) => {
     // Sort by priority (highest first)
     roles.sort((a, b) => b.priority - a.priority);
     
-    res.json({ 
-      success: true,
-      count: roles.length,
-      roles 
-    });
+    res.json({ roles });
   } catch (error) {
     console.error('Error fetching roles:', error);
     res.status(500).json({ 
