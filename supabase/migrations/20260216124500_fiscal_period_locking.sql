@@ -5,7 +5,7 @@
 CREATE TABLE fiscal_periods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  year INTEGER NOT NULL CHECK (year >= 2020 AND year <= 2100),
+  year INTEGER NOT NULL CHECK (year >= 2020 AND year <= EXTRACT(YEAR FROM CURRENT_DATE) + 10),
   period INTEGER NOT NULL CHECK (period BETWEEN 1 AND 12),
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
@@ -170,7 +170,7 @@ BEGIN
       CASE WHEN v_period.period = 12 THEN v_period.year + 1 ELSE v_period.year END,
       CASE WHEN v_period.period = 12 THEN 1 ELSE v_period.period + 1 END,
       v_period.end_date + INTERVAL '1 day',
-      (v_period.end_date + INTERVAL '1 day' + INTERVAL '1 month' - INTERVAL '1 day')::DATE,
+      (date_trunc('month', v_period.end_date) + INTERVAL '2 months' - INTERVAL '1 day')::DATE,
       'open'
     );
   END IF;
