@@ -174,7 +174,12 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("payroll_records").delete().eq("id", id);
+      // Use soft delete instead of hard delete
+      // Addresses CRITICAL Issue #6 from system audit
+      const { error } = await supabase
+        .from("payroll_records")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -192,12 +197,27 @@ export function useProcessPayroll() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase
-        .from("payroll_records")
-        .update({ status: "processed", processed_at: new Date().toISOString() })
-        .in("id", ids);
+      // Use safe RPC function with locking to prevent double payments
+      // Addresses CRITICAL Issue #4 from system audit
+      const { data, error } = await supabase.rpc("process_payroll_batch", {
+        p_payroll_ids: ids,
+      });
 
-      if (error) throw error;
+      if (error) {
+        // Provide user-friendly error messages
+        if (error.message.includes("already processed")) {
+          throw new Error(
+            "Some payroll records have already been processed. Please refresh and try again."
+          );
+        } else if (error.message.includes("currently being processed")) {
+          throw new Error(
+            "Payroll is being processed by another user. Please wait and try again."
+          );
+        }
+        throw error;
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });

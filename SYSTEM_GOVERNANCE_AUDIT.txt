@@ -4,7 +4,7 @@ COMPLETE STRUCTURAL SYSTEM AUDIT REPORT
 ========================================================================================================================
 
 Repository: SriramGopalaswamy/book-explorer
-Generated: 2026-02-16T10:31:28.360Z
+Generated: 2026-02-16T12:55:52.730Z
 Audit Type: FORENSIC DATABASE GOVERNANCE
 
 
@@ -643,11 +643,19 @@ PHASE 4 — API SURFACE AUDIT
 | PUT      | /:id                                     | books        | books.books.update        | NO       |
 | DELETE   | /:id                                     | books        | books.books.delete        | NO       |
 | GET      | /system-flags                            | dev          | AUTHENTICATED             | YES      |
+| GET      | /database-status                         | dev          | AUTHENTICATED             | YES      |
 | GET      | /roles                                   | dev          | AUTHENTICATED             | YES      |
 | GET      | /permissions                             | dev          | AUTHENTICATED             | YES      |
 | GET      | /role-permissions                        | dev          | AUTHENTICATED             | YES      |
 | GET      | /current-role-info                       | dev          | AUTHENTICATED             | YES      |
 | PUT      | /role-permissions/:roleName              | dev          | AUTHENTICATED             | YES      |
+| POST     | /seed-medium                             | dev          | AUTHENTICATED             | YES      |
+| POST     | /reset-dev-data                          | dev          | AUTHENTICATED             | YES      |
+| GET      | /records                                 | financial    | AUTHENTICATED             | NO       |
+| GET      | /dashboard-stats                         | financial    | AUTHENTICATED             | NO       |
+| GET      | /monthly-revenue                         | financial    | AUTHENTICATED             | NO       |
+| GET      | /expense-breakdown                       | financial    | AUTHENTICATED             | NO       |
+| POST     | /records                                 | financial    | AUTHENTICATED             | NO       |
 | GET      | /                                        | reviews      | NONE                      | NO       |
 | GET      | /:id                                     | reviews      | NONE                      | NO       |
 | POST     | /                                        | reviews      | reviews.reviews.create    | NO       |
@@ -678,15 +686,18 @@ API SECURITY FINDINGS
 ------------------------------------------------------------------------------------------------------------------------
 
 Endpoints without authentication: 3
-Endpoints with dev bypass logic: 6
+Endpoints with dev bypass logic: 9
 
 WARNING: Dev bypass endpoints detected:
   - GET /system-flags (dev)
+  - GET /database-status (dev)
   - GET /roles (dev)
   - GET /permissions (dev)
   - GET /role-permissions (dev)
   - GET /current-role-info (dev)
   - PUT /role-permissions/:roleName (dev)
+  - POST /seed-medium (dev)
+  - POST /reset-dev-data (dev)
 
 
 ========================================================================================================================
@@ -773,7 +784,7 @@ PHASE 6 — MODULE OWNERSHIP MAP
 | Module          | Tables   | Routes   | Primary Purpose                                    |
 +-----------------+----------+----------+----------------------------------------------------+
 | hrms            | 5        |          | Human Resources Management                         |
-| financial       | 7        |          | Financial Management                               |
+| financial       | 7        | 5        | Financial Management                               |
 | performance     | 2        |          | Performance Management                             |
 | core            | 1        |          | Core Functionality                                 |
 | security        | 1        | 6        | Security & Access Control                          |
@@ -800,7 +811,7 @@ PHASE 8 — ORPHAN & DEAD LOGIC DETECTION
 Analysis Results:
 
 Backend models without database tables: authors, books, reviews, permissions, roles, users
-Tables without backend models: 16 (Supabase-only tables)
+Tables without backend models: 15 (Supabase-only tables)
 
 Permissions defined but not enforced: 15
   - books.books.read
@@ -852,7 +863,7 @@ System Overview:
   - Total Tables: 16
   - Total Indexes: 17
   - RLS Policies: 77
-  - API Endpoints: 40
+  - API Endpoints: 48
   - Roles Defined: 5
   - Workflows Detected: 4
   - Modules: 5
