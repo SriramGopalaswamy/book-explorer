@@ -8,20 +8,20 @@ const isProduction = NODE_ENV === 'production';
 
 /**
  * DEV_MODE - Controls developer tools visibility and features
- * - Default: true in development
- * - Forced: false in production
+ * - Default: true in development, false in production
+ * - Can be explicitly enabled in production via VITE_DEV_MODE=true
  * - Enables: Role impersonation, permission matrix debugging, live governance
  */
-export const DEV_MODE = isProduction ? false : (import.meta.env.VITE_DEV_MODE !== 'false');
+export const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || (!isProduction && import.meta.env.VITE_DEV_MODE !== 'false');
 
 /**
  * ALLOW_PERMISSION_EDITING - Controls runtime permission modification
- * - Default: true in development
- * - Forced: false in production
+ * - Default: true in development, false in production
+ * - Can be explicitly enabled in production via VITE_ALLOW_PERMISSION_EDITING=true
  * - Requires: SuperAdmin role
  * - Audited: All changes logged
  */
-export const ALLOW_PERMISSION_EDITING = isProduction ? false : (import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false');
+export const ALLOW_PERMISSION_EDITING = import.meta.env.VITE_ALLOW_PERMISSION_EDITING === 'true' || (!isProduction && import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false');
 
 /**
  * Get all system flags
