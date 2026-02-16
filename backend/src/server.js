@@ -148,11 +148,64 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✓ Database connection established successfully');
     
+    // STEP 4: VERIFY DB CONNECTION CONTEXT
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 STEP 4: DATABASE CONNECTION VERIFICATION');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('ACTIVE DB:', process.env.DATABASE_URL || sequelize.options.storage);
+    console.log('DB Dialect:', sequelize.options.dialect);
+    console.log('DB Storage:', sequelize.options.storage);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
     // Sync models (create tables if they don't exist)
     // Use force: false to avoid dropping existing tables
     // Use alter: false to avoid trying to modify existing schemas
     await sequelize.sync({ force: false, alter: false });
     console.log('✓ Database models synchronized');
+    
+    // STEP 1: VERIFY DATABASE CONTENT (ABSOLUTE TRUTH)
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 STEP 1: DATABASE ROLES VERIFICATION');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    try {
+      const roles = await models.Role.findAll({
+        attributes: ['id', 'name', 'isActive', 'permissions'],
+        order: [['name', 'ASC']]
+      });
+      console.log('DB ROLES:', JSON.stringify(roles, null, 2));
+      console.log('DB ROLES COUNT:', roles.length);
+      
+      if (roles.length === 0) {
+        console.error('❌ WARNING: roles.length === 0');
+        console.error('❌ Seeding failed or not run. Database has no roles!');
+      } else {
+        console.log('✓ Roles exist in database');
+        roles.forEach(role => {
+          console.log(`  - ${role.name} (ID: ${role.id}, Active: ${role.isActive}, Permissions: ${role.permissions?.length || 0})`);
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to query roles table:', error.message);
+    }
+    
+    // STEP 2: VERIFY ROLE-PERMISSION LINKAGE
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 STEP 2: ROLE-PERMISSION LINKAGE');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    try {
+      const permissionsCount = await models.Permission.count();
+      console.log('PERMISSIONS COUNT:', permissionsCount);
+      
+      if (permissionsCount === 0) {
+        console.error('❌ WARNING: No permissions in database');
+        console.error('❌ Seeding incomplete');
+      } else {
+        console.log('✓ Permissions exist in database');
+      }
+    } catch (error) {
+      console.error('❌ Failed to query permissions table:', error.message);
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     // Start server
     app.listen(PORT, () => {

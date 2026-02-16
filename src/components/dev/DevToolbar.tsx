@@ -12,7 +12,7 @@
  * - Only renders when DEV_MODE=true
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDevMode } from "@/contexts/DevModeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,21 @@ export function DevToolbar() {
     currentRoleInfo,
     allowPermissionEditing,
   } = useDevMode();
+  
+  /**
+   * STEP 7: VERIFY ROLE SWITCHER COMPONENT
+   */
+  useEffect(() => {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 STEP 7: ROLES RECEIVED IN DevToolbar COMPONENT');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('availableRoles:', availableRoles);
+    console.log('availableRoles.length:', availableRoles.length);
+    console.log('activeRole:', activeRole);
+    console.log('isLoading:', isLoading);
+    console.log('isDevMode:', isDevMode);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  }, [availableRoles, activeRole, isLoading, isDevMode]);
   
   const { canShowDevTools } = useAppMode();
   
