@@ -221,7 +221,10 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       // Determine highest authority role (by priority)
       console.log('\nSTEP 4: Determining highest priority role');
       if (roles.length > 0) {
-        const highestPriorityRole = roles[0]; // Already sorted by priority desc
+        // Find highest priority role explicitly (in case query ordering changes)
+        const highestPriorityRole = roles.reduce((highest, role) => {
+          return role.priority > highest.priority ? role : highest;
+        }, roles[0]);
         
         console.log('  - Highest priority role:', highestPriorityRole.name);
         console.log('  - Priority value:', highestPriorityRole.priority);
