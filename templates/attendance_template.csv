@@ -1,0 +1,7 @@
+employee_id,date,status,check_in,check_out,notes
+emp001,2026-02-01,present,09:00:00,18:00:00,Regular day
+emp002,2026-02-01,late,09:30:00,18:00:00,Late arrival
+emp003,2026-02-01,leave,,,On sick leave
+emp001,2026-02-02,present,09:00:00,18:00:00,Regular day
+emp002,2026-02-02,present,09:00:00,18:00:00,Regular day
+emp003,2026-02-02,half_day,09:00:00,13:00:00,Half day - personal work
