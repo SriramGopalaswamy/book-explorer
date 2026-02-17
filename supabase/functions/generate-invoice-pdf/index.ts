@@ -471,7 +471,7 @@ serve(async (req) => {
 
     console.log(`PDF generated successfully for ${invoice.invoice_number}`);
 
-    return new Response(pdfBytes, {
+    return new Response(pdfBytes as unknown as BodyInit, {
       headers: {
         ...corsHeaders,
         "Content-Type": "application/pdf",
@@ -481,7 +481,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error generating PDF:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
