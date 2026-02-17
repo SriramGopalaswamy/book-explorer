@@ -672,6 +672,7 @@ export type Database = {
           id: string
           job_title: string | null
           join_date: string | null
+          manager_id: string | null
           phone: string | null
           status: string | null
           updated_at: string
@@ -686,6 +687,7 @@ export type Database = {
           id?: string
           job_title?: string | null
           join_date?: string | null
+          manager_id?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string
@@ -700,12 +702,28 @@ export type Database = {
           id?: string
           job_title?: string | null
           join_date?: string | null
+          manager_id?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scheduled_payments: {
         Row: {
