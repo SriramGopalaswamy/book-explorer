@@ -62,7 +62,7 @@ export function Sidebar() {
     setCollapsed(!collapsed);
   };
 
-  const NavSection = ({ title, items }: { title: string; items: NavItem[] }) => (
+  const NavSection = ({ title, items, sectionId }: { title: string; items: NavItem[]; sectionId: string }) => (
     <div className="mb-6">
       {!collapsed && (
         <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
@@ -88,7 +88,7 @@ export function Sidebar() {
               {/* Active Background */}
               {isActive && (
                 <motion.div
-                  layoutId="activeNav"
+                  layoutId={`activeNav-${sectionId}`}
                   className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
@@ -149,10 +149,10 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-        <NavSection title="Main" items={navigation} />
-        <NavSection title="Financial Suite" items={financialNav} />
-        <NavSection title="HRMS" items={hrmsNav} />
-        <NavSection title="Performance OS" items={performanceNav} />
+        <NavSection title="Main" items={navigation} sectionId="main" />
+        <NavSection title="Financial Suite" items={financialNav} sectionId="financial" />
+        <NavSection title="HRMS" items={hrmsNav} sectionId="hrms" />
+        <NavSection title="Performance OS" items={performanceNav} sectionId="performance" />
       </div>
 
       {/* Footer */}
