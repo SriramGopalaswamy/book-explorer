@@ -6,6 +6,60 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Helper: sync profile fields + manager_id from MS365 data
+async function syncProfileFromMS365(
+  supabase: any,
+  userId: string,
+  fullName: string,
+  jobTitle: string | null,
+  department: string | null,
+  phone: string | null,
+  email: string,
+  managerEmail: string | null,
+) {
+  try {
+    // Look up the manager's profile_id by their email
+    let managerId: string | null = null;
+    if (managerEmail) {
+      const { data: managerProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", managerEmail.toLowerCase())
+        .maybeSingle();
+      managerId = managerProfile?.id || null;
+    }
+
+    // Update the user's profile with MS365 data
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const profileData: Record<string, any> = {
+      full_name: fullName,
+      email: email.toLowerCase(),
+    };
+    if (jobTitle) profileData.job_title = jobTitle;
+    if (department) profileData.department = department;
+    if (phone) profileData.phone = phone;
+    if (managerId) profileData.manager_id = managerId;
+
+    if (existingProfile) {
+      await supabase
+        .from("profiles")
+        .update(profileData)
+        .eq("id", existingProfile.id);
+    } else {
+      await supabase
+        .from("profiles")
+        .insert({ ...profileData, user_id: userId });
+    }
+  } catch (err) {
+    console.warn("Failed to sync profile from MS365:", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -84,6 +138,23 @@ Deno.serve(async (req) => {
       const profile = await profileRes.json();
       const email = profile.mail || profile.userPrincipalName;
       const fullName = profile.displayName || "";
+      const jobTitle = profile.jobTitle || null;
+      const department = profile.department || null;
+      const phone = profile.businessPhones?.[0] || profile.mobilePhone || null;
+
+      // Fetch manager info from MS365
+      let managerEmail: string | null = null;
+      try {
+        const managerRes = await fetch("https://graph.microsoft.com/v1.0/me/manager", {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        });
+        if (managerRes.ok) {
+          const managerData = await managerRes.json();
+          managerEmail = managerData.mail || managerData.userPrincipalName || null;
+        }
+      } catch (mgrErr) {
+        console.warn("Could not fetch manager from MS365:", mgrErr);
+      }
 
       // Verify @grx10.com domain
       if (!email?.toLowerCase().endsWith("@grx10.com")) {
@@ -137,6 +208,9 @@ Deno.serve(async (req) => {
         }
 
         session = sessionData.session;
+
+        // Update profile with latest MS365 data
+        await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail);
 
         // Ensure role exists for existing user
         const { data: existingRole } = await supabase
@@ -208,6 +282,9 @@ Deno.serve(async (req) => {
         }
 
         session = sessionData.session;
+
+        // Sync profile with MS365 data for new user
+        await syncProfileFromMS365(supabase, newUser.user!.id, fullName, jobTitle, department, phone, email, managerEmail);
       }
 
       return new Response(
