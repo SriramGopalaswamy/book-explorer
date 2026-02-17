@@ -510,6 +510,7 @@ export type Database = {
           id: string
           priority: string
           published_at: string | null
+          recipients: string[] | null
           status: string
           title: string
           updated_at: string
@@ -525,6 +526,7 @@ export type Database = {
           id?: string
           priority?: string
           published_at?: string | null
+          recipients?: string[] | null
           status?: string
           title: string
           updated_at?: string
@@ -540,6 +542,7 @@ export type Database = {
           id?: string
           priority?: string
           published_at?: string | null
+          recipients?: string[] | null
           status?: string
           title?: string
           updated_at?: string
