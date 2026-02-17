@@ -141,15 +141,17 @@ export default function Settings() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              User Role Management
-            </CardTitle>
-            <CardDescription className="flex items-center justify-between">
-              <span>Assign roles to control what each user can access. Changes take effect on next sign-in.</span>
-              <BulkUploadDialog config={bulkUploadConfig} />
-            </CardDescription>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                User Role Management
+              </CardTitle>
+              <CardDescription>
+                Assign roles to control what each user can access. Changes take effect on next sign-in.
+              </CardDescription>
+            </div>
+            <BulkUploadDialog config={bulkUploadConfig} />
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
