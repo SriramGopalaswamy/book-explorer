@@ -18,6 +18,7 @@ export interface Employee {
   status: "active" | "on_leave" | "inactive";
   join_date: string | null;
   phone: string | null;
+  manager_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +31,7 @@ export interface CreateEmployeeData {
   status?: Employee["status"];
   join_date?: string;
   phone?: string;
+  manager_id?: string | null;
 }
 
 export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
