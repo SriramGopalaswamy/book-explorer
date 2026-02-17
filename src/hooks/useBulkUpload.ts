@@ -35,29 +35,19 @@ emp001,2026-02-01,present,09:00:00,18:00:00,Regular day
 emp002,2026-02-01,late,09:30:00,18:00:00,Late arrival
 emp003,2026-02-01,leave,,,On sick leave`;
 
-// ─── Roles ─────────────────────────────────────────
-const rolesColumns: BulkUploadColumn[] = [
-  { key: "email", label: "User Email", required: true },
+// ─── Users & Roles (Combined) ─────────────────────
+const usersAndRolesColumns: BulkUploadColumn[] = [
+  { key: "email", label: "Email", required: true },
+  { key: "full_name", label: "Full Name" },
+  { key: "department", label: "Department" },
+  { key: "job_title", label: "Job Title" },
   { key: "role", label: "Role", required: true },
 ];
 
-const rolesTemplate = `email,role
-user1@example.com,employee
-user2@example.com,hr
-user3@example.com,manager`;
-
-// ─── Users (Bulk Create) ──────────────────────────
-const usersColumns: BulkUploadColumn[] = [
-  { key: "email", label: "Email", required: true },
-  { key: "full_name", label: "Full Name", required: true },
-  { key: "department", label: "Department" },
-  { key: "job_title", label: "Job Title" },
-  { key: "role", label: "Role" },
-];
-
-const usersTemplate = `email,full_name,department,job_title,role
+const usersAndRolesTemplate = `email,full_name,department,job_title,role
 john@grx10.com,John Doe,Engineering,Developer,employee
-jane@grx10.com,Jane Smith,HR,HR Manager,hr`;
+jane@grx10.com,Jane Smith,HR,HR Manager,hr
+existing@grx10.com,,,,manager`;
 
 // ─── Holidays ──────────────────────────────────────
 const holidayColumns: BulkUploadColumn[] = [
@@ -224,7 +214,7 @@ export function useHolidaysBulkUpload(): BulkUploadConfig {
   };
 }
 
-export function useRolesBulkUpload(): BulkUploadConfig {
+export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
@@ -233,20 +223,43 @@ export function useRolesBulkUpload(): BulkUploadConfig {
     let success = 0;
 
     for (const row of rows) {
-      const role = row.role?.toLowerCase().trim();
+      const email = row.email?.trim();
+      const role = row.role?.toLowerCase().trim() || "employee";
+      const full_name = row.full_name?.trim() || "";
+      const department = row.department?.trim() || null;
+      const job_title = row.job_title?.trim() || null;
+
+      if (!email) {
+        errors.push(`Row missing email`);
+        continue;
+      }
       if (!validRoles.includes(role)) {
-        errors.push(`${row.email}: Invalid role "${row.role}". Must be one of: ${validRoles.join(", ")}`);
+        errors.push(`${email}: Invalid role "${row.role}". Must be one of: ${validRoles.join(", ")}`);
         continue;
       }
 
-      const { data, error } = await supabase.functions.invoke("manage-roles", {
-        body: { action: "set_role_by_email", email: row.email, role },
-      });
-
-      if (error || data?.error) {
-        errors.push(`${row.email}: ${data?.error || error?.message || "Failed"}`);
+      // If full_name is provided, treat as new user creation
+      if (full_name) {
+        const { data, error } = await supabase.functions.invoke("manage-roles", {
+          body: { action: "bulk_create_users", users: [{ email, full_name, department, job_title, role }] },
+        });
+        if (error) {
+          errors.push(`${email}: ${error.message}`);
+        } else if (data?.errors?.length) {
+          errors.push(...data.errors.map((e: string) => `${email}: ${e}`));
+        } else {
+          success++;
+        }
       } else {
-        success++;
+        // Existing user — just set role
+        const { data, error } = await supabase.functions.invoke("manage-roles", {
+          body: { action: "set_role_by_email", email, role },
+        });
+        if (error || data?.error) {
+          errors.push(`${email}: ${data?.error || error?.message || "Failed"}`);
+        } else {
+          success++;
+        }
       }
     }
 
@@ -255,47 +268,12 @@ export function useRolesBulkUpload(): BulkUploadConfig {
   }, [qc]);
 
   return {
-    module: "roles",
-    title: "Bulk Upload Roles",
-    description: "Assign roles to multiple users at once using a CSV file with email and role columns.",
-    columns: rolesColumns,
-    templateFileName: "roles_template.csv",
-    templateContent: rolesTemplate,
-    onUpload,
-  };
-}
-
-export function useUsersBulkUpload(): BulkUploadConfig {
-  const qc = useQueryClient();
-
-  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
-    const usersToCreate = rows.map((row) => ({
-      email: row.email?.trim(),
-      full_name: row.full_name?.trim() || "",
-      department: row.department?.trim() || null,
-      job_title: row.job_title?.trim() || null,
-      role: row.role?.toLowerCase().trim() || "employee",
-    }));
-
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "bulk_create_users", users: usersToCreate },
-    });
-
-    if (error) {
-      return { success: 0, errors: [error.message] };
-    }
-
-    qc.invalidateQueries({ queryKey: ["user-roles"] });
-    return { success: data?.created || 0, errors: data?.errors || [] };
-  }, [qc]);
-
-  return {
     module: "users",
-    title: "Bulk Add Users",
-    description: "Create multiple new user accounts at once. Each user gets a temporary password and can sign in via MS365.",
-    columns: usersColumns,
-    templateFileName: "users_template.csv",
-    templateContent: usersTemplate,
+    title: "Bulk Add Users & Assign Roles",
+    description: "Add new users or update roles for existing users. Provide full_name to create a new account, or leave it blank to just update the role of an existing user.",
+    columns: usersAndRolesColumns,
+    templateFileName: "users_roles_template.csv",
+    templateContent: usersAndRolesTemplate,
     onUpload,
   };
 }
