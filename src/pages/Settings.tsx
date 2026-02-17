@@ -3,13 +3,25 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Users, AlertCircle } from "lucide-react";
+import { Shield, Users, AlertCircle, Trash2, UserPlus } from "lucide-react";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { useRolesBulkUpload } from "@/hooks/useBulkUpload";
+import { useRolesBulkUpload, useUsersBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 
 interface UserWithRole {
@@ -40,10 +52,12 @@ const ROLE_COLORS: Record<string, string> = {
 export default function Settings() {
   const { user } = useAuth();
   const bulkUploadConfig = useRolesBulkUpload();
+  const usersBulkUploadConfig = useUsersBulkUpload();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
 
   useEffect(() => {
     checkAdminAndLoad();
@@ -52,7 +66,6 @@ export default function Settings() {
   const checkAdminAndLoad = async () => {
     if (!user) return;
 
-    // Check if current user is admin
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
@@ -98,6 +111,21 @@ export default function Settings() {
     setUpdatingUser(null);
   };
 
+  const handleDeleteUser = async (userId: string, email: string | null) => {
+    setDeletingUser(userId);
+    const { data, error } = await supabase.functions.invoke("manage-roles", {
+      body: { action: "delete_user", user_id: userId },
+    });
+
+    if (error || data?.error) {
+      toast.error(data?.error || "Failed to delete user");
+    } else {
+      toast.success(`User ${email || "unknown"} deleted successfully`);
+      setUsers((prev) => prev.filter((u) => u.user_id !== userId));
+    }
+    setDeletingUser(null);
+  };
+
   if (loading) {
     return (
       <MainLayout title="Settings">
@@ -140,6 +168,22 @@ export default function Settings() {
           <p className="text-muted-foreground mt-1">Manage user roles and access permissions</p>
         </div>
 
+        {/* Bulk Add Users */}
+        <Card>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Add Users
+              </CardTitle>
+              <CardDescription>
+                Bulk add new users to the platform via CSV upload. Users will be created with temporary passwords and can sign in via MS365.
+              </CardDescription>
+            </div>
+            <BulkUploadDialog config={usersBulkUploadConfig} />
+          </CardHeader>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -163,6 +207,7 @@ export default function Settings() {
                 users.map((u) => {
                   const currentRole = u.roles[0] || "employee";
                   const isSelf = u.user_id === user?.id;
+                  const isProtected = u.email?.toLowerCase() === "sriram@grx10.com";
 
                   return (
                     <div
@@ -177,6 +222,11 @@ export default function Settings() {
                           {isSelf && (
                             <Badge variant="outline" className="text-xs shrink-0">
                               You
+                            </Badge>
+                          )}
+                          {isProtected && (
+                            <Badge variant="outline" className="text-xs shrink-0 border-primary/30 text-primary">
+                              Protected
                             </Badge>
                           )}
                         </div>
@@ -214,6 +264,38 @@ export default function Settings() {
                             <SelectItem value="employee">Employee</SelectItem>
                           </SelectContent>
                         </Select>
+
+                        {!isSelf && !isProtected && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                disabled={deletingUser === u.user_id}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete <strong>{u.full_name || u.email}</strong>? This will permanently remove their account, profile, and all associated roles. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleDeleteUser(u.user_id, u.email)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </div>
                   );
@@ -225,6 +307,7 @@ export default function Settings() {
 
         {/* Bulk Upload History */}
         <BulkUploadHistory module="roles" />
+        <BulkUploadHistory module="users" />
       </div>
     </MainLayout>
   );
