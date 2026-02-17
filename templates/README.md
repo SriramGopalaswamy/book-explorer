@@ -30,9 +30,15 @@ Template for bulk uploading attendance records.
 - status: One of: present, absent, late, leave, half_day
 
 **Optional Fields:**
-- check_in: Check-in time in HH:MM:SS format
-- check_out: Check-out time in HH:MM:SS format
+- check_in: Check-in time in HH:MM:SS format (employee in-time)
+- check_out: Check-out time in HH:MM:SS format (employee out-time)
 - notes: Additional notes
+
+**Note**: Each employee has a `working_week_policy` in their profile:
+- 5_days: Monday to Friday (default)
+- 6_days: Monday to Saturday
+
+This policy is used for leave calculations and expected working days tracking.
 
 ### 3. roles_template.csv
 Template for bulk uploading role-permission mappings.
