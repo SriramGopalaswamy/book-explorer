@@ -130,6 +130,139 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "delete_user") {
+      const { user_id } = body;
+
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "user_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Protect sriram@grx10.com from deletion
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (targetProfile?.email?.toLowerCase() === "sriram@grx10.com") {
+        return new Response(JSON.stringify({ error: "This account is protected and cannot be deleted" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Delete user roles
+      await supabase.from("user_roles").delete().eq("user_id", user_id);
+
+      // Delete profile
+      await supabase.from("profiles").delete().eq("user_id", user_id);
+
+      // Delete auth user
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
+
+      if (deleteError) {
+        console.error("Delete user error:", deleteError);
+        return new Response(JSON.stringify({ error: "Failed to delete user: " + deleteError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "bulk_create_users") {
+      const { users: newUsers } = body;
+
+      if (!newUsers || !Array.isArray(newUsers) || newUsers.length === 0) {
+        return new Response(JSON.stringify({ error: "users array required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const results: { email: string; success: boolean; error?: string }[] = [];
+
+      for (const u of newUsers) {
+        const email = u.email?.toLowerCase().trim();
+        const fullName = u.full_name?.trim() || "";
+        const department = u.department?.trim() || null;
+        const jobTitle = u.job_title?.trim() || null;
+        const role = u.role?.toLowerCase().trim() || "employee";
+
+        if (!email) {
+          results.push({ email: u.email || "unknown", success: false, error: "Email is required" });
+          continue;
+        }
+
+        const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+        if (!validRoles.includes(role)) {
+          results.push({ email, success: false, error: `Invalid role: ${role}` });
+          continue;
+        }
+
+        try {
+          // Check if user already exists
+          const { data: existingProfile } = await supabase
+            .from("profiles")
+            .select("user_id")
+            .eq("email", email)
+            .maybeSingle();
+
+          if (existingProfile) {
+            results.push({ email, success: false, error: "User already exists" });
+            continue;
+          }
+
+          // Create auth user
+          const tempPassword = crypto.randomUUID() + "Aa1!";
+          const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+            user_metadata: { full_name: fullName },
+          });
+
+          if (createError || !newUser.user) {
+            results.push({ email, success: false, error: createError?.message || "Failed to create user" });
+            continue;
+          }
+
+          // Create profile
+          await supabase.from("profiles").upsert({
+            user_id: newUser.user.id,
+            full_name: fullName,
+            email,
+            department,
+            job_title: jobTitle,
+            status: "active",
+          }, { onConflict: "user_id" });
+
+          // Assign role
+          await supabase.from("user_roles").insert({
+            user_id: newUser.user.id,
+            role,
+          });
+
+          results.push({ email, success: true });
+        } catch (err) {
+          results.push({ email, success: false, error: err instanceof Error ? err.message : "Unknown error" });
+        }
+      }
+
+      const successCount = results.filter((r) => r.success).length;
+      const errors = results.filter((r) => !r.success).map((r) => `${r.email}: ${r.error}`);
+
+      return new Response(JSON.stringify({ success: true, created: successCount, errors }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
