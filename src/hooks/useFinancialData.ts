@@ -207,6 +207,57 @@ export function useAddFinancialRecord() {
   });
 }
 
+export function useUpdateFinancialRecord() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ id, ...record }: { id: string } & Partial<Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">>) => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from("financial_records")
+        .update(record)
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["financial-records"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
+    },
+  });
+}
+
+export function useDeleteFinancialRecord() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { error } = await supabase
+        .from("financial_records")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["financial-records"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
+    },
+  });
+}
+
 function getDefaultMonthlyData(): MonthlyData[] {
   return [
     { month: "Jan", revenue: 2850000, expenses: 1800000 },
