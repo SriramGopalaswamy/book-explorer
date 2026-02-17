@@ -107,6 +107,21 @@ export function useNotifications() {
     },
   });
 
+  // Clear all notifications
+  const clearAll = useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
+    },
+  });
+
   return {
     notifications,
     unreadCount,
@@ -114,5 +129,6 @@ export function useNotifications() {
     markAsRead: markAsRead.mutate,
     markAllAsRead: markAllAsRead.mutate,
     deleteNotification: deleteNotification.mutate,
+    clearAll: clearAll.mutate,
   };
 }
