@@ -1,1 +1,4 @@
 project_id = "qfgudhbrjfjmbamwsfuj"
+
+[functions.ms365-auth]
+verify_jwt = false

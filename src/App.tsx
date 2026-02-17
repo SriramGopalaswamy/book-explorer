@@ -9,6 +9,7 @@ import { DevModeProvider } from "@/contexts/DevModeContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
@@ -43,6 +44,7 @@ const App = () => (
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* Protected routes */}
