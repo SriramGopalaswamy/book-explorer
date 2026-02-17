@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 export interface BulkUploadColumn {
   key: string;
@@ -62,13 +63,13 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   };
 
   const downloadTemplate = () => {
-    const blob = new Blob([config.templateContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = config.templateFileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    // Create an Excel workbook from template content
+    const rows = parseCSV(config.templateContent);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    const xlsxName = config.templateFileName.replace(/\.csv$/, ".xlsx");
+    XLSX.writeFile(wb, xlsxName);
     toast.success("Template downloaded");
   };
 
@@ -82,37 +83,51 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     return { data: row, errors, rowIndex: idx + 1 };
   }, [config.columns]);
 
+  const processRows = useCallback((rawRows: string[][]) => {
+    if (rawRows.length < 2) {
+      toast.error("File must have a header row and at least one data row");
+      return;
+    }
+    const fileHeaders = rawRows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+    setHeaders(fileHeaders);
+    const dataRows = rawRows.slice(1).map((cells, idx) => {
+      const row: Record<string, string> = {};
+      fileHeaders.forEach((h, i) => { row[h] = String(cells[i] ?? "").trim(); });
+      return validateRow(row, idx);
+    });
+    setParsedRows(dataRows);
+  }, [validateRow]);
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".csv")) {
-      toast.error("Please upload a CSV file");
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["csv", "xlsx", "xls"].includes(ext || "")) {
+      toast.error("Please upload a CSV or Excel (.xlsx/.xls) file");
       return;
     }
 
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const rows = parseCSV(text);
-      if (rows.length < 2) {
-        toast.error("CSV must have a header row and at least one data row");
-        return;
-      }
 
-      const csvHeaders = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
-      setHeaders(csvHeaders);
-
-      const dataRows = rows.slice(1).map((cells, idx) => {
-        const row: Record<string, string> = {};
-        csvHeaders.forEach((h, i) => { row[h] = cells[i] || ""; });
-        return validateRow(row, idx);
-      });
-
-      setParsedRows(dataRows);
-    };
-    reader.readAsText(file);
+    if (ext === "csv") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        processRows(parseCSV(text));
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        processRows(rows);
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
@@ -163,7 +178,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
           {/* Step 1: Download template */}
           <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
             <div>
-              <p className="font-medium text-sm">Step 1: Download the CSV template</p>
+              <p className="font-medium text-sm">Step 1: Download the Excel template</p>
               <p className="text-xs text-muted-foreground">Fill in the template with your data, then upload it below</p>
             </div>
             <Button variant="outline" size="sm" onClick={downloadTemplate}>
@@ -174,12 +189,12 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
 
           {/* Step 2: Upload file */}
           <div className="rounded-lg border border-dashed border-border p-4">
-            <p className="font-medium text-sm mb-2">Step 2: Upload your filled CSV</p>
+            <p className="font-medium text-sm mb-2">Step 2: Upload your filled file (CSV or Excel)</p>
             <div className="flex items-center gap-3">
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFile}
                 className="hidden"
               />
