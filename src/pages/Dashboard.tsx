@@ -19,6 +19,7 @@ import { useDashboardStats, formatIndianCurrency } from "@/hooks/useDashboardSta
 import { useEmployeeStats } from "@/hooks/useEmployees";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
+import { ManagerTeamSection } from "@/components/dashboard/ManagerTeamSection";
 import {
   Wallet,
   Users,
@@ -152,6 +153,9 @@ export default function Dashboard() {
             </>
           )}
         </div>
+
+        {/* Manager Team Section */}
+        <ManagerTeamSection />
 
         {/* Quick Actions */}
         <QuickActionsEnhanced />
