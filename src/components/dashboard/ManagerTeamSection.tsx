@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { Users, Clock, CalendarOff, UserCheck, AlertCircle } from "lucide-react";
+import { Users, Clock, CalendarOff, UserCheck, AlertCircle, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -9,8 +10,10 @@ import {
   useDirectReportsAttendance,
   useDirectReportsLeaves,
   useIsManager,
+  useLeaveApproval,
 } from "@/hooks/useManagerTeam";
 import { format } from "date-fns";
+import { toast } from "@/hooks/use-toast";
 
 function getInitials(name: string | null) {
   if (!name) return "?";
@@ -33,9 +36,31 @@ export function ManagerTeamSection() {
   const { data: reports = [], isLoading: reportsLoading } = useDirectReports();
   const { data: attendance = [] } = useDirectReportsAttendance();
   const { data: pendingLeaves = [] } = useDirectReportsLeaves();
+  const approvalMutation = useLeaveApproval();
 
   if (roleLoading) return null;
   if (!isManager || reports.length === 0) return null;
+
+  const handleApproval = (leaveId: string, action: "approved" | "rejected") => {
+    approvalMutation.mutate(
+      { leaveId, action },
+      {
+        onSuccess: () => {
+          toast({
+            title: action === "approved" ? "Leave Approved" : "Leave Rejected",
+            description: `The leave request has been ${action}.`,
+          });
+        },
+        onError: () => {
+          toast({
+            title: "Error",
+            description: "Failed to update leave request. Please try again.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
 
   const presentToday = attendance.length;
   const onLeave = reports.filter((r) => r.status === "on_leave").length;
@@ -162,12 +187,16 @@ export function ManagerTeamSection() {
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <CalendarOff className="h-4 w-4 text-amber-400" />
               Pending Leave Requests
+              <Badge variant="secondary" className="ml-auto">
+                {pendingLeaves.length} pending
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {pendingLeaves.slice(0, 5).map((leave) => {
                 const employee = reports.find((r) => r.id === leave.profile_id);
+                const isProcessing = approvalMutation.isPending;
                 return (
                   <div
                     key={leave.id}
@@ -187,10 +216,34 @@ export function ManagerTeamSection() {
                         {format(new Date(leave.to_date), "MMM d")} ({leave.days} day
                         {leave.days !== 1 ? "s" : ""})
                       </p>
+                      {leave.reason && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 truncate italic">
+                          "{leave.reason}"
+                        </p>
+                      )}
                     </div>
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-xs">
-                      Pending
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                        disabled={isProcessing}
+                        onClick={() => handleApproval(leave.id, "approved")}
+                      >
+                        <Check className="h-3.5 w-3.5 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        disabled={isProcessing}
+                        onClick={() => handleApproval(leave.id, "rejected")}
+                      >
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
