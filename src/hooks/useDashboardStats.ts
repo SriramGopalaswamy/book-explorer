@@ -7,6 +7,8 @@ import { subMonths, startOfMonth, endOfMonth } from "date-fns";
 export interface DashboardStats {
   totalRevenue: number;
   revenueChange: number;
+  totalExpenses: number;
+  expenseChange: number;
   activeEmployees: number;
   employeeChange: number;
   pendingInvoices: number;
@@ -54,10 +56,24 @@ export function useDashboardStats() {
         .gte("record_date", currentMonthStart.toISOString().split("T")[0])
         .lte("record_date", currentMonthEnd.toISOString().split("T")[0]);
 
+      let expenseQuery = supabase
+        .from("financial_records")
+        .select("amount")
+        .eq("type", "expense")
+        .gte("record_date", currentMonthStart.toISOString().split("T")[0])
+        .lte("record_date", currentMonthEnd.toISOString().split("T")[0]);
+
       let lastMonthRevenueQuery = supabase
         .from("financial_records")
         .select("amount")
         .eq("type", "revenue")
+        .gte("record_date", lastMonthStart.toISOString().split("T")[0])
+        .lte("record_date", lastMonthEnd.toISOString().split("T")[0]);
+
+      let lastMonthExpenseQuery = supabase
+        .from("financial_records")
+        .select("amount")
+        .eq("type", "expense")
         .gte("record_date", lastMonthStart.toISOString().split("T")[0])
         .lte("record_date", lastMonthEnd.toISOString().split("T")[0]);
 
@@ -79,7 +95,9 @@ export function useDashboardStats() {
 
       if (!isAdminOrFinance) {
         revenueQuery = revenueQuery.eq("user_id", user!.id);
+        expenseQuery = expenseQuery.eq("user_id", user!.id);
         lastMonthRevenueQuery = lastMonthRevenueQuery.eq("user_id", user!.id);
+        lastMonthExpenseQuery = lastMonthExpenseQuery.eq("user_id", user!.id);
         invoicesQuery = invoicesQuery.eq("user_id", user!.id);
         lastMonthInvoicesQuery = lastMonthInvoicesQuery.eq("user_id", user!.id);
         goalsQuery = goalsQuery.eq("user_id", user!.id);
@@ -87,14 +105,18 @@ export function useDashboardStats() {
 
       const [
         currentRevenueResult,
+        currentExpenseResult,
         lastMonthRevenueResult,
+        lastMonthExpenseResult,
         employeesResult,
         pendingInvoicesResult,
         lastMonthInvoicesResult,
         goalsResult,
       ] = await Promise.all([
         revenueQuery,
+        expenseQuery,
         lastMonthRevenueQuery,
+        lastMonthExpenseQuery,
         supabase
           .from("profiles")
           .select("id")
@@ -116,6 +138,18 @@ export function useDashboardStats() {
         ? ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
         : 0;
 
+      const totalExpenses = currentExpenseResult.data?.reduce(
+        (sum, record) => sum + Number(record.amount), 0
+      ) || 0;
+
+      const lastMonthExpenses = lastMonthExpenseResult.data?.reduce(
+        (sum, record) => sum + Number(record.amount), 0
+      ) || 0;
+
+      const expenseChange = lastMonthExpenses > 0
+        ? ((totalExpenses - lastMonthExpenses) / lastMonthExpenses) * 100
+        : 0;
+
       const activeEmployees = employeesResult.data?.length || 0;
       const pendingInvoices = pendingInvoicesResult.data?.length || 0;
       const lastMonthPendingInvoices = lastMonthInvoicesResult.data?.length || 0;
@@ -129,6 +163,8 @@ export function useDashboardStats() {
       return {
         totalRevenue,
         revenueChange: Math.round(revenueChange * 10) / 10,
+        totalExpenses,
+        expenseChange: Math.round(expenseChange * 10) / 10,
         activeEmployees,
         employeeChange: 0,
         pendingInvoices,
@@ -146,6 +182,8 @@ function getEmptyStats(): DashboardStats {
   return {
     totalRevenue: 0,
     revenueChange: 0,
+    totalExpenses: 0,
+    expenseChange: 0,
     activeEmployees: 0,
     employeeChange: 0,
     pendingInvoices: 0,

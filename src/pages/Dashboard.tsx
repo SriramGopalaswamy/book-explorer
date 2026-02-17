@@ -24,6 +24,7 @@ import {
   Users,
   Target,
   DollarSign,
+  TrendingDown,
   UserCheck,
   FileText,
   TrendingUp,
@@ -79,9 +80,10 @@ export default function Dashboard() {
         <WelcomeHero />
 
         {/* Key Metrics */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {statsLoading ? (
             <>
+              <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
@@ -102,6 +104,18 @@ export default function Dashboard() {
                 index={0}
               />
               <StatCardEnhanced
+                title="Total Expenses"
+                value={stats?.totalExpenses || 0}
+                prefix="₹"
+                change={{
+                  value: `${Math.abs(stats?.expenseChange || 0)}%`,
+                  type: (stats?.expenseChange || 0) >= 0 ? "increase" : "decrease",
+                }}
+                icon={<TrendingDown className="h-5 w-5" />}
+                glowColor="info"
+                index={1}
+              />
+              <StatCardEnhanced
                 title="Active Employees"
                 value={stats?.activeEmployees || 0}
                 change={{
@@ -110,7 +124,7 @@ export default function Dashboard() {
                 }}
                 icon={<UserCheck className="h-5 w-5" />}
                 glowColor="hrms"
-                index={1}
+                index={2}
               />
               <StatCardEnhanced
                 title="Pending Invoices"
@@ -121,7 +135,7 @@ export default function Dashboard() {
                 }}
                 icon={<FileText className="h-5 w-5" />}
                 glowColor="info"
-                index={2}
+                index={3}
               />
               <StatCardEnhanced
                 title="Goals Progress"
@@ -133,7 +147,7 @@ export default function Dashboard() {
                 }}
                 icon={<Target className="h-5 w-5" />}
                 glowColor="success"
-                index={3}
+                index={4}
               />
             </>
           )}
