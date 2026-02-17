@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS bulk_upload_sessions (
     total_rows INTEGER NOT NULL DEFAULT 0,
     successful_rows INTEGER NOT NULL DEFAULT 0,
     failed_rows INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'validating', 'processing', 'completed', 'failed', 'cancelled')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'validating', 'validated', 'validation_failed', 'processing', 'completed', 'failed', 'cancelled')),
     validation_errors JSONB DEFAULT '[]'::jsonb,
     processing_errors JSONB DEFAULT '[]'::jsonb,
     metadata JSONB DEFAULT '{}'::jsonb,
