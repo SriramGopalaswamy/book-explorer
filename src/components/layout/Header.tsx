@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Bell, Search, User, LogOut, Command, Moon, Sun } from "lucide-react";
+import { Search, User, LogOut, Command, Moon, Sun } from "lucide-react";
+import { NotificationCenter } from "@/components/layout/NotificationCenter";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,14 +111,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           transition={{ delay: 0.3 }}
           whileHover={{ scale: 1.05 }}
         >
-          <Button variant="ghost" size="icon" className="relative rounded-xl">
-            <Bell className="h-5 w-5" />
-            <motion.span
-              className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
-          </Button>
+          <NotificationCenter />
         </motion.div>
 
         {/* User Menu */}
