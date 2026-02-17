@@ -14,6 +14,7 @@ export interface Memo {
   priority: "low" | "medium" | "high";
   status: "draft" | "pending" | "published";
   views: number;
+  recipients: string[];
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -86,6 +87,7 @@ export function useCreateMemo() {
       priority: Memo["priority"];
       status?: Memo["status"];
       author_name: string;
+      recipients?: string[];
     }) => {
       const excerpt = memo.content 
         ? memo.content.substring(0, 150) + (memo.content.length > 150 ? "..." : "")
