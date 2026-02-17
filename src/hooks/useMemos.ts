@@ -120,6 +120,12 @@ export function useCreateMemo() {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
       toast.success(data.status === "published" ? "Memo published successfully" : "Memo saved as draft");
+      // Send email notification for published memos (fire-and-forget)
+      if (data.status === "published") {
+        supabase.functions.invoke("send-notification-email", {
+          body: { type: "memo_published", payload: { memo_id: data.id } },
+        }).catch((err) => console.warn("Failed to send memo email:", err));
+      }
     },
     onError: (error) => {
       toast.error("Failed to create memo: " + error.message);
@@ -182,10 +188,14 @@ export function usePublishMemo() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
       toast.success("Memo published successfully");
+      // Send email notification (fire-and-forget)
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "memo_published", payload: { memo_id: data.id } },
+      }).catch((err) => console.warn("Failed to send memo email:", err));
     },
     onError: (error) => {
       toast.error("Failed to publish memo: " + error.message);
