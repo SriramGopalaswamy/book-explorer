@@ -220,7 +220,8 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!existingRole) {
-          const role = email.toLowerCase() === "sriram@grx10.com" ? "admin" : "employee";
+          const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
+          const role = adminEmails.includes(email.toLowerCase()) ? "admin" : "employee";
           await supabase.from("user_roles").insert({
             user_id: existingUser.id,
             role,
@@ -246,7 +247,8 @@ Deno.serve(async (req) => {
         }
 
         // Assign role: admin for sriram@grx10.com, employee for everyone else
-        const role = email.toLowerCase() === "sriram@grx10.com" ? "admin" : "employee";
+        const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
+        const role = adminEmails.includes(email.toLowerCase()) ? "admin" : "employee";
         await supabase.from("user_roles").insert({
           user_id: newUser.user!.id,
           role,
