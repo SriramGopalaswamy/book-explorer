@@ -12,7 +12,7 @@ const isProduction = NODE_ENV === 'production';
  * - Can be explicitly enabled in production via VITE_DEV_MODE=true
  * - Enables: Role impersonation, permission matrix debugging, live governance
  */
-export const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || (!isProduction && import.meta.env.VITE_DEV_MODE !== 'false');
+export const DEV_MODE = true; // TEMPORARY: forced on for testing — revert before publishing
 
 /**
  * ALLOW_PERMISSION_EDITING - Controls runtime permission modification
