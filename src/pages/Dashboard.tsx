@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { subMonths } from "date-fns";
+import { useDevMode } from "@/contexts/DevModeContext";
+import { useAppMode } from "@/contexts/AppModeContext";
+import { Badge } from "@/components/ui/badge";
+import { Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { WelcomeHero } from "@/components/dashboard/WelcomeHero";
@@ -31,6 +35,8 @@ export default function Dashboard() {
   });
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { canShowDevTools } = useAppMode();
+  const { activeRole, currentRoleInfo, isImpersonating } = useDevMode();
 
   const filterRange = dateRange?.from && dateRange?.to
     ? { from: dateRange.from, to: dateRange.to }
@@ -47,6 +53,26 @@ export default function Dashboard() {
       </div>
 
       <div className="relative z-10 space-y-8">
+        {/* Role Preview Indicator */}
+        {canShowDevTools && activeRole && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm px-4 py-3"
+          >
+            <Shield className="h-4 w-4 text-purple-400" />
+            <span className="text-sm text-purple-300">Viewing as</span>
+            <Badge className="bg-purple-600 text-purple-50 hover:bg-purple-600 uppercase text-xs font-bold tracking-wider">
+              {activeRole}
+            </Badge>
+            {isImpersonating && currentRoleInfo?.user.actualRole && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                Actual: {currentRoleInfo.user.actualRole}
+              </span>
+            )}
+          </motion.div>
+        )}
+
         {/* Welcome Hero */}
         <WelcomeHero />
 
