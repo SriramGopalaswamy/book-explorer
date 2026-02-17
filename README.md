@@ -40,16 +40,31 @@ See [DEV_TOOLS_SUPABASE_MIGRATION.md](./DEV_TOOLS_SUPABASE_MIGRATION.md) for mig
 
 ### Supabase Seeding (Recommended)
 
+**Complete Seed Data Available**: Run `supabase/seed.sql` to populate your database with comprehensive demo data.
+
+The seed script provides realistic sample data for:
+- **HR Modules**: Employee profiles (20), Goals (30), Memos (25), Attendance records, Leave balances/requests
+- **Financial Modules**: Invoices (50), Bank accounts (5), Bank transactions (~120), Scheduled payments (25), Chart of accounts (27)
+- **RBAC**: User roles and permissions
+
+**Quick Start:**
+1. Go to Supabase Dashboard → SQL Editor
+2. Copy and paste contents of `supabase/seed.sql`
+3. Click "Run"
+4. Verify with `supabase/diagnostic.sql`
+
+See [SEEDING_GUIDE.md](./SEEDING_GUIDE.md) for detailed instructions and [DATA_RECOVERY_SUMMARY.md](./DATA_RECOVERY_SUMMARY.md) for background.
+
+### RBAC Roles & Permissions
+
 The Supabase migration `20260217000000_dev_tools_rbac.sql` automatically seeds:
 - 5 roles (SuperAdmin, Admin, Moderator, Author, Reader)
 - ~17 permissions across different modules
 - Role-permission mappings
 
-For financial and other data, see `supabase/seed.sql`.
+### Legacy Backend Seeding (Deprecated)
 
-### Legacy Backend Seeding (Optional)
-
-If using the Express backend for other features, see [SEEDING_GUIDE.md](./SEEDING_GUIDE.md).
+The Express backend in `/backend` is no longer required. All seeding is now done via Supabase.
 
 ## Environment Variables
 
