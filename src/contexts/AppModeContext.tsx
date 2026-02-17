@@ -12,6 +12,10 @@
  * - Developer mode: Activated ONLY via button click on login screen
  * - Mode switching: Controlled and audited
  * - Production isolation: Developer features completely disabled in production mode
+ * 
+ * NOTE: As of Feb 2026, dev tools (role switcher, permission matrix) no longer
+ * use the backend API or x-dev-bypass headers. They query Supabase directly.
+ * This context remains for other features that may still use backend API in dev mode.
  */
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
