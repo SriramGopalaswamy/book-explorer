@@ -15,6 +15,8 @@ import {
   Settings,
   ChevronLeft,
   BookOpen,
+  PartyPopper,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.svg";
@@ -43,6 +45,8 @@ const hrmsNav: NavItem[] = [
   { name: "Attendance", path: "/hrms/attendance", icon: Clock, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
+  { name: "Holidays", path: "/hrms/holidays", icon: PartyPopper, module: "hrms" },
+  { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
 ];
 
 const performanceNav: NavItem[] = [
