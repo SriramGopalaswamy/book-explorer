@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,8 +37,10 @@ import {
   TrendingUp,
   Wallet,
   Loader2,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import { useFinancialRecords, useAddFinancialRecord } from "@/hooks/useFinancialData";
+import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -55,7 +58,13 @@ function formatAmount(amount: number): string {
 export default function Accounting() {
   const { data: records = [], isLoading } = useFinancialRecords();
   const addRecord = useAddFinancialRecord();
+  const updateRecord = useUpdateFinancialRecord();
+  const deleteRecord = useDeleteFinancialRecord();
+
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<FinancialRecord | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<FinancialRecord | null>(null);
 
   // Form state
   const [type, setType] = useState<"revenue" | "expense">("revenue");
@@ -76,6 +85,37 @@ export default function Accounting() {
     setDescription("");
     setRecordDate(format(new Date(), "yyyy-MM-dd"));
     setErrors({});
+    setEditingRecord(null);
+  };
+
+  const openEditDialog = (record: FinancialRecord) => {
+    setEditingRecord(record);
+    setType(record.type as "revenue" | "expense");
+    setCategory(record.category);
+    setAmount(String(record.amount));
+    setDescription(record.description || "");
+    setRecordDate(record.record_date);
+    setErrors({});
+    setDialogOpen(true);
+  };
+
+  const openDeleteDialog = (record: FinancialRecord) => {
+    setDeletingRecord(record);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (!deletingRecord) return;
+    deleteRecord.mutate(deletingRecord.id, {
+      onSuccess: () => {
+        toast.success("Entry deleted successfully");
+        setDeleteDialogOpen(false);
+        setDeletingRecord(null);
+      },
+      onError: (err) => {
+        toast.error("Failed to delete entry: " + err.message);
+      },
+    });
   };
 
   const handleSubmit = () => {
@@ -98,25 +138,47 @@ export default function Accounting() {
     }
 
     setErrors({});
-    addRecord.mutate({
-      type: parsed.data.type,
-      category: parsed.data.category,
-      amount: parsed.data.amount,
-      description: parsed.data.description ?? null,
-      record_date: parsed.data.record_date,
-    }, {
-      onSuccess: () => {
-        toast.success("Entry added successfully");
-        setDialogOpen(false);
-        resetForm();
-      },
-      onError: (err) => {
-        toast.error("Failed to add entry: " + err.message);
-      },
-    });
+
+    if (editingRecord) {
+      updateRecord.mutate({
+        id: editingRecord.id,
+        type: parsed.data.type,
+        category: parsed.data.category,
+        amount: parsed.data.amount,
+        description: parsed.data.description ?? null,
+        record_date: parsed.data.record_date,
+      }, {
+        onSuccess: () => {
+          toast.success("Entry updated successfully");
+          setDialogOpen(false);
+          resetForm();
+        },
+        onError: (err) => {
+          toast.error("Failed to update entry: " + err.message);
+        },
+      });
+    } else {
+      addRecord.mutate({
+        type: parsed.data.type,
+        category: parsed.data.category,
+        amount: parsed.data.amount,
+        description: parsed.data.description ?? null,
+        record_date: parsed.data.record_date,
+      }, {
+        onSuccess: () => {
+          toast.success("Entry added successfully");
+          setDialogOpen(false);
+          resetForm();
+        },
+        onError: (err) => {
+          toast.error("Failed to add entry: " + err.message);
+        },
+      });
+    }
   };
 
   const categories = type === "revenue" ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES;
+  const isSaving = addRecord.isPending || updateRecord.isPending;
 
   return (
     <MainLayout
@@ -189,11 +251,12 @@ export default function Accounting() {
                   <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {records.map((record) => (
-                  <TableRow key={record.id} className="cursor-pointer hover:bg-secondary/50">
+                  <TableRow key={record.id} className="group hover:bg-secondary/50">
                     <TableCell>{record.record_date}</TableCell>
                     <TableCell>{record.description || "—"}</TableCell>
                     <TableCell>{record.category}</TableCell>
@@ -225,6 +288,26 @@ export default function Accounting() {
                         </span>
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditDialog(record)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => openDeleteDialog(record)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -233,11 +316,11 @@ export default function Accounting() {
         </div>
       </div>
 
-      {/* Add Entry Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Add/Edit Entry Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Financial Entry</DialogTitle>
+            <DialogTitle>{editingRecord ? "Edit Financial Entry" : "Add Financial Entry"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -309,15 +392,46 @@ export default function Accounting() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={addRecord.isPending}
+              disabled={isSaving}
               className="bg-gradient-financial text-white hover:opacity-90"
             >
-              {addRecord.isPending ? (
+              {isSaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : editingRecord ? (
+                <Pencil className="mr-2 h-4 w-4" />
               ) : (
                 <Plus className="mr-2 h-4 w-4" />
               )}
-              Add Entry
+              {editingRecord ? "Update Entry" : "Add Entry"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Entry</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this {deletingRecord?.type} entry of {deletingRecord ? formatAmount(deletingRecord.amount) : ""}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteRecord.isPending}
+            >
+              {deleteRecord.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
