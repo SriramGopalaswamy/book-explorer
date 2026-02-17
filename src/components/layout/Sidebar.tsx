@@ -87,11 +87,8 @@ export function Sidebar() {
             >
               {/* Active Background */}
               {isActive && (
-                <motion.div
-                  layoutId={`activeNav-${sectionId}`}
-                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                <div
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200"
                 />
               )}
               
@@ -112,11 +109,8 @@ export function Sidebar() {
               
               {/* Active Indicator Dot */}
               {isActive && (
-                <motion.div
-                  className="absolute right-2 h-2 w-2 rounded-full bg-white/80"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.1 }}
+                <div
+                  className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in"
                 />
               )}
             </NavLink>
