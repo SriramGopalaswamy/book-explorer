@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockPayrollRecords } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createPayrollSchema } from "@/lib/validation-schemas";
 
@@ -70,10 +72,15 @@ export interface UpdatePayrollData extends Partial<CreatePayrollData> {
 
 export function usePayrollRecords(payPeriod?: string) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["payroll", user?.id, payPeriod],
+    queryKey: ["payroll", user?.id, payPeriod, isDevMode],
     queryFn: async () => {
+      if (isDevMode) {
+        if (payPeriod) return mockPayrollRecords.filter(r => r.pay_period === payPeriod);
+        return mockPayrollRecords;
+      }
       if (!user) return [];
 
       let query = supabase
@@ -89,7 +96,7 @@ export function usePayrollRecords(payPeriod?: string) {
       if (error) throw error;
       return data as PayrollRecord[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

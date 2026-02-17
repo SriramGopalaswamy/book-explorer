@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockGoals, mockGoalStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface Goal {
@@ -27,10 +29,12 @@ export interface GoalStats {
 
 export function useGoals() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["goals"],
+    queryKey: ["goals", isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockGoals;
       const { data, error } = await supabase
         .from("goals")
         .select("*")
@@ -39,16 +43,18 @@ export function useGoals() {
       if (error) throw error;
       return data as Goal[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useGoalStats() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["goal-stats"],
+    queryKey: ["goal-stats", isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockGoalStats;
       const { data, error } = await supabase
         .from("goals")
         .select("status");
@@ -65,7 +71,7 @@ export function useGoalStats() {
 
       return stats;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

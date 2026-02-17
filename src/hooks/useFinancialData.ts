@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockFinancialRecords } from "@/lib/mock-data";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 
 export interface FinancialRecord {
@@ -46,10 +48,12 @@ const categoryColors: Record<string, string> = {
 
 export function useFinancialRecords() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["financial-records", user?.id],
+    queryKey: ["financial-records", user?.id, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockFinancialRecords;
       if (!user) return [];
       
       const { data, error } = await supabase
@@ -61,11 +65,12 @@ export function useFinancialRecords() {
       if (error) throw error;
       return data as FinancialRecord[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
+  const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
 
   return useQuery({
@@ -124,11 +129,12 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       return result;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
+  const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
 
   return useQuery({
@@ -169,7 +175,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         color: categoryColors[name] || "hsl(220, 9%, 46%)",
       }));
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockScheduledPayments } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
 
@@ -31,10 +33,12 @@ export interface CreateScheduledPaymentData {
 
 export function useScheduledPayments() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["scheduled-payments", user?.id],
+    queryKey: ["scheduled-payments", user?.id, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockScheduledPayments;
       if (!user) return [];
       const { data, error } = await supabase
         .from("scheduled_payments")
@@ -45,7 +49,7 @@ export function useScheduledPayments() {
       if (error) throw error;
       return data as ScheduledPayment[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

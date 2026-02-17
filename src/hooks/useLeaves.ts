@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockLeaveRequests, mockLeaveBalances, mockHolidays } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface LeaveRequest {
@@ -42,19 +44,18 @@ export interface Holiday {
 
 export function useLeaveRequests(status?: string) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["leave-requests", status],
+    queryKey: ["leave-requests", status, isDevMode],
     queryFn: async () => {
+      if (isDevMode) {
+        if (status && status !== "all") return mockLeaveRequests.filter(r => r.status === status);
+        return mockLeaveRequests;
+      }
       let query = supabase
         .from("leave_requests")
-        .select(`
-          *,
-          profiles:profile_id (
-            full_name,
-            department
-          )
-        `)
+        .select(`*, profiles:profile_id (full_name, department)`)
         .order("created_at", { ascending: false });
 
       if (status && status !== "all") {
@@ -65,16 +66,18 @@ export function useLeaveRequests(status?: string) {
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useMyLeaveRequests() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["my-leave-requests"],
+    queryKey: ["my-leave-requests", isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockLeaveRequests;
       const { data, error } = await supabase
         .from("leave_requests")
         .select("*")
@@ -84,17 +87,19 @@ export function useMyLeaveRequests() {
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useLeaveBalances() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
   const currentYear = new Date().getFullYear();
 
   return useQuery({
-    queryKey: ["leave-balances", currentYear],
+    queryKey: ["leave-balances", currentYear, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockLeaveBalances;
       const { data, error } = await supabase
         .from("leave_balances")
         .select("*")
@@ -103,7 +108,6 @@ export function useLeaveBalances() {
 
       if (error) throw error;
       
-      // Return default balances if none exist
       const defaultBalances: LeaveBalance[] = [
         { id: "1", user_id: user?.id || "", profile_id: null, leave_type: "casual", total_days: 12, used_days: 0, year: currentYear },
         { id: "2", user_id: user?.id || "", profile_id: null, leave_type: "sick", total_days: 10, used_days: 0, year: currentYear },
@@ -113,16 +117,18 @@ export function useLeaveBalances() {
 
       return data.length > 0 ? data as LeaveBalance[] : defaultBalances;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useHolidays() {
   const currentYear = new Date().getFullYear();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["holidays", currentYear],
+    queryKey: ["holidays", currentYear, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockHolidays;
       const { data, error } = await supabase
         .from("holidays")
         .select("*")
