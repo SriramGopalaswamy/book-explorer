@@ -8,7 +8,7 @@ This document outlines the Book Explorer application's compatibility with Lovabl
 
 ### Stack Compatibility
 - **Frontend Framework**: React 18.3.1 ✅
-- **Build Tool**: Vite 5.4.19 ✅
+- **Build Tool**: Vite 5.4.21 ✅
 - **Language**: TypeScript 5.8.3 ✅
 - **Styling**: Tailwind CSS 3.4.17 ✅
 - **UI Components**: shadcn/ui (Radix UI) ✅
