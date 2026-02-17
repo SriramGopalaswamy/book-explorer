@@ -133,9 +133,14 @@ export function useLeaveApproval() {
         .eq("id", leaveId);
 
       if (error) throw error;
+      return { leaveId, action };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
+      // Notify employee via email (fire-and-forget)
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "leave_request_decided", payload: { leave_request_id: result.leaveId, decision: result.action } },
+      }).catch((err) => console.warn("Failed to send decision email:", err));
     },
   });
 }

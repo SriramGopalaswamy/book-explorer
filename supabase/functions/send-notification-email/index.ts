@@ -242,6 +242,72 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (type === "leave_request_decided") {
+      const { leave_request_id, decision, reviewer_name } = payload;
+
+      const { data: leave, error: leaveError } = await supabase
+        .from("leave_requests")
+        .select("*, profiles:profile_id (full_name, email)")
+        .eq("id", leave_request_id)
+        .single();
+
+      if (leaveError || !leave) {
+        throw new Error(`Leave request not found: ${leaveError?.message}`);
+      }
+
+      const employeeEmail = (leave as any).profiles?.email;
+      const employeeName = (leave as any).profiles?.full_name || "Employee";
+
+      if (!employeeEmail) {
+        console.log("Employee has no email, skipping");
+        return new Response(
+          JSON.stringify({ success: true, message: "Employee email not found" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const isApproved = decision === "approved";
+      const statusColor = isApproved ? "#27ae60" : "#e74c3c";
+      const statusIcon = isApproved ? "✅" : "❌";
+      const statusText = isApproved ? "Approved" : "Rejected";
+
+      const htmlBody = `
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
+            <h1 style="margin: 0 0 8px; font-size: 20px; color: ${statusColor};">${statusIcon} Leave Request ${statusText}</h1>
+            <p style="margin: 0; font-size: 13px; color: #aaa;">Hi ${employeeName}, your leave request has been ${decision}.</p>
+          </div>
+          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr><td style="padding: 8px 0; color: #666; width: 120px;">Status</td><td style="padding: 8px 0; font-weight: 600; color: ${statusColor};">${statusText}</td></tr>
+              <tr><td style="padding: 8px 0; color: #666;">Type</td><td style="padding: 8px 0; color: #333;">${leave.leave_type}</td></tr>
+              <tr><td style="padding: 8px 0; color: #666;">From</td><td style="padding: 8px 0; color: #333;">${leave.from_date}</td></tr>
+              <tr><td style="padding: 8px 0; color: #666;">To</td><td style="padding: 8px 0; color: #333;">${leave.to_date}</td></tr>
+              <tr><td style="padding: 8px 0; color: #666;">Days</td><td style="padding: 8px 0; color: #333; font-weight: 600;">${leave.days}</td></tr>
+              ${reviewer_name ? `<tr><td style="padding: 8px 0; color: #666;">Reviewed by</td><td style="padding: 8px 0; color: #333;">${reviewer_name}</td></tr>` : ""}
+            </table>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
+            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
+          </div>
+        </div>
+      `;
+
+      await sendEmail(
+        accessToken,
+        senderEmail,
+        [{ email: employeeEmail, name: employeeName }],
+        `${statusIcon} Your Leave Request has been ${statusText}`,
+        htmlBody
+      );
+
+      console.log(`Leave decision email sent to ${employeeEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true, sent_to: employeeEmail }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid notification type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
