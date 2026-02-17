@@ -4,71 +4,84 @@
 
 Book Explorer is a full-stack enterprise application with comprehensive RBAC (Role-Based Access Control) system, demo mode, and developer tools for debugging and testing permissions.
 
+## Architecture
+
+### Frontend + Supabase
+- **Frontend**: React + TypeScript + Vite
+- **Database**: Supabase (PostgreSQL)
+- **Deployment**: Lovable Cloud
+- **Dev Tools**: Client-side with Supabase direct queries
+
+### Backend (Optional - Legacy)
+- **Note**: The Express backend in `/backend` folder is no longer required for dev tools
+- Dev tools now query Supabase directly
+- Backend may still be used for other features if needed
+
 ## Developer Mode
 
-This project includes a comprehensive RBAC introspection and governance layer for development and testing. See [DEVELOPER_MODE.md](./DEVELOPER_MODE.md) for complete documentation.
+This project includes a comprehensive RBAC introspection and governance layer. **As of February 2026, dev tools have been migrated to use Supabase directly**, eliminating the Express backend dependency.
+
+See [DEV_TOOLS_SUPABASE_MIGRATION.md](./DEV_TOOLS_SUPABASE_MIGRATION.md) for migration details.
 
 **Quick Start:**
 - Dev mode is enabled by default in development
 - Access the dev toolbar from the purple button on the right side of the screen
 - Switch roles at runtime to test different permission levels
 - View permission matrices and debug access control
+- **No backend server required** - all data fetched from Supabase
+
+**How It Works:**
+1. Dev tools query `roles`, `permissions`, and `role_permissions` tables in Supabase
+2. Permission matrix is built client-side
+3. Role switching is client-side only (no backend headers)
+4. Permission updates use Supabase RPC functions
 
 ## Database Seeding
 
-The project includes a **medium-density database seeding system** for development and testing. See [SEEDING_GUIDE.md](./SEEDING_GUIDE.md) for complete documentation.
+### Supabase Seeding (Recommended)
 
-**Quick Start:**
-```bash
-cd backend
+The Supabase migration `20260217000000_dev_tools_rbac.sql` automatically seeds:
+- 5 roles (SuperAdmin, Admin, Moderator, Author, Reader)
+- ~17 permissions across different modules
+- Role-permission mappings
 
-# Seed realistic test data (48 users, 45 authors, 275 books, 550+ reviews)
-npm run seed:dev
+For financial and other data, see `supabase/seed.sql`.
 
-# Reset and re-seed (destructive)
-npm run seed:dev:reset
-```
+### Legacy Backend Seeding (Optional)
 
-**Features:**
-- ✅ Production-safe (blocked in production environments)
-- ✅ Realistic data using Faker library
-- ✅ RBAC testing support (multiple roles and permissions)
-- ✅ Complete referential integrity
-- ✅ Idempotent operation
-- ✅ API endpoints available: `POST /api/dev/seed-medium` and `POST /api/dev/reset-dev-data`
+If using the Express backend for other features, see [SEEDING_GUIDE.md](./SEEDING_GUIDE.md).
 
 ## Environment Variables
-
-### Backend (.env)
-
-```bash
-# Session secret (required for production)
-SESSION_SECRET=your-secret-key-here
-
-# Database (defaults to SQLite in dev, PostgreSQL in production)
-DATABASE_URL=your-database-url
-
-# Developer mode (default: true in development, false in production)
-DEV_MODE=true
-ALLOW_PERMISSION_EDITING=true
-
-# Demo mode (disables mutations)
-DEMO_MODE=false
-```
 
 ### Frontend (.env)
 
 ```bash
-# Supabase configuration
+# Supabase configuration (Required)
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-key
 
-# Backend API URL
-VITE_API_URL=http://localhost:3000/api
-
-# Developer mode
+# Developer mode (optional)
 VITE_DEV_MODE=true
 VITE_ALLOW_PERMISSION_EDITING=true
+
+# Backend API URL (optional - only if using Express backend for other features)
+VITE_API_URL=http://localhost:3000/api
+```
+
+### Backend (.env) - Optional
+
+Only required if using Express backend for non-dev-tools features.
+
+```bash
+# Session secret
+SESSION_SECRET=your-secret-key-here
+
+# Database
+DATABASE_URL=your-database-url
+
+# Developer mode (deprecated for dev tools)
+DEV_MODE=true
+ALLOW_PERMISSION_EDITING=true
 ```
 
 ## Project info
