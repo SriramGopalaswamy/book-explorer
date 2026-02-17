@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Download, Printer } from "lucide-react";
+import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 
 const formatCurrency = (value: number) => {
@@ -43,10 +44,14 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const handlePrint = () => {
     const printContent = document.getElementById("payslip-content");
     if (!printContent) return;
+    const sanitizedContent = DOMPurify.sanitize(printContent.innerHTML, {
+      ALLOWED_TAGS: ['div', 'span', 'h1', 'h2', 'h3', 'p', 'br', 'table', 'tbody', 'tr', 'td', 'th', 'label', 'hr'],
+      ALLOWED_ATTR: ['class', 'style'],
+    });
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`
-      <html><head><title>Pay Slip - ${record.profiles?.full_name}</title>
+      <html><head><title>Pay Slip - ${DOMPurify.sanitize(record.profiles?.full_name || '')}</title>
       <style>
         body { font-family: system-ui, sans-serif; padding: 40px; color: #1a1a1a; max-width: 700px; margin: 0 auto; }
         h1 { font-size: 24px; margin-bottom: 4px; }
@@ -66,7 +71,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
         .footer { margin-top: 40px; font-size: 12px; color: #aaa; text-align: center; }
         @media print { body { padding: 20px; } }
       </style></head><body>
-      ${printContent.innerHTML}
+      ${sanitizedContent}
       <div class="footer">This is a system-generated pay slip. No signature required.</div>
       </body></html>
     `);
