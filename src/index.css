@@ -6,60 +6,60 @@
 
 @layer base {
   :root {
-    /* Core Brand Colors - Dark with Magenta Accent */
-    --background: 0 0% 98%;
-    --foreground: 270 10% 10%;
+    /* Core Brand Colors - Light Mode: Warm, refined, editorial */
+    --background: 270 8% 97%;
+    --foreground: 270 15% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 270 10% 10%;
+    --card-foreground: 270 15% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 270 10% 10%;
+    --popover-foreground: 270 15% 12%;
 
-    /* Primary: Magenta/Pink */
-    --primary: 322 84% 50%;
+    /* Primary: Magenta/Pink — slightly deeper for light bg contrast */
+    --primary: 322 84% 46%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: Soft Gray */
-    --secondary: 270 5% 95%;
-    --secondary-foreground: 270 10% 10%;
+    /* Secondary: Warm lavender-gray */
+    --secondary: 270 12% 94%;
+    --secondary-foreground: 270 15% 15%;
 
-    /* Muted: Subtle Gray */
-    --muted: 270 5% 95%;
-    --muted-foreground: 270 5% 45%;
+    /* Muted: Warm subtle tones */
+    --muted: 270 8% 93%;
+    --muted-foreground: 270 8% 42%;
 
-    /* Accent: Same Magenta */
-    --accent: 322 84% 50%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent: Magenta tuned for light surfaces */
+    --accent: 322 70% 94%;
+    --accent-foreground: 322 84% 38%;
 
     /* Destructive */
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders & Inputs */
-    --border: 270 5% 90%;
-    --input: 270 5% 90%;
+    /* Borders & Inputs — slightly warmer */
+    --border: 270 10% 88%;
+    --input: 270 10% 88%;
     --ring: 322 84% 50%;
 
     --radius: 0.75rem;
 
     /* Module Colors */
-    --financial: 322 84% 50%;
-    --financial-light: 322 84% 96%;
+    --financial: 322 84% 46%;
+    --financial-light: 322 60% 95%;
     --hrms: 262 52% 47%;
-    --hrms-light: 262 52% 96%;
-    --performance: 322 84% 45%;
-    --performance-light: 322 84% 96%;
+    --hrms-light: 262 40% 95%;
+    --performance: 322 84% 42%;
+    --performance-light: 322 50% 95%;
     
     /* Success & Info */
-    --success: 142 76% 36%;
+    --success: 142 76% 32%;
     --success-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
+    --info: 199 89% 42%;
     --info-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 270 10% 10%;
 
-    /* Sidebar - Dark theme */
+    /* Sidebar - Stays dark in light mode (app signature) */
     --sidebar-background: 270 10% 7%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 322 84% 50%;
@@ -80,39 +80,39 @@
     --mesh-3: 199 89% 48%;
     --mesh-4: 142 76% 36%;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(322 84% 50%) 0%, hsl(280 60% 45%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(322 84% 50%) 0%, hsl(340 80% 55%) 100%);
-    --gradient-financial: linear-gradient(135deg, hsl(322 84% 50%) 0%, hsl(280 60% 45%) 100%);
-    --gradient-hrms: linear-gradient(135deg, hsl(262 52% 47%) 0%, hsl(272 52% 58%) 100%);
-    --gradient-performance: linear-gradient(135deg, hsl(322 84% 45%) 0%, hsl(340 80% 50%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(270 5% 99%) 100%);
+    /* Gradients — softer for light backgrounds */
+    --gradient-primary: linear-gradient(135deg, hsl(322 84% 46%) 0%, hsl(280 60% 42%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(322 84% 46%) 0%, hsl(340 80% 52%) 100%);
+    --gradient-financial: linear-gradient(135deg, hsl(322 84% 46%) 0%, hsl(280 60% 42%) 100%);
+    --gradient-hrms: linear-gradient(135deg, hsl(262 52% 47%) 0%, hsl(272 52% 55%) 100%);
+    --gradient-performance: linear-gradient(135deg, hsl(322 84% 42%) 0%, hsl(340 80% 48%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(270 8% 97%) 100%);
     --gradient-dark: linear-gradient(135deg, hsl(270 10% 7%) 0%, hsl(322 40% 15%) 100%);
     
-    /* 2026 Mesh Gradients */
-    --gradient-mesh: radial-gradient(at 40% 20%, hsl(322 84% 50% / 0.3) 0px, transparent 50%),
-                     radial-gradient(at 80% 0%, hsl(262 52% 47% / 0.25) 0px, transparent 50%),
-                     radial-gradient(at 0% 50%, hsl(199 89% 48% / 0.2) 0px, transparent 50%),
-                     radial-gradient(at 80% 50%, hsl(142 76% 36% / 0.15) 0px, transparent 50%),
-                     radial-gradient(at 0% 100%, hsl(322 84% 50% / 0.2) 0px, transparent 50%);
+    /* Light mode mesh — very subtle tints */
+    --gradient-mesh: radial-gradient(at 40% 20%, hsl(322 84% 50% / 0.08) 0px, transparent 50%),
+                     radial-gradient(at 80% 0%, hsl(262 52% 47% / 0.06) 0px, transparent 50%),
+                     radial-gradient(at 0% 50%, hsl(199 89% 48% / 0.05) 0px, transparent 50%),
+                     radial-gradient(at 80% 50%, hsl(142 76% 36% / 0.04) 0px, transparent 50%),
+                     radial-gradient(at 0% 100%, hsl(322 84% 50% / 0.06) 0px, transparent 50%);
     
     --gradient-aurora: linear-gradient(125deg, 
-      hsl(322 84% 50% / 0.15) 0%, 
-      hsl(262 52% 47% / 0.1) 25%, 
-      hsl(199 89% 48% / 0.1) 50%, 
-      hsl(142 76% 36% / 0.1) 75%, 
-      hsl(322 84% 50% / 0.15) 100%);
+      hsl(322 84% 50% / 0.06) 0%, 
+      hsl(262 52% 47% / 0.04) 25%, 
+      hsl(199 89% 48% / 0.04) 50%, 
+      hsl(142 76% 36% / 0.04) 75%, 
+      hsl(322 84% 50% / 0.06) 100%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(270 10% 10% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(270 10% 10% / 0.07), 0 2px 4px -2px hsl(270 10% 10% / 0.05);
-    --shadow-lg: 0 10px 15px -3px hsl(270 10% 10% / 0.08), 0 4px 6px -4px hsl(270 10% 10% / 0.05);
-    --shadow-xl: 0 20px 25px -5px hsl(270 10% 10% / 0.1), 0 8px 10px -6px hsl(270 10% 10% / 0.05);
-    --shadow-card: 0 1px 3px 0 hsl(270 10% 10% / 0.04), 0 1px 2px -1px hsl(270 10% 10% / 0.04);
-    --shadow-card-hover: 0 10px 20px -5px hsl(270 10% 10% / 0.1), 0 4px 6px -4px hsl(270 10% 10% / 0.05);
-    --shadow-glow: 0 0 20px hsl(322 84% 50% / 0.3);
-    --shadow-glow-lg: 0 0 40px hsl(322 84% 50% / 0.4), 0 0 80px hsl(322 84% 50% / 0.2);
-    --shadow-neon: 0 0 5px hsl(322 84% 50% / 0.5), 0 0 20px hsl(322 84% 50% / 0.3), 0 0 40px hsl(322 84% 50% / 0.1);
+    /* Shadows — refined for light mode with warm purple tint */
+    --shadow-sm: 0 1px 2px 0 hsl(270 20% 30% / 0.06);
+    --shadow-md: 0 4px 8px -1px hsl(270 20% 30% / 0.08), 0 2px 4px -2px hsl(270 20% 30% / 0.04);
+    --shadow-lg: 0 12px 20px -4px hsl(270 20% 30% / 0.1), 0 4px 8px -4px hsl(270 20% 30% / 0.06);
+    --shadow-xl: 0 24px 32px -8px hsl(270 20% 30% / 0.12), 0 8px 12px -6px hsl(270 20% 30% / 0.06);
+    --shadow-card: 0 1px 3px 0 hsl(270 20% 30% / 0.06), 0 1px 2px -1px hsl(270 20% 30% / 0.03);
+    --shadow-card-hover: 0 12px 24px -6px hsl(322 60% 40% / 0.12), 0 4px 8px -4px hsl(270 20% 30% / 0.06);
+    --shadow-glow: 0 0 20px hsl(322 84% 50% / 0.15);
+    --shadow-glow-lg: 0 0 40px hsl(322 84% 50% / 0.2), 0 0 80px hsl(322 84% 50% / 0.1);
+    --shadow-neon: 0 0 5px hsl(322 84% 50% / 0.25), 0 0 20px hsl(322 84% 50% / 0.15), 0 0 40px hsl(322 84% 50% / 0.05);
   }
 
   .dark {
@@ -286,29 +286,46 @@
   
   /* Glassmorphism */
   .glass {
-    @apply bg-background/70 backdrop-blur-xl border border-border/50;
+    @apply backdrop-blur-xl border border-border/50;
+    background: hsl(var(--background) / 0.85);
   }
   
   .glass-card {
-    @apply bg-card/60 backdrop-blur-2xl border border-border/30 rounded-2xl;
+    @apply backdrop-blur-2xl border border-border/30 rounded-2xl;
+    background: hsl(var(--card) / 0.75);
     box-shadow: 
-      0 8px 32px hsl(270 10% 10% / 0.1),
-      inset 0 1px 0 hsl(0 0% 100% / 0.1);
+      0 8px 32px hsl(270 20% 30% / 0.06),
+      inset 0 1px 0 hsl(0 0% 100% / 0.6);
   }
   
   .glass-morphism {
     background: linear-gradient(
       135deg,
-      hsl(var(--card) / 0.8) 0%,
-      hsl(var(--card) / 0.4) 100%
+      hsl(var(--card) / 0.9) 0%,
+      hsl(var(--card) / 0.7) 100%
     );
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid hsl(var(--border) / 0.3);
+    border: 1px solid hsl(var(--border) / 0.4);
   }
 
   .dark .glass {
     @apply bg-card/60 backdrop-blur-xl;
+  }
+  
+  .dark .glass-card {
+    background: hsl(var(--card) / 0.6);
+    box-shadow: 
+      0 8px 32px hsl(270 10% 10% / 0.1),
+      inset 0 1px 0 hsl(0 0% 100% / 0.1);
+  }
+  
+  .dark .glass-morphism {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.8) 0%,
+      hsl(var(--card) / 0.4) 100%
+    );
   }
   
   /* Glow Effects */
