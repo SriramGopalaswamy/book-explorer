@@ -46,6 +46,19 @@ user1@example.com,employee
 user2@example.com,hr
 user3@example.com,manager`;
 
+// ─── Users (Bulk Create) ──────────────────────────
+const usersColumns: BulkUploadColumn[] = [
+  { key: "email", label: "Email", required: true },
+  { key: "full_name", label: "Full Name", required: true },
+  { key: "department", label: "Department" },
+  { key: "job_title", label: "Job Title" },
+  { key: "role", label: "Role" },
+];
+
+const usersTemplate = `email,full_name,department,job_title,role
+john@grx10.com,John Doe,Engineering,Developer,employee
+jane@grx10.com,Jane Smith,HR,HR Manager,hr`;
+
 // ─── Holidays ──────────────────────────────────────
 const holidayColumns: BulkUploadColumn[] = [
   { key: "name", label: "Holiday Name", required: true },
@@ -248,6 +261,41 @@ export function useRolesBulkUpload(): BulkUploadConfig {
     columns: rolesColumns,
     templateFileName: "roles_template.csv",
     templateContent: rolesTemplate,
+    onUpload,
+  };
+}
+
+export function useUsersBulkUpload(): BulkUploadConfig {
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    const usersToCreate = rows.map((row) => ({
+      email: row.email?.trim(),
+      full_name: row.full_name?.trim() || "",
+      department: row.department?.trim() || null,
+      job_title: row.job_title?.trim() || null,
+      role: row.role?.toLowerCase().trim() || "employee",
+    }));
+
+    const { data, error } = await supabase.functions.invoke("manage-roles", {
+      body: { action: "bulk_create_users", users: usersToCreate },
+    });
+
+    if (error) {
+      return { success: 0, errors: [error.message] };
+    }
+
+    qc.invalidateQueries({ queryKey: ["user-roles"] });
+    return { success: data?.created || 0, errors: data?.errors || [] };
+  }, [qc]);
+
+  return {
+    module: "users",
+    title: "Bulk Add Users",
+    description: "Create multiple new user accounts at once. Each user gets a temporary password and can sign in via MS365.",
+    columns: usersColumns,
+    templateFileName: "users_template.csv",
+    templateContent: usersTemplate,
     onUpload,
   };
 }
