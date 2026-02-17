@@ -75,6 +75,28 @@ async function sendEmail(
   }
 }
 
+// Helper to insert in-app notifications
+async function insertNotification(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  title: string,
+  message: string,
+  type: string,
+  link?: string
+) {
+  try {
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      title,
+      message,
+      type,
+      link,
+    });
+  } catch (err) {
+    console.warn("Failed to insert notification:", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -188,10 +210,10 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get manager's email
+      // Get manager's email and user_id
       const { data: manager } = await supabase
         .from("profiles")
-        .select("email, full_name")
+        .select("email, full_name, user_id")
         .eq("id", managerId)
         .single();
 
@@ -200,6 +222,18 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ success: true, message: "Manager email not found" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Insert in-app notification for manager
+      if (manager.user_id) {
+        await insertNotification(
+          supabase,
+          manager.user_id,
+          `Leave Request from ${employeeName}`,
+          `${employeeName} requested ${leave.days} day(s) of ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date})`,
+          "leave_request",
+          "/dashboard"
         );
       }
 
@@ -259,16 +293,22 @@ Deno.serve(async (req) => {
       const employeeName = (leave as any).profiles?.full_name || "Employee";
       const managerId = (leave as any).profiles?.manager_id;
 
-      // Look up manager email
+      // We need the employee's user_id for in-app notification
+      // The leave_request has user_id but that's the requester's auth id
+      const employeeUserId = leave.user_id;
+
+      // Look up manager email and user_id
       let managerRecipient: { email: string; name?: string } | null = null;
+      let managerUserId: string | null = null;
       if (managerId) {
         const { data: manager } = await supabase
           .from("profiles")
-          .select("email, full_name")
+          .select("email, full_name, user_id")
           .eq("id", managerId)
           .single();
         if (manager?.email) {
           managerRecipient = { email: manager.email, name: manager.full_name || undefined };
+          managerUserId = manager.user_id;
         }
       }
 
@@ -321,6 +361,35 @@ Deno.serve(async (req) => {
 
       const sentTo = recipients.map(r => r.email);
       console.log(`Leave decision email sent to: ${sentTo.join(", ")}`);
+
+      // Insert in-app notifications
+      const notifType = isApproved ? "leave_approved" : "leave_rejected";
+      const notifTitle = `Leave ${statusText}`;
+      const notifMsg = `Your ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) has been ${decision}.`;
+
+      // Notify the employee whose leave was decided
+      // The leave requests were seeded with the manager's user_id, so look up the actual employee user_id from profile
+      const { data: empProfile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("id", leave.profile_id)
+        .maybeSingle();
+
+      if (empProfile?.user_id) {
+        await insertNotification(supabase, empProfile.user_id, notifTitle, notifMsg, notifType, "/hrms/leaves");
+      }
+
+      // Notify the manager
+      if (managerUserId) {
+        await insertNotification(
+          supabase,
+          managerUserId,
+          `Leave ${statusText} — ${employeeName}`,
+          `${employeeName}'s ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) was ${decision}.`,
+          notifType,
+          "/dashboard"
+        );
+      }
 
       return new Response(
         JSON.stringify({ success: true, sent_to: sentTo }),
