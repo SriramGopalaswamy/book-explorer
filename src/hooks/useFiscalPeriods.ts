@@ -7,7 +7,7 @@ export interface FiscalPeriod {
   id: string;
   user_id: string;
   year: number;
-  period: number; // 1-12 for months
+  period: number;
   start_date: string;
   end_date: string;
   status: "open" | "closed" | "locked";
@@ -20,9 +20,6 @@ export interface FiscalPeriod {
   updated_at: string;
 }
 
-/**
- * Hook to fetch all fiscal periods for the current user
- */
 export function useFiscalPeriods(year?: number) {
   const { user } = useAuth();
 
@@ -31,7 +28,7 @@ export function useFiscalPeriods(year?: number) {
     queryFn: async () => {
       if (!user) return [];
 
-      let query = supabase
+      let query = (supabase as any)
         .from("fiscal_periods")
         .select("*")
         .order("year", { ascending: false })
@@ -43,15 +40,12 @@ export function useFiscalPeriods(year?: number) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as FiscalPeriod[];
+      return (data ?? []) as FiscalPeriod[];
     },
     enabled: !!user,
   });
 }
 
-/**
- * Hook to get current period status
- */
 export function useCurrentPeriodStatus() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
@@ -61,34 +55,31 @@ export function useCurrentPeriodStatus() {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("fiscal_periods")
         .select("*")
         .lte("start_date", today)
         .gte("end_date", today)
         .single();
 
-      if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
-      return data as FiscalPeriod | null;
+      if (error && error.code !== "PGRST116") throw error;
+      return (data as FiscalPeriod) ?? null;
     },
     enabled: !!user,
   });
 }
 
-/**
- * Hook to initialize fiscal periods for a year
- */
 export function useInitializeFiscalYear() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (year: number) => {
-      const { data, error } = await supabase.rpc("initialize_fiscal_year", {
+      const { data, error } = await (supabase as any).rpc("initialize_fiscal_year", {
         p_year: year,
       });
 
       if (error) throw error;
-      return data as FiscalPeriod[];
+      return (data ?? []) as FiscalPeriod[];
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["fiscalPeriods"] });
@@ -107,15 +98,12 @@ export function useInitializeFiscalYear() {
   });
 }
 
-/**
- * Hook to close a fiscal period
- */
 export function useCloseFiscalPeriod() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (periodId: string) => {
-      const { data, error } = await supabase.rpc("close_fiscal_period", {
+      const { data, error } = await (supabase as any).rpc("close_fiscal_period", {
         p_period_id: periodId,
       });
 
@@ -127,7 +115,7 @@ export function useCloseFiscalPeriod() {
       queryClient.invalidateQueries({ queryKey: ["periodStatus"] });
       toast({
         title: "Period Closed",
-        description: `Fiscal period ${data.year}-${String(data.period).padStart(2, "0")} has been closed. No further modifications allowed.`,
+        description: `Fiscal period has been closed. No further modifications allowed.`,
       });
     },
     onError: (error) => {
@@ -142,27 +130,24 @@ export function useCloseFiscalPeriod() {
   });
 }
 
-/**
- * Hook to reopen a fiscal period (admin only)
- */
 export function useReopenFiscalPeriod() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (periodId: string) => {
-      const { data, error } = await supabase.rpc("reopen_fiscal_period", {
+      const { data, error } = await (supabase as any).rpc("reopen_fiscal_period", {
         p_period_id: periodId,
       });
 
       if (error) throw error;
       return data as FiscalPeriod;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fiscalPeriods"] });
       queryClient.invalidateQueries({ queryKey: ["periodStatus"] });
       toast({
         title: "Period Reopened",
-        description: `Fiscal period ${data.year}-${String(data.period).padStart(2, "0")} has been reopened.`,
+        description: `Fiscal period has been reopened.`,
       });
     },
     onError: (error) => {
@@ -177,9 +162,6 @@ export function useReopenFiscalPeriod() {
   });
 }
 
-/**
- * Hook to check if a date is in a locked period
- */
 export function useDatePeriodStatus(date: string) {
   const { user } = useAuth();
 
@@ -188,7 +170,7 @@ export function useDatePeriodStatus(date: string) {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("fiscal_periods")
         .select("status")
         .lte("start_date", date)
@@ -202,9 +184,6 @@ export function useDatePeriodStatus(date: string) {
   });
 }
 
-/**
- * Helper function to format period display
- */
 export function formatPeriodName(period: FiscalPeriod): string {
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -213,9 +192,6 @@ export function formatPeriodName(period: FiscalPeriod): string {
   return `${monthNames[period.period - 1]} ${period.year}`;
 }
 
-/**
- * Helper function to get status badge color
- */
 export function getPeriodStatusColor(status: FiscalPeriod["status"]): string {
   switch (status) {
     case "open":
