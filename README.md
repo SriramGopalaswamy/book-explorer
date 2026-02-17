@@ -204,3 +204,39 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Lovable Platform Compatibility
+
+This project is fully compatible with Lovable.dev platform and follows all best practices for optimal AI-assisted development.
+
+### Key Lovable Features
+- ✅ **Component Tagger**: `lovable-tagger` plugin enabled for visual component tracking
+- ✅ **Two-Way Sync**: Changes sync automatically between Lovable and GitHub
+- ✅ **Modern Stack**: React 18 + TypeScript 5 + Vite 5 + Tailwind CSS
+- ✅ **Code Splitting**: Optimized bundle with manual chunking for performance
+- ✅ **shadcn/ui**: Pre-integrated component library for rapid development
+
+### Documentation
+- **[LOVABLE_COMPATIBILITY.md](./LOVABLE_COMPATIBILITY.md)** - Comprehensive compatibility guide
+- **[LOVABLE_QUICK_REFERENCE.md](./LOVABLE_QUICK_REFERENCE.md)** - Quick reference for Lovable users
+
+### AI Prompting Best Practices
+When using Lovable's AI to edit this project:
+- ✅ Be specific: Include file paths and component names
+- ✅ Provide context: Mention user roles and permissions
+- ✅ Break down tasks: Split large features into focused changes
+- ✅ Use Plan Mode: For complex features, request a plan first
+
+Example good prompt:
+```
+In src/components/dashboard/ModuleCard.tsx, add a 'favorited' state 
+that shows a star icon when true. Only SuperAdmin and Admin roles 
+should be able to toggle favorites.
+```
+
+### Performance Optimization
+The build is optimized for production with:
+- Manual code splitting for vendor libraries
+- Lazy loading for routes
+- Optimized bundle size (~500kb main + vendor chunks)
+- Tree shaking and minification
