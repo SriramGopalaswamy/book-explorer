@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
@@ -112,5 +112,30 @@ export function useDirectReportsLeaves() {
       return data || [];
     },
     enabled: (!!user || isDevMode) && reports.length > 0,
+  });
+}
+
+export function useLeaveApproval() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ leaveId, action }: { leaveId: string; action: "approved" | "rejected" }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("leave_requests")
+        .update({
+          status: action,
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", leaveId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
+    },
   });
 }
