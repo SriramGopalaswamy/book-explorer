@@ -160,10 +160,10 @@ Deno.serve(async (req) => {
       // Delete profile
       await supabase.from("profiles").delete().eq("user_id", user_id);
 
-      // Delete auth user
+      // Delete auth user (may not exist for seeded/mock users)
       const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
 
-      if (deleteError) {
+      if (deleteError && deleteError.status !== 404) {
         console.error("Delete user error:", deleteError);
         return new Response(JSON.stringify({ error: "Failed to delete user: " + deleteError.message }), {
           status: 500,
