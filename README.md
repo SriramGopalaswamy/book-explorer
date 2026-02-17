@@ -66,6 +66,40 @@ The Supabase migration `20260217000000_dev_tools_rbac.sql` automatically seeds:
 
 The Express backend in `/backend` is no longer required. All seeding is now done via Supabase.
 
+## Bulk Excel Ingestion Engine
+
+**New Feature (February 2026)**: Enterprise-grade bulk upload system for importing data at scale.
+
+### Features
+- ✨ **Payroll Bulk Upload** - Import employee payroll records with auto-calculations
+- ✨ **Attendance Bulk Upload** - Import attendance with in-time/out-time tracking
+- ✨ **Roles Bulk Upload** - Import role-permission mappings
+- 🔒 **Two-Phase Processing** - Validation before data insertion
+- 📊 **Row-Level Tracking** - Track success/failure of each row
+- 🔐 **RLS & Permissions** - Secure, permission-based access control
+- 📝 **Comprehensive Audit Trail** - Full logging for compliance
+
+### Quick Start
+1. Download CSV templates from `templates/` folder
+2. Fill in your data following the template format
+3. Use RPC functions to upload:
+   - `validate_[module]_bulk_upload()` - Validate data
+   - `process_[module]_bulk_upload()` - Process validated data
+
+### Documentation
+- **User Guide**: [BULK_UPLOAD_GUIDE.md](./BULK_UPLOAD_GUIDE.md) - Complete usage guide with examples
+- **Technical Spec**: [BULK_UPLOAD_TECHNICAL_SPEC.md](./BULK_UPLOAD_TECHNICAL_SPEC.md) - Architecture and design
+- **Features**: [BULK_UPLOAD_FEATURES.md](./BULK_UPLOAD_FEATURES.md) - Feature summary
+- **Templates**: [templates/README.md](./templates/README.md) - Template usage instructions
+
+### Key Capabilities
+- ✅ Attendance time tracking (check_in, check_out times)
+- ✅ Working week policy (5-day or 6-day work week per employee)
+- ✅ Fiscal period validation (prevents posting to closed periods)
+- ✅ Employee status validation (blocks inactive employees)
+- ✅ Duplicate prevention across all modules
+- ✅ System role protection for security
+
 ## Environment Variables
 
 ### Frontend (.env)
