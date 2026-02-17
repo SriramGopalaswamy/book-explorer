@@ -179,6 +179,26 @@ Deno.serve(async (req) => {
 
       console.log(`Memo email sent to ${recipientEmails.length} recipients`);
 
+      // Insert in-app notifications for all recipients
+      const { data: recipientProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, email")
+        .in("email", recipientEmails)
+        .not("user_id", "is", null);
+
+      for (const profile of recipientProfiles || []) {
+        await insertNotification(
+          supabase,
+          profile.user_id,
+          `📢 New Memo: ${memo.title}`,
+          memo.excerpt || memo.content?.substring(0, 150) || "New memo published",
+          "memo",
+          "/performance/memos"
+        );
+      }
+
+      console.log(`Memo notifications inserted for ${(recipientProfiles || []).length} users`);
+
       return new Response(
         JSON.stringify({ success: true, sent_to: recipientEmails.length }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
