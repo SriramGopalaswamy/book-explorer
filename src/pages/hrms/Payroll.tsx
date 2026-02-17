@@ -36,6 +36,7 @@ import {
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
+import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -540,6 +541,9 @@ export default function Payroll() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Upload History */}
+      <BulkUploadHistory module="payroll" />
     </MainLayout>
   );
 }
