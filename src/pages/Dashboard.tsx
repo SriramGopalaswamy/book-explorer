@@ -92,7 +92,7 @@ export default function Dashboard() {
           ) : (
             <>
               <StatCardEnhanced
-                title="Total Revenue"
+                title="Total Revenue (This Month)"
                 value={stats?.totalRevenue || 0}
                 prefix="₹"
                 change={{
@@ -104,7 +104,7 @@ export default function Dashboard() {
                 index={0}
               />
               <StatCardEnhanced
-                title="Total Expenses"
+                title="Total Expenses (This Month)"
                 value={stats?.totalExpenses || 0}
                 prefix="₹"
                 change={{
