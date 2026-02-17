@@ -154,6 +154,42 @@ export type Database = {
           },
         ]
       }
+      bulk_upload_history: {
+        Row: {
+          created_at: string
+          errors: string[] | null
+          failed_rows: number
+          file_name: string
+          id: string
+          module: string
+          successful_rows: number
+          total_rows: number
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          errors?: string[] | null
+          failed_rows?: number
+          file_name: string
+          id?: string
+          module: string
+          successful_rows?: number
+          total_rows?: number
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          errors?: string[] | null
+          failed_rows?: number
+          file_name?: string
+          id?: string
+          module?: string
+          successful_rows?: number
+          total_rows?: number
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       chart_of_accounts: {
         Row: {
           account_code: string
