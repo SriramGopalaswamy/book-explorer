@@ -1,0 +1,9 @@
+role_name,permission_string
+Author,books.create
+Author,books.update
+Author,books.delete
+Moderator,reviews.approve
+Moderator,reviews.delete
+Moderator,users.view
+Reader,books.view
+Reader,reviews.create
