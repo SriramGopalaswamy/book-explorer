@@ -94,6 +94,7 @@ export default function Employees() {
     status: "active" as Employee["status"],
     join_date: new Date().toISOString().split("T")[0],
     phone: "",
+    manager_id: "" as string,
   });
 
   const filteredEmployees = employees.filter((emp) => {
@@ -114,12 +115,14 @@ export default function Employees() {
       status: "active",
       join_date: new Date().toISOString().split("T")[0],
       phone: "",
+      manager_id: "",
     });
   };
 
   const handleAddEmployee = () => {
     if (!formData.full_name || !formData.email) return;
-    createEmployee.mutate(formData, {
+    const { manager_id, ...rest } = formData;
+    createEmployee.mutate({ ...rest, manager_id: manager_id || null }, {
       onSuccess: () => {
         resetForm();
         setIsAddDialogOpen(false);
@@ -129,8 +132,9 @@ export default function Employees() {
 
   const handleEditEmployee = () => {
     if (!selectedEmployee || !formData.full_name || !formData.email) return;
+    const { manager_id, ...rest } = formData;
     updateEmployee.mutate(
-      { id: selectedEmployee.id, ...formData },
+      { id: selectedEmployee.id, ...rest, manager_id: manager_id || null },
       {
         onSuccess: () => {
           resetForm();
@@ -161,6 +165,7 @@ export default function Employees() {
       status: employee.status || "active",
       join_date: employee.join_date || new Date().toISOString().split("T")[0],
       phone: employee.phone || "",
+      manager_id: employee.manager_id || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -327,6 +332,23 @@ export default function Employees() {
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       />
                     </div>
+                    <div className="grid gap-2">
+                      <Label>Manager</Label>
+                      <Select
+                        value={formData.manager_id}
+                        onValueChange={(v) => setFormData({ ...formData, manager_id: v === "none" ? "" : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Manager</SelectItem>
+                          {employees.map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id}>
+                              {emp.full_name || emp.email || "Unnamed"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
@@ -404,6 +426,11 @@ export default function Employees() {
                           {employee.job_title || "No title"}
                         </p>
                         <p className="text-xs text-muted-foreground">{employee.department || "No department"}</p>
+                        {employee.manager_id && (
+                          <p className="text-xs text-muted-foreground">
+                            → {employees.find((e) => e.id === employee.manager_id)?.full_name || "Unknown manager"}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between border-t pt-3">
@@ -503,6 +530,23 @@ export default function Employees() {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Manager</Label>
+              <Select
+                value={formData.manager_id}
+                onValueChange={(v) => setFormData({ ...formData, manager_id: v === "none" ? "" : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Manager</SelectItem>
+                  {employees.filter((emp) => emp.id !== selectedEmployee?.id).map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.full_name || emp.email || "Unnamed"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
