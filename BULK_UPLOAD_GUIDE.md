@@ -145,9 +145,19 @@ emp003,2026-02-01,leave,,,On sick leave
 - `status` - One of: present, absent, late, leave, half_day
 
 #### Optional Fields
-- `check_in` - Check-in time (HH:MM:SS)
-- `check_out` - Check-out time (HH:MM:SS)
+- `check_in` - Check-in time (HH:MM:SS) - **Employee in-time for the day**
+- `check_out` - Check-out time (HH:MM:SS) - **Employee out-time for the day**
 - `notes` - Additional notes
+
+#### Working Week Policy
+Each employee profile includes a `working_week_policy` field that can be:
+- **5_days** - Monday to Friday (default)
+- **6_days** - Monday to Saturday
+
+This policy is used for:
+- Leave balance calculations
+- Expected working days tracking
+- Attendance reporting and analytics
 
 #### Validation Rules
 1. Employee must exist and be active

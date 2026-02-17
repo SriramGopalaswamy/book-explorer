@@ -179,6 +179,27 @@ user_roles (permission check)
 5. **Time Validation**
    - check_in and check_out must be valid TIME format
    - check_out > check_in (if both provided)
+   - **Time tracking**: Captures actual in-time and out-time for each day
+
+#### Working Week Policy
+
+Each employee profile includes `working_week_policy`:
+- **5_days**: Monday to Friday working week (default)
+- **6_days**: Monday to Saturday working week
+
+This field is used for:
+- Leave balance calculations
+- Expected working days tracking
+- Attendance analytics and reporting
+- Workday validation
+
+Database schema:
+```sql
+ALTER TABLE profiles 
+ADD COLUMN working_week_policy TEXT 
+NOT NULL DEFAULT '5_days' 
+CHECK (working_week_policy IN ('5_days', '6_days'));
+```
 
 #### RPC Functions
 
@@ -367,6 +388,8 @@ The system integrates with:
 1. **profiles** (employees)
    - Foreign key: payroll_records.profile_id
    - Foreign key: attendance_records.profile_id
+   - **New field**: working_week_policy (5_days or 6_days)
+   - Used for leave calculations and attendance analytics
 
 2. **payroll_records**
    - Inherits existing constraints
@@ -379,6 +402,8 @@ The system integrates with:
 4. **attendance_records**
    - Respects unique(profile_id, date)
    - Inherits existing RLS policies
+   - **Time tracking**: Stores check_in and check_out times for each day
+   - Integrates with profiles.working_week_policy for workday validation
 
 5. **roles/permissions**
    - Validates against existing records
