@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,6 +60,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const [headers, setHeaders] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -103,10 +105,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     setParsedRows(dataRows);
   }, [validateRow]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = useCallback((file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!["csv", "xlsx", "xls"].includes(ext || "")) {
       toast.error("Please upload a CSV or Excel (.xlsx/.xls) file");
@@ -133,7 +132,29 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       };
       reader.readAsArrayBuffer(file);
     }
+  }, [processRows]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
   };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
 
   const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
   const validCount = parsedRows.length - errorCount;
@@ -207,17 +228,31 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
             </Button>
           </div>
 
-          {/* Step 2: Upload file */}
-          <div className="rounded-lg border border-dashed border-border p-4">
-            <p className="font-medium text-sm mb-2">Step 2: Upload your filled file (CSV or Excel)</p>
-            <div className="flex items-center gap-3">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFile}
-                className="hidden"
-              />
+          {/* Step 2: Upload file with drag-and-drop */}
+          <div
+            className={cn(
+              "rounded-lg border-2 border-dashed p-6 transition-colors text-center",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/50"
+            )}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFile}
+              className="hidden"
+            />
+            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+            <p className="font-medium text-sm mb-1">
+              {isDragging ? "Drop your file here" : "Step 2: Drag & drop or choose a file"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">Supports CSV, Excel (.xlsx, .xls)</p>
+            <div className="flex items-center justify-center gap-3">
               <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
                 Choose File
               </Button>
