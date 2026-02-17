@@ -42,8 +42,11 @@ import {
   useSelfCheckOut
 } from "@/hooks/useAttendance";
 import { format, addDays, subDays } from "date-fns";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { useAttendanceBulkUpload } from "@/hooks/useBulkUpload";
 
 export default function Attendance() {
+  const bulkUploadConfig = useAttendanceBulkUpload();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -349,6 +352,7 @@ export default function Attendance() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
+            <BulkUploadDialog config={bulkUploadConfig} />
           </div>
         </CardHeader>
         <CardContent>

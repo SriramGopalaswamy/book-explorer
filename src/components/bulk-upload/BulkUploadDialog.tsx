@@ -1,0 +1,273 @@
+import { useState, useRef, useCallback } from "react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+export interface BulkUploadColumn {
+  key: string;
+  label: string;
+  required?: boolean;
+}
+
+export interface BulkUploadConfig {
+  title: string;
+  description: string;
+  columns: BulkUploadColumn[];
+  templateFileName: string;
+  templateContent: string;
+  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
+}
+
+interface ParsedRow {
+  data: Record<string, string>;
+  errors: string[];
+  rowIndex: number;
+}
+
+function parseCSV(text: string): string[][] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  return lines.map((line) => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === "," && !inQuotes) { result.push(current.trim()); current = ""; }
+      else { current += char; }
+    }
+    result.push(current.trim());
+    return result;
+  });
+}
+
+export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
+  const [open, setOpen] = useState(false);
+  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setParsedRows([]);
+    setHeaders([]);
+    setFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob([config.templateContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = config.templateFileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Template downloaded");
+  };
+
+  const validateRow = useCallback((row: Record<string, string>, idx: number): ParsedRow => {
+    const errors: string[] = [];
+    for (const col of config.columns) {
+      if (col.required && !row[col.key]?.trim()) {
+        errors.push(`${col.label} is required`);
+      }
+    }
+    return { data: row, errors, rowIndex: idx + 1 };
+  }, [config.columns]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".csv")) {
+      toast.error("Please upload a CSV file");
+      return;
+    }
+
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const rows = parseCSV(text);
+      if (rows.length < 2) {
+        toast.error("CSV must have a header row and at least one data row");
+        return;
+      }
+
+      const csvHeaders = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+      setHeaders(csvHeaders);
+
+      const dataRows = rows.slice(1).map((cells, idx) => {
+        const row: Record<string, string> = {};
+        csvHeaders.forEach((h, i) => { row[h] = cells[i] || ""; });
+        return validateRow(row, idx);
+      });
+
+      setParsedRows(dataRows);
+    };
+    reader.readAsText(file);
+  };
+
+  const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
+  const validCount = parsedRows.length - errorCount;
+
+  const handleUpload = async () => {
+    if (validCount === 0) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
+      const result = await config.onUpload(validRows);
+      if (result.errors.length > 0) {
+        toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
+      } else {
+        toast.success(`Successfully uploaded ${result.success} rows`);
+        setOpen(false);
+        reset();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Upload className="h-4 w-4 mr-2" />
+          Bulk Upload
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5 text-primary" />
+            {config.title}
+          </DialogTitle>
+          <DialogDescription>{config.description}</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 space-y-4 overflow-hidden">
+          {/* Step 1: Download template */}
+          <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
+            <div>
+              <p className="font-medium text-sm">Step 1: Download the CSV template</p>
+              <p className="text-xs text-muted-foreground">Fill in the template with your data, then upload it below</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={downloadTemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Download Template
+            </Button>
+          </div>
+
+          {/* Step 2: Upload file */}
+          <div className="rounded-lg border border-dashed border-border p-4">
+            <p className="font-medium text-sm mb-2">Step 2: Upload your filled CSV</p>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFile}
+                className="hidden"
+              />
+              <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                Choose File
+              </Button>
+              {fileName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                  <span>{fileName}</span>
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={reset}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Preview */}
+          {parsedRows.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <p className="font-medium text-sm">Preview ({parsedRows.length} rows)</p>
+                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {validCount} valid
+                </Badge>
+                {errorCount > 0 && (
+                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {errorCount} errors
+                  </Badge>
+                )}
+              </div>
+
+              <ScrollArea className="h-[280px] rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      {headers.map((h) => (
+                        <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
+                      ))}
+                      <TableHead className="w-20">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsedRows.map((row) => (
+                      <TableRow key={row.rowIndex} className={row.errors.length > 0 ? "bg-destructive/5" : ""}>
+                        <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>
+                        {headers.map((h) => (
+                          <TableCell key={h} className="text-xs max-w-[120px] truncate">
+                            {row.data[h] || "-"}
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          {row.errors.length > 0 ? (
+                            <span className="text-xs text-destructive" title={row.errors.join("; ")}>
+                              <AlertTriangle className="h-3 w-3 inline mr-1" />
+                              {row.errors.length} error{row.errors.length > 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
+          <Button
+            onClick={handleUpload}
+            disabled={uploading || validCount === 0}
+          >
+            {uploading ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Users, AlertCircle } from "lucide-react";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { useRolesBulkUpload } from "@/hooks/useBulkUpload";
 
 interface UserWithRole {
   user_id: string;
@@ -36,6 +38,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function Settings() {
   const { user } = useAuth();
+  const bulkUploadConfig = useRolesBulkUpload();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -142,8 +145,9 @@ export default function Settings() {
               <Users className="h-5 w-5" />
               User Role Management
             </CardTitle>
-            <CardDescription>
-              Assign roles to control what each user can access. Changes take effect on next sign-in.
+            <CardDescription className="flex items-center justify-between">
+              <span>Assign roles to control what each user can access. Changes take effect on next sign-in.</span>
+              <BulkUploadDialog config={bulkUploadConfig} />
             </CardDescription>
           </CardHeader>
           <CardContent>
