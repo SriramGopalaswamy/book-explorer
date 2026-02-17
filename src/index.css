@@ -115,7 +115,7 @@
     --shadow-neon: 0 0 5px hsl(322 84% 50% / 0.25), 0 0 20px hsl(322 84% 50% / 0.15), 0 0 40px hsl(322 84% 50% / 0.05);
   }
 
-  .dark {
+  [data-theme="dark"] {
     --background: 270 10% 7%;
     --foreground: 0 0% 95%;
 
@@ -309,18 +309,18 @@
     border: 1px solid hsl(var(--border) / 0.4);
   }
 
-  .dark .glass {
+  [data-theme="dark"] .glass {
     @apply bg-card/60 backdrop-blur-xl;
   }
   
-  .dark .glass-card {
+  [data-theme="dark"] .glass-card {
     background: hsl(var(--card) / 0.6);
     box-shadow: 
       0 8px 32px hsl(270 10% 10% / 0.1),
       inset 0 1px 0 hsl(0 0% 100% / 0.1);
   }
   
-  .dark .glass-morphism {
+  [data-theme="dark"] .glass-morphism {
     background: linear-gradient(
       135deg,
       hsl(var(--card) / 0.8) 0%,
