@@ -1,7 +1,11 @@
 -- =====================================================
--- SUPABASE FINANCIAL MODULES SEED DATA
+-- SUPABASE COMPREHENSIVE SEED DATA
 -- =====================================================
 -- This file seeds data for:
+-- - HR module (profiles/employees, user_roles)
+-- - Goals module (goals)
+-- - Memos module (memos)
+-- - Attendance module (attendance_records, leave_balances, leave_requests)
 -- - Invoicing module (invoices, invoice_items)
 -- - Banking module (bank_accounts, bank_transactions)
 -- - CashFlow module (scheduled_payments)
@@ -27,6 +31,375 @@ BEGIN
   END IF;
   
   RAISE NOTICE 'Using user ID: %', current_user_id;
+  
+  -- =====================================================
+  -- SEED USER ROLES (Assign roles to current user)
+  -- =====================================================
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES 
+    (current_user_id, 'admin')
+  ON CONFLICT (user_id, role) DO NOTHING;
+  
+  RAISE NOTICE 'Seeded user roles';
+  
+  -- =====================================================
+  -- SEED EMPLOYEES/PROFILES (20 employee profiles)
+  -- =====================================================
+  -- Note: These are sample profiles not tied to auth.users
+  -- In production, profiles are created automatically via trigger when users sign up
+  -- For demo purposes, we create sample employee data with fake user_ids
+  
+  INSERT INTO public.profiles (user_id, full_name, department, job_title, email, status, join_date, phone, created_at, updated_at)
+  SELECT
+    gen_random_uuid(), -- Generate random UUID for demo users
+    CASE n
+      WHEN 1 THEN 'John Smith'
+      WHEN 2 THEN 'Sarah Johnson'
+      WHEN 3 THEN 'Michael Chen'
+      WHEN 4 THEN 'Emily Davis'
+      WHEN 5 THEN 'David Wilson'
+      WHEN 6 THEN 'Jessica Martinez'
+      WHEN 7 THEN 'James Anderson'
+      WHEN 8 THEN 'Maria Garcia'
+      WHEN 9 THEN 'Robert Taylor'
+      WHEN 10 THEN 'Jennifer Brown'
+      WHEN 11 THEN 'William Lee'
+      WHEN 12 THEN 'Lisa Rodriguez'
+      WHEN 13 THEN 'Christopher White'
+      WHEN 14 THEN 'Patricia Harris'
+      WHEN 15 THEN 'Daniel Clark'
+      WHEN 16 THEN 'Nancy Lewis'
+      WHEN 17 THEN 'Matthew Robinson'
+      WHEN 18 THEN 'Karen Walker'
+      WHEN 19 THEN 'Thomas Hall'
+      ELSE 'Sandra Allen'
+    END,
+    CASE FLOOR(RANDOM() * 6)
+      WHEN 0 THEN 'Engineering'
+      WHEN 1 THEN 'Human Resources'
+      WHEN 2 THEN 'Sales'
+      WHEN 3 THEN 'Marketing'
+      WHEN 4 THEN 'Finance'
+      ELSE 'Operations'
+    END,
+    CASE FLOOR(RANDOM() * 10)
+      WHEN 0 THEN 'Software Engineer'
+      WHEN 1 THEN 'Senior Developer'
+      WHEN 2 THEN 'HR Manager'
+      WHEN 3 THEN 'Sales Representative'
+      WHEN 4 THEN 'Marketing Specialist'
+      WHEN 5 THEN 'Financial Analyst'
+      WHEN 6 THEN 'Operations Manager'
+      WHEN 7 THEN 'Product Manager'
+      WHEN 8 THEN 'Business Analyst'
+      ELSE 'Project Coordinator'
+    END,
+    LOWER(REPLACE(
+      CASE n
+        WHEN 1 THEN 'john.smith'
+        WHEN 2 THEN 'sarah.johnson'
+        WHEN 3 THEN 'michael.chen'
+        WHEN 4 THEN 'emily.davis'
+        WHEN 5 THEN 'david.wilson'
+        WHEN 6 THEN 'jessica.martinez'
+        WHEN 7 THEN 'james.anderson'
+        WHEN 8 THEN 'maria.garcia'
+        WHEN 9 THEN 'robert.taylor'
+        WHEN 10 THEN 'jennifer.brown'
+        WHEN 11 THEN 'william.lee'
+        WHEN 12 THEN 'lisa.rodriguez'
+        WHEN 13 THEN 'christopher.white'
+        WHEN 14 THEN 'patricia.harris'
+        WHEN 15 THEN 'daniel.clark'
+        WHEN 16 THEN 'nancy.lewis'
+        WHEN 17 THEN 'matthew.robinson'
+        WHEN 18 THEN 'karen.walker'
+        WHEN 19 THEN 'thomas.hall'
+        ELSE 'sandra.allen'
+      END, ' ', '.')) || '@company.com',
+    CASE FLOOR(RANDOM() * 10)
+      WHEN 0 THEN 'on_leave'
+      WHEN 1 THEN 'inactive'
+      ELSE 'active'
+    END,
+    CURRENT_DATE - (FLOOR(RANDOM() * 1825) || ' days')::INTERVAL, -- Random join date within last 5 years
+    '+1-555-' || LPAD(FLOOR(RANDOM() * 9000 + 1000)::TEXT, 4, '0') || '-' || LPAD(FLOOR(RANDOM() * 9000 + 1000)::TEXT, 4, '0'),
+    CURRENT_DATE - (FLOOR(RANDOM() * 1825) || ' days')::INTERVAL,
+    NOW()
+  FROM generate_series(1, 20) AS n
+  ON CONFLICT (user_id) DO NOTHING;
+  
+  RAISE NOTICE 'Seeded employee profiles';
+  
+  -- =====================================================
+  -- SEED GOALS (30 goals across employees)
+  -- =====================================================
+  INSERT INTO public.goals (user_id, title, description, progress, status, category, owner, due_date, created_at, updated_at)
+  SELECT
+    current_user_id,
+    CASE n
+      WHEN 1 THEN 'Complete Q1 Product Launch'
+      WHEN 2 THEN 'Implement New CRM System'
+      WHEN 3 THEN 'Increase Sales by 25%'
+      WHEN 4 THEN 'Reduce Customer Churn Rate'
+      WHEN 5 THEN 'Launch Mobile App Beta'
+      WHEN 6 THEN 'Improve Code Coverage to 90%'
+      WHEN 7 THEN 'Hire 5 Senior Engineers'
+      WHEN 8 THEN 'Complete Security Audit'
+      WHEN 9 THEN 'Migrate to Cloud Infrastructure'
+      WHEN 10 THEN 'Achieve SOC 2 Compliance'
+      WHEN 11 THEN 'Develop Customer Portal'
+      WHEN 12 THEN 'Optimize Database Performance'
+      WHEN 13 THEN 'Launch Marketing Campaign'
+      WHEN 14 THEN 'Build Analytics Dashboard'
+      WHEN 15 THEN 'Improve User Onboarding'
+      WHEN 16 THEN 'Implement CI/CD Pipeline'
+      WHEN 17 THEN 'Conduct Team Training'
+      WHEN 18 THEN 'Update Documentation'
+      WHEN 19 THEN 'Improve API Performance'
+      WHEN 20 THEN 'Implement A/B Testing'
+      WHEN 21 THEN 'Reduce Technical Debt'
+      WHEN 22 THEN 'Launch Partner Program'
+      WHEN 23 THEN 'Improve Search Functionality'
+      WHEN 24 THEN 'Build Mobile Responsiveness'
+      WHEN 25 THEN 'Implement Internationalization'
+      WHEN 26 THEN 'Enhance Security Features'
+      WHEN 27 THEN 'Optimize Loading Speed'
+      WHEN 28 THEN 'Integrate Third-Party APIs'
+      WHEN 29 THEN 'Develop Reporting System'
+      ELSE 'Plan Annual Company Retreat'
+    END,
+    CASE FLOOR(RANDOM() * 5)
+      WHEN 0 THEN 'Strategic initiative to drive business growth and improve market position.'
+      WHEN 1 THEN 'Technical project focused on improving system architecture and performance.'
+      WHEN 2 THEN 'Customer-facing improvement to enhance user experience and satisfaction.'
+      WHEN 3 THEN 'Internal process optimization to increase efficiency and reduce costs.'
+      ELSE 'Team development initiative to build capabilities and improve collaboration.'
+    END,
+    FLOOR(RANDOM() * 101), -- Random progress 0-100
+    CASE FLOOR(RANDOM() * 4)
+      WHEN 0 THEN 'on_track'
+      WHEN 1 THEN 'at_risk'
+      WHEN 2 THEN 'delayed'
+      ELSE 'completed'
+    END,
+    CASE FLOOR(RANDOM() * 8)
+      WHEN 0 THEN 'Engineering'
+      WHEN 1 THEN 'Product'
+      WHEN 2 THEN 'Sales'
+      WHEN 3 THEN 'Marketing'
+      WHEN 4 THEN 'Operations'
+      WHEN 5 THEN 'Finance'
+      WHEN 6 THEN 'HR'
+      ELSE 'general'
+    END,
+    CASE FLOOR(RANDOM() * 10)
+      WHEN 0 THEN 'John Smith'
+      WHEN 1 THEN 'Sarah Johnson'
+      WHEN 2 THEN 'Michael Chen'
+      WHEN 3 THEN 'Emily Davis'
+      WHEN 4 THEN 'David Wilson'
+      WHEN 5 THEN 'Jessica Martinez'
+      WHEN 6 THEN 'James Anderson'
+      WHEN 7 THEN 'Maria Garcia'
+      WHEN 8 THEN 'Robert Taylor'
+      ELSE 'Jennifer Brown'
+    END,
+    CURRENT_DATE + (FLOOR(RANDOM() * 180) || ' days')::INTERVAL, -- Due date within next 6 months
+    CURRENT_DATE - (FLOOR(RANDOM() * 90) || ' days')::INTERVAL,
+    NOW()
+  FROM generate_series(1, 30) AS n;
+  
+  RAISE NOTICE 'Seeded goals';
+  
+  -- =====================================================
+  -- SEED MEMOS (25 company memos)
+  -- =====================================================
+  INSERT INTO public.memos (user_id, author_name, title, content, excerpt, department, priority, status, views, recipients, published_at, created_at, updated_at)
+  SELECT
+    current_user_id,
+    CASE FLOOR(RANDOM() * 5)
+      WHEN 0 THEN 'John Smith'
+      WHEN 1 THEN 'Sarah Johnson'
+      WHEN 2 THEN 'Michael Chen'
+      WHEN 3 THEN 'Emily Davis'
+      ELSE 'David Wilson'
+    END,
+    CASE n
+      WHEN 1 THEN 'Q1 Company-Wide Goals and Objectives'
+      WHEN 2 THEN 'New Security Policy Implementation'
+      WHEN 3 THEN 'Office Renovation Schedule'
+      WHEN 4 THEN 'Updated Employee Benefits Package'
+      WHEN 5 THEN 'Remote Work Guidelines - Updated'
+      WHEN 6 THEN 'Annual Performance Review Process'
+      WHEN 7 THEN 'New Product Launch Timeline'
+      WHEN 8 THEN 'IT System Maintenance Window'
+      WHEN 9 THEN 'Company Holiday Schedule 2026'
+      WHEN 10 THEN 'Expense Reimbursement Policy Update'
+      WHEN 11 THEN 'Team Building Event Announcement'
+      WHEN 12 THEN 'Customer Satisfaction Initiative'
+      WHEN 13 THEN 'Code of Conduct Reminder'
+      WHEN 14 THEN 'Quarterly All-Hands Meeting'
+      WHEN 15 THEN 'New Hiring Process Guidelines'
+      WHEN 16 THEN 'Office Safety Protocols'
+      WHEN 17 THEN 'Professional Development Opportunities'
+      WHEN 18 THEN 'Sustainability Initiative Launch'
+      WHEN 19 THEN 'Data Privacy Compliance Update'
+      WHEN 20 THEN 'Equipment Upgrade Program'
+      WHEN 21 THEN 'Employee Recognition Program'
+      WHEN 22 THEN 'Department Reorganization Notice'
+      WHEN 23 THEN 'Vendor Partnership Announcement'
+      WHEN 24 THEN 'Budget Planning for Next Fiscal Year'
+      ELSE 'Year-End Office Closure'
+    END,
+    CASE FLOOR(RANDOM() * 3)
+      WHEN 0 THEN 'This memo outlines the strategic initiatives and action items for the upcoming quarter. All department heads are requested to review and align their team objectives accordingly. Please ensure your teams are briefed on these priorities by the end of this week. Detailed breakdown of goals and KPIs is attached in the appendix.'
+      WHEN 1 THEN 'We are implementing new policies and procedures to enhance our operational efficiency and compliance. This change will take effect from next month. All affected employees will receive training sessions scheduled over the next two weeks. Please mark your calendars and ensure attendance. Questions can be directed to your department managers.'
+      ELSE 'This is an important update that affects multiple departments across the organization. Your cooperation and timely action is appreciated. We will be monitoring progress closely and providing regular updates. A detailed FAQ document is available on the company intranet for your reference. Thank you for your continued dedication.'
+    END,
+    CASE FLOOR(RANDOM() * 3)
+      WHEN 0 THEN 'Strategic initiatives and action items for the upcoming quarter...'
+      WHEN 1 THEN 'New policies and procedures to enhance operational efficiency...'
+      ELSE 'Important update affecting multiple departments across the organization...'
+    END,
+    CASE FLOOR(RANDOM() * 7)
+      WHEN 0 THEN 'All'
+      WHEN 1 THEN 'Engineering'
+      WHEN 2 THEN 'Human Resources'
+      WHEN 3 THEN 'Sales'
+      WHEN 4 THEN 'Marketing'
+      WHEN 5 THEN 'Finance'
+      ELSE 'Operations'
+    END,
+    CASE FLOOR(RANDOM() * 3)
+      WHEN 0 THEN 'low'
+      WHEN 1 THEN 'medium'
+      ELSE 'high'
+    END,
+    CASE FLOOR(RANDOM() * 5)
+      WHEN 0 THEN 'draft'
+      WHEN 1 THEN 'pending'
+      ELSE 'published'
+    END,
+    FLOOR(RANDOM() * 250), -- Random view count
+    ARRAY['All Employees', 'Management Team', 'Department Heads'], -- Recipients array
+    CASE 
+      WHEN FLOOR(RANDOM() * 5) > 1 THEN CURRENT_DATE - (FLOOR(RANDOM() * 60) || ' days')::INTERVAL
+      ELSE NULL
+    END,
+    CURRENT_DATE - (FLOOR(RANDOM() * 90) || ' days')::INTERVAL,
+    NOW()
+  FROM generate_series(1, 25) AS n;
+  
+  RAISE NOTICE 'Seeded memos';
+  
+  -- =====================================================
+  -- SEED ATTENDANCE RECORDS (30 days for 5 employees)
+  -- =====================================================
+  WITH sample_profiles AS (
+    SELECT id, user_id FROM public.profiles LIMIT 5
+  )
+  INSERT INTO public.attendance_records (user_id, profile_id, date, check_in, check_out, status, notes, created_at, updated_at)
+  SELECT
+    p.user_id,
+    p.id,
+    CURRENT_DATE - (d || ' days')::INTERVAL,
+    (CURRENT_DATE - (d || ' days')::INTERVAL + TIME '09:00:00' + (FLOOR(RANDOM() * 60) || ' minutes')::INTERVAL)::TIMESTAMP WITH TIME ZONE,
+    (CURRENT_DATE - (d || ' days')::INTERVAL + TIME '17:30:00' + (FLOOR(RANDOM() * 90) || ' minutes')::INTERVAL)::TIMESTAMP WITH TIME ZONE,
+    CASE FLOOR(RANDOM() * 20)
+      WHEN 0 THEN 'absent'
+      WHEN 1 THEN 'late'
+      WHEN 2 THEN 'leave'
+      WHEN 3 THEN 'half_day'
+      ELSE 'present'
+    END,
+    CASE FLOOR(RANDOM() * 10)
+      WHEN 0 THEN 'Doctor appointment'
+      WHEN 1 THEN 'Traffic delay'
+      WHEN 2 THEN 'Client meeting'
+      WHEN 3 THEN 'Work from home'
+      ELSE NULL
+    END,
+    NOW(),
+    NOW()
+  FROM sample_profiles p
+  CROSS JOIN generate_series(1, 30) AS d
+  ON CONFLICT (profile_id, date) DO NOTHING;
+  
+  RAISE NOTICE 'Seeded attendance records';
+  
+  -- =====================================================
+  -- SEED LEAVE BALANCES (For 10 employees)
+  -- =====================================================
+  WITH sample_profiles AS (
+    SELECT id, user_id FROM public.profiles LIMIT 10
+  )
+  INSERT INTO public.leave_balances (user_id, profile_id, leave_type, total_days, used_days, year, created_at, updated_at)
+  SELECT
+    p.user_id,
+    p.id,
+    leave_type,
+    CASE leave_type
+      WHEN 'casual' THEN 12
+      WHEN 'sick' THEN 10
+      WHEN 'earned' THEN 15
+      WHEN 'maternity' THEN 90
+      WHEN 'paternity' THEN 15
+      ELSE 12 -- wfh
+    END,
+    FLOOR(RANDOM() * 5), -- Used days
+    EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
+    NOW(),
+    NOW()
+  FROM sample_profiles p
+  CROSS JOIN UNNEST(ARRAY['casual', 'sick', 'earned', 'wfh']::TEXT[]) AS leave_type
+  ON CONFLICT (profile_id, leave_type, year) DO NOTHING;
+  
+  RAISE NOTICE 'Seeded leave balances';
+  
+  -- =====================================================
+  -- SEED LEAVE REQUESTS (15 requests)
+  -- =====================================================
+  WITH sample_profiles AS (
+    SELECT id, user_id FROM public.profiles LIMIT 10
+  )
+  INSERT INTO public.leave_requests (user_id, profile_id, leave_type, from_date, to_date, days, reason, status, reviewed_by, reviewed_at, created_at, updated_at)
+  SELECT
+    p.user_id,
+    p.id,
+    CASE FLOOR(RANDOM() * 4)
+      WHEN 0 THEN 'casual'
+      WHEN 1 THEN 'sick'
+      WHEN 2 THEN 'earned'
+      ELSE 'wfh'
+    END,
+    CURRENT_DATE + (FLOOR(RANDOM() * 60) || ' days')::INTERVAL,
+    CURRENT_DATE + ((FLOOR(RANDOM() * 60) + FLOOR(RANDOM() * 5) + 1) || ' days')::INTERVAL,
+    FLOOR(RANDOM() * 5) + 1,
+    CASE FLOOR(RANDOM() * 8)
+      WHEN 0 THEN 'Family vacation'
+      WHEN 1 THEN 'Medical appointment'
+      WHEN 2 THEN 'Personal emergency'
+      WHEN 3 THEN 'Wedding ceremony'
+      WHEN 4 THEN 'Home renovation'
+      WHEN 5 THEN 'Child care'
+      WHEN 6 THEN 'Medical treatment'
+      ELSE 'Personal reasons'
+    END,
+    CASE FLOOR(RANDOM() * 3)
+      WHEN 0 THEN 'pending'
+      WHEN 1 THEN 'approved'
+      ELSE 'rejected'
+    END,
+    CASE WHEN RANDOM() > 0.3 THEN current_user_id ELSE NULL END,
+    CASE WHEN RANDOM() > 0.3 THEN NOW() ELSE NULL END,
+    NOW(),
+    NOW()
+  FROM sample_profiles p
+  CROSS JOIN generate_series(1, 2) AS n -- 2 requests per employee
+  LIMIT 15;
+  
+  RAISE NOTICE 'Seeded leave requests';
   
   -- =====================================================
   -- SEED INVOICES (50 invoices with items)
@@ -240,6 +613,13 @@ BEGIN
   
   RAISE NOTICE '✅ SEEDING COMPLETED SUCCESSFULLY';
   RAISE NOTICE 'Summary:';
+  RAISE NOTICE '  User Roles: 1 (admin role assigned to current user)';
+  RAISE NOTICE '  Employee Profiles: 20';
+  RAISE NOTICE '  Goals: 30';
+  RAISE NOTICE '  Memos: 25';
+  RAISE NOTICE '  Attendance Records: ~150 (30 days × 5 employees)';
+  RAISE NOTICE '  Leave Balances: ~40 (4 leave types × 10 employees)';
+  RAISE NOTICE '  Leave Requests: 15';
   RAISE NOTICE '  Invoices: 50 (with multiple items each)';
   RAISE NOTICE '  Bank Accounts: 5';
   RAISE NOTICE '  Bank Transactions: ~120';
