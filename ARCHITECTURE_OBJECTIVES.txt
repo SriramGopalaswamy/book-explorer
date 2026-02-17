@@ -1,0 +1,2091 @@
+================================================================================
+    BOOK EXPLORER - ENTERPRISE APPLICATION
+    ARCHITECTURE, BACKEND & UI OBJECTIVES DOCUMENT
+================================================================================
+
+Generated: February 17, 2026
+Document Type: ASCII Text with Diagrams & Tables
+Version: 1.0
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. EXECUTIVE SUMMARY
+2. SYSTEM ARCHITECTURE OVERVIEW
+3. TECHNOLOGY STACK
+4. BACKEND ARCHITECTURE
+5. FRONTEND/UI ARCHITECTURE
+6. DATABASE ARCHITECTURE
+7. MODULE BREAKDOWN
+8. SECURITY & RBAC IMPLEMENTATION
+9. DEPLOYMENT ARCHITECTURE
+10. DEVELOPMENT WORKFLOW
+11. PERFORMANCE OBJECTIVES
+12. FUTURE ROADMAP
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+Book Explorer is a full-stack enterprise application featuring:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ KEY FEATURES                                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ ✓ Role-Based Access Control (RBAC) System                          │
+│ ✓ Financial Management Modules (Invoicing, Banking, Cash Flow)     │
+│ ✓ Human Resource Management System (HRMS)                          │
+│ ✓ Performance Management (Goals, Memos)                            │
+│ ✓ Analytics & Reporting                                            │
+│ ✓ Developer Tools & Debug Mode                                     │
+│ ✓ Real-time Data Synchronization                                   │
+│ ✓ Secure Multi-tenant Architecture                                 │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+APPLICATION TYPE: Single Page Application (SPA)
+DEPLOYMENT: Cloud-based (Lovable Platform)
+DATABASE: Supabase (PostgreSQL)
+FRONTEND: React + TypeScript
+BUILD TOOL: Vite
+
+================================================================================
+2. SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+
+2.1 HIGH-LEVEL ARCHITECTURE DIAGRAM
+────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USER LAYER                                   │
+│                                                                      │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐       │
+│  │  Admin    │  │ Manager   │  │ Employee  │  │  Guest    │       │
+│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘       │
+│        │              │              │              │               │
+│        └──────────────┴──────────────┴──────────────┘               │
+│                        │                                            │
+└────────────────────────┼────────────────────────────────────────────┘
+                         │
+                         │ HTTPS
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   PRESENTATION LAYER (React SPA)                     │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                     ROUTE COMPONENTS                          │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  /dashboard  │  /financial/*  │  /hrms/*  │  /performance/* │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                     CUSTOM HOOKS LAYER                        │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  useInvoices  │  useBanking  │  usePayroll  │  useEmployees │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                REACT QUERY LAYER (Cache & State)              │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└────────────────────────┬───────────────────────────────────────────┘
+                         │
+                         │ Supabase Client SDK
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DATA ACCESS LAYER                                │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │              SUPABASE CLIENT (JavaScript SDK)                 │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • Authentication  • Real-time Subscriptions                 │  │
+│  │  • Row Level Security  • Database Queries                    │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└────────────────────────┬───────────────────────────────────────────┘
+                         │
+                         │ REST API / PostgREST
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   SUPABASE BACKEND LAYER                             │
+│                                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
+│  │ Auth Service │  │  PostgREST   │  │   Realtime   │             │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘             │
+│         │                 │                 │                       │
+│         └─────────────────┴─────────────────┘                       │
+│                           │                                         │
+└───────────────────────────┼─────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   DATABASE LAYER (PostgreSQL)                        │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                      CORE TABLES                              │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • auth.users         • profiles         • roles             │  │
+│  │  • permissions        • role_permissions                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    FINANCIAL TABLES                           │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • invoices          • invoice_items      • bank_accounts    │  │
+│  │  • bank_transactions • scheduled_payments • chart_of_accounts│  │
+│  │  • fiscal_periods                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                       HRMS TABLES                             │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • employees         • attendance         • leaves           │  │
+│  │  • payroll           • departments                           │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  PERFORMANCE TABLES                           │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • goals             • memos              • reviews          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+2.2 DATA FLOW ARCHITECTURE
+────────────────────────────────────────────────────────────────────────
+
+READ OPERATION:
+───────────────
+
+User Action → React Component → Custom Hook → React Query → Supabase Client
+    ↓
+PostgreSQL Query Execution → Row Level Security Check → Data Return
+    ↓
+React Query Cache Update → Component Re-render → UI Update
+
+
+WRITE OPERATION:
+────────────────
+
+User Action → Form Submit → Validation (Zod) → Custom Hook → Supabase Client
+    ↓
+PostgreSQL Insert/Update → RLS Policy Check → Trigger Execution
+    ↓
+Success Response → React Query Cache Invalidation → UI Refresh
+
+
+REAL-TIME SUBSCRIPTION:
+───────────────────────
+
+Component Mount → Subscribe to Channel → Supabase Realtime Service
+    ↓
+Database Change → Postgres Trigger → Realtime Broadcast
+    ↓
+Client Receives Event → React Query Update → Component Re-render
+
+
+================================================================================
+3. TECHNOLOGY STACK
+================================================================================
+
+3.1 FRONTEND STACK
+──────────────────────────────────────────────────────────────────────
+
+╔════════════════════╦═══════════════╦═════════════════════════════════╗
+║ TECHNOLOGY         ║ VERSION       ║ PURPOSE                         ║
+╠════════════════════╬═══════════════╬═════════════════════════════════╣
+║ React              ║ 18.3.1        ║ UI Library                      ║
+║ TypeScript         ║ 5.8.3         ║ Type Safety                     ║
+║ Vite               ║ 5.4.19        ║ Build Tool & Dev Server         ║
+║ React Router       ║ 6.30.1        ║ Client-side Routing             ║
+║ TanStack Query     ║ 5.83.0        ║ Data Fetching & Caching         ║
+║ React Hook Form    ║ 7.61.1        ║ Form Management                 ║
+║ Zod                ║ 3.25.76       ║ Schema Validation               ║
+║ Tailwind CSS       ║ 3.4.17        ║ Utility-first CSS               ║
+║ shadcn/ui          ║ Latest        ║ Component Library               ║
+║ Radix UI           ║ Various       ║ Accessible Primitives           ║
+║ Framer Motion      ║ 12.33.0       ║ Animations                      ║
+║ Recharts           ║ 2.15.4        ║ Charts & Graphs                 ║
+║ Lucide React       ║ 0.462.0       ║ Icon Library                    ║
+║ date-fns           ║ 3.6.0         ║ Date Utilities                  ║
+╚════════════════════╩═══════════════╩═════════════════════════════════╝
+
+3.2 BACKEND/DATABASE STACK
+──────────────────────────────────────────────────────────────────────
+
+╔════════════════════╦═══════════════╦═════════════════════════════════╗
+║ TECHNOLOGY         ║ VERSION       ║ PURPOSE                         ║
+╠════════════════════╬═══════════════╬═════════════════════════════════╣
+║ Supabase           ║ Cloud         ║ Backend as a Service            ║
+║ PostgreSQL         ║ 15+           ║ Relational Database             ║
+║ PostgREST          ║ Built-in      ║ RESTful API Generation          ║
+║ Supabase Auth      ║ Built-in      ║ Authentication Service          ║
+║ Supabase Realtime  ║ Built-in      ║ Real-time Subscriptions         ║
+║ Row Level Security ║ Built-in      ║ Database-level Authorization    ║
+╚════════════════════╩═══════════════╩═════════════════════════════════╝
+
+3.3 DEVELOPMENT TOOLS
+──────────────────────────────────────────────────────────────────────
+
+╔════════════════════╦═══════════════╦═════════════════════════════════╗
+║ TOOL               ║ VERSION       ║ PURPOSE                         ║
+╠════════════════════╬═══════════════╬═════════════════════════════════╣
+║ ESLint             ║ 9.32.0        ║ Code Linting                    ║
+║ Vitest             ║ 3.2.4         ║ Unit Testing                    ║
+║ Testing Library    ║ 16.0.0        ║ Component Testing               ║
+║ PostCSS            ║ 8.5.6         ║ CSS Processing                  ║
+║ Autoprefixer       ║ 10.4.21       ║ CSS Vendor Prefixes             ║
+║ Lovable Platform   ║ Cloud         ║ Deployment & CI/CD              ║
+╚════════════════════╩═══════════════╩═════════════════════════════════╝
+
+================================================================================
+4. BACKEND ARCHITECTURE
+================================================================================
+
+4.1 SUPABASE BACKEND ARCHITECTURE
+──────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     SUPABASE ARCHITECTURE                            │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  AUTHENTICATION LAYER                         │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • JWT Token Management                                      │  │
+│  │  • Session Handling                                          │  │
+│  │  • Email/Password Auth                                       │  │
+│  │  • OAuth Integration (Optional)                              │  │
+│  │  • Password Reset Flow                                       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                     API GATEWAY (PostgREST)                   │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  • Auto-generated REST API from DB Schema                    │  │
+│  │  • Query Parameter Filtering                                 │  │
+│  │  • Pagination Support                                        │  │
+│  │  • Upsert Operations                                         │  │
+│  │  • Bulk Operations                                           │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  SECURITY LAYER (RLS)                         │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  Row Level Security Policies:                                │  │
+│  │  ┌────────────────────────────────────────────────────────┐  │  │
+│  │  │ • SELECT: Users see only their own data               │  │  │
+│  │  │ • INSERT: Enforce user_id on creation                 │  │  │
+│  │  │ • UPDATE: Allow modifications only to owned records   │  │  │
+│  │  │ • DELETE: Soft delete or restricted deletion          │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   BUSINESS LOGIC LAYER                        │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │  Database Functions (PL/pgSQL):                              │  │
+│  │  • create_invoice_with_items()                               │  │
+│  │  • process_payroll()                                         │  │
+│  │  • calculate_attendance()                                    │  │
+│  │  • update_goal_progress()                                    │  │
+│  │  • lock_fiscal_period()                                      │  │
+│  │                                                               │  │
+│  │  Database Triggers:                                          │  │
+│  │  • auto_update_timestamps                                    │  │
+│  │  • calculate_invoice_totals                                  │  │
+│  │  • enforce_fiscal_period_locks                               │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   DATA STORAGE LAYER                          │  │
+│  ├──────────────────────────────────────────────────────────────┤  │
+│  │                   PostgreSQL Database                         │  │
+│  │  • ACID Compliance                                           │  │
+│  │  • Foreign Key Constraints                                   │  │
+│  │  • Indexes for Performance                                   │  │
+│  │  • JSONB for Flexible Data                                   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+4.2 DATABASE SCHEMA DESIGN PRINCIPLES
+──────────────────────────────────────────────────────────────────────
+
+1. NORMALIZATION
+   • Third Normal Form (3NF) for most tables
+   • Denormalization for read-heavy tables (e.g., dashboard stats)
+
+2. FOREIGN KEY RELATIONSHIPS
+   • Enforced at database level
+   • CASCADE DELETE for dependent records
+   • RESTRICT for critical relationships
+
+3. INDEXING STRATEGY
+   • Primary keys on all tables (id UUID)
+   • Foreign key indexes
+   • Composite indexes for common queries
+   • user_id indexes for RLS performance
+
+4. AUDIT TRAIL
+   • created_at, updated_at timestamps
+   • created_by, updated_by user references
+   • Soft delete with deleted_at field
+
+5. DATA INTEGRITY
+   • NOT NULL constraints where applicable
+   • CHECK constraints for valid ranges
+   • UNIQUE constraints for business keys
+   • DEFAULT values for optional fields
+
+4.3 API DESIGN PATTERNS
+──────────────────────────────────────────────────────────────────────
+
+REST ENDPOINTS (Auto-generated by PostgREST):
+─────────────────────────────────────────────
+
+GET    /invoices                  → List all invoices
+GET    /invoices?status=eq.paid   → Filter invoices by status
+GET    /invoices?select=*,items(*) → Include related items
+POST   /invoices                  → Create new invoice
+PATCH  /invoices?id=eq.123        → Update invoice
+DELETE /invoices?id=eq.123        → Delete invoice
+
+RPC ENDPOINTS (Custom Functions):
+─────────────────────────────────
+
+POST   /rpc/create_invoice_with_items
+       → Atomic invoice + items creation
+
+POST   /rpc/process_payroll
+       → Calculate and generate payroll
+
+POST   /rpc/lock_fiscal_period
+       → Close accounting period
+
+GET    /rpc/dashboard_stats
+       → Aggregated metrics
+
+
+================================================================================
+5. FRONTEND/UI ARCHITECTURE
+================================================================================
+
+5.1 COMPONENT HIERARCHY
+──────────────────────────────────────────────────────────────────────
+
+App.tsx
+  │
+  ├─── AppRoutes (React Router)
+  │     │
+  │     ├─── Public Routes
+  │     │     ├─── /auth (Auth.tsx)
+  │     │     └─── /reset-password (ResetPassword.tsx)
+  │     │
+  │     └─── Protected Routes (Require Authentication)
+  │           ├─── / (Index.tsx - Redirect to Dashboard)
+  │           ├─── /dashboard (Dashboard.tsx)
+  │           │
+  │           ├─── Financial Module
+  │           │     ├─── /financial/invoicing (Invoicing.tsx)
+  │           │     ├─── /financial/banking (Banking.tsx)
+  │           │     ├─── /financial/accounting (Accounting.tsx)
+  │           │     ├─── /financial/cashflow (CashFlow.tsx)
+  │           │     └─── /financial/analytics (Analytics.tsx)
+  │           │
+  │           ├─── HRMS Module
+  │           │     ├─── /hrms/employees (Employees.tsx)
+  │           │     ├─── /hrms/payroll (Payroll.tsx)
+  │           │     ├─── /hrms/attendance (Attendance.tsx)
+  │           │     └─── /hrms/leaves (Leaves.tsx)
+  │           │
+  │           └─── Performance Module
+  │                 ├─── /performance/goals (Goals.tsx)
+  │                 └─── /performance/memos (Memos.tsx)
+
+5.2 COMPONENT ARCHITECTURE PATTERN
+──────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      PAGE COMPONENT                                  │
+│  (e.g., Invoicing.tsx)                                              │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │  1. Custom Hook Layer                                      │    │
+│  │     const { invoices, loading } = useInvoices()            │    │
+│  └────────────────────────────────────────────────────────────┘    │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │  2. Layout Component                                       │    │
+│  │     <MainLayout> with Sidebar, Header, Footer              │    │
+│  └────────────────────────────────────────────────────────────┘    │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │  3. Feature Components                                     │    │
+│  │     <InvoiceList />                                        │    │
+│  │     <InvoiceForm />                                        │    │
+│  │     <InvoiceFilters />                                     │    │
+│  │     <InvoiceStats />                                       │    │
+│  └────────────────────────────────────────────────────────────┘    │
+│                           │                                         │
+│                           ▼                                         │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │  4. UI Components (shadcn/ui)                              │    │
+│  │     <Table>, <Button>, <Dialog>, <Select>, etc.           │    │
+│  └────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+5.3 CUSTOM HOOKS ARCHITECTURE
+──────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────┐
+│                     CUSTOM HOOK PATTERN                           │
+│                  (e.g., useInvoices.ts)                           │
+│                                                                   │
+│  export function useInvoices() {                                 │
+│                                                                   │
+│    // 1. Get Supabase client                                    │
+│    const supabase = useSupabaseClient()                         │
+│    const { user } = useAuth()                                   │
+│                                                                   │
+│    // 2. React Query for data fetching                          │
+│    const { data, isLoading, error } = useQuery({                │
+│      queryKey: ['invoices', user.id],                           │
+│      queryFn: async () => {                                     │
+│        const { data } = await supabase                          │
+│          .from('invoices')                                      │
+│          .select('*, items(*)')                                 │
+│          .order('created_at', { ascending: false })             │
+│        return data                                              │
+│      }                                                           │
+│    })                                                            │
+│                                                                   │
+│    // 3. Mutation for create/update/delete                      │
+│    const createMutation = useMutation({                         │
+│      mutationFn: async (invoice) => {                           │
+│        return supabase.from('invoices').insert(invoice)         │
+│      },                                                          │
+│      onSuccess: () => {                                         │
+│        queryClient.invalidateQueries(['invoices'])              │
+│      }                                                           │
+│    })                                                            │
+│                                                                   │
+│    // 4. Return interface                                       │
+│    return {                                                      │
+│      invoices: data,                                            │
+│      isLoading,                                                 │
+│      error,                                                     │
+│      createInvoice: createMutation.mutate                       │
+│    }                                                             │
+│  }                                                               │
+└──────────────────────────────────────────────────────────────────┘
+
+5.4 STATE MANAGEMENT STRATEGY
+──────────────────────────────────────────────────────────────────────
+
+STATE TYPE            │ SOLUTION              │ USE CASE
+──────────────────────┼──────────────────────┼────────────────────────
+Server State          │ TanStack Query       │ API data, caching
+                      │ (React Query)        │ background updates
+──────────────────────┼──────────────────────┼────────────────────────
+UI State (Local)      │ useState             │ Form inputs, toggles
+                      │ useReducer           │ complex local state
+──────────────────────┼──────────────────────┼────────────────────────
+UI State (Global)     │ React Context        │ Theme, auth status
+                      │                      │ user preferences
+──────────────────────┼──────────────────────┼────────────────────────
+Form State            │ React Hook Form      │ Form validation
+                      │ + Zod                │ complex forms
+──────────────────────┼──────────────────────┼────────────────────────
+URL State             │ React Router         │ Filters, pagination
+                      │ useSearchParams      │ shareable state
+
+5.5 UI/UX DESIGN SYSTEM
+──────────────────────────────────────────────────────────────────────
+
+COLOR PALETTE:
+──────────────
+• Primary: Tailwind Blue/Indigo
+• Secondary: Tailwind Purple
+• Success: Green
+• Warning: Amber/Yellow
+• Error: Red
+• Neutral: Slate/Gray
+
+TYPOGRAPHY:
+───────────
+• Font Family: System fonts (Inter fallback)
+• Headings: Bold weights (600-700)
+• Body: Regular weight (400)
+• Code: Monospace
+
+SPACING SCALE:
+──────────────
+• Based on Tailwind's 4px base unit
+• Consistent use of spacing utilities
+• 4, 8, 12, 16, 24, 32, 48, 64px scale
+
+COMPONENT LIBRARY (shadcn/ui):
+──────────────────────────────
+✓ Buttons (variants: default, destructive, outline, ghost)
+✓ Forms (Input, Select, Textarea, Checkbox, Radio)
+✓ Data Display (Table, Card, Badge, Avatar)
+✓ Feedback (Toast, Dialog, Alert)
+✓ Navigation (Tabs, Breadcrumb, Pagination)
+✓ Overlays (Modal, Drawer, Popover, Tooltip)
+✓ Charts (Recharts integration)
+
+RESPONSIVE BREAKPOINTS:
+───────────────────────
+• sm: 640px   (Mobile)
+• md: 768px   (Tablet)
+• lg: 1024px  (Desktop)
+• xl: 1280px  (Large Desktop)
+• 2xl: 1536px (Extra Large)
+
+
+================================================================================
+6. DATABASE ARCHITECTURE
+================================================================================
+
+6.1 DATABASE SCHEMA OVERVIEW
+──────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DATABASE SCHEMA STRUCTURE                        │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   AUTHENTICATION SCHEMA                       │  │
+│  │                                                               │  │
+│  │  auth.users                                                   │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── email (TEXT, UNIQUE)                                    │  │
+│  │  ├── encrypted_password                                      │  │
+│  │  └── created_at (TIMESTAMP)                                  │  │
+│  │                                                               │  │
+│  │  profiles                                                     │  │
+│  │  ├── id (UUID, PK, FK → auth.users)                         │  │
+│  │  ├── full_name (TEXT)                                        │  │
+│  │  ├── avatar_url (TEXT)                                       │  │
+│  │  └── preferences (JSONB)                                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                      RBAC SCHEMA                              │  │
+│  │                                                               │  │
+│  │  roles                                                        │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── name (TEXT, UNIQUE)                                     │  │
+│  │  ├── description (TEXT)                                      │  │
+│  │  └── level (INTEGER)                                         │  │
+│  │                                                               │  │
+│  │  permissions                                                  │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── resource (TEXT)                                         │  │
+│  │  ├── action (TEXT)                                           │  │
+│  │  └── description (TEXT)                                      │  │
+│  │                                                               │  │
+│  │  role_permissions                                            │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── role_id (UUID, FK → roles)                             │  │
+│  │  └── permission_id (UUID, FK → permissions)                 │  │
+│  │                                                               │  │
+│  │  user_roles                                                   │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  └── role_id (UUID, FK → roles)                             │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   FINANCIAL SCHEMA                            │  │
+│  │                                                               │  │
+│  │  invoices                                                     │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── invoice_number (TEXT, UNIQUE)                           │  │
+│  │  ├── customer_name (TEXT)                                    │  │
+│  │  ├── status (TEXT: draft|sent|paid|overdue|cancelled)       │  │
+│  │  ├── issue_date (DATE)                                       │  │
+│  │  ├── due_date (DATE)                                         │  │
+│  │  ├── subtotal (NUMERIC)                                      │  │
+│  │  ├── tax_amount (NUMERIC)                                    │  │
+│  │  ├── total_amount (NUMERIC)                                  │  │
+│  │  ├── created_at (TIMESTAMP)                                  │  │
+│  │  └── updated_at (TIMESTAMP)                                  │  │
+│  │                                                               │  │
+│  │  invoice_items                                               │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── invoice_id (UUID, FK → invoices)                       │  │
+│  │  ├── description (TEXT)                                      │  │
+│  │  ├── quantity (NUMERIC)                                      │  │
+│  │  ├── unit_price (NUMERIC)                                    │  │
+│  │  └── line_total (NUMERIC)                                    │  │
+│  │                                                               │  │
+│  │  bank_accounts                                               │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── account_name (TEXT)                                     │  │
+│  │  ├── account_type (TEXT)                                     │  │
+│  │  ├── account_number (TEXT)                                   │  │
+│  │  ├── balance (NUMERIC)                                       │  │
+│  │  └── currency (TEXT)                                         │  │
+│  │                                                               │  │
+│  │  bank_transactions                                           │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── account_id (UUID, FK → bank_accounts)                  │  │
+│  │  ├── transaction_date (DATE)                                 │  │
+│  │  ├── type (TEXT: credit|debit)                              │  │
+│  │  ├── category (TEXT)                                         │  │
+│  │  ├── amount (NUMERIC)                                        │  │
+│  │  └── description (TEXT)                                      │  │
+│  │                                                               │  │
+│  │  scheduled_payments                                          │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── name (TEXT)                                             │  │
+│  │  ├── amount (NUMERIC)                                        │  │
+│  │  ├── frequency (TEXT: weekly|monthly|quarterly|yearly)      │  │
+│  │  ├── next_payment_date (DATE)                               │  │
+│  │  └── is_active (BOOLEAN)                                     │  │
+│  │                                                               │  │
+│  │  chart_of_accounts                                           │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── account_code (TEXT, UNIQUE)                            │  │
+│  │  ├── account_name (TEXT)                                     │  │
+│  │  ├── account_type (TEXT: asset|liability|equity|revenue|    │  │
+│  │  │                        expense)                           │  │
+│  │  └── balance (NUMERIC)                                       │  │
+│  │                                                               │  │
+│  │  fiscal_periods                                              │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── name (TEXT)                                             │  │
+│  │  ├── start_date (DATE)                                       │  │
+│  │  ├── end_date (DATE)                                         │  │
+│  │  └── is_locked (BOOLEAN)                                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                       HRMS SCHEMA                             │  │
+│  │                                                               │  │
+│  │  employees                                                    │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── employee_code (TEXT, UNIQUE)                           │  │
+│  │  ├── full_name (TEXT)                                        │  │
+│  │  ├── email (TEXT)                                            │  │
+│  │  ├── phone (TEXT)                                            │  │
+│  │  ├── department (TEXT)                                       │  │
+│  │  ├── position (TEXT)                                         │  │
+│  │  ├── hire_date (DATE)                                        │  │
+│  │  ├── salary (NUMERIC)                                        │  │
+│  │  └── status (TEXT: active|inactive|terminated)              │  │
+│  │                                                               │  │
+│  │  attendance                                                   │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── employee_id (UUID, FK → employees)                     │  │
+│  │  ├── date (DATE)                                             │  │
+│  │  ├── check_in (TIME)                                         │  │
+│  │  ├── check_out (TIME)                                        │  │
+│  │  ├── hours_worked (NUMERIC)                                  │  │
+│  │  └── status (TEXT: present|absent|late|half_day)           │  │
+│  │                                                               │  │
+│  │  leaves                                                       │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── employee_id (UUID, FK → employees)                     │  │
+│  │  ├── leave_type (TEXT: sick|casual|earned|unpaid)          │  │
+│  │  ├── start_date (DATE)                                       │  │
+│  │  ├── end_date (DATE)                                         │  │
+│  │  ├── days (INTEGER)                                          │  │
+│  │  ├── status (TEXT: pending|approved|rejected)               │  │
+│  │  └── reason (TEXT)                                           │  │
+│  │                                                               │  │
+│  │  payroll                                                      │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── employee_id (UUID, FK → employees)                     │  │
+│  │  ├── period_start (DATE)                                     │  │
+│  │  ├── period_end (DATE)                                       │  │
+│  │  ├── basic_salary (NUMERIC)                                  │  │
+│  │  ├── allowances (NUMERIC)                                    │  │
+│  │  ├── deductions (NUMERIC)                                    │  │
+│  │  ├── net_salary (NUMERIC)                                    │  │
+│  │  └── status (TEXT: draft|processed|paid)                    │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  PERFORMANCE SCHEMA                           │  │
+│  │                                                               │  │
+│  │  goals                                                        │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── employee_id (UUID, FK → employees)                     │  │
+│  │  ├── title (TEXT)                                            │  │
+│  │  ├── description (TEXT)                                      │  │
+│  │  ├── target_date (DATE)                                      │  │
+│  │  ├── progress (INTEGER: 0-100)                              │  │
+│  │  └── status (TEXT: active|completed|cancelled)              │  │
+│  │                                                               │  │
+│  │  memos                                                        │  │
+│  │  ├── id (UUID, PK)                                           │  │
+│  │  ├── user_id (UUID, FK → auth.users)                        │  │
+│  │  ├── title (TEXT)                                            │  │
+│  │  ├── content (TEXT)                                          │  │
+│  │  ├── category (TEXT)                                         │  │
+│  │  ├── priority (TEXT: low|medium|high)                       │  │
+│  │  └── created_at (TIMESTAMP)                                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+6.2 ROW LEVEL SECURITY (RLS) POLICIES
+──────────────────────────────────────────────────────────────────────
+
+EXAMPLE RLS POLICY FOR INVOICES TABLE:
+───────────────────────────────────────
+
+-- Enable RLS
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+
+-- SELECT Policy: Users can only see their own invoices
+CREATE POLICY "Users can view own invoices"
+ON invoices FOR SELECT
+USING (auth.uid() = user_id);
+
+-- INSERT Policy: Users can only create invoices for themselves
+CREATE POLICY "Users can create own invoices"
+ON invoices FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- UPDATE Policy: Users can only update their own invoices
+CREATE POLICY "Users can update own invoices"
+ON invoices FOR UPDATE
+USING (auth.uid() = user_id);
+
+-- DELETE Policy: Users can soft delete their own invoices
+CREATE POLICY "Users can delete own invoices"
+ON invoices FOR DELETE
+USING (auth.uid() = user_id);
+
+MULTI-TENANT ISOLATION:
+───────────────────────
+Every table with user-specific data includes:
+• user_id column (UUID, NOT NULL)
+• Foreign key to auth.users(id)
+• RLS policies filtering by user_id
+• Automatic user_id injection in triggers
+
+6.3 DATABASE FUNCTIONS & TRIGGERS
+──────────────────────────────────────────────────────────────────────
+
+KEY DATABASE FUNCTIONS:
+───────────────────────
+
+1. create_invoice_with_items(invoice_data, items_data)
+   • Atomically creates invoice and items
+   • Calculates totals
+   • Returns created invoice with items
+
+2. process_payroll(employee_id, period_start, period_end)
+   • Fetches attendance records
+   • Calculates allowances and deductions
+   • Generates payroll record
+
+3. lock_fiscal_period(period_id)
+   • Prevents modifications to transactions in period
+   • Updates fiscal period status
+
+4. calculate_dashboard_stats(user_id)
+   • Aggregates financial data
+   • Returns summary metrics
+
+KEY DATABASE TRIGGERS:
+──────────────────────
+
+1. update_updated_at_timestamp
+   • Automatically updates updated_at on row modification
+   • Applied to all tables with updated_at column
+
+2. calculate_invoice_total
+   • Recalculates invoice totals when items change
+   • Ensures data consistency
+
+3. enforce_fiscal_period_lock
+   • Prevents modifications to locked periods
+   • Raises exception on violation
+
+================================================================================
+7. MODULE BREAKDOWN
+================================================================================
+
+7.1 DASHBOARD MODULE
+──────────────────────────────────────────────────────────────────────
+
+PURPOSE:
+--------
+Central hub for viewing key metrics, recent activities, and quick actions
+
+FEATURES:
+---------
+✓ Financial summary cards (Revenue, Expenses, Profit, Cash Flow)
+✓ Recent invoices list
+✓ Upcoming payments
+✓ Activity timeline
+✓ Quick action buttons
+✓ Charts (Revenue trends, Expense breakdown)
+
+COMPONENTS:
+-----------
+• Dashboard.tsx (Main page)
+• DashboardStats (Metric cards)
+• RecentActivity (Activity feed)
+• QuickActions (Action buttons)
+• TrendChart (Line/Bar charts)
+
+HOOKS:
+------
+• useDashboardStats() - Fetches aggregated metrics
+• useFinancialData() - Legacy hook for financial records
+
+DATA SOURCES:
+-------------
+• Invoices table (for revenue)
+• Bank transactions (for expenses)
+• Scheduled payments (for upcoming)
+• Calculated aggregations
+
+7.2 FINANCIAL MODULES
+──────────────────────────────────────────────────────────────────────
+
+7.2.1 INVOICING MODULE
+──────────────────────
+
+PATH: /financial/invoicing
+
+FEATURES:
+---------
+✓ Invoice list with filtering and sorting
+✓ Create/Edit/Delete invoices
+✓ Multiple invoice items per invoice
+✓ Invoice status workflow (Draft → Sent → Paid)
+✓ Invoice templates
+✓ PDF generation
+✓ Email sending
+✓ Payment tracking
+
+COMPONENTS:
+-----------
+• Invoicing.tsx (Main page)
+• InvoiceList (Data table)
+• InvoiceForm (Create/Edit form)
+• InvoiceItemsList (Line items)
+• InvoicePreview (PDF preview)
+
+HOOKS:
+------
+• useInvoices() - CRUD operations for invoices
+
+DATABASE TABLES:
+----------------
+• invoices
+• invoice_items
+
+KEY OPERATIONS:
+---------------
+• create_invoice_with_items() - Atomic creation
+• calculate_invoice_totals() - Total calculation
+• update_invoice_status() - Status transitions
+
+7.2.2 BANKING MODULE
+────────────────────
+
+PATH: /financial/banking
+
+FEATURES:
+---------
+✓ Multiple bank account management
+✓ Transaction recording
+✓ Balance tracking
+✓ Transaction categorization
+✓ Monthly transaction charts
+✓ Account reconciliation
+
+COMPONENTS:
+-----------
+• Banking.tsx (Main page)
+• BankAccountList (Accounts overview)
+• TransactionList (Transaction table)
+• TransactionForm (Add/Edit)
+• BalanceChart (Balance trends)
+
+HOOKS:
+------
+• useBanking() - Bank accounts and transactions
+
+DATABASE TABLES:
+----------------
+• bank_accounts
+• bank_transactions
+
+7.2.3 CASH FLOW MODULE
+──────────────────────
+
+PATH: /financial/cashflow
+
+FEATURES:
+---------
+✓ Scheduled payment management
+✓ Recurring payment setup
+✓ Payment calendar
+✓ Cash flow projections
+✓ Upcoming payments alerts
+
+COMPONENTS:
+-----------
+• CashFlow.tsx (Main page)
+• ScheduledPaymentsList (Payment table)
+• PaymentCalendar (Calendar view)
+• CashFlowChart (Projection chart)
+
+HOOKS:
+------
+• useCashFlow() - Scheduled payments
+
+DATABASE TABLES:
+----------------
+• scheduled_payments
+
+7.2.4 ACCOUNTING MODULE
+───────────────────────
+
+PATH: /financial/accounting
+
+FEATURES:
+---------
+✓ Chart of Accounts management
+✓ Double-entry bookkeeping
+✓ Journal entries
+✓ Ledger views
+✓ Trial balance
+✓ Fiscal period management
+
+COMPONENTS:
+-----------
+• Accounting.tsx (Main page)
+• ChartOfAccounts (COA tree)
+• JournalEntryForm (Transaction entry)
+• LedgerView (Account ledger)
+• FiscalPeriodManager (Period locking)
+
+HOOKS:
+------
+• useAnalytics() - Chart of accounts
+• useFiscalPeriods() - Period management
+
+DATABASE TABLES:
+----------------
+• chart_of_accounts
+• fiscal_periods
+
+7.2.5 ANALYTICS MODULE
+──────────────────────
+
+PATH: /financial/analytics
+
+FEATURES:
+---------
+✓ Profit & Loss statement
+✓ Balance Sheet
+✓ Cash Flow statement
+✓ AR/AP Aging reports
+✓ Revenue & Expense trends
+✓ Custom date range filtering
+
+COMPONENTS:
+-----------
+• Analytics.tsx (Main page)
+• ProfitLossReport (P&L table)
+• BalanceSheet (BS table)
+• TrendAnalysis (Charts)
+• ReportFilters (Date range picker)
+
+HOOKS:
+------
+• useAnalytics() - Report data
+
+DATA AGGREGATION:
+-----------------
+• Income from invoices
+• Expenses from transactions
+• Asset/Liability from COA
+
+7.3 HRMS MODULES
+──────────────────────────────────────────────────────────────────────
+
+7.3.1 EMPLOYEES MODULE
+──────────────────────
+
+PATH: /hrms/employees
+
+FEATURES:
+---------
+✓ Employee directory
+✓ Employee profiles
+✓ Department management
+✓ Position/Role assignment
+✓ Contact information
+✓ Employment history
+
+COMPONENTS:
+-----------
+• Employees.tsx (Main page)
+• EmployeeList (Directory)
+• EmployeeForm (Add/Edit)
+• EmployeeProfile (Details view)
+
+HOOKS:
+------
+• useEmployees() - Employee CRUD
+
+DATABASE TABLES:
+----------------
+• employees
+
+7.3.2 PAYROLL MODULE
+────────────────────
+
+PATH: /hrms/payroll
+
+FEATURES:
+---------
+✓ Payroll processing
+✓ Salary calculations
+✓ Allowances and deductions
+✓ Payslip generation
+✓ Payment history
+
+COMPONENTS:
+-----------
+• Payroll.tsx (Main page)
+• PayrollList (Payroll records)
+• PayrollForm (Process payroll)
+• PayslipPreview (PDF preview)
+
+HOOKS:
+------
+• usePayroll() - Payroll operations
+
+DATABASE TABLES:
+----------------
+• payroll
+• employees (for salary data)
+
+FUNCTIONS:
+----------
+• process_payroll() - Calculation logic
+
+7.3.3 ATTENDANCE MODULE
+───────────────────────
+
+PATH: /hrms/attendance
+
+FEATURES:
+---------
+✓ Daily attendance marking
+✓ Check-in/Check-out tracking
+✓ Hours calculation
+✓ Attendance reports
+✓ Monthly summaries
+
+COMPONENTS:
+-----------
+• Attendance.tsx (Main page)
+• AttendanceCalendar (Calendar view)
+• AttendanceForm (Mark attendance)
+• AttendanceReport (Summary)
+
+HOOKS:
+------
+• useAttendance() - Attendance CRUD
+
+DATABASE TABLES:
+----------------
+• attendance
+
+7.3.4 LEAVES MODULE
+───────────────────
+
+PATH: /hrms/leaves
+
+FEATURES:
+---------
+✓ Leave application
+✓ Leave approval workflow
+✓ Leave balance tracking
+✓ Leave calendar
+✓ Leave types management
+
+COMPONENTS:
+-----------
+• Leaves.tsx (Main page)
+• LeaveList (Applications)
+• LeaveForm (Apply for leave)
+• LeaveCalendar (Calendar view)
+• LeaveBalance (Balance tracker)
+
+HOOKS:
+------
+• useLeaves() - Leave operations
+
+DATABASE TABLES:
+----------------
+• leaves
+
+7.4 PERFORMANCE MODULES
+──────────────────────────────────────────────────────────────────────
+
+7.4.1 GOALS MODULE
+──────────────────
+
+PATH: /performance/goals
+
+FEATURES:
+---------
+✓ Goal setting
+✓ Progress tracking
+✓ Goal completion
+✓ Employee goals assignment
+✓ Goal categories
+
+COMPONENTS:
+-----------
+• Goals.tsx (Main page)
+• GoalList (Goals table)
+• GoalForm (Create/Edit)
+• ProgressTracker (Progress bar)
+
+HOOKS:
+------
+• useGoals() - Goal CRUD
+
+DATABASE TABLES:
+----------------
+• goals
+
+7.4.2 MEMOS MODULE
+──────────────────
+
+PATH: /performance/memos
+
+FEATURES:
+---------
+✓ Create memos/notes
+✓ Categorize memos
+✓ Priority levels
+✓ Search and filter
+✓ Rich text editor
+
+COMPONENTS:
+-----------
+• Memos.tsx (Main page)
+• MemoList (List view)
+• MemoForm (Create/Edit)
+• MemoViewer (Read view)
+
+HOOKS:
+------
+• useMemos() - Memo operations
+
+DATABASE TABLES:
+----------------
+• memos
+
+
+================================================================================
+8. SECURITY & RBAC IMPLEMENTATION
+================================================================================
+
+8.1 ROLE-BASED ACCESS CONTROL MATRIX
+──────────────────────────────────────────────────────────────────────
+
+╔═══════════════╦═══════════╦════════╦═══════════╦═══════╦═════════╗
+║ PERMISSION    ║ SuperAdmin║ Admin  ║ Moderator ║ Author║ Reader  ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ dashboard:view║     ✓     ║   ✓    ║     ✓     ║   ✓   ║    ✓    ║
+║ dashboard:edit║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ invoice:view  ║     ✓     ║   ✓    ║     ✓     ║   ✓   ║    ✓    ║
+║ invoice:create║     ✓     ║   ✓    ║     ✓     ║   ✗   ║    ✗    ║
+║ invoice:edit  ║     ✓     ║   ✓    ║     ✓     ║   ✗   ║    ✗    ║
+║ invoice:delete║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ banking:view  ║     ✓     ║   ✓    ║     ✓     ║   ✗   ║    ✗    ║
+║ banking:edit  ║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ employee:view ║     ✓     ║   ✓    ║     ✓     ║   ✗   ║    ✗    ║
+║ employee:edit ║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ payroll:view  ║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+║ payroll:process ║   ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ settings:view ║     ✓     ║   ✓    ║     ✗     ║   ✗   ║    ✗    ║
+║ settings:edit ║     ✓     ║   ✗    ║     ✗     ║   ✗   ║    ✗    ║
+╠═══════════════╬═══════════╬════════╬═══════════╬═══════╬═════════╣
+║ role:manage   ║     ✓     ║   ✗    ║     ✗     ║   ✗   ║    ✗    ║
+╚═══════════════╩═══════════╩════════╩═══════════╩═══════╩═════════╝
+
+8.2 AUTHENTICATION FLOW
+──────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     AUTHENTICATION SEQUENCE                          │
+│                                                                      │
+│  1. User visits application                                         │
+│       │                                                              │
+│       ▼                                                              │
+│  2. Check for existing session                                      │
+│       │                                                              │
+│       ├─── Session exists ──┐                                       │
+│       │                     │                                       │
+│       ▼                     ▼                                       │
+│  3. No session         Session valid                                │
+│       │                     │                                       │
+│       ▼                     ▼                                       │
+│  4. Redirect to      Load user profile                              │
+│     /auth page            │                                         │
+│       │                     ▼                                       │
+│       ▼              Load user roles                                │
+│  5. User enters           │                                         │
+│     credentials           ▼                                         │
+│       │              Fetch permissions                              │
+│       ▼                     │                                       │
+│  6. Submit to              ▼                                       │
+│     Supabase Auth    Store in context                              │
+│       │                     │                                       │
+│       ▼                     ▼                                       │
+│  7. Validate         Render protected                              │
+│     credentials      routes                                        │
+│       │                     │                                       │
+│       ├─── Invalid ─────────┤                                      │
+│       │                     │                                       │
+│       ▼                     ▼                                       │
+│  8. Error message    Application ready                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+8.3 AUTHORIZATION FLOW
+──────────────────────────────────────────────────────────────────────
+
+COMPONENT-LEVEL AUTHORIZATION:
+───────────────────────────────
+
+function ProtectedComponent() {
+  const { hasPermission } = usePermissions()
+  
+  if (!hasPermission('resource:action')) {
+    return <UnauthorizedMessage />
+  }
+  
+  return <ActualComponent />
+}
+
+ROUTE-LEVEL AUTHORIZATION:
+──────────────────────────
+
+<Route 
+  path="/financial/invoicing" 
+  element={
+    <RequireAuth>
+      <RequirePermission permission="invoice:view">
+        <Invoicing />
+      </RequirePermission>
+    </RequireAuth>
+  } 
+/>
+
+DATABASE-LEVEL AUTHORIZATION:
+─────────────────────────────
+
+Row Level Security ensures:
+• Users only see their own data
+• Cross-tenant data leakage is prevented
+• Authorization enforced at database level
+• No reliance on application logic alone
+
+8.4 SECURITY BEST PRACTICES IMPLEMENTED
+──────────────────────────────────────────────────────────────────────
+
+✓ INPUT VALIDATION
+  • Zod schemas for all forms
+  • Server-side validation via database constraints
+  • XSS prevention through React's automatic escaping
+
+✓ AUTHENTICATION
+  • Secure password hashing (Supabase Auth)
+  • JWT tokens with expiration
+  • HttpOnly cookies for token storage
+  • Password reset flow with email verification
+
+✓ AUTHORIZATION
+  • Role-based access control (RBAC)
+  • Row Level Security (RLS) policies
+  • Permission checks at multiple layers
+  • Principle of least privilege
+
+✓ DATA PROTECTION
+  • HTTPS enforced in production
+  • Environment variables for secrets
+  • No sensitive data in client-side code
+  • Audit trails for critical operations
+
+✓ API SECURITY
+  • Rate limiting (Supabase built-in)
+  • CORS configuration
+  • SQL injection prevention (parameterized queries)
+  • Request validation
+
+8.5 DEVELOPER MODE & DEBUG TOOLS
+──────────────────────────────────────────────────────────────────────
+
+DEVELOPER TOOLBAR:
+──────────────────
+
+Available in development environment:
+✓ Role switching (test different permissions)
+✓ Permission matrix viewer
+✓ User impersonation
+✓ Database query inspector
+✓ Network request viewer
+
+ENABLED VIA:
+────────────
+VITE_DEV_MODE=true
+VITE_ALLOW_PERMISSION_EDITING=true
+
+FEATURES:
+─────────
+• Purple floating button on screen
+• Switch between roles without re-login
+• View effective permissions
+• Test authorization scenarios
+• Debug access control issues
+
+SECURITY:
+─────────
+• Only available in development
+• Disabled in production builds
+• No actual database modifications in role switching
+• Client-side only (no backend changes)
+
+
+================================================================================
+9. DEPLOYMENT ARCHITECTURE
+================================================================================
+
+9.1 DEPLOYMENT OVERVIEW
+──────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     PRODUCTION ENVIRONMENT                           │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                     CDN / EDGE NETWORK                        │  │
+│  │                  (Lovable Cloud Platform)                     │  │
+│  │                                                               │  │
+│  │  • Global content delivery                                   │  │
+│  │  • HTTPS/SSL termination                                     │  │
+│  │  • Static asset caching                                      │  │
+│  │  • DDoS protection                                           │  │
+│  └──────────────────────┬───────────────────────────────────────┘  │
+│                         │                                           │
+│                         ▼                                           │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   STATIC HOSTING                              │  │
+│  │              (React SPA Build Output)                         │  │
+│  │                                                               │  │
+│  │  • index.html                                                 │  │
+│  │  • /assets/*.js (Bundled JavaScript)                         │  │
+│  │  • /assets/*.css (Bundled CSS)                               │  │
+│  │  • /assets/*.{png,svg,jpg} (Images)                          │  │
+│  └──────────────────────┬───────────────────────────────────────┘  │
+│                         │                                           │
+└─────────────────────────┼───────────────────────────────────────────┘
+                          │
+                          │ API Calls
+                          ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     SUPABASE CLOUD                                   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  • Authentication Service                                     │  │
+│  │  • PostgreSQL Database                                        │  │
+│  │  • Realtime Service                                           │  │
+│  │  • Storage Service                                            │  │
+│  │  • Edge Functions (Optional)                                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+9.2 BUILD PROCESS
+──────────────────────────────────────────────────────────────────────
+
+BUILD PIPELINE:
+───────────────
+
+Source Code (GitHub)
+    │
+    ├─── Push to main branch
+    │
+    ▼
+Lovable CI/CD
+    │
+    ├─── Install dependencies (npm install)
+    │
+    ├─── Type checking (tsc --noEmit)
+    │
+    ├─── Linting (eslint .)
+    │
+    ├─── Unit tests (vitest run)
+    │
+    ├─── Build production bundle (vite build)
+    │       │
+    │       ├─── TypeScript compilation
+    │       ├─── Code minification
+    │       ├─── Tree shaking
+    │       ├─── Asset optimization
+    │       └─── Source map generation
+    │
+    ├─── Generate /dist folder
+    │
+    └─── Deploy to CDN
+
+GENERATED OUTPUT:
+─────────────────
+
+/dist/
+  ├── index.html (Entry point)
+  ├── assets/
+  │   ├── index-[hash].js (Main bundle)
+  │   ├── vendor-[hash].js (Third-party libs)
+  │   ├── index-[hash].css (Styles)
+  │   └── [name]-[hash].{png,svg,jpg} (Images)
+  └── vite.svg (Favicon)
+
+OPTIMIZATION TECHNIQUES:
+────────────────────────
+
+✓ Code Splitting
+  • Route-based chunks
+  • Lazy loading components
+  • Dynamic imports
+
+✓ Asset Optimization
+  • Image compression
+  • SVG minification
+  • Font subsetting
+
+✓ Caching Strategy
+  • Hashed filenames for cache busting
+  • Long cache times for static assets
+  • Service worker (optional)
+
+9.3 ENVIRONMENT CONFIGURATION
+──────────────────────────────────────────────────────────────────────
+
+DEVELOPMENT:
+────────────
+VITE_SUPABASE_URL=https://qfgudhbrjfjmbamwsfuj.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=[dev-key]
+VITE_DEV_MODE=true
+VITE_ALLOW_PERMISSION_EDITING=true
+VITE_API_URL=http://localhost:3000/api
+
+PRODUCTION:
+───────────
+VITE_SUPABASE_URL=https://[production-project].supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=[prod-key]
+VITE_DEV_MODE=false
+VITE_ALLOW_PERMISSION_EDITING=false
+
+9.4 MONITORING & LOGGING
+──────────────────────────────────────────────────────────────────────
+
+APPLICATION MONITORING:
+───────────────────────
+
+✓ Error Tracking
+  • Console error capture
+  • Unhandled promise rejections
+  • React error boundaries
+
+✓ Performance Monitoring
+  • Page load times
+  • API response times
+  • React Query metrics
+
+✓ User Analytics
+  • Page views
+  • User flows
+  • Feature usage
+
+DATABASE MONITORING:
+────────────────────
+
+✓ Supabase Dashboard
+  • Query performance
+  • Active connections
+  • Database size
+  • API usage metrics
+
+✓ Slow Query Detection
+  • Query execution time
+  • Index usage
+  • Query plan analysis
+
+================================================================================
+10. DEVELOPMENT WORKFLOW
+================================================================================
+
+10.1 LOCAL DEVELOPMENT SETUP
+──────────────────────────────────────────────────────────────────────
+
+PREREQUISITES:
+──────────────
+• Node.js 18+ (via nvm)
+• npm or yarn
+• Git
+• Code editor (VS Code recommended)
+
+SETUP STEPS:
+────────────
+
+1. Clone repository
+   git clone [repo-url]
+   cd book-explorer
+
+2. Install dependencies
+   npm install
+
+3. Configure environment
+   cp .env.example .env
+   # Edit .env with Supabase credentials
+
+4. Run development server
+   npm run dev
+   # Opens http://localhost:5173
+
+5. Run tests (optional)
+   npm run test
+
+DEVELOPMENT COMMANDS:
+─────────────────────
+
+npm run dev           → Start dev server
+npm run build         → Production build
+npm run preview       → Preview production build
+npm run lint          → Lint code
+npm run test          → Run tests
+npm run test:watch    → Watch mode tests
+
+10.2 DATABASE DEVELOPMENT
+──────────────────────────────────────────────────────────────────────
+
+LOCAL DATABASE (Optional):
+──────────────────────────
+
+If using Supabase CLI:
+1. Install Supabase CLI
+2. supabase init
+3. supabase start
+4. supabase db reset
+
+MIGRATIONS:
+───────────
+
+New migrations created in:
+/supabase/migrations/[timestamp]_[description].sql
+
+Apply migrations:
+• Automatically in Supabase Cloud
+• Manual: Run SQL in Supabase dashboard
+
+SEEDING:
+────────
+
+Development data seeding:
+1. SQL method: Run /supabase/seed.sql in SQL Editor
+2. Script method: npm run supabase:seed
+3. Full seed: npm run seed:all
+
+10.3 GIT WORKFLOW
+──────────────────────────────────────────────────────────────────────
+
+BRANCHING STRATEGY:
+───────────────────
+
+main             → Production branch (auto-deploy)
+└── develop      → Development branch
+    └── feature/[name]    → Feature branches
+    └── bugfix/[name]     → Bug fix branches
+    └── hotfix/[name]     → Urgent fixes
+
+COMMIT CONVENTIONS:
+───────────────────
+
+feat: Add new feature
+fix: Bug fix
+docs: Documentation changes
+style: Code style changes (formatting)
+refactor: Code refactoring
+test: Test additions/changes
+chore: Build/tooling changes
+
+EXAMPLE:
+feat(invoicing): Add PDF export functionality
+fix(banking): Correct balance calculation
+docs(readme): Update setup instructions
+
+10.4 CODE QUALITY STANDARDS
+──────────────────────────────────────────────────────────────────────
+
+LINTING:
+────────
+• ESLint configuration in eslint.config.js
+• Auto-fix on save (VS Code)
+• Pre-commit hooks (optional)
+
+TYPE SAFETY:
+────────────
+• TypeScript strict mode
+• Type definitions for all props
+• No 'any' types (use 'unknown' if needed)
+
+TESTING:
+────────
+• Unit tests for utilities
+• Component tests for UI
+• Integration tests for flows
+• Minimum 80% coverage (goal)
+
+CODE REVIEW:
+────────────
+• All changes via pull requests
+• At least one approval required
+• CI checks must pass
+• No merge without tests
+
+
+================================================================================
+11. PERFORMANCE OBJECTIVES
+================================================================================
+
+11.1 PERFORMANCE TARGETS
+──────────────────────────────────────────────────────────────────────
+
+╔═══════════════════════╦════════════════╦════════════════╦═══════════╗
+║ METRIC                ║ TARGET         ║ ACCEPTABLE     ║ CURRENT   ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ First Contentful      ║ < 1.0s         ║ < 2.0s         ║ TBD       ║
+║ Paint (FCP)           ║                ║                ║           ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ Time to Interactive   ║ < 2.0s         ║ < 3.5s         ║ TBD       ║
+║ (TTI)                 ║                ║                ║           ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ Largest Contentful    ║ < 2.0s         ║ < 3.0s         ║ TBD       ║
+║ Paint (LCP)           ║                ║                ║           ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ Cumulative Layout     ║ < 0.1          ║ < 0.25         ║ TBD       ║
+║ Shift (CLS)           ║                ║                ║           ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ API Response Time     ║ < 200ms        ║ < 500ms        ║ ~150ms    ║
+║ (p95)                 ║                ║                ║           ║
+╠═══════════════════════╬════════════════╬════════════════╬═══════════╣
+║ Database Query Time   ║ < 50ms         ║ < 150ms        ║ ~30ms     ║
+║ (p95)                 ║                ║                ║           ║
+╚═══════════════════════╩════════════════╩════════════════╩═══════════╝
+
+11.2 OPTIMIZATION STRATEGIES
+──────────────────────────────────────────────────────────────────────
+
+FRONTEND OPTIMIZATIONS:
+───────────────────────
+
+✓ Code Splitting
+  • Route-based chunking
+  • Component lazy loading
+  • Reduce initial bundle size to < 200KB
+
+✓ Asset Optimization
+  • Image compression (WebP format)
+  • SVG optimization
+  • Font loading strategies
+  • Critical CSS inlining
+
+✓ Rendering Performance
+  • React.memo for expensive components
+  • useMemo/useCallback for expensive computations
+  • Virtual scrolling for large lists
+  • Debouncing user inputs
+
+✓ Caching Strategy
+  • React Query aggressive caching
+  • LocalStorage for user preferences
+  • Service Worker for offline support
+
+BACKEND OPTIMIZATIONS:
+──────────────────────
+
+✓ Database Indexing
+  • Primary key indexes (automatic)
+  • Foreign key indexes
+  • Composite indexes for common queries
+  • user_id indexes for RLS
+
+✓ Query Optimization
+  • Select only required columns
+  • Use joins instead of multiple queries
+  • Pagination for large result sets
+  • Aggregate at database level
+
+✓ Connection Pooling
+  • Supabase built-in pooling
+  • Connection reuse
+  • Prepared statements
+
+11.3 SCALABILITY CONSIDERATIONS
+──────────────────────────────────────────────────────────────────────
+
+HORIZONTAL SCALING:
+───────────────────
+
+Frontend:
+• Stateless SPA architecture
+• CDN distribution
+• No server-side sessions
+• Easy to scale with CDN
+
+Backend (Supabase):
+• Automatic scaling built-in
+• Read replicas for heavy read loads
+• Connection pooling
+• Load balancing
+
+VERTICAL SCALING:
+─────────────────
+
+Database:
+• Upgrade Supabase plan for more resources
+• Optimize queries before scaling
+• Archive old data
+• Partition large tables
+
+CACHING LAYERS:
+───────────────
+
+Level 1: Browser Cache
+• Static assets (long TTL)
+• API responses (React Query)
+• User preferences (LocalStorage)
+
+Level 2: CDN Cache
+• Static files (index.html, JS, CSS)
+• Image assets
+• Font files
+
+Level 3: Database Cache
+• Supabase internal caching
+• Query result caching
+• Materialized views for reports
+
+11.4 DATA ARCHIVAL STRATEGY
+──────────────────────────────────────────────────────────────────────
+
+ARCHIVAL TRIGGERS:
+──────────────────
+
+• Invoices older than 3 years
+• Paid invoices after 1 year
+• Closed fiscal periods
+• Terminated employee records
+
+ARCHIVAL PROCESS:
+─────────────────
+
+1. Identify records meeting criteria
+2. Export to archive table/database
+3. Soft delete from active tables
+4. Maintain foreign key integrity
+5. Provide archive access via separate view
+
+ARCHIVE TABLES:
+───────────────
+
+• archived_invoices
+• archived_transactions
+• archived_employee_records
+• archived_attendance
+
+RETENTION POLICY:
+─────────────────
+
+• Financial records: 7 years (legal requirement)
+• Employee records: 5 years after termination
+• Attendance: 3 years
+• Audit logs: Indefinite (compressed)
+
+================================================================================
+12. FUTURE ROADMAP
+================================================================================
+
+12.1 SHORT-TERM ENHANCEMENTS (Q1-Q2 2026)
+──────────────────────────────────────────────────────────────────────
+
+✓ FINANCIAL MODULES
+  • Recurring invoice automation
+  • Multi-currency support
+  • Tax calculation automation (GST/VAT)
+  • Invoice payment gateway integration
+  • Expense management module
+
+✓ HRMS ENHANCEMENTS
+  • Biometric attendance integration
+  • Shift management
+  • Overtime calculation
+  • Leave accrual automation
+  • Performance review module
+
+✓ REPORTING
+  • Custom report builder
+  • Scheduled report emails
+  • Export to Excel/PDF
+  • Data visualization improvements
+  • Real-time dashboards
+
+✓ INTEGRATIONS
+  • Email service integration (SendGrid/Mailgun)
+  • SMS notifications
+  • Slack/Teams integration
+  • Calendar sync (Google/Outlook)
+  • Cloud storage (Google Drive/Dropbox)
+
+12.2 MEDIUM-TERM GOALS (Q3-Q4 2026)
+──────────────────────────────────────────────────────────────────────
+
+✓ ADVANCED FEATURES
+  • AI-powered invoice data extraction (OCR)
+  • Predictive cash flow analysis
+  • Anomaly detection in expenses
+  • Automated bank reconciliation
+  • Budget vs. Actual variance alerts
+
+✓ MOBILE APPLICATION
+  • React Native mobile app
+  • Offline-first architecture
+  • Push notifications
+  • Mobile-optimized workflows
+  • Camera for document capture
+
+✓ COLLABORATION
+  • Multi-user real-time editing
+  • Comment threads on documents
+  • @mentions and notifications
+  • Activity feed
+  • Approval workflows
+
+✓ COMPLIANCE & AUDIT
+  • Audit trail enhancements
+  • Compliance reporting (SOX, GDPR)
+  • Data retention policies
+  • Automated compliance checks
+  • Digital signatures
+
+12.3 LONG-TERM VISION (2027+)
+──────────────────────────────────────────────────────────────────────
+
+✓ ENTERPRISE FEATURES
+  • Multi-company/Multi-entity support
+  • Consolidation and inter-company eliminations
+  • Advanced workflow automation
+  • Custom field builder
+  • API for third-party integrations
+
+✓ AI & MACHINE LEARNING
+  • Expense categorization AI
+  • Fraud detection
+  • Predictive analytics
+  • Natural language queries
+  • Chatbot assistant
+
+✓ ADVANCED ANALYTICS
+  • Business Intelligence (BI) module
+  • Custom dashboards
+  • Drill-down reporting
+  • Trend analysis
+  • Forecasting and planning
+
+✓ MARKETPLACE
+  • Plugin/Extension system
+  • Third-party app integrations
+  • Template marketplace
+  • Industry-specific solutions
+  • Community contributions
+
+12.4 TECHNICAL DEBT & MAINTENANCE
+──────────────────────────────────────────────────────────────────────
+
+ONGOING PRIORITIES:
+───────────────────
+
+✓ Dependency Updates
+  • Regular npm package updates
+  • Security vulnerability patches
+  • Framework version upgrades
+  • Breaking change migrations
+
+✓ Code Quality
+  • Increase test coverage to 80%+
+  • Refactor legacy components
+  • Performance profiling and optimization
+  • Documentation improvements
+
+✓ Infrastructure
+  • Database optimization reviews
+  • Query performance audits
+  • Index optimization
+  • Archival automation
+
+✓ Developer Experience
+  • Improved error messages
+  • Better debugging tools
+  • Development documentation
+  • Onboarding guides
+
+================================================================================
+APPENDIX A: TECHNOLOGY DECISION RATIONALE
+================================================================================
+
+WHY REACT?
+──────────
+✓ Large ecosystem and community
+✓ Component-based architecture
+✓ Virtual DOM for performance
+✓ Rich tooling and libraries
+✓ Team expertise
+
+WHY TYPESCRIPT?
+───────────────
+✓ Type safety reduces bugs
+✓ Better IDE support
+✓ Self-documenting code
+✓ Easier refactoring
+✓ Improved developer experience
+
+WHY VITE?
+─────────
+✓ Fast HMR (Hot Module Replacement)
+✓ Modern ES modules
+✓ Optimized production builds
+✓ Plugin ecosystem
+✓ Better DX than Webpack
+
+WHY SUPABASE?
+─────────────
+✓ PostgreSQL (proven, scalable)
+✓ Built-in authentication
+✓ Row Level Security
+✓ Real-time capabilities
+✓ RESTful API auto-generation
+✓ Generous free tier
+✓ Fast development iteration
+
+WHY TAILWIND CSS?
+─────────────────
+✓ Utility-first approach
+✓ Minimal CSS bundle size
+✓ Consistent design system
+✓ No CSS naming conflicts
+✓ Rapid prototyping
+
+WHY SHADCN/UI?
+──────────────
+✓ Accessible components (Radix UI)
+✓ Customizable
+✓ Copy-paste friendly
+✓ TypeScript support
+✓ Tailwind integration
+
+================================================================================
+APPENDIX B: GLOSSARY
+================================================================================
+
+API         → Application Programming Interface
+ACID        → Atomicity, Consistency, Isolation, Durability
+AR          → Accounts Receivable
+AP          → Accounts Payable
+CDN         → Content Delivery Network
+COA         → Chart of Accounts
+CORS        → Cross-Origin Resource Sharing
+CRUD        → Create, Read, Update, Delete
+CSS         → Cascading Style Sheets
+FCP         → First Contentful Paint
+FK          → Foreign Key
+HRMS        → Human Resource Management System
+HTTPS       → Hypertext Transfer Protocol Secure
+JWT         → JSON Web Token
+LCP         → Largest Contentful Paint
+OCR         → Optical Character Recognition
+OTP         → One-Time Password
+P&L         → Profit and Loss
+PK          → Primary Key
+RBAC        → Role-Based Access Control
+REST        → Representational State Transfer
+RLS         → Row Level Security
+SDK         → Software Development Kit
+SPA         → Single Page Application
+SQL         → Structured Query Language
+SSL         → Secure Sockets Layer
+TTI         → Time to Interactive
+UI          → User Interface
+UX          → User Experience
+UUID        → Universally Unique Identifier
+XSS         → Cross-Site Scripting
+
+================================================================================
+APPENDIX C: CONTACT & SUPPORT
+================================================================================
+
+DEVELOPMENT TEAM:
+─────────────────
+Project Repository: https://github.com/SriramGopalaswamy/book-explorer
+Lovable Platform: https://lovable.dev
+
+DOCUMENTATION:
+──────────────
+• README.md - Getting started guide
+• ARCHITECTURE_DIAGRAMS.md - Visual architecture
+• DEVELOPER_MODE.md - Developer tools guide
+• SECURITY_SUMMARY.md - Security documentation
+• RBAC_IMPLEMENTATION.md - RBAC details
+
+SUPPORT CHANNELS:
+─────────────────
+• GitHub Issues - Bug reports and feature requests
+• Pull Requests - Code contributions
+• Documentation - In-code comments and guides
+
+================================================================================
+END OF ARCHITECTURE & OBJECTIVES DOCUMENT
+================================================================================
+
+Last Updated: February 17, 2026
+Document Version: 1.0
+Maintained by: Development Team
+
