@@ -137,6 +137,21 @@ Deno.serve(async (req) => {
         }
 
         session = sessionData.session;
+
+        // Ensure role exists for existing user
+        const { data: existingRole } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", existingUser.id)
+          .maybeSingle();
+
+        if (!existingRole) {
+          const role = email.toLowerCase() === "sriram@grx10.com" ? "admin" : "employee";
+          await supabase.from("user_roles").insert({
+            user_id: existingUser.id,
+            role,
+          });
+        }
       } else {
         // Create new user
         const tempPassword = crypto.randomUUID() + "Aa1!";
@@ -155,6 +170,13 @@ Deno.serve(async (req) => {
             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        // Assign role: admin for sriram@grx10.com, employee for everyone else
+        const role = email.toLowerCase() === "sriram@grx10.com" ? "admin" : "employee";
+        await supabase.from("user_roles").insert({
+          user_id: newUser.user!.id,
+          role,
+        });
 
         // Generate session for the new user
         const { data: linkData, error: linkError } =
