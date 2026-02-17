@@ -99,6 +99,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   }, [user, payPeriod, qc]);
 
   return {
+    module: "payroll",
     title: "Bulk Upload Payroll",
     description: "Upload salary records for multiple employees at once using a CSV file.",
     columns: payrollColumns,
@@ -149,6 +150,7 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
   }, [user, qc]);
 
   return {
+    module: "attendance",
     title: "Bulk Upload Attendance",
     description: "Upload attendance records for multiple employees and dates using a CSV file.",
     columns: attendanceColumns,
@@ -189,6 +191,7 @@ export function useRolesBulkUpload(): BulkUploadConfig {
   }, [qc]);
 
   return {
+    module: "roles",
     title: "Bulk Upload Roles",
     description: "Assign roles to multiple users at once using a CSV file with email and role columns.",
     columns: rolesColumns,

@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Users, AlertCircle } from "lucide-react";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useRolesBulkUpload } from "@/hooks/useBulkUpload";
+import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 
 interface UserWithRole {
   user_id: string;
@@ -219,6 +220,9 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Bulk Upload History */}
+        <BulkUploadHistory module="roles" />
       </div>
     </MainLayout>
   );

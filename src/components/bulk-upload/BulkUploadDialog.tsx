@@ -9,6 +9,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 export interface BulkUploadColumn {
   key: string;
@@ -19,6 +22,7 @@ export interface BulkUploadColumn {
 export interface BulkUploadConfig {
   title: string;
   description: string;
+  module: string;
   columns: BulkUploadColumn[];
   templateFileName: string;
   templateContent: string;
@@ -48,6 +52,8 @@ function parseCSV(text: string): string[][] {
 }
 
 export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -63,7 +69,6 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   };
 
   const downloadTemplate = () => {
-    // Create an Excel workbook from template content
     const rows = parseCSV(config.templateContent);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -143,6 +148,21 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
       const result = await config.onUpload(validRows);
+
+      // Log to bulk_upload_history
+      if (user) {
+        await supabase.from("bulk_upload_history" as any).insert({
+          module: config.module,
+          file_name: fileName,
+          total_rows: parsedRows.length,
+          successful_rows: result.success,
+          failed_rows: result.errors.length + errorCount,
+          errors: result.errors.slice(0, 50),
+          uploaded_by: user.id,
+        });
+        qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
+      }
+
       if (result.errors.length > 0) {
         toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
       } else {
