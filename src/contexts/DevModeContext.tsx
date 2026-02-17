@@ -9,15 +9,15 @@
  * 
  * Architecture:
  * - Only initializes if DEV_MODE=true
- * - Fetches all roles and permissions on boot
+ * - Fetches all roles and permissions directly from Supabase
  * - Determines highest authority role as default
- * - Injects x-dev-role header into all API requests
- * - Never modifies database
+ * - Client-side role simulation (no backend dependency)
+ * - Updates via Supabase RPC functions
  */
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { DEV_MODE, ALLOW_PERMISSION_EDITING } from "@/config/systemFlags";
-import { api, setCustomHeader, removeCustomHeader } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { useAppMode } from "./AppModeContext";
 import { toast } from "sonner";
@@ -97,11 +97,11 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
   const [isImpersonating, setIsImpersonating] = useState(false);
   
   /**
-   * Fetch all dev mode data from backend
+   * Fetch all dev mode data from Supabase
    */
   const fetchDevData = useCallback(async () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔍 DEV MODE BOOT SEQUENCE TRACE');
+    console.log('🔍 DEV MODE BOOT SEQUENCE TRACE (SUPABASE)');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     // Only fetch in developer mode OR if user exists (for backward compatibility)
@@ -125,48 +125,106 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      console.log('\nSTEP 2: Fetching dev mode data from backend');
-      console.log('  - Endpoint 1: GET /api/dev/roles');
-      console.log('  - Endpoint 2: GET /api/dev/permissions');
-      console.log('  - Endpoint 3: GET /api/dev/role-permissions');
+      console.log('\nSTEP 2: Fetching dev mode data from Supabase');
+      console.log('  - Query 1: SELECT * FROM roles');
+      console.log('  - Query 2: SELECT * FROM permissions');
+      console.log('  - Query 3: SELECT * FROM role_permissions with joins');
       
-      // Fetch roles, permissions, and matrix in parallel
-      const [rolesRes, permissionsRes, matrixRes] = await Promise.all([
-        api.get<{ roles: Role[] }>('/dev/roles'),
-        api.get<{ permissions: Permission[] }>('/dev/permissions'),
-        api.get<{ matrix: PermissionMatrix }>('/dev/role-permissions'),
+      // Fetch roles, permissions, and role_permissions in parallel
+      const [rolesResult, permissionsResult, rolePermissionsResult] = await Promise.all([
+        supabase
+          .from('roles')
+          .select('*')
+          .eq('is_active', true)
+          .order('priority', { ascending: false }),
+        supabase
+          .from('permissions')
+          .select('*')
+          .eq('is_active', true)
+          .order('module', { ascending: true }),
+        supabase
+          .from('role_permissions')
+          .select(`
+            id,
+            role_id,
+            permission_id,
+            roles!inner(name, priority),
+            permissions!inner(permission_string)
+          `)
       ]);
       
-      console.log('✓ STEP 2 PASSED: All API calls succeeded');
+      if (rolesResult.error) throw rolesResult.error;
+      if (permissionsResult.error) throw permissionsResult.error;
+      if (rolePermissionsResult.error) throw rolePermissionsResult.error;
+      
+      console.log('✓ STEP 2 PASSED: All Supabase queries succeeded');
       
       console.log('\nSTEP 3: Validating fetched data');
-      console.log('  - Roles received:', rolesRes.roles?.length || 0);
-      console.log('  - Permissions received:', permissionsRes.permissions?.length || 0);
-      console.log('  - Matrix keys:', Object.keys(matrixRes.matrix || {}).length);
+      console.log('  - Roles received:', rolesResult.data?.length || 0);
+      console.log('  - Permissions received:', permissionsResult.data?.length || 0);
+      console.log('  - Role-Permission mappings:', rolePermissionsResult.data?.length || 0);
       
-      if (!rolesRes.roles || rolesRes.roles.length === 0) {
-        console.error('❌ STEP 3 FAILED: No roles received from API');
-        console.error('   This indicates DB seeding issue or API error');
-        toast.error('No roles available - check server configuration');
+      if (!rolesResult.data || rolesResult.data.length === 0) {
+        console.error('❌ STEP 3 FAILED: No roles received from Supabase');
+        console.error('   This indicates DB seeding issue');
+        toast.error('No roles available - database may need seeding');
         setAvailableRoles([]);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         return;
       }
       
       console.log('✓ STEP 3 PASSED: Data validation OK');
-      console.log('  - Available roles:', rolesRes.roles.map(r => `${r.name}(${r.priority})`).join(', '));
       
-      setAvailableRoles(rolesRes.roles);
-      setPermissions(permissionsRes.permissions);
-      setPermissionMatrix(matrixRes.matrix);
-      toast.success(`Loaded ${rolesRes.roles.length} roles for dev mode`);
+      // Transform Supabase data to expected format
+      const roles: Role[] = rolesResult.data.map(role => ({
+        id: role.id,
+        name: role.name,
+        description: role.description || '',
+        priority: role.priority,
+        isSystemRole: role.is_system_role,
+        permissions: [] // Will be populated from rolePermissionsResult
+      }));
+      
+      const permissions: Permission[] = permissionsResult.data.map(perm => ({
+        id: perm.id,
+        module: perm.module,
+        resource: perm.resource,
+        action: perm.action,
+        permissionString: perm.permission_string,
+        description: perm.description || undefined
+      }));
+      
+      // Build permission matrix
+      const matrix: PermissionMatrix = {};
+      roles.forEach(role => {
+        const rolePerms = rolePermissionsResult.data
+          .filter((rp: any) => rp.roles.name === role.name)
+          .map((rp: any) => rp.permissions.permission_string);
+        
+        matrix[role.name] = {
+          permissions: rolePerms,
+          priority: role.priority,
+          hasWildcard: rolePerms.includes('*')
+        };
+        
+        // Also update the role's permissions array
+        role.permissions = rolePerms;
+      });
+      
+      console.log('  - Available roles:', roles.map(r => `${r.name}(${r.priority})`).join(', '));
+      
+      setAvailableRoles(roles);
+      setPermissions(permissions);
+      setPermissionMatrix(matrix);
+      toast.success(`Loaded ${roles.length} roles for dev mode`);
       
       // Determine highest authority role (by priority)
       console.log('\nSTEP 4: Determining highest priority role');
-      if (rolesRes.roles.length > 0) {
-        const highestPriorityRole = rolesRes.roles.reduce((highest, role) => {
+      if (roles.length > 0) {
+        // Find highest priority role explicitly (in case query ordering changes)
+        const highestPriorityRole = roles.reduce((highest, role) => {
           return role.priority > highest.priority ? role : highest;
-        }, rolesRes.roles[0]);
+        }, roles[0]);
         
         console.log('  - Highest priority role:', highestPriorityRole.name);
         console.log('  - Priority value:', highestPriorityRole.priority);
@@ -178,67 +236,52 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
           console.log('  - Setting activeRole to:', highestPriorityRole.name);
           
           setActiveRoleState(highestPriorityRole.name);
-          setCustomHeader('x-dev-role', highestPriorityRole.name);
           setIsImpersonating(true);
           
-          console.log('✓ STEP 5 PASSED: Active role set and header injected');
+          console.log('✓ STEP 5 PASSED: Active role set (client-side only)');
         } else {
           console.log('\nSTEP 5: Skipped (activeRole already set to:', activeRole, ')');
         }
         
-        // Fetch current role info
-        console.log('\nSTEP 6: Fetching current role info');
-        const roleInfo = await api.get<CurrentRoleInfo>('/dev/current-role-info');
+        // Build current role info (client-side)
+        console.log('\nSTEP 6: Building current role info (client-side)');
+        const effectiveRoleName = activeRole || highestPriorityRole.name;
+        const effectiveRoleData = matrix[effectiveRoleName];
         
-        console.log('  - Actual role:', roleInfo.user.actualRole);
+        const roleInfo: CurrentRoleInfo = {
+          user: {
+            id: user?.id,
+            email: user?.email,
+            actualRole: user?.email ? 'user' : undefined
+          },
+          effectiveRole: effectiveRoleName,
+          isImpersonating: !!activeRole,
+          permissions: effectiveRoleData?.permissions || [],
+          hasWildcard: effectiveRoleData?.hasWildcard || false
+        };
+        
         console.log('  - Effective role:', roleInfo.effectiveRole);
         console.log('  - Is impersonating:', roleInfo.isImpersonating);
         console.log('  - Permissions count:', roleInfo.permissions.length);
         
         setCurrentRoleInfo(roleInfo);
-        setIsImpersonating(roleInfo.isImpersonating);
         
-        console.log('✓ STEP 6 PASSED: Current role info fetched');
+        console.log('✓ STEP 6 PASSED: Current role info built');
       } else {
         console.error('❌ STEP 4 FAILED: No roles to process');
       }
       
-      console.log('\n✅ DEV MODE INITIALIZATION COMPLETE');
+      console.log('\n✅ DEV MODE INITIALIZATION COMPLETE (SUPABASE)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
     } catch (error) {
       console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ DEV MODE INITIALIZATION FAILED');
+      console.error('❌ DEV MODE INITIALIZATION FAILED (SUPABASE)');
       console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.error('DEV INIT ERROR:', error);
       console.error('Error name:', error instanceof Error ? error.name : 'Unknown');
       console.error('Error message:', error instanceof Error ? error.message : String(error));
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      
-      if (error instanceof Error && error.message.includes('401')) {
-        console.error('❌ AUTHENTICATION FAILURE: API returned 401 Unauthorized');
-        console.error('   → Developer bypass not working');
-        console.error('   → Check x-dev-bypass header is being sent');
-      } else if (error instanceof Error && error.message.includes('403')) {
-        console.error('❌ PERMISSION FAILURE: API returned 403 Forbidden');
-        console.error('   → Permission middleware blocking dev endpoints');
-        console.error('   → Check requireAuth middleware configuration');
-      } else if (error instanceof Error && error.message.includes('404')) {
-        console.error('❌ ENDPOINT NOT FOUND: API returned 404');
-        console.error('   → Check dev routes are registered in server.js');
-      } else if (error instanceof Error && error.message.includes('500')) {
-        console.error('❌ SERVER ERROR: API returned 500');
-        console.error('   → Backend crashing during request');
-        console.error('   → Check backend logs for error details');
-      } else if (error instanceof Error && error.message.includes('CORS')) {
-        console.error('❌ CORS ERROR: Cross-origin request blocked');
-        console.error('   → API base URL incorrect');
-        console.error('   → Check VITE_API_URL environment variable');
-      } else if (error instanceof Error && error.message.includes('NetworkError')) {
-        console.error('❌ NETWORK ERROR: Cannot connect to backend');
-        console.error('   → Backend server not running');
-        console.error('   → Check backend is listening on correct port');
-      }
       
       console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
@@ -265,7 +308,6 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       setPermissionMatrix({});
       setCurrentRoleInfo(null);
       setIsImpersonating(false);
-      removeCustomHeader('x-dev-role');
       setIsLoading(false);
     } else if (!DEV_MODE) {
       setIsLoading(false);
@@ -273,49 +315,53 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
   }, [user, authLoading, isDeveloperAuthenticated, appMode, fetchDevData]);
   
   /**
-   * Set active role and update header
+   * Set active role (client-side only, no backend header)
    */
   const setActiveRole = useCallback((role: string) => {
     setActiveRoleState(role);
-    setCustomHeader('x-dev-role', role);
     setIsImpersonating(true);
     
-    // Refresh current role info
-    if (DEV_MODE && user) {
-      api.get<CurrentRoleInfo>('/dev/current-role-info')
-        .then(roleInfo => {
-          setCurrentRoleInfo(roleInfo);
-          setIsImpersonating(roleInfo.isImpersonating);
-        })
-        .catch(error => {
-          console.error('Failed to refresh role info:', error);
-        });
+    // Update current role info (client-side)
+    const roleData = permissionMatrix[role];
+    if (roleData) {
+      const roleInfo: CurrentRoleInfo = {
+        user: {
+          id: user?.id,
+          email: user?.email,
+          actualRole: user?.email ? 'user' : undefined
+        },
+        effectiveRole: role,
+        isImpersonating: true,
+        permissions: roleData.permissions,
+        hasWildcard: roleData.hasWildcard
+      };
+      setCurrentRoleInfo(roleInfo);
     }
     
-    console.log(`🔄 Role switched to: ${role}`);
+    console.log(`🔄 Role switched to: ${role} (client-side only)`);
     toast.success(`Role switched to: ${role}`);
-  }, [user]);
+  }, [user, permissionMatrix]);
   
   /**
-   * Update role permissions (SuperAdmin only)
+   * Update role permissions via Supabase RPC (SuperAdmin only)
    */
-  const updateRolePermissions = useCallback(async (roleName: string, permissions: string[]) => {
+  const updateRolePermissions = useCallback(async (roleName: string, newPermissions: string[]) => {
     if (!ALLOW_PERMISSION_EDITING) {
       toast.error('Permission editing is disabled');
       return;
     }
     
     try {
-      const result = await api.put<{ success: boolean; message: string; warning?: string }>(
-        `/dev/role-permissions/${roleName}`,
-        { permissions }
-      );
+      // Call Supabase RPC function
+      const { data, error } = await supabase.rpc('update_role_permissions', {
+        role_name: roleName,
+        permission_strings: newPermissions
+      });
       
-      toast.success(result.message);
+      if (error) throw error;
       
-      if (result.warning) {
-        toast.warning(result.warning, { duration: 5000 });
-      }
+      toast.success(`Permissions for ${roleName} updated successfully`);
+      toast.warning('Changes are persisted in Supabase', { duration: 5000 });
       
       // Refresh data
       await fetchDevData();
