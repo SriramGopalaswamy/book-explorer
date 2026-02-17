@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMode } from "@/contexts/AppModeContext";
+import { useDevMode } from "@/contexts/DevModeContext";
 import { toast } from "@/hooks/use-toast";
 
 export interface Employee {
@@ -32,13 +34,20 @@ export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
   id: string;
 }
 
-// Check if user has admin/HR role
+// Check if user has admin/HR role — respects dev mode active role
 export function useIsAdminOrHR() {
   const { user } = useAuth();
+  const { canShowDevTools } = useAppMode();
+  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-role", user?.id],
+    queryKey: ["user-role", user?.id, canShowDevTools, activeRole],
     queryFn: async () => {
+      // In dev mode, respect the active role from the role switcher
+      if (canShowDevTools && activeRole) {
+        return activeRole === "admin" || activeRole === "hr";
+      }
+
       if (!user) return false;
       
       const { data, error } = await supabase
@@ -54,7 +63,7 @@ export function useIsAdminOrHR() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user || canShowDevTools,
   });
 }
 
