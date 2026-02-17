@@ -34,6 +34,8 @@ import {
   useDeletePayroll, useProcessPayroll, type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -84,6 +86,7 @@ const defaultForm: Omit<CreatePayrollData, "profile_id" | "pay_period"> = {
 
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
+  const bulkUploadConfig = usePayrollBulkUpload(selectedPeriod);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -341,6 +344,8 @@ export default function Payroll() {
                     Add Record
                   </Button>
                 </DialogTrigger>
+
+              <BulkUploadDialog config={bulkUploadConfig} />
                 <DialogContent className="max-w-md glass-morphism">
                   <DialogHeader>
                     <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
