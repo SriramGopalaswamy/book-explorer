@@ -713,111 +713,6 @@ export type Database = {
         }
         Relationships: []
       }
-      permissions: {
-        Row: {
-          id: string
-          module: string
-          resource: string
-          action: string
-          permission_string: string
-          description: string | null
-          is_active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          module: string
-          resource: string
-          action: string
-          permission_string: string
-          description?: string | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          module?: string
-          resource?: string
-          action?: string
-          permission_string?: string
-          description?: string | null
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      role_permissions: {
-        Row: {
-          id: string
-          role_id: string
-          permission_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          role_id: string
-          permission_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          role_id?: string
-          permission_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "role_permissions_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "role_permissions_permission_id_fkey"
-            columns: ["permission_id"]
-            isOneToOne: false
-            referencedRelation: "permissions"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      roles: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          priority: number
-          is_system_role: boolean
-          is_active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          priority?: number
-          is_system_role?: boolean
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          priority?: number
-          is_system_role?: boolean
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -891,13 +786,6 @@ export type Database = {
       }
       is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
-      update_role_permissions: {
-        Args: {
-          role_name: string
-          permission_strings: string[]
-        }
-        Returns: Json
-      }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee"
