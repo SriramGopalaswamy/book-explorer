@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 // Financial Suite
@@ -68,7 +69,7 @@ const App = () => (
             <Route path="/performance/memos" element={<ProtectedRoute><Memos /></ProtectedRoute>} />
             
             {/* Settings */}
-            <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
