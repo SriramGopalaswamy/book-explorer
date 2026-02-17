@@ -2,3 +2,6 @@ project_id = "qfgudhbrjfjmbamwsfuj"
 
 [functions.ms365-auth]
 verify_jwt = false
+
+[functions.manage-roles]
+verify_jwt = false
