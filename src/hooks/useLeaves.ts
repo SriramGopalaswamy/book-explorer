@@ -173,10 +173,14 @@ export function useCreateLeaveRequest() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
       toast.success("Leave request submitted successfully");
+      // Notify manager via email (fire-and-forget)
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "leave_request_created", payload: { leave_request_id: data.id } },
+      }).catch((err) => console.warn("Failed to send leave notification:", err));
     },
     onError: (error) => {
       toast.error("Failed to submit leave request: " + error.message);
