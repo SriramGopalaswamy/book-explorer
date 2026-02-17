@@ -16,6 +16,7 @@ import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
 import { useDashboardStats, formatIndianCurrency } from "@/hooks/useDashboardStats";
+import { useEmployeeStats } from "@/hooks/useEmployees";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
 import {
@@ -35,6 +36,7 @@ export default function Dashboard() {
   });
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const employeeStats = useEmployeeStats();
   const { canShowDevTools } = useAppMode();
   const { activeRole, currentRoleInfo, isImpersonating } = useDevMode();
 
@@ -158,8 +160,8 @@ export default function Dashboard() {
               variant="financial"
               linkTo="/financial/accounting"
               stats={[
-                { label: "Open Invoices", value: "₹12.5L", numericValue: 1250000 },
-                { label: "Cash Balance", value: "₹8.2L", numericValue: 820000 },
+                { label: "Revenue", value: formatIndianCurrency(stats?.totalRevenue || 0), numericValue: stats?.totalRevenue || 0 },
+                { label: "Pending Invoices", value: String(stats?.pendingInvoices || 0), numericValue: stats?.pendingInvoices || 0 },
               ]}
               index={0}
             />
@@ -170,8 +172,8 @@ export default function Dashboard() {
               variant="hrms"
               linkTo="/hrms/employees"
               stats={[
-                { label: "Total Employees", value: "127", numericValue: 127 },
-                { label: "On Leave Today", value: "8", numericValue: 8 },
+                { label: "Total Employees", value: String(employeeStats.total), numericValue: employeeStats.total },
+                { label: "On Leave", value: String(employeeStats.onLeave), numericValue: employeeStats.onLeave },
               ]}
               index={1}
             />
@@ -182,8 +184,8 @@ export default function Dashboard() {
               variant="performance"
               linkTo="/performance/goals"
               stats={[
-                { label: "Active Goals", value: "42", numericValue: 42 },
-                { label: "Completion Rate", value: "85%", numericValue: 85 },
+                { label: "Goals Progress", value: `${stats?.goalsAchieved || 0}%`, numericValue: stats?.goalsAchieved || 0 },
+                { label: "Active Employees", value: String(employeeStats.active), numericValue: employeeStats.active },
               ]}
               index={2}
             />
