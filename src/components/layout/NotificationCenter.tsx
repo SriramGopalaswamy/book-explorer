@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Check, CheckCheck, Trash2, Calendar, FileText, Info, AlertTriangle } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Calendar, FileText, Info, AlertTriangle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,31 @@ export function NotificationCenter() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    clearAll,
   } = useNotifications();
+
+  const prevUnreadRef = useRef(unreadCount);
+
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
+      } catch {
+        // Ignore audio errors
+      }
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   return (
     <Popover>
@@ -102,17 +127,30 @@ export function NotificationCenter() {
       <PopoverContent align="end" className="w-96 p-0 rounded-xl" sideOffset={8}>
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h3 className="font-semibold text-sm">Notifications</h3>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => markAllAsRead()}
-            >
-              <CheckCheck className="h-3 w-3" />
-              Mark all read
-            </Button>
-          )}
+          <div className="flex gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => markAllAsRead()}
+              >
+                <CheckCheck className="h-3 w-3" />
+                Mark all read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                onClick={() => clearAll()}
+              >
+                <XCircle className="h-3 w-3" />
+                Clear all
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="max-h-[400px]">
           <div className="p-2 space-y-1">
