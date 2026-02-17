@@ -43,11 +43,16 @@ export function useDashboardStats() {
 
       const isAdminOrFinance = !!adminRole;
 
+      const currentMonthStart = startOfMonth(now);
+      const currentMonthEnd = endOfMonth(now);
+
       // Build queries — admin/finance sees all, others see only their own
       let revenueQuery = supabase
         .from("financial_records")
         .select("amount")
-        .eq("type", "revenue");
+        .eq("type", "revenue")
+        .gte("record_date", currentMonthStart.toISOString().split("T")[0])
+        .lte("record_date", currentMonthEnd.toISOString().split("T")[0]);
 
       let lastMonthRevenueQuery = supabase
         .from("financial_records")
