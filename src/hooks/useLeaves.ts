@@ -208,9 +208,12 @@ export function useApproveLeaveRequest() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       toast.success("Leave request approved");
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "leave_request_decided", payload: { leave_request_id: data.id, decision: "approved" } },
+      }).catch((err) => console.warn("Failed to send approval email:", err));
     },
     onError: (error) => {
       toast.error("Failed to approve request: " + error.message);
@@ -238,9 +241,12 @@ export function useRejectLeaveRequest() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       toast.success("Leave request rejected");
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "leave_request_decided", payload: { leave_request_id: data.id, decision: "rejected" } },
+      }).catch((err) => console.warn("Failed to send rejection email:", err));
     },
     onError: (error) => {
       toast.error("Failed to reject request: " + error.message);
