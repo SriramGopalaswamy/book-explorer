@@ -4,6 +4,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { createPayrollSchema } from "@/lib/validation-schemas";
 
+export interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postal_code: string | null;
+  job_title: string | null;
+  department: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PayrollRecord {
   id: string;
   user_id: string;
@@ -22,7 +41,6 @@ export interface PayrollRecord {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  // Joined from profiles
   profiles?: {
     full_name: string | null;
     email: string | null;
@@ -99,7 +117,6 @@ export function useCreatePayroll() {
 
       const validated = createPayrollSchema.parse(data);
 
-      // Get the profile to find their user_id
       const { data: profile } = await supabase
         .from("profiles")
         .select("user_id")
@@ -174,11 +191,10 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Use soft delete instead of hard delete
-      // Addresses CRITICAL Issue #6 from system audit
+      // Hard delete since deleted_at column doesn't exist in schema
       const { error } = await supabase
         .from("payroll_records")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", id);
       if (error) throw error;
     },
@@ -197,14 +213,11 @@ export function useProcessPayroll() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      // Use safe RPC function with locking to prevent double payments
-      // Addresses CRITICAL Issue #4 from system audit
-      const { data, error } = await supabase.rpc("process_payroll_batch", {
+      const { data, error } = await (supabase as any).rpc("process_payroll_batch", {
         p_payroll_ids: ids,
       });
 
       if (error) {
-        // Provide user-friendly error messages
         if (error.message.includes("already processed")) {
           throw new Error(
             "Some payroll records have already been processed. Please refresh and try again."
