@@ -59,7 +59,6 @@ export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
     throw new Error(response.error.message || "Failed to generate PDF");
   }
 
-  // The response.data is already a Blob when Content-Type is application/pdf
   const blob = response.data;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -105,32 +104,27 @@ export function useCreateInvoice() {
 
       const validated = createInvoiceSchema.parse(data);
 
-      // Use atomic RPC function to create invoice with items
-      // This prevents orphaned invoices if items insertion fails
-      // Addresses CRITICAL Issue #3 from system audit
-      // Note: Supabase client handles JSONB serialization automatically
-      const { data: invoiceId, error: rpcError } = await supabase.rpc(
+      const { data: invoiceId, error: rpcError } = await (supabase as any).rpc(
         "create_invoice_with_items",
         {
           p_client_name: validated.client_name,
           p_client_email: validated.client_email,
           p_amount: validated.amount,
           p_due_date: validated.due_date,
-          p_items: validated.items, // Supabase client converts to JSONB
+          p_items: validated.items,
         }
       );
 
       if (rpcError) throw rpcError;
       if (!invoiceId) throw new Error("Failed to create invoice");
 
-      // Fetch the created invoice with items
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
         .select(`
           *,
           invoice_items (*)
         `)
-        .eq("id", invoiceId)
+        .eq("id", invoiceId as string)
         .single();
 
       if (fetchError) throw fetchError;
@@ -193,11 +187,7 @@ export function useUpdateInvoice() {
     mutationFn: async (data: UpdateInvoiceData) => {
       const validated = updateInvoiceSchema.parse(data);
 
-      // Use atomic RPC function to update invoice with items
-      // This prevents data loss if items insertion fails
-      // Addresses CRITICAL Issue #3 from system audit
-      // Note: Supabase client handles JSONB serialization automatically
-      const { data: invoiceId, error: rpcError } = await supabase.rpc(
+      const { data: invoiceId, error: rpcError } = await (supabase as any).rpc(
         "update_invoice_with_items",
         {
           p_invoice_id: validated.id,
@@ -205,21 +195,20 @@ export function useUpdateInvoice() {
           p_client_email: validated.client_email,
           p_amount: validated.amount,
           p_due_date: validated.due_date,
-          p_items: validated.items, // Supabase client converts to JSONB
+          p_items: validated.items,
         }
       );
 
       if (rpcError) throw rpcError;
       if (!invoiceId) throw new Error("Failed to update invoice");
 
-      // Fetch the updated invoice with items
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
         .select(`
           *,
           invoice_items (*)
         `)
-        .eq("id", invoiceId)
+        .eq("id", invoiceId as string)
         .single();
 
       if (fetchError) throw fetchError;
@@ -248,11 +237,10 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Use soft delete instead of hard delete
-      // Addresses CRITICAL Issue #6 from system audit
+      // Hard delete since deleted_at column doesn't exist in schema
       const { error } = await supabase
         .from("invoices")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", id);
 
       if (error) throw error;
