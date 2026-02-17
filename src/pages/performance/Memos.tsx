@@ -49,6 +49,7 @@ export default function Memos() {
   const [content, setContent] = useState("");
   const [department, setDepartment] = useState("All");
   const [priority, setPriority] = useState<Memo["priority"]>("medium");
+  const [recipients, setRecipients] = useState("");
 
   const { user } = useAuth();
   const { data: memos = [], isLoading } = useMemos(activeTab);
@@ -68,6 +69,10 @@ export default function Memos() {
     if (!title) return;
     
     const authorName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Unknown";
+    const recipientList = recipients
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
     
     await createMemo.mutateAsync({
       title,
@@ -76,6 +81,7 @@ export default function Memos() {
       priority,
       status,
       author_name: authorName,
+      recipients: recipientList,
     });
     
     setIsDialogOpen(false);
@@ -83,6 +89,7 @@ export default function Memos() {
     setContent("");
     setDepartment("All");
     setPriority("medium");
+    setRecipients("");
   };
 
   const handleViewMemo = (memo: Memo) => {
@@ -199,6 +206,15 @@ export default function Memos() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
+                    <Label>To (Recipients)</Label>
+                    <Input 
+                      placeholder="e.g. John Doe, jane@company.com (comma-separated)"
+                      value={recipients}
+                      onChange={(e) => setRecipients(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Separate multiple recipients with commas</p>
+                  </div>
+                  <div className="grid gap-2">
                     <Label>Title</Label>
                     <Input 
                       placeholder="Enter memo title"
@@ -299,7 +315,13 @@ export default function Memos() {
                             {getPriorityBadge(memo.priority)}
                           </div>
                           {memo.excerpt && (
-                            <p className="text-muted-foreground mb-3">{memo.excerpt}</p>
+                            <p className="text-muted-foreground mb-2">{memo.excerpt}</p>
+                          )}
+                          {memo.recipients && memo.recipients.length > 0 && (
+                            <div className="flex items-center gap-1.5 mb-2 text-sm">
+                              <span className="font-medium text-muted-foreground">To:</span>
+                              <span className="text-foreground">{memo.recipients.join(", ")}</span>
+                            </div>
                           )}
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
@@ -377,6 +399,12 @@ export default function Memos() {
               {selectedMemo && getStatusBadge(selectedMemo.status)}
               {selectedMemo && getPriorityBadge(selectedMemo.priority)}
             </div>
+            {selectedMemo?.recipients && selectedMemo.recipients.length > 0 && (
+              <div className="flex items-center gap-2 mb-4 p-2 rounded-md bg-muted/50">
+                <span className="font-semibold text-sm">To:</span>
+                <span className="text-sm">{selectedMemo.recipients.join(", ")}</span>
+              </div>
+            )}
             <div className="prose prose-sm max-w-none">
               {selectedMemo?.content || "No content"}
             </div>
