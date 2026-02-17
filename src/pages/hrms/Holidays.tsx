@@ -25,6 +25,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
+import { useHolidaysBulkUpload } from "@/hooks/useBulkUpload";
 
 interface Holiday {
   id: string;
@@ -43,6 +46,7 @@ export default function Holidays() {
   const [form, setForm] = useState({ name: "", date: "" });
 
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+  const holidaysBulkConfig = useHolidaysBulkUpload();
   const qc = useQueryClient();
 
   const { data: holidays = [], isLoading } = useQuery({
@@ -210,6 +214,8 @@ export default function Holidays() {
                 />
               </div>
               {isAdmin && (
+                <>
+                <BulkUploadDialog config={holidaysBulkConfig} />
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                   <DialogTrigger asChild>
                     <Button><Plus className="h-4 w-4 mr-1" />Add Holiday</Button>
@@ -226,6 +232,7 @@ export default function Holidays() {
                     />
                   </DialogContent>
                 </Dialog>
+                </>
               )}
             </div>
           </CardHeader>
@@ -280,6 +287,7 @@ export default function Holidays() {
             )}
           </CardContent>
         </Card>
+        {isAdmin && <BulkUploadHistory module="holidays" />}
       </div>
 
       {/* Edit Dialog */}
