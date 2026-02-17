@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockBankAccounts, mockBankTransactions } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createBankAccountSchema, createTransactionSchema } from "@/lib/validation-schemas";
 
@@ -51,10 +53,12 @@ export interface CreateTransactionData {
 // Bank Accounts
 export function useBankAccounts() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["bank-accounts", user?.id],
+    queryKey: ["bank-accounts", user?.id, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockBankAccounts;
       if (!user) return [];
       const { data, error } = await supabase
         .from("bank_accounts")
@@ -64,7 +68,7 @@ export function useBankAccounts() {
       if (error) throw error;
       return data as BankAccount[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
@@ -122,10 +126,12 @@ export function useDeleteBankAccount() {
 // Transactions
 export function useBankTransactions(limit = 20) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["bank-transactions", user?.id, limit],
+    queryKey: ["bank-transactions", user?.id, limit, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockBankTransactions;
       if (!user) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
@@ -136,7 +142,7 @@ export function useBankTransactions(limit = 20) {
       if (error) throw error;
       return data as BankTransaction[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 export interface DashboardStats {
@@ -16,11 +17,15 @@ export interface DashboardStats {
 
 export function useDashboardStats() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["dashboard-stats", user?.id],
+    queryKey: ["dashboard-stats", user?.id, isDevMode],
     queryFn: async (): Promise<DashboardStats> => {
-      if (!user) {
+      if (!user && !isDevMode) {
+        return getDefaultStats();
+      }
+      if (isDevMode) {
         return getDefaultStats();
       }
 
@@ -103,7 +108,7 @@ export function useDashboardStats() {
         goalsChange: 0,
       };
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
     staleTime: 30000,
   });
 }

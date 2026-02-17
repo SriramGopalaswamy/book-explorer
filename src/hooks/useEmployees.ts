@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useDevMode } from "@/contexts/DevModeContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockEmployees } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 
 export interface Employee {
@@ -71,14 +73,15 @@ export function useIsAdminOrHR() {
 export function useEmployees() {
   const { user } = useAuth();
   const { data: isAdmin } = useIsAdminOrHR();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["employees", user?.id, isAdmin],
+    queryKey: ["employees", user?.id, isAdmin, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockEmployees;
       if (!user) return [];
 
       if (isAdmin) {
-        // Admins and HR can see all fields including email/phone
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
@@ -87,7 +90,6 @@ export function useEmployees() {
         if (error) throw error;
         return data as Employee[];
       } else {
-        // Managers get the safe view (no email/phone)
         const { data, error } = await supabase
           .from("profiles_safe" as any)
           .select("*")
@@ -101,7 +103,7 @@ export function useEmployees() {
         })) as Employee[];
       }
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

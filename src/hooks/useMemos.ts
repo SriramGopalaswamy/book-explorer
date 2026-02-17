@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockMemos, mockMemoStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface Memo {
@@ -29,10 +31,15 @@ export interface MemoStats {
 
 export function useMemos(status?: string) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["memos", status],
+    queryKey: ["memos", status, isDevMode],
     queryFn: async () => {
+      if (isDevMode) {
+        if (status && status !== "all") return mockMemos.filter(m => m.status === status);
+        return mockMemos;
+      }
       let query = supabase
         .from("memos")
         .select("*")
@@ -46,16 +53,18 @@ export function useMemos(status?: string) {
       if (error) throw error;
       return data as Memo[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useMemoStats() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["memo-stats"],
+    queryKey: ["memo-stats", isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockMemoStats;
       const { data, error } = await supabase
         .from("memos")
         .select("status");
@@ -71,7 +80,7 @@ export function useMemoStats() {
 
       return stats;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 

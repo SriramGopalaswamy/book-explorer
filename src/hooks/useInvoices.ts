@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockInvoices } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createInvoiceSchema, updateInvoiceSchema } from "@/lib/validation-schemas";
 
@@ -72,10 +74,12 @@ export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
 
 export function useInvoices() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["invoices", user?.id],
+    queryKey: ["invoices", user?.id, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockInvoices;
       if (!user) return [];
 
       const { data, error } = await supabase
@@ -90,7 +94,7 @@ export function useInvoices() {
       if (error) throw error;
       return data as Invoice[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
@@ -237,7 +241,6 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Hard delete since deleted_at column doesn't exist in schema
       const { error } = await supabase
         .from("invoices")
         .delete()

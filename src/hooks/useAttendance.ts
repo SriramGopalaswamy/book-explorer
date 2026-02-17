@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockAttendanceRecords, mockAttendanceStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface AttendanceRecord {
@@ -30,11 +32,13 @@ export interface AttendanceStats {
 
 export function useAttendance(date?: string) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
   const selectedDate = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance", selectedDate],
+    queryKey: ["attendance", selectedDate, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockAttendanceRecords;
       const { data, error } = await supabase
         .from("attendance_records")
         .select(`
@@ -50,17 +54,19 @@ export function useAttendance(date?: string) {
       if (error) throw error;
       return data as AttendanceRecord[];
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useAttendanceStats(date?: string) {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
   const selectedDate = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance-stats", selectedDate],
+    queryKey: ["attendance-stats", selectedDate, isDevMode],
     queryFn: async () => {
+      if (isDevMode) return mockAttendanceStats;
       const { data, error } = await supabase
         .from("attendance_records")
         .select("status")
@@ -90,19 +96,29 @@ export function useAttendanceStats(date?: string) {
 
       return stats;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
 export function useWeeklyAttendanceStats() {
   const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["weekly-attendance-stats"],
+    queryKey: ["weekly-attendance-stats", isDevMode],
     queryFn: async () => {
+      if (isDevMode) {
+        return [
+          { day: "Mon", present: 10, absent: 1, late: 1, leave: 0 },
+          { day: "Tue", present: 11, absent: 0, late: 1, leave: 0 },
+          { day: "Wed", present: 9, absent: 2, late: 1, leave: 0 },
+          { day: "Thu", present: 10, absent: 1, late: 0, leave: 1 },
+          { day: "Fri", present: 8, absent: 2, late: 1, leave: 1 },
+        ];
+      }
       const today = new Date();
       const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Monday
+      startOfWeek.setDate(today.getDate() - today.getDay() + 1);
 
       const days = [];
       for (let i = 0; i < 5; i++) {
@@ -133,7 +149,7 @@ export function useWeeklyAttendanceStats() {
 
       return weekData;
     },
-    enabled: !!user,
+    enabled: !!user || isDevMode,
   });
 }
 
