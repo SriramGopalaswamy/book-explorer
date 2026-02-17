@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
 
       const { data: leave, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("*, profiles:profile_id (full_name, email)")
+        .select("*, profiles:profile_id (full_name, email, manager_id)")
         .eq("id", leave_request_id)
         .single();
 
@@ -257,6 +257,20 @@ Deno.serve(async (req) => {
 
       const employeeEmail = (leave as any).profiles?.email;
       const employeeName = (leave as any).profiles?.full_name || "Employee";
+      const managerId = (leave as any).profiles?.manager_id;
+
+      // Look up manager email
+      let managerRecipient: { email: string; name?: string } | null = null;
+      if (managerId) {
+        const { data: manager } = await supabase
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", managerId)
+          .single();
+        if (manager?.email) {
+          managerRecipient = { email: manager.email, name: manager.full_name || undefined };
+        }
+      }
 
       if (!employeeEmail) {
         console.log("Employee has no email, skipping");
@@ -292,18 +306,24 @@ Deno.serve(async (req) => {
         </div>
       `;
 
+      const recipients = [{ email: employeeEmail, name: employeeName }];
+      if (managerRecipient && managerRecipient.email !== employeeEmail) {
+        recipients.push(managerRecipient);
+      }
+
       await sendEmail(
         accessToken,
         senderEmail,
-        [{ email: employeeEmail, name: employeeName }],
-        `${statusIcon} Your Leave Request has been ${statusText}`,
+        recipients,
+        `${statusIcon} Leave Request ${statusText} - ${employeeName}`,
         htmlBody
       );
 
-      console.log(`Leave decision email sent to ${employeeEmail}`);
+      const sentTo = recipients.map(r => r.email);
+      console.log(`Leave decision email sent to: ${sentTo.join(", ")}`);
 
       return new Response(
-        JSON.stringify({ success: true, sent_to: employeeEmail }),
+        JSON.stringify({ success: true, sent_to: sentTo }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
