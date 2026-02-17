@@ -8,6 +8,8 @@ import { GitBranch, Users, ShieldAlert } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
+import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { mockEmployees } from "@/lib/mock-data";
 
 interface ProfileNode {
   id: string;
@@ -83,11 +85,23 @@ function OrgNode({ node, depth = 0 }: { node: ProfileNode; depth?: number }) {
 }
 
 export default function OrgChart() {
+  const isDevMode = useIsDevModeWithoutAuth();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
 
   const { data: profiles = [], isLoading } = useQuery({
-    queryKey: ["org-chart-profiles"],
+    queryKey: ["org-chart-profiles", isDevMode],
     queryFn: async () => {
+      if (isDevMode) {
+        return mockEmployees.map(e => ({
+          id: e.id,
+          full_name: e.full_name,
+          department: e.department,
+          job_title: e.job_title,
+          avatar_url: e.avatar_url,
+          manager_id: e.manager_id,
+          status: e.status,
+        })) as Omit<ProfileNode, "children">[];
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, department, job_title, avatar_url, manager_id, status")
@@ -95,6 +109,7 @@ export default function OrgChart() {
       if (error) throw error;
       return data as Omit<ProfileNode, "children">[];
     },
+    enabled: isDevMode || true,
   });
 
   const tree = useMemo(() => buildTree(profiles), [profiles]);
@@ -108,7 +123,7 @@ export default function OrgChart() {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [profiles]);
 
-  if (!roleLoading && !isAdmin) {
+  if (!roleLoading && !isAdmin && !isDevMode) {
     return (
       <MainLayout title="Organization Chart" subtitle="Company hierarchy">
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
