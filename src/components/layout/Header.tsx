@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Bell, Search, User, LogOut, Command } from "lucide-react";
+import { Bell, Search, User, LogOut, Command, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const handleSignOut = async () => {
     await signOut();
@@ -80,6 +82,25 @@ export function Header({ title, subtitle }: HeaderProps) {
             <Command className="h-3 w-3" />
             <span>K</span>
           </div>
+        </motion.div>
+
+        {/* Dark Mode Toggle */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.25 }}
+          whileHover={{ scale: 1.05 }}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative rounded-xl"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+          </Button>
         </motion.div>
 
         {/* Notifications */}
