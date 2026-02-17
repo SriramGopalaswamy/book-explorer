@@ -46,6 +46,17 @@ user1@example.com,employee
 user2@example.com,hr
 user3@example.com,manager`;
 
+// ─── Holidays ──────────────────────────────────────
+const holidayColumns: BulkUploadColumn[] = [
+  { key: "name", label: "Holiday Name", required: true },
+  { key: "date", label: "Date (YYYY-MM-DD)", required: true },
+];
+
+const holidayTemplate = `name,date
+Republic Day,2026-01-26
+Independence Day,2026-08-15
+Christmas,2026-12-25`;
+
 // ─── Hook ──────────────────────────────────────────
 export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   const { user } = useAuth();
@@ -156,6 +167,46 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
     columns: attendanceColumns,
     templateFileName: "attendance_template.csv",
     templateContent: attendanceTemplate,
+    onUpload,
+  };
+}
+
+export function useHolidaysBulkUpload(): BulkUploadConfig {
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    const errors: string[] = [];
+    let success = 0;
+
+    for (const row of rows) {
+      const name = row.name?.trim();
+      const date = row.date?.trim();
+      if (!name || !date) {
+        errors.push(`Missing name or date: "${name}", "${date}"`);
+        continue;
+      }
+      const year = new Date(date).getFullYear();
+      if (isNaN(year)) {
+        errors.push(`Invalid date for "${name}": "${date}"`);
+        continue;
+      }
+
+      const { error } = await supabase.from("holidays").insert({ name, date, year });
+      if (error) errors.push(`${name}: ${error.message}`);
+      else success++;
+    }
+
+    qc.invalidateQueries({ queryKey: ["holidays"] });
+    return { success, errors };
+  }, [qc]);
+
+  return {
+    module: "holidays",
+    title: "Bulk Upload Holidays",
+    description: "Upload multiple holidays at once using a CSV or Excel file with name and date columns.",
+    columns: holidayColumns,
+    templateFileName: "holidays_template.csv",
+    templateContent: holidayTemplate,
     onUpload,
   };
 }
