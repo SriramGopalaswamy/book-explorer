@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Users, AlertCircle, Trash2, UserPlus } from "lucide-react";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { useRolesBulkUpload, useUsersBulkUpload } from "@/hooks/useBulkUpload";
+import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 
 interface UserWithRole {
@@ -51,8 +51,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function Settings() {
   const { user } = useAuth();
-  const bulkUploadConfig = useRolesBulkUpload();
-  const usersBulkUploadConfig = useUsersBulkUpload();
+  const bulkUploadConfig = useUsersAndRolesBulkUpload();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -168,21 +167,7 @@ export default function Settings() {
           <p className="text-muted-foreground mt-1">Manage user roles and access permissions</p>
         </div>
 
-        {/* Bulk Add Users */}
-        <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                Add Users
-              </CardTitle>
-              <CardDescription>
-                Bulk add new users to the platform via CSV upload. Users will be created with temporary passwords and can sign in via MS365.
-              </CardDescription>
-            </div>
-            <BulkUploadDialog config={usersBulkUploadConfig} />
-          </CardHeader>
-        </Card>
+        {/* Bulk Add Users & Roles */}
 
         <Card>
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -305,8 +290,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Bulk Upload History */}
-        <BulkUploadHistory module="roles" />
         <BulkUploadHistory module="users" />
       </div>
     </MainLayout>
