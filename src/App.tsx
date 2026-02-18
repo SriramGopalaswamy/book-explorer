@@ -36,6 +36,9 @@ import ManagerInbox from "./pages/hrms/ManagerInbox";
 import Goals from "./pages/performance/Goals";
 import Memos from "./pages/performance/Memos";
 
+// Admin
+import AuditLog from "./pages/AuditLog";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -80,6 +83,9 @@ const App = () => (
                   {/* Performance OS */}
                   <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
                   <Route path="/performance/memos" element={<ProtectedRoute><Memos /></ProtectedRoute>} />
+
+                  {/* Admin */}
+                  <Route path="/admin/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
 
                   {/* Profile & Settings */}
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

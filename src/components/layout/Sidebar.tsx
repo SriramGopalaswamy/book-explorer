@@ -21,6 +21,7 @@ import {
   X,
   ClipboardCheck,
   Inbox,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -203,6 +204,13 @@ export function Sidebar() {
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" />
             <NavSection title="Performance OS" items={performanceNav} sectionId="performance" />
+            {(currentRole === "admin" || currentRole === "hr") && (
+              <NavSection
+                title="Admin"
+                items={[{ name: "Audit Log", path: "/admin/audit-log", icon: Shield }]}
+                sectionId="admin"
+              />
+            )}
           </>
         )}
       </div>
