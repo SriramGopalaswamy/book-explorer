@@ -138,7 +138,7 @@ function useSubmitCorrectionRequest() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("attendance_correction_requests")
         .insert({
           user_id: user.id,
@@ -147,12 +147,22 @@ function useSubmitCorrectionRequest() {
           requested_check_in: payload.requested_check_in || null,
           requested_check_out: payload.requested_check_out || null,
           reason: payload.reason,
-        });
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["my-correction-requests"] });
       toast.success("Correction request submitted — your manager will review it.");
+      // Notify manager + send employee confirmation (fire-and-forget)
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "correction_request_created",
+          payload: { correction_request_id: data.id },
+        },
+      }).catch((err) => console.warn("Failed to send correction created notification:", err));
     },
     onError: (e: any) => toast.error("Failed to submit: " + e.message),
   });
