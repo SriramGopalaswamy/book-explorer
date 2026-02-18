@@ -539,7 +539,7 @@ export default function Banking() {
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground"
-                onClick={() => { setSearchQuery(""); setTypeFilter("all"); setDateFrom(""); setDateTo(""); }}
+                onClick={() => { setSearchQuery(""); setTypeFilter("all"); setDateFrom(""); setDateTo(""); pagination.setPage(1); }}
               >
                 <X className="h-3.5 w-3.5 mr-1" />
                 Clear
