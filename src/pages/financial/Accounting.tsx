@@ -88,6 +88,7 @@ export default function Accounting() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "revenue" | "expense">("all");
 
   const filteredRecords = records.filter((r) => {
     const q = searchQuery.toLowerCase();
@@ -98,7 +99,8 @@ export default function Accounting() {
       r.type.toLowerCase().includes(q);
     const matchesFrom = !dateFrom || r.record_date >= dateFrom;
     const matchesTo = !dateTo || r.record_date <= dateTo;
-    return matchesSearch && matchesFrom && matchesTo;
+    const matchesType = typeFilter === "all" || r.type === typeFilter;
+    return matchesSearch && matchesFrom && matchesTo && matchesType;
   });
 
   const pagination = usePagination(filteredRecords, 10);
@@ -131,7 +133,7 @@ export default function Accounting() {
     );
   }
 
-  const hasActiveFilters = searchQuery || dateFrom || dateTo;
+  const hasActiveFilters = searchQuery || dateFrom || dateTo || typeFilter !== "all";
 
   const resetForm = () => {
     setType("revenue");
@@ -299,6 +301,16 @@ export default function Accounting() {
                   onChange={(e) => { setSearchQuery(e.target.value); pagination.setPage(1); }}
                 />
               </div>
+              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v as "all" | "revenue" | "expense"); pagination.setPage(1); }}>
+                <SelectTrigger className="w-[130px] h-9 text-sm">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="revenue">Revenue</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
                 <Input
@@ -322,7 +334,7 @@ export default function Accounting() {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground"
-                  onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); pagination.setPage(1); }}
+                  onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); setTypeFilter("all"); pagination.setPage(1); }}
                 >
                   <X className="h-3.5 w-3.5 mr-1" />
                   Clear
