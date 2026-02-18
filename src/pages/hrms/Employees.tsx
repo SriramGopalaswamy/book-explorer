@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
@@ -105,6 +107,8 @@ export default function Employees() {
     const matchesStatus = statusFilter === "all" || emp.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const pagination = usePagination(filteredEmployees, 12);
 
   const resetForm = () => {
     setFormData({
@@ -223,6 +227,7 @@ export default function Employees() {
               <p className="text-sm text-muted-foreground">
                 {filteredEmployees.length} employees found
               </p>
+
             </div>
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -378,8 +383,9 @@ export default function Employees() {
                 </p>
               </div>
             ) : (
+              <>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredEmployees.map((employee) => (
+                {pagination.paginatedItems.map((employee) => (
                   <div
                     key={employee.id}
                     className="group rounded-lg border bg-background p-4 transition-all hover:border-hrms hover:shadow-md"
@@ -449,6 +455,19 @@ export default function Employees() {
                   </div>
                 ))}
               </div>
+              <div className="mt-4">
+                <TablePagination
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.totalItems}
+                  from={pagination.from}
+                  to={pagination.to}
+                  pageSize={pagination.pageSize}
+                  onPageChange={pagination.setPage}
+                  onPageSizeChange={pagination.setPageSize}
+                />
+              </div>
+              </>
             )}
           </div>
         </div>
