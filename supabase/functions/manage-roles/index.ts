@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const results: { email: string; success: boolean; error?: string }[] = [];
+      const results: { email: string; success: boolean; updated?: boolean; error?: string }[] = [];
 
       for (const u of newUsers) {
         const email = u.email?.toLowerCase().trim();
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
             await supabase.from("user_roles").delete().eq("user_id", existingProfile.user_id);
             await supabase.from("user_roles").insert({ user_id: existingProfile.user_id, role });
 
-            results.push({ email, success: true });
+            results.push({ email, success: true, updated: true });
             continue;
           }
 
@@ -352,9 +352,11 @@ Deno.serve(async (req) => {
       }
 
       const successCount = results.filter((r) => r.success).length;
+      const createdCount = results.filter((r) => r.success && !r.updated).length;
+      const updatedCount = results.filter((r) => r.success && r.updated).length;
       const errors = results.filter((r) => !r.success).map((r) => `${r.email}: ${r.error}`);
 
-      return new Response(JSON.stringify({ success: true, created: successCount, errors }), {
+      return new Response(JSON.stringify({ success: true, created: createdCount, updated: updatedCount, total: successCount, errors }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
