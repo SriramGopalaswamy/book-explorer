@@ -44,6 +44,8 @@ import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, u
 import { financialRecordSchema } from "@/lib/validation-schemas";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useIsFinance } from "@/hooks/useRoles";
+import { AccessDenied } from "@/components/auth/AccessDenied";
 
 const REVENUE_CATEGORIES = ["Software Services", "SaaS Subscriptions", "Training & Workshops", "Support Contracts", "Consulting"];
 const EXPENSE_CATEGORIES = ["Salaries & Wages", "Rent & Utilities", "Cloud & Infrastructure", "Marketing & Sales", "Professional Fees", "Travel & Conveyance", "Office Supplies", "Depreciation"];
@@ -56,10 +58,37 @@ function formatAmount(amount: number): string {
 }
 
 export default function Accounting() {
+  // Role-based access control
+  const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  
   const { data: records = [], isLoading } = useFinancialRecords();
   const addRecord = useAddFinancialRecord();
   const updateRecord = useUpdateFinancialRecord();
   const deleteRecord = useDeleteFinancialRecord();
+
+  // Show loading state while checking permissions
+  if (isCheckingRole) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Checking permissions...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+  
+  // Deny access if user doesn't have finance role
+  if (!hasFinanceAccess) {
+    return (
+      <AccessDenied 
+        message="Finance Access Required"
+        description="You need finance or admin role to access the Accounting module. Contact your administrator for access."
+      />
+    );
+  }
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<FinancialRecord | null>(null);
