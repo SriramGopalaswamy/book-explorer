@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const staggerContainer = {
@@ -87,6 +87,28 @@ export default function Banking() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Sort state
+  type SortField = "transaction_date" | "category" | "amount";
+  type SortDir = "asc" | "desc";
+  const [sortField, setSortField] = useState<SortField>("transaction_date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40 inline" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="ml-1 h-3 w-3 inline" />
+      : <ArrowDown className="ml-1 h-3 w-3 inline" />;
+  };
+
   const [accountForm, setAccountForm] = useState({
     name: "",
     account_type: "Current" as BankAccount["account_type"],
@@ -106,14 +128,22 @@ export default function Banking() {
 
   const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
 
-  const filteredTransactions = transactions.filter((tx) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q || tx.description.toLowerCase().includes(q) || (tx.category || "").toLowerCase().includes(q);
-    const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
-    const matchesFrom = !dateFrom || tx.transaction_date >= dateFrom;
-    const matchesTo = !dateTo || tx.transaction_date <= dateTo;
-    return matchesSearch && matchesType && matchesFrom && matchesTo;
-  });
+  const filteredTransactions = transactions
+    .filter((tx) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = !q || tx.description.toLowerCase().includes(q) || (tx.category || "").toLowerCase().includes(q);
+      const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
+      const matchesFrom = !dateFrom || tx.transaction_date >= dateFrom;
+      const matchesTo = !dateTo || tx.transaction_date <= dateTo;
+      return matchesSearch && matchesType && matchesFrom && matchesTo;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "transaction_date") cmp = a.transaction_date.localeCompare(b.transaction_date);
+      else if (sortField === "category") cmp = (a.category || "").localeCompare(b.category || "");
+      else if (sortField === "amount") cmp = Number(a.amount) - Number(b.amount);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   const hasActiveFilters = searchQuery || typeFilter !== "all" || dateFrom || dateTo;
 
@@ -352,7 +382,7 @@ export default function Banking() {
                       {account.account_type} • ****{account.account_number.slice(-4)}
                     </p>
                     <p className="text-xl font-bold">{formatCurrency(Number(account.balance))}</p>
-                    <Badge variant="outline" className="mt-2 text-green-600 border-green-200 bg-green-50">
+                    <Badge variant="outline" className="mt-2 text-success border-success/30 bg-success/10">
                       {account.status}
                     </Badge>
                   </CardContent>
@@ -527,11 +557,18 @@ export default function Banking() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("transaction_date")}>
+                    Date <SortIcon field="transaction_date" />
+                  </TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Account</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                    Category <SortIcon field="category" />
+                  </TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort("amount")}>
+                    Amount <SortIcon field="amount" />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -540,10 +577,11 @@ export default function Banking() {
                     <TableCell className="font-medium">{tx.transaction_date}</TableCell>
                     <TableCell>{tx.description}</TableCell>
                     <TableCell>{tx.bank_accounts?.name || "-"}</TableCell>
+                    <TableCell>{tx.category || "—"}</TableCell>
                     <TableCell>
                       <Badge
                         variant={tx.transaction_type === "credit" ? "default" : "secondary"}
-                        className={tx.transaction_type === "credit" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
+                        className={tx.transaction_type === "credit" ? "bg-success/10 text-success border-success/30" : "bg-destructive/10 text-destructive border-destructive/30"}
                       >
                         {tx.transaction_type === "credit" ? (
                           <ArrowDownLeft className="h-3 w-3 mr-1" />
@@ -553,7 +591,7 @@ export default function Banking() {
                         {tx.transaction_type}
                       </Badge>
                     </TableCell>
-                    <TableCell className={`text-right font-medium ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
+                    <TableCell className={`text-right font-medium ${tx.transaction_type === "credit" ? "text-success" : "text-destructive"}`}>
                       {tx.transaction_type === "credit" ? "+" : "-"}{formatCurrency(Number(tx.amount))}
                     </TableCell>
                   </TableRow>
