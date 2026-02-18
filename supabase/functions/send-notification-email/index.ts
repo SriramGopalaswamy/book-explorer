@@ -419,6 +419,85 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (type === "correction_request_decided") {
+      const { correction_request_id, decision, reviewer_name } = payload;
+
+      const { data: correction, error: corrError } = await supabase
+        .from("attendance_correction_requests")
+        .select("*, profiles:profile_id (full_name, email, user_id, manager_id)")
+        .eq("id", correction_request_id)
+        .single();
+
+      if (corrError || !correction) {
+        throw new Error(`Correction request not found: ${corrError?.message}`);
+      }
+
+      const employeeEmail = (correction as any).profiles?.email;
+      const employeeName = (correction as any).profiles?.full_name || "Employee";
+      const employeeProfileUserId = (correction as any).profiles?.user_id;
+
+      const isApproved = decision === "approved";
+      const statusIcon = isApproved ? "✅" : "❌";
+      const statusText = isApproved ? "Approved" : "Rejected";
+      const statusColor = isApproved ? "#27ae60" : "#e74c3c";
+
+      // In-app notification for employee
+      if (employeeProfileUserId) {
+        await insertNotification(
+          supabase,
+          employeeProfileUserId,
+          `Attendance Correction ${statusText}`,
+          `Your attendance correction request for ${correction.date} has been ${decision}.${correction.reviewer_notes ? ` Note: ${correction.reviewer_notes}` : ""}`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/my-attendance"
+        );
+      }
+
+      if (!employeeEmail) {
+        console.log("Employee has no email, skipping email notification");
+        return new Response(
+          JSON.stringify({ success: true, message: "In-app notification sent, no email found" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const htmlBody = `
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
+            <h1 style="margin: 0 0 8px; font-size: 20px; color: ${statusColor};">${statusIcon} Attendance Correction ${statusText}</h1>
+            <p style="margin: 0; font-size: 13px; color: #aaa;">Hi ${employeeName}, your correction request has been ${decision}.</p>
+          </div>
+          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr><td style="padding: 8px 0; color: #666; width: 140px;">Status</td><td style="padding: 8px 0; font-weight: 600; color: ${statusColor};">${statusText}</td></tr>
+              <tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; color: #333;">${correction.date}</td></tr>
+              ${correction.requested_check_in ? `<tr><td style="padding: 8px 0; color: #666;">Requested Check-in</td><td style="padding: 8px 0; color: #333;">${correction.requested_check_in}</td></tr>` : ""}
+              ${correction.requested_check_out ? `<tr><td style="padding: 8px 0; color: #666;">Requested Check-out</td><td style="padding: 8px 0; color: #333;">${correction.requested_check_out}</td></tr>` : ""}
+              ${reviewer_name ? `<tr><td style="padding: 8px 0; color: #666;">Reviewed by</td><td style="padding: 8px 0; color: #333;">${reviewer_name}</td></tr>` : ""}
+              ${correction.reviewer_notes ? `<tr><td style="padding: 8px 0; color: #666;">Notes</td><td style="padding: 8px 0; color: #333;">${correction.reviewer_notes}</td></tr>` : ""}
+            </table>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
+            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
+          </div>
+        </div>
+      `;
+
+      await sendEmail(
+        accessToken,
+        senderEmail,
+        [{ email: employeeEmail, name: employeeName }],
+        `${statusIcon} Attendance Correction ${statusText} — ${correction.date}`,
+        htmlBody
+      );
+
+      console.log(`Correction decision email sent to: ${employeeEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true, sent_to: employeeEmail }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid notification type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

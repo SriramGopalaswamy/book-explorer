@@ -123,6 +123,13 @@ export function useLeaveApproval() {
     mutationFn: async ({ leaveId, action }: { leaveId: string; action: "approved" | "rejected" }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Fetch reviewer's name for the notification
+      const { data: reviewerProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from("leave_requests")
         .update({
@@ -133,14 +140,21 @@ export function useLeaveApproval() {
         .eq("id", leaveId);
 
       if (error) throw error;
-      return { leaveId, action };
+      return { leaveId, action, reviewerName: reviewerProfile?.full_name || user.email || undefined };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
-      // Notify employee via email (fire-and-forget)
+      // Notify employee via in-app + email (fire-and-forget)
       supabase.functions.invoke("send-notification-email", {
-        body: { type: "leave_request_decided", payload: { leave_request_id: result.leaveId, decision: result.action } },
-      }).catch((err) => console.warn("Failed to send decision email:", err));
+        body: {
+          type: "leave_request_decided",
+          payload: {
+            leave_request_id: result.leaveId,
+            decision: result.action,
+            reviewer_name: result.reviewerName,
+          },
+        },
+      }).catch((err) => console.warn("Failed to send decision notification:", err));
     },
   });
 }
