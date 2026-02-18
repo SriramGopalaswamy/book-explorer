@@ -19,9 +19,11 @@ import {
   GitBranch,
   Menu,
   X,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
+import { useCurrentRole } from "@/hooks/useRoles";
 
 interface NavItem {
   name: string;
@@ -51,6 +53,11 @@ const hrmsNav: NavItem[] = [
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
 ];
 
+// Employee-only HRMS items
+const employeeHrmsNav: NavItem[] = [
+  { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+];
+
 const performanceNav: NavItem[] = [
   { name: "Goals", path: "/performance/goals", icon: Target, module: "performance" },
   { name: "Memos", path: "/performance/memos", icon: FileText, module: "performance" },
@@ -66,6 +73,10 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { data: currentRole } = useCurrentRole();
+
+  const isEmployee = currentRole === "employee";
+  const isLoading = currentRole === undefined;
 
   // Expose setter so Header can trigger it
   setMobileMenuOpen = setMobileOpen;
@@ -84,51 +95,59 @@ export function Sidebar() {
     title: string;
     items: NavItem[];
     sectionId: string;
-  }) => (
-    <div className="mb-6">
-      {!collapsed && (
-        <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-          {title}
-        </h3>
-      )}
-      <nav className="space-y-1">
-        {items.map((item) => {
-          const isActive = location.pathname === item.path;
-          const Icon = item.icon;
+  }) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="mb-6">
+        {!collapsed && (
+          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+            {title}
+          </h3>
+        )}
+        <nav className="space-y-1">
+          {items.map((item) => {
+            const isActive = location.pathname === item.path;
+            const Icon = item.icon;
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={closeMobile}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
-              )}
-            >
-              {isActive && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
-              )}
-              {!isActive && (
-                <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-              )}
-              <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
-                <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
-              </div>
-              {!collapsed && (
-                <span className="relative z-10 whitespace-nowrap">{item.name}</span>
-              )}
-              {isActive && (
-                <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
-    </div>
-  );
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={closeMobile}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  isActive
+                    ? "text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+                )}
+              >
+                {isActive && (
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
+                )}
+                {!isActive && (
+                  <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                )}
+                <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
+                  <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+                </div>
+                {!collapsed && (
+                  <span className="relative z-10 whitespace-nowrap">{item.name}</span>
+                )}
+                {isActive && (
+                  <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  };
+
+  // Build visible nav based on role
+  const visibleMainNav = isEmployee ? [] : navigation;
+  const visibleFinancialNav = isEmployee ? [] : financialNav;
+  const visibleHrmsNav = isEmployee ? employeeHrmsNav : hrmsNav;
 
   const sidebarContent = (
     <>
@@ -152,10 +171,18 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-        <NavSection title="Main" items={navigation} sectionId="main" />
-        <NavSection title="Financial Suite" items={financialNav} sectionId="financial" />
-        <NavSection title="HRMS" items={hrmsNav} sectionId="hrms" />
-        <NavSection title="Performance OS" items={performanceNav} sectionId="performance" />
+        {!isLoading && (
+          <>
+            {visibleMainNav.length > 0 && (
+              <NavSection title="Main" items={visibleMainNav} sectionId="main" />
+            )}
+            {visibleFinancialNav.length > 0 && (
+              <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" />
+            )}
+            <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" />
+            <NavSection title="Performance OS" items={performanceNav} sectionId="performance" />
+          </>
+        )}
       </div>
 
       {/* Footer */}
