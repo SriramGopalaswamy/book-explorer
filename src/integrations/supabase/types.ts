@@ -658,6 +658,7 @@ export type Database = {
       }
       memos: {
         Row: {
+          attachment_url: string | null
           author_name: string
           content: string | null
           created_at: string
@@ -667,13 +668,16 @@ export type Database = {
           priority: string
           published_at: string | null
           recipients: string[] | null
+          reviewer_notes: string | null
           status: string
+          subject: string | null
           title: string
           updated_at: string
           user_id: string
           views: number
         }
         Insert: {
+          attachment_url?: string | null
           author_name: string
           content?: string | null
           created_at?: string
@@ -683,13 +687,16 @@ export type Database = {
           priority?: string
           published_at?: string | null
           recipients?: string[] | null
+          reviewer_notes?: string | null
           status?: string
+          subject?: string | null
           title: string
           updated_at?: string
           user_id: string
           views?: number
         }
         Update: {
+          attachment_url?: string | null
           author_name?: string
           content?: string | null
           created_at?: string
@@ -699,7 +706,9 @@ export type Database = {
           priority?: string
           published_at?: string | null
           recipients?: string[] | null
+          reviewer_notes?: string | null
           status?: string
+          subject?: string | null
           title?: string
           updated_at?: string
           user_id?: string

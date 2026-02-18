@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -12,6 +12,9 @@ import {
   MessageSquare,
   Target,
   Edit2,
+  FileText,
+  Paperclip,
+  Download,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -45,9 +48,15 @@ import {
   GoalItem,
   GoalPlanWithProfile,
   totalWeightage,
-  newGoalItem,
 } from "@/hooks/useGoalPlans";
 import { Input } from "@/components/ui/input";
+import {
+  useDirectReportsPendingMemos,
+  useApproveMemo,
+  useRejectMemo,
+  useProfileSearch,
+  type Memo,
+} from "@/hooks/useMemos";
 
 // ─── History hooks ────────────────────────────────────────────────────────────
 
@@ -540,6 +549,120 @@ function HistoryTab() {
   );
 }
 
+// ─── Pending Memos ─────────────────────────────────────────────────────────────
+function PendingMemos() {
+  const { data: memos = [], isLoading } = useDirectReportsPendingMemos();
+  const approveMemo = useApproveMemo();
+  const rejectMemo = useRejectMemo();
+  const [reviewing, setReviewing] = useState<Memo | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editRecipients, setEditRecipients] = useState<string[]>([]);
+  const [recipientInput, setRecipientInput] = useState("");
+  const [notes, setNotes] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNotes, setRejectNotes] = useState("");
+  const { data: recipientSuggestions = [] } = useProfileSearch(recipientInput);
+
+  function openReview(memo: Memo) {
+    setReviewing(memo); setEditTitle(memo.title); setEditSubject(memo.subject || "");
+    setEditRecipients(memo.recipients || []); setNotes(""); setRejecting(false);
+    setRejectNotes(""); setRecipientInput("");
+  }
+  async function handleApprove() {
+    if (!reviewing) return;
+    await approveMemo.mutateAsync({ id: reviewing.id, reviewerNotes: notes || undefined, updatedTitle: editTitle !== reviewing.title ? editTitle : undefined, updatedSubject: editSubject !== reviewing.subject ? editSubject : undefined, updatedRecipients: JSON.stringify(editRecipients) !== JSON.stringify(reviewing.recipients) ? editRecipients : undefined });
+    setReviewing(null);
+  }
+  async function handleReject() {
+    if (!reviewing || !rejectNotes.trim()) { toast.error("Please provide rejection feedback"); return; }
+    await rejectMemo.mutateAsync({ id: reviewing.id, reviewerNotes: rejectNotes });
+    setReviewing(null); setRejecting(false);
+  }
+  async function downloadAttachment(url: string) {
+    try {
+      const { data, error } = await supabase.storage.from("memo-attachments").download(url);
+      if (error) throw error;
+      const blobUrl = URL.createObjectURL(data); const a = document.createElement("a");
+      a.href = blobUrl; a.download = url.split("/").pop() || "attachment"; a.click(); URL.revokeObjectURL(blobUrl);
+    } catch { toast.error("Failed to download attachment"); }
+  }
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-4">Loading…</div>;
+  if (memos.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+      <FileText className="h-8 w-8 opacity-30" /><p className="text-sm">No pending memos from your team.</p>
+    </div>
+  );
+  return (
+    <>
+      <div className="space-y-3">
+        {memos.map((memo) => (
+          <Card key={memo.id} className="border-border/50 bg-card/60">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{memo.title}</p>
+                  {memo.subject && <p className="text-xs text-primary mt-0.5">Subject: {memo.subject}</p>}
+                  <p className="text-xs text-muted-foreground mt-1">By {memo.author_name} · {format(new Date(memo.created_at), "MMM d, yyyy")}</p>
+                  {memo.recipients?.length > 0 && <p className="text-xs text-muted-foreground truncate">To: {memo.recipients.join(", ")}</p>}
+                  {memo.attachment_url && <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground"><Paperclip className="h-3 w-3" /> Attachment</div>}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => openReview(memo)} className="shrink-0"><Edit2 className="h-3.5 w-3.5 mr-1" /> Review</Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {reviewing && (
+        <Dialog open onOpenChange={(v) => { if (!v) setReviewing(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Review Memo — {reviewing.author_name}</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid gap-1.5"><Label>Memo Title</Label><Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} /></div>
+              <div className="grid gap-1.5"><Label>Memo Subject</Label><Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} /></div>
+              <div className="grid gap-1.5">
+                <Label>Recipients</Label>
+                <div className="min-h-10 flex flex-wrap gap-1.5 items-center border border-input rounded-md px-3 py-2 bg-background">
+                  {editRecipients.map((r) => <span key={r} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">{r}<button type="button" onClick={() => setEditRecipients(p => p.filter(x => x !== r))}><X className="h-3 w-3" /></button></span>)}
+                  <div className="relative flex-1 min-w-32">
+                    <input className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder="Add recipient…" value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)} onKeyDown={(e) => { if ((e.key==="Enter"||e.key===",") && recipientInput.trim()) { e.preventDefault(); if (!editRecipients.includes(recipientInput.trim())) setEditRecipients(p=>[...p,recipientInput.trim()]); setRecipientInput(""); }}} />
+                    {recipientInput.length >= 2 && recipientSuggestions.length > 0 && (
+                      <div className="absolute z-50 mt-1 left-0 w-64 rounded-md border border-border bg-popover shadow-lg max-h-40 overflow-y-auto">
+                        {recipientSuggestions.map((p) => <button key={p.id} type="button" className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left" onMouseDown={(e)=>{e.preventDefault(); if (!editRecipients.includes(p.full_name||"")) setEditRecipients(prev=>[...prev,p.full_name||""]); setRecipientInput("");}}>{p.full_name}{p.department&&<span className="text-muted-foreground text-xs ml-auto">{p.department}</span>}</button>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {reviewing.content && <div className="grid gap-1.5"><Label>Memo Summary</Label><div className="rounded-lg border border-border/40 bg-muted/30 p-3 text-sm whitespace-pre-wrap">{reviewing.content}</div></div>}
+              {reviewing.attachment_url && (
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-muted/30">
+                  <Paperclip className="h-5 w-5 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0"><p className="text-sm font-medium">Attachment</p><p className="text-xs text-muted-foreground truncate">{reviewing.attachment_url.split("/").pop()}</p></div>
+                  <Button size="sm" variant="outline" onClick={() => downloadAttachment(reviewing.attachment_url!)}><Download className="h-4 w-4 mr-1" /> Download</Button>
+                </div>
+              )}
+              {!rejecting ? <div className="grid gap-1.5"><Label>Notes (optional)</Label><Textarea placeholder="Notes for sender…" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} /></div>
+                : <div className="grid gap-1.5"><Label>Rejection Feedback <span className="text-destructive">*</span></Label><Textarea placeholder="Why is this being returned?" value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)} rows={3} /></div>}
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setReviewing(null)}>Cancel</Button>
+              {!rejecting ? (<>
+                <Button variant="outline" onClick={() => setRejecting(true)} className="border-red-500/40 text-red-500 hover:bg-red-500/10"><X className="h-4 w-4 mr-1" /> Reject</Button>
+                <Button onClick={handleApprove} disabled={approveMemo.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white"><Check className="h-4 w-4 mr-1" /> Approve & Publish</Button>
+              </>) : (<>
+                <Button variant="ghost" onClick={() => setRejecting(false)}>Back</Button>
+                <Button variant="destructive" onClick={handleReject} disabled={rejectMemo.isPending}><X className="h-4 w-4 mr-1" /> Confirm Rejection</Button>
+              </>)}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ManagerInbox() {
@@ -611,6 +734,10 @@ export default function ManagerInbox() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="memos" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Memos
+            </TabsTrigger>
             <TabsTrigger value="goals" className="gap-2">
               <Target className="h-4 w-4" />
               Goal Plans
@@ -665,6 +792,21 @@ export default function ManagerInbox() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* ── Memos ── */}
+          <TabsContent value="memos">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4 text-primary" />
+                  Pending Memo Approvals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PendingMemos />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── Goal Plans ── */}
