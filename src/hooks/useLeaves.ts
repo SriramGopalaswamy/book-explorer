@@ -126,7 +126,7 @@ export function useHolidays() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["holidays", currentYear, isDevMode],
+    queryKey: ["holidays", currentYear],
     queryFn: async () => {
       if (isDevMode) return mockHolidays;
       const { data, error } = await supabase

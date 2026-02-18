@@ -66,7 +66,9 @@ export default function Leaves() {
 
   const { data: leaveRequests = [], isLoading: isLoadingRequests } = useLeaveRequests(activeTab);
   const { data: leaveBalances = [], isLoading: isLoadingBalances } = useLeaveBalances();
-  const { data: holidays = [] } = useHolidays();
+  const { data: holidaysRaw = [] } = useHolidays();
+  const today = new Date().toISOString().split("T")[0];
+  const holidays = holidaysRaw.filter((h) => h.date >= today);
   const { data: isAdminOrHR } = useIsAdminOrHR();
   
   const createLeaveRequest = useCreateLeaveRequest();
