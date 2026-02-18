@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2 } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -27,7 +27,7 @@ export interface BulkUploadConfig {
   columns: BulkUploadColumn[];
   templateFileName: string;
   templateContent: string;
-  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
+  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; created?: number; updated?: number }>;
 }
 
 interface ParsedRow {
@@ -61,12 +61,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadSummary, setUploadSummary] = useState<{
+    success: number; errors: string[]; created?: number; updated?: number;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setParsedRows([]);
     setHeaders([]);
     setFileName("");
+    setUploadSummary(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -111,9 +115,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       toast.error("Please upload a CSV or Excel (.xlsx/.xls) file");
       return;
     }
-
     setFileName(file.name);
-
     if (ext === "csv") {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -184,12 +186,12 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
         qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
       }
 
+      setUploadSummary(result);
+
       if (result.errors.length > 0) {
         toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
       } else {
         toast.success(`Successfully uploaded ${result.success} rows`);
-        setOpen(false);
-        reset();
       }
     } catch (err: any) {
       toast.error(err.message || "Upload failed");
@@ -216,126 +218,168 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
         </DialogHeader>
 
         <div className="flex-1 space-y-4 overflow-hidden">
-          {/* Step 1: Download template */}
-          <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
-            <div>
-              <p className="font-medium text-sm">Step 1: Download the Excel template</p>
-              <p className="text-xs text-muted-foreground">Fill in the template with your data, then upload it below</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={downloadTemplate}>
-              <Download className="h-4 w-4 mr-2" />
-              Download Template
-            </Button>
-          </div>
-
-          {/* Step 2: Upload file with drag-and-drop */}
-          <div
-            className={cn(
-              "rounded-lg border-2 border-dashed p-6 transition-colors text-center",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/50"
-            )}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-          >
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFile}
-              className="hidden"
-            />
-            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="font-medium text-sm mb-1">
-              {isDragging ? "Drop your file here" : "Step 2: Drag & drop or choose a file"}
-            </p>
-            <p className="text-xs text-muted-foreground mb-3">Supports CSV, Excel (.xlsx, .xls)</p>
-            <div className="flex items-center justify-center gap-3">
-              <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
-                Choose File
-              </Button>
-              {fileName && (
-                <div className="flex items-center gap-2 text-sm">
-                  <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                  <span>{fileName}</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={reset}>
-                    <X className="h-3 w-3" />
-                  </Button>
+          {/* Upload summary — shown after upload completes */}
+          {uploadSummary && (
+            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <p className="font-semibold text-sm">Upload Complete</p>
+              </div>
+              <div className={cn("grid gap-3", (uploadSummary.created !== undefined || uploadSummary.updated !== undefined) ? "grid-cols-3" : "grid-cols-1")}>
+                <div className="rounded-md border border-border bg-background p-3 text-center">
+                  <p className="text-2xl font-bold text-foreground">{uploadSummary.success}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total Processed</p>
+                </div>
+                {uploadSummary.created !== undefined && (
+                  <div className="rounded-md border border-border bg-background p-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                      <UserPlus className="h-4 w-4 text-primary" />
+                      <p className="text-2xl font-bold text-foreground">{uploadSummary.created}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">New Users Created</p>
+                  </div>
+                )}
+                {uploadSummary.updated !== undefined && (
+                  <div className="rounded-md border border-border bg-background p-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                      <RefreshCw className="h-4 w-4 text-primary" />
+                      <p className="text-2xl font-bold text-foreground">{uploadSummary.updated}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Existing Updated</p>
+                  </div>
+                )}
+              </div>
+              {uploadSummary.errors.length > 0 && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1">
+                  <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {uploadSummary.errors.length} row{uploadSummary.errors.length > 1 ? "s" : ""} failed
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
+                    {uploadSummary.errors.map((e, i) => <li key={i}>• {e}</li>)}
+                  </ul>
                 </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Preview */}
-          {parsedRows.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <p className="font-medium text-sm">Preview ({parsedRows.length} rows)</p>
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  {validCount} valid
-                </Badge>
-                {errorCount > 0 && (
-                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    {errorCount} errors
-                  </Badge>
-                )}
+          {/* Upload form — hidden after upload */}
+          {!uploadSummary && (
+            <>
+              {/* Step 1: Download template */}
+              <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
+                <div>
+                  <p className="font-medium text-sm">Step 1: Download the Excel template</p>
+                  <p className="text-xs text-muted-foreground">Fill in the template with your data, then upload it below</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Template
+                </Button>
               </div>
 
-              <ScrollArea className="h-[280px] rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      {headers.map((h) => (
-                        <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
-                      ))}
-                      <TableHead className="w-20">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsedRows.map((row) => (
-                      <TableRow key={row.rowIndex} className={row.errors.length > 0 ? "bg-destructive/5" : ""}>
-                        <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>
-                        {headers.map((h) => (
-                          <TableCell key={h} className="text-xs max-w-[120px] truncate">
-                            {row.data[h] || "-"}
-                          </TableCell>
+              {/* Step 2: Upload file */}
+              <div
+                className={cn(
+                  "rounded-lg border-2 border-dashed p-6 transition-colors text-center",
+                  isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                )}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} className="hidden" />
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="font-medium text-sm mb-1">
+                  {isDragging ? "Drop your file here" : "Step 2: Drag & drop or choose a file"}
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">Supports CSV, Excel (.xlsx, .xls)</p>
+                <div className="flex items-center justify-center gap-3">
+                  <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                    Choose File
+                  </Button>
+                  {fileName && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                      <span>{fileName}</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={reset}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview table */}
+              {parsedRows.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <p className="font-medium text-sm">Preview ({parsedRows.length} rows)</p>
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      {validCount} valid
+                    </Badge>
+                    {errorCount > 0 && (
+                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {errorCount} errors
+                      </Badge>
+                    )}
+                  </div>
+                  <ScrollArea className="h-[200px] rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">#</TableHead>
+                          {headers.map((h) => (
+                            <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
+                          ))}
+                          <TableHead className="w-20">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parsedRows.map((row) => (
+                          <TableRow key={row.rowIndex} className={row.errors.length > 0 ? "bg-destructive/5" : ""}>
+                            <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>
+                            {headers.map((h) => (
+                              <TableCell key={h} className="text-xs max-w-[120px] truncate">{row.data[h] || "-"}</TableCell>
+                            ))}
+                            <TableCell>
+                              {row.errors.length > 0 ? (
+                                <span className="text-xs text-destructive" title={row.errors.join("; ")}>
+                                  <AlertTriangle className="h-3 w-3 inline mr-1" />
+                                  {row.errors.length} error{row.errors.length > 1 ? "s" : ""}
+                                </span>
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4 text-primary" />
+                              )}
+                            </TableCell>
+                          </TableRow>
                         ))}
-                        <TableCell>
-                          {row.errors.length > 0 ? (
-                            <span className="text-xs text-destructive" title={row.errors.join("; ")}>
-                              <AlertTriangle className="h-3 w-3 inline mr-1" />
-                              {row.errors.length} error{row.errors.length > 1 ? "s" : ""}
-                            </span>
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </div>
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
-          <Button
-            onClick={handleUpload}
-            disabled={uploading || validCount === 0}
-          >
-            {uploading ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
-            ) : (
-              <><Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows</>
-            )}
-          </Button>
+          {uploadSummary ? (
+            <Button onClick={() => { reset(); setOpen(false); }}>Done</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
+              <Button onClick={handleUpload} disabled={uploading || validCount === 0}>
+                {uploading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
+                ) : (
+                  <><Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows</>
+                )}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
