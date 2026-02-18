@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Mail, Lock, Save, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { User, Mail, Lock, Save, AlertCircle, Building2, Briefcase, Phone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -17,46 +19,101 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 };
 
+const DEPARTMENTS = [
+  "Engineering", "HR", "Finance", "Sales", "Marketing",
+  "Operations", "Leadership", "Legal", "Product", "Design",
+];
+
 export default function Profile() {
   const { user, updatePassword } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
-  
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Profile fields
+  const [fullName, setFullName] = useState("");
+  const [department, setDepartment] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [phone, setPhone] = useState("");
+
   // Password change form
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
+  // Load profile from database
+  useEffect(() => {
+    if (!user) return;
+    const loadProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, department, job_title, phone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (data) {
+        setFullName(data.full_name || user?.user_metadata?.full_name || "");
+        setDepartment(data.department || "");
+        setJobTitle(data.job_title || "");
+        setPhone(data.phone || "");
+      } else {
+        setFullName(user?.user_metadata?.full_name || "");
+      }
+      setProfileLoaded(true);
+    };
+    loadProfile();
+  }, [user]);
+
   const getInitials = () => {
-    if (user?.user_metadata?.full_name) {
-      const names = user.user_metadata.full_name.split(" ");
-      return names.map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-    }
-    if (user?.email) {
-      return user.email.slice(0, 2).toUpperCase();
-    }
-    return "U";
+    const name = fullName || user?.user_metadata?.full_name || user?.email || "U";
+    const parts = name.split(" ");
+    return parts.map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  const getDisplayName = () => {
-    if (user?.user_metadata?.full_name) {
-      return user.user_metadata.full_name;
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    try {
+      // Upsert profile record
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            full_name: fullName,
+            department: department || null,
+            job_title: jobTitle || null,
+            phone: phone || null,
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (error) throw error;
+
+      // Also update auth metadata for display name
+      await supabase.auth.updateUser({ data: { full_name: fullName } });
+
+      toast.success("Profile updated successfully");
+    } catch (err: any) {
+      toast.error("Failed to update profile: " + err.message);
+    } finally {
+      setIsSavingProfile(false);
     }
-    return user?.email?.split("@")[0] || "User";
   };
 
   const handlePasswordUpdate = async () => {
     setPasswordError("");
-    
+
     if (!newPassword || !confirmPassword) {
       setPasswordError("Please fill in all password fields");
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setPasswordError("Password must be at least 6 characters");
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       setPasswordError("Passwords do not match");
       return;
@@ -72,7 +129,7 @@ export default function Profile() {
         setNewPassword("");
         setConfirmPassword("");
       }
-    } catch (error) {
+    } catch {
       setPasswordError("Failed to update password");
     } finally {
       setIsUpdating(false);
@@ -98,12 +155,21 @@ export default function Profile() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{getDisplayName()}</h2>
+                  <h2 className="text-2xl font-bold">{fullName || user?.email?.split("@")[0] || "User"}</h2>
                   <p className="text-muted-foreground">{user?.email}</p>
-                  <div className="mt-2 flex gap-2">
-                    <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                      {user?.user_metadata?.full_name ? "Active Account" : "Email Account"}
-                    </div>
+                  <div className="mt-2 flex gap-2 flex-wrap">
+                    {jobTitle && (
+                      <div className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                        <Briefcase className="h-3 w-3" />
+                        {jobTitle}
+                      </div>
+                    )}
+                    {department && (
+                      <div className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                        <Building2 className="h-3 w-3" />
+                        {department}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -128,46 +194,96 @@ export default function Profile() {
               <Card className="glass-morphism">
                 <CardHeader>
                   <CardTitle>Account Information</CardTitle>
-                  <CardDescription>
-                    View your account details
-                  </CardDescription>
+                  <CardDescription>Update your personal details and profile</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Email — read only */}
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email" className="flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      Email Address
+                    </Label>
                     <Input
                       id="email"
                       value={user?.email || ""}
                       disabled
                       className="bg-secondary/50"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Email cannot be changed for security reasons
-                    </p>
+                    <p className="text-xs text-muted-foreground">Email cannot be changed for security reasons</p>
                   </div>
 
+                  {/* Editable fields */}
                   <div className="space-y-2">
-                    <Label htmlFor="fullname">Full Name</Label>
+                    <Label htmlFor="fullname" className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      Full Name
+                    </Label>
                     <Input
                       id="fullname"
-                      value={user?.user_metadata?.full_name || ""}
-                      disabled
-                      className="bg-secondary/50"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Your full name"
+                      disabled={!profileLoaded}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Contact your administrator to update your name
-                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="created">Account Created</Label>
+                    <Label htmlFor="jobtitle" className="flex items-center gap-2">
+                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                      Job Title
+                    </Label>
                     <Input
-                      id="created"
-                      value={user?.created_at ? new Date(user.created_at).toLocaleDateString() : ""}
-                      disabled
-                      className="bg-secondary/50"
+                      id="jobtitle"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      placeholder="e.g. Senior Engineer"
+                      disabled={!profileLoaded}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      Department
+                    </Label>
+                    <Select
+                      value={department}
+                      onValueChange={setDepartment}
+                      disabled={!profileLoaded}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((d) => (
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="flex items-center gap-2">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                      Phone Number
+                    </Label>
+                    <Input
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g. +1 555 000 0000"
+                      disabled={!profileLoaded}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile || !profileLoaded}
+                    className="w-full rounded-xl"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSavingProfile ? "Saving..." : "Save Profile"}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -213,7 +329,7 @@ export default function Profile() {
                     />
                   </div>
 
-                  <Button 
+                  <Button
                     onClick={handlePasswordUpdate}
                     disabled={isUpdating}
                     className="w-full rounded-xl"
