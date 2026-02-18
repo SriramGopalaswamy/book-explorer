@@ -77,7 +77,13 @@ export default function Analytics() {
     <MainLayout title="Analytics & Reports" subtitle="Comprehensive financial intelligence and standard reports">
       <div className="space-y-6 animate-fade-in">
         {/* KPI Cards — sourced from financial_records (same as main dashboard) */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            {hasDateFilter ? `Filtered period` : "All-time totals · same source as dashboard"}
+          </span>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
