@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +69,6 @@ export default function Attendance() {
     return () => clearInterval(timer);
   }, []);
 
-
   const filteredAttendance = attendance.filter((record) => {
     const matchesStatus = statusFilter === "all" || record.status === statusFilter;
     const matchesSearch = !searchTerm || 
@@ -75,6 +76,8 @@ export default function Attendance() {
       record.profiles?.department?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
+
+  const pagination = usePagination(filteredAttendance, 10);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -369,36 +372,46 @@ export default function Attendance() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Check In</TableHead>
-                  <TableHead>Check Out</TableHead>
-                  <TableHead>Working Hours</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAttendance.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell className="font-medium">
-                      {record.profiles?.full_name || "Unknown"}
-                    </TableCell>
-                    <TableCell>{record.profiles?.department || "-"}</TableCell>
-                    <TableCell>{formatTime(record.check_in)}</TableCell>
-                    <TableCell>{formatTime(record.check_out)}</TableCell>
-                    <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getStatusBadge(record.status)}>
-                        {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
-                      </Badge>
-                    </TableCell>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Check In</TableHead>
+                    <TableHead>Check Out</TableHead>
+                    <TableHead>Working Hours</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pagination.paginatedItems.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="font-medium">
+                        {record.profiles?.full_name || "Unknown"}
+                      </TableCell>
+                      <TableCell>{record.profiles?.department || "-"}</TableCell>
+                      <TableCell>{formatTime(record.check_in)}</TableCell>
+                      <TableCell>{formatTime(record.check_out)}</TableCell>
+                      <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getStatusBadge(record.status)}>
+                          {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                from={pagination.from}
+                to={pagination.to}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.setPage}
+                onPageSizeChange={pagination.setPageSize}
+              />
             </div>
           )}
         </CardContent>
