@@ -870,6 +870,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_current_user_profile_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
