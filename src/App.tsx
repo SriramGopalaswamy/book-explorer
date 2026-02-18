@@ -30,6 +30,7 @@ import Payroll from "./pages/hrms/Payroll";
 import Holidays from "./pages/hrms/Holidays";
 import OrgChart from "./pages/hrms/OrgChart";
 import MyAttendance from "./pages/hrms/MyAttendance";
+import ManagerInbox from "./pages/hrms/ManagerInbox";
 
 // Performance OS
 import Goals from "./pages/performance/Goals";
@@ -74,6 +75,7 @@ const App = () => (
                   <Route path="/hrms/holidays" element={<ProtectedRoute><Holidays /></ProtectedRoute>} />
                   <Route path="/hrms/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
                   <Route path="/hrms/my-attendance" element={<ProtectedRoute><MyAttendance /></ProtectedRoute>} />
+                  <Route path="/hrms/inbox" element={<ProtectedRoute><ManagerInbox /></ProtectedRoute>} />
 
                   {/* Performance OS */}
                   <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />

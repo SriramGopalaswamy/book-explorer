@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   ClipboardCheck,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -58,6 +59,12 @@ const employeeHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
 ];
 
+// Manager HRMS items (same as employee + Inbox)
+const managerHrmsNav: NavItem[] = [
+  { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
+];
+
 const performanceNav: NavItem[] = [
   { name: "Goals", path: "/performance/goals", icon: Target, module: "performance" },
   { name: "Memos", path: "/performance/memos", icon: FileText, module: "performance" },
@@ -76,6 +83,7 @@ export function Sidebar() {
   const { data: currentRole } = useCurrentRole();
 
   const isEmployee = currentRole === "employee";
+  const isManager = currentRole === "manager";
   const isLoading = currentRole === undefined;
 
   // Expose setter so Header can trigger it
@@ -145,9 +153,10 @@ export function Sidebar() {
   };
 
   // Build visible nav based on role
-  const visibleMainNav = isEmployee ? [] : navigation;
-  const visibleFinancialNav = isEmployee ? [] : financialNav;
-  const visibleHrmsNav = isEmployee ? employeeHrmsNav : hrmsNav;
+  const restrictedRole = isEmployee || isManager;
+  const visibleMainNav = restrictedRole ? [] : navigation;
+  const visibleFinancialNav = restrictedRole ? [] : financialNav;
+  const visibleHrmsNav = isManager ? managerHrmsNav : isEmployee ? employeeHrmsNav : hrmsNav;
 
   const sidebarContent = (
     <>
