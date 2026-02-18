@@ -387,29 +387,60 @@ export default function Memos() {
 
       {/* View Memo Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{selectedMemo?.title}</DialogTitle>
-            <DialogDescription>
-              By {selectedMemo?.author_name} • {selectedMemo?.department} • {selectedMemo && format(new Date(selectedMemo.created_at), "MMM d, yyyy")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="flex gap-2 mb-4">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-start gap-3 mb-1">
+              <div className="flex-1">
+                <DialogTitle className="text-xl leading-tight">{selectedMemo?.title}</DialogTitle>
+                <DialogDescription className="mt-1">
+                  By {selectedMemo?.author_name} · {selectedMemo?.department} · {selectedMemo && format(new Date(selectedMemo.created_at), "MMMM d, yyyy")}
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
               {selectedMemo && getStatusBadge(selectedMemo.status)}
               {selectedMemo && getPriorityBadge(selectedMemo.priority)}
+              {selectedMemo?.status === "published" && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Eye className="h-3 w-3" /> {selectedMemo.views} views
+                </span>
+              )}
             </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4 space-y-4">
             {selectedMemo?.recipients && selectedMemo.recipients.length > 0 && (
-              <div className="flex items-center gap-2 mb-4 p-2 rounded-md bg-muted/50">
-                <span className="font-semibold text-sm">To:</span>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                <span className="font-semibold text-sm text-muted-foreground shrink-0">To:</span>
                 <span className="text-sm">{selectedMemo.recipients.join(", ")}</span>
               </div>
             )}
-            <div className="prose prose-sm max-w-none">
-              {selectedMemo?.content || "No content"}
+
+            <div className="rounded-lg border border-border/40 bg-card p-4">
+              {selectedMemo?.content ? (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                  {selectedMemo.content}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No content available.</p>
+              )}
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="shrink-0 pt-2 border-t border-border/40">
+            {selectedMemo?.status === "draft" && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  publishMemo.mutate(selectedMemo.id);
+                  setViewDialogOpen(false);
+                }}
+                disabled={publishMemo.isPending}
+              >
+                <Send className="h-4 w-4 mr-1" />
+                Publish
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
               Close
             </Button>
