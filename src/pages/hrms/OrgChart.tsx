@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   GitBranch, Users, ShieldAlert, Building2,
   ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut,
-  Maximize2, X,
+  Maximize2, X, Mail, Phone, CalendarDays, ExternalLink,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,8 @@ import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { mockEmployees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface RawProfile {
@@ -27,6 +29,9 @@ interface RawProfile {
   avatar_url: string | null;
   manager_id: string | null;
   status: string | null;
+  email: string | null;
+  phone: string | null;
+  join_date: string | null;
 }
 
 interface ProfileNode extends RawProfile {
@@ -157,6 +162,64 @@ function Edge({ parentX, parentY, childX, childY }: { parentX: number; parentY: 
   );
 }
 
+// ─── Hover tooltip ────────────────────────────────────────────────────
+function NodeTooltip({ node, color }: { node: ProfileNode; color: string }) {
+  const navigate = useNavigate();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 6, scale: 0.97 }}
+      transition={{ duration: 0.15 }}
+      className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+8px)] z-50 w-56 rounded-xl border bg-popover shadow-xl text-popover-foreground text-xs"
+      style={{ borderColor: `${color}40` }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Arrow */}
+      <div
+        className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-l border-t bg-popover"
+        style={{ borderColor: `${color}40` }}
+      />
+      <div className="p-3 space-y-2">
+        <p className="font-semibold text-[11px] text-foreground leading-tight">
+          {node.full_name || "Unnamed"}
+        </p>
+        {node.email && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Mail className="h-3 w-3 flex-shrink-0" style={{ color }} />
+            <span className="truncate">{node.email}</span>
+          </div>
+        )}
+        {node.phone && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Phone className="h-3 w-3 flex-shrink-0" style={{ color }} />
+            <span>{node.phone}</span>
+          </div>
+        )}
+        {node.join_date && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <CalendarDays className="h-3 w-3 flex-shrink-0" style={{ color }} />
+            <span>Joined {format(new Date(node.join_date), "MMM d, yyyy")}</span>
+          </div>
+        )}
+        {!node.email && !node.phone && !node.join_date && (
+          <p className="text-muted-foreground italic">No contact details</p>
+        )}
+        <div className="pt-1 border-t border-border">
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex items-center gap-1.5 text-[10px] font-medium transition-colors hover:opacity-80"
+            style={{ color }}
+          >
+            <ExternalLink className="h-3 w-3" />
+            View Profile
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Single node card ─────────────────────────────────────────────────
 function OrgCard({
   lnode,
@@ -170,70 +233,78 @@ function OrgCard({
   onToggle: (id: string) => void;
 }) {
   const { node, x, y, collapsed } = lnode;
+  const [hovered, setHovered] = useState(false);
   const color = deptColor(node.department);
   const initials = (node.full_name || "?")
     .split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <foreignObject x={x} y={y} width={NODE_W} height={NODE_H} overflow="visible">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: isDimmed ? 0.3 : 1, scale: 1 }}
-        transition={{ duration: 0.2 }}
-        className={cn(
-          "w-full h-full rounded-xl border bg-card shadow-sm overflow-hidden cursor-default",
-          "transition-shadow duration-200",
-          isHighlighted && "ring-2 ring-primary shadow-lg shadow-primary/20",
-          !isDimmed && "hover:shadow-md hover:border-primary/30"
-        )}
-      >
-        {/* Dept accent bar */}
-        <div className="h-[3px] w-full" style={{ background: color }} />
+    <foreignObject x={x} y={y} width={NODE_W} height={NODE_H} overflow="visible" style={{ zIndex: hovered ? 100 : 1 }}>
+      <div className="relative w-full h-full" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: isDimmed ? 0.3 : 1, scale: 1 }}
+          transition={{ duration: 0.2 }}
+          className={cn(
+            "w-full h-full rounded-xl border bg-card shadow-sm overflow-hidden cursor-default",
+            "transition-shadow duration-200",
+            isHighlighted && "ring-2 ring-primary shadow-lg shadow-primary/20",
+            !isDimmed && "hover:shadow-md hover:border-primary/30"
+          )}
+        >
+          {/* Dept accent bar */}
+          <div className="h-[3px] w-full" style={{ background: color }} />
 
-        <div className="px-3 py-2 flex items-start gap-2">
-          {/* Avatar */}
-          <div
-            className="flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative mt-0.5"
-            style={{ background: `${color}cc` }}
-          >
-            {initials}
-            {node.status === "active" && (
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-card" />
-            )}
+          <div className="px-3 py-2 flex items-start gap-2">
+            {/* Avatar */}
+            <div
+              className="flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative mt-0.5"
+              style={{ background: `${color}cc` }}
+            >
+              {initials}
+              {node.status === "active" && (
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-card" />
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[11px] leading-tight text-foreground truncate">
+                {node.full_name || "Unnamed"}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                {node.job_title || "No title"}
+              </p>
+              {node.department && (
+                <span
+                  className="inline-block mt-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                  style={{ background: `${color}20`, color }}
+                >
+                  {node.department}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[11px] leading-tight text-foreground truncate">
-              {node.full_name || "Unnamed"}
-            </p>
-            <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-              {node.job_title || "No title"}
-            </p>
-            {node.department && (
-              <span
-                className="inline-block mt-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full"
-                style={{ background: `${color}20`, color }}
-              >
-                {node.department}
-              </span>
-            )}
-          </div>
-        </div>
+          {/* Expand / collapse button */}
+          {node.children.length > 0 && (
+            <button
+              onClick={() => onToggle(node.id)}
+              className="absolute bottom-1.5 right-2 flex items-center gap-0.5 text-[9px] text-muted-foreground hover:text-primary transition-colors"
+            >
+              {collapsed
+                ? <ChevronRight className="h-3 w-3" />
+                : <ChevronDown className="h-3 w-3" />}
+              {node.children.length}
+            </button>
+          )}
+        </motion.div>
 
-        {/* Expand / collapse button */}
-        {node.children.length > 0 && (
-          <button
-            onClick={() => onToggle(node.id)}
-            className="absolute bottom-1.5 right-2 flex items-center gap-0.5 text-[9px] text-muted-foreground hover:text-primary transition-colors"
-          >
-            {collapsed
-              ? <ChevronRight className="h-3 w-3" />
-              : <ChevronDown className="h-3 w-3" />}
-            {node.children.length}
-          </button>
-        )}
-      </motion.div>
+        {/* Hover tooltip */}
+        <AnimatePresence>
+          {hovered && <NodeTooltip node={node} color={color} />}
+        </AnimatePresence>
+      </div>
     </foreignObject>
   );
 }
@@ -464,11 +535,14 @@ export default function OrgChart() {
           avatar_url: e.avatar_url,
           manager_id: e.manager_id,
           status: e.status,
+          email: e.email ?? null,
+          phone: e.phone ?? null,
+          join_date: e.join_date ?? null,
         })) as RawProfile[];
       }
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, department, job_title, avatar_url, manager_id, status")
+        .select("id, full_name, department, job_title, avatar_url, manager_id, status, email, phone, join_date")
         .order("full_name");
       if (error) throw error;
       return data as RawProfile[];
