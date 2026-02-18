@@ -41,6 +41,8 @@ import {
   Loader2,
   Pencil,
   Trash2,
+  Search,
+  X,
 } from "lucide-react";
 import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
 import { financialRecordSchema } from "@/lib/validation-schemas";
@@ -68,7 +70,42 @@ export default function Accounting() {
   const updateRecord = useUpdateFinancialRecord();
   const deleteRecord = useDeleteFinancialRecord();
 
-  const pagination = usePagination(records, 10);
+  // All state hooks must come before any conditional returns
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<FinancialRecord | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<FinancialRecord | null>(null);
+
+  // Form state
+  const [type, setType] = useState<"revenue" | "expense">("revenue");
+  const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [recordDate, setRecordDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const filteredRecords = records.filter((r) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      (r.description || "").toLowerCase().includes(q) ||
+      r.category.toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q);
+    const matchesFrom = !dateFrom || r.record_date >= dateFrom;
+    const matchesTo = !dateTo || r.record_date <= dateTo;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
+
+  const pagination = usePagination(filteredRecords, 10);
+
+  const totalRevenue = records.filter(r => r.type === "revenue").reduce((s, r) => s + r.amount, 0);
+  const totalExpenses = records.filter(r => r.type === "expense").reduce((s, r) => s + r.amount, 0);
+  const netIncome = totalRevenue - totalExpenses;
 
   // Show loading state while checking permissions
   if (isCheckingRole) {
@@ -94,22 +131,7 @@ export default function Accounting() {
     );
   }
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<FinancialRecord | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingRecord, setDeletingRecord] = useState<FinancialRecord | null>(null);
-
-  // Form state
-  const [type, setType] = useState<"revenue" | "expense">("revenue");
-  const [category, setCategory] = useState("");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [recordDate, setRecordDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const totalRevenue = records.filter(r => r.type === "revenue").reduce((s, r) => s + r.amount, 0);
-  const totalExpenses = records.filter(r => r.type === "expense").reduce((s, r) => s + r.amount, 0);
-  const netIncome = totalRevenue - totalExpenses;
+  const hasActiveFilters = searchQuery || dateFrom || dateTo;
 
   const resetForm = () => {
     setType("revenue");
@@ -248,32 +270,75 @@ export default function Accounting() {
 
         {/* Transactions Table */}
         <div className="rounded-xl border bg-card shadow-card">
-          <div className="flex items-center justify-between border-b p-6">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">
-                Recent Transactions
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                View and manage all financial transactions
-              </p>
+          <div className="flex flex-col gap-4 border-b p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Recent Transactions
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  View and manage all financial transactions
+                </p>
+              </div>
+              <Button
+                className="bg-gradient-financial text-white hover:opacity-90"
+                onClick={() => { resetForm(); setDialogOpen(true); }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Entry
+              </Button>
             </div>
-            <Button
-              className="bg-gradient-financial text-white hover:opacity-90"
-              onClick={() => { resetForm(); setDialogOpen(true); }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Entry
-            </Button>
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[180px] max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search description, category…"
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); pagination.setPage(1); }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
+                <Input
+                  type="date"
+                  className="w-36"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); pagination.setPage(1); }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">To</span>
+                <Input
+                  type="date"
+                  className="w-36"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); pagination.setPage(1); }}
+                />
+              </div>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); pagination.setPage(1); }}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : records.length === 0 ? (
+          ) : filteredRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <BookOpen className="h-10 w-10 mb-2 opacity-40" />
-              <p>No financial records yet. Click "Add Entry" to create one.</p>
+              <p>{records.length === 0 ? 'No financial records yet. Click "Add Entry" to create one.' : "No records match your filters."}</p>
             </div>
           ) : (
             <div className="px-0">
