@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { BankStatementReconciliation } from "@/components/banking/BankStatementReconciliation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const staggerContainer = {
@@ -229,6 +231,16 @@ export default function Banking() {
 
   return (
     <MainLayout title="Banking" subtitle="Manage bank accounts and transactions">
+      <Tabs defaultValue="accounts" className="space-y-6">
+        <TabsList className="glass-morphism">
+          <TabsTrigger value="accounts">Accounts & Transactions</TabsTrigger>
+          <TabsTrigger value="reconcile" className="gap-2">
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Reconciliation
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="accounts" className="space-y-0">
       {/* Stats Cards */}
       <motion.div
         className="grid gap-4 md:grid-cols-4 mb-6"
@@ -620,6 +632,12 @@ export default function Banking() {
         </CardContent>
       </Card>
       </motion.div>
+        </TabsContent>
+
+        <TabsContent value="reconcile">
+          <BankStatementReconciliation accounts={accounts} />
+        </TabsContent>
+      </Tabs>
     </MainLayout>
   );
 }
