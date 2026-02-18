@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
 } from "lucide-react";
-import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod } from "@/hooks/useAnalytics";
+import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod, useProfitLossAllTime } from "@/hooks/useAnalytics";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 
@@ -28,7 +28,7 @@ export default function Analytics() {
   // Role-based access control
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   
-  const pl = useProfitLoss();
+  const pl = useProfitLoss(); // CoA-based — used for Reports tab P&L statement
   const bs = useBalanceSheet();
   const expenses = useExpenseByCategory();
   const [activeTab, setActiveTab] = useState("overview");
@@ -38,6 +38,11 @@ export default function Analytics() {
   const [reportTo, setReportTo] = useState<Date | undefined>();
   const { data: periodPL } = useProfitLossForPeriod(reportFrom, reportTo);
   const hasDateFilter = !!(reportFrom || reportTo);
+
+  // KPI cards always use financial_records (same source as the main dashboard)
+  const { data: allTimePL } = useProfitLossAllTime();
+  const kpiData = hasDateFilter ? periodPL : allTimePL;
+
 
   // Show loading state while checking permissions
   if (isCheckingRole) {
@@ -63,12 +68,15 @@ export default function Analytics() {
     );
   }
 
-  const topExpense = expenses.length > 0 ? expenses.reduce((a, b) => a.value > b.value ? a : b) : null;
+  const kpiExpenses = kpiData?.expenses ?? [];
+  const topExpense = kpiExpenses.length > 0
+    ? kpiExpenses.reduce((a, b) => a.amount > b.amount ? a : b)
+    : expenses.length > 0 ? { name: expenses.reduce((a, b) => a.value > b.value ? a : b).name } : null;
 
   return (
     <MainLayout title="Analytics & Reports" subtitle="Comprehensive financial intelligence and standard reports">
       <div className="space-y-6 animate-fade-in">
-        {/* KPI Cards */}
+        {/* KPI Cards — sourced from financial_records (same as main dashboard) */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -76,8 +84,8 @@ export default function Analytics() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(pl.totalRevenue)}</div>
-              <p className="text-xs text-green-600">From {pl.revenue.length} sources</p>
+              <div className="text-2xl font-bold">{formatCurrency(kpiData?.totalRevenue ?? 0)}</div>
+              <p className="text-xs text-muted-foreground">From {kpiData?.revenue.length ?? 0} categories</p>
             </CardContent>
           </Card>
           <Card>
@@ -86,9 +94,9 @@ export default function Analytics() {
               <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(pl.totalExpenses)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(kpiData?.totalExpenses ?? 0)}</div>
               <p className="text-xs text-muted-foreground">
-                Largest: {topExpense?.name || "N/A"}
+                {topExpense ? `Largest: ${topExpense.name}` : "No expenses recorded"}
               </p>
             </CardContent>
           </Card>
@@ -98,10 +106,10 @@ export default function Analytics() {
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${pl.netIncome >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatCurrency(pl.netIncome)}
+              <div className={`text-2xl font-bold ${(kpiData?.netIncome ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatCurrency(kpiData?.netIncome ?? 0)}
               </div>
-              <p className="text-xs text-muted-foreground">{pl.grossMargin.toFixed(1)}% margin</p>
+              <p className="text-xs text-muted-foreground">{(kpiData?.grossMargin ?? 0).toFixed(1)}% margin</p>
             </CardContent>
           </Card>
           <Card>
@@ -115,6 +123,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
         </div>
+
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
