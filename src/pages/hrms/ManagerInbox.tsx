@@ -301,8 +301,7 @@ function PendingCorrections() {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-pending"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-history"] });
       setDialogOpen(false);
-
-      // Fire notification (in-app + email) — fire-and-forget
+      supabase.from("audit_logs" as any).insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: pendingAction === "approved" ? "correction_approved" : "correction_rejected", entity_type: "attendance_correction", entity_id: selected.id, target_user_id: selected.user_id, metadata: { notes: notes || null } } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "correction_request_decided",
