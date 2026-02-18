@@ -12,7 +12,7 @@
 -- =====================================================================
 CREATE OR REPLACE VIEW v_trial_balance AS
 SELECT
-  COALESCE(je.organization_id, je.user_id::text::uuid) as organization_id,
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -28,8 +28,9 @@ JOIN chart_of_accounts coa ON jel.account_id = coa.id
 WHERE je.posted = true
   AND je.reversed = false
   AND je.deleted_at IS NULL
+  AND je.organization_id IS NOT NULL
 GROUP BY 
-  COALESCE(je.organization_id, je.user_id::text::uuid),
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -44,7 +45,7 @@ COMMENT ON VIEW v_trial_balance IS
 -- =====================================================================
 CREATE OR REPLACE VIEW v_profit_and_loss AS
 SELECT
-  COALESCE(je.organization_id, je.user_id::text::uuid) as organization_id,
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -76,9 +77,10 @@ JOIN chart_of_accounts coa ON jel.account_id = coa.id
 WHERE je.posted = true
   AND je.reversed = false
   AND je.deleted_at IS NULL
+  AND je.organization_id IS NOT NULL
   AND coa.account_type IN ('revenue', 'expense', 'cost_of_goods_sold')
 GROUP BY 
-  COALESCE(je.organization_id, je.user_id::text::uuid),
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -94,7 +96,7 @@ COMMENT ON VIEW v_profit_and_loss IS
 -- =====================================================================
 CREATE OR REPLACE VIEW v_cash_position AS
 SELECT
-  COALESCE(je.organization_id, je.user_id::text::uuid) as organization_id,
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -108,10 +110,11 @@ JOIN chart_of_accounts coa ON jel.account_id = coa.id
 WHERE je.posted = true
   AND je.reversed = false
   AND je.deleted_at IS NULL
+  AND je.organization_id IS NOT NULL
   AND coa.account_type = 'asset'
   AND (coa.category ILIKE '%cash%' OR coa.category ILIKE '%bank%')
 GROUP BY 
-  COALESCE(je.organization_id, je.user_id::text::uuid),
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -126,7 +129,7 @@ COMMENT ON VIEW v_cash_position IS
 -- =====================================================================
 CREATE OR REPLACE VIEW v_accounts_receivable AS
 SELECT
-  COALESCE(je.organization_id, je.user_id::text::uuid) as organization_id,
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -160,10 +163,11 @@ JOIN chart_of_accounts coa ON jel.account_id = coa.id
 WHERE je.posted = true
   AND je.reversed = false
   AND je.deleted_at IS NULL
+  AND je.organization_id IS NOT NULL
   AND coa.account_type = 'asset'
   AND (coa.account_name ILIKE '%accounts receivable%' OR coa.account_code LIKE '1200%')
 GROUP BY 
-  COALESCE(je.organization_id, je.user_id::text::uuid),
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name;
@@ -177,7 +181,7 @@ COMMENT ON VIEW v_accounts_receivable IS
 -- =====================================================================
 CREATE OR REPLACE VIEW v_accounts_payable AS
 SELECT
-  COALESCE(je.organization_id, je.user_id::text::uuid) as organization_id,
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name,
@@ -206,10 +210,11 @@ JOIN chart_of_accounts coa ON jel.account_id = coa.id
 WHERE je.posted = true
   AND je.reversed = false
   AND je.deleted_at IS NULL
+  AND je.organization_id IS NOT NULL
   AND coa.account_type = 'liability'
   AND (coa.account_name ILIKE '%accounts payable%' OR coa.account_code LIKE '2100%')
 GROUP BY 
-  COALESCE(je.organization_id, je.user_id::text::uuid),
+  je.organization_id,
   jel.account_id,
   coa.account_code,
   coa.account_name;
