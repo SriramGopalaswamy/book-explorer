@@ -83,44 +83,19 @@ const getStatusConfig = (status: Invoice["status"]) => {
 };
 
 export default function Invoicing() {
-  // Role-based access control
+  // All hooks must be declared before any conditional returns (Rules of Hooks)
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
-  
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
   const pagination = usePagination(invoices, 10);
-  
-  // Show loading state while checking permissions
-  if (isCheckingRole) {
-    return (
-      <MainLayout title="Invoicing">
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground">Checking permissions...</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-  
-  // Deny access if user doesn't have finance role
-  if (!hasFinanceAccess) {
-    return (
-      <AccessDenied 
-        message="Finance Access Required"
-        description="You need finance or admin role to access the Invoicing module. Contact your administrator for access."
-      />
-    );
-  }
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-  
+
   const [formData, setFormData] = useState({
     clientName: "",
     clientEmail: "",
@@ -139,6 +114,30 @@ export default function Invoicing() {
     rate: "",
     dueDate: "",
   });
+
+  // Show loading state while checking permissions
+  if (isCheckingRole) {
+    return (
+      <MainLayout title="Invoicing">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Checking permissions...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Deny access if user doesn't have finance role
+  if (!hasFinanceAccess) {
+    return (
+      <AccessDenied
+        message="Finance Access Required"
+        description="You need finance or admin role to access the Invoicing module. Contact your administrator for access."
+      />
+    );
+  }
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "sent" || inv.status === "overdue")
