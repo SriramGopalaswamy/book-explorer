@@ -130,7 +130,7 @@ BEGIN
   ), 0)
   INTO v_invoice_total
   FROM invoices i
-  WHERE (i.organization_id = p_organization_id OR (i.organization_id IS NULL AND i.user_id::text::uuid = p_organization_id));
+  WHERE i.organization_id = p_organization_id;
 
   -- Calculate total from AR control account in trial balance
   SELECT COALESCE(SUM(balance), 0)
@@ -219,7 +219,7 @@ BEGIN
   ), 0)
   INTO v_bill_total
   FROM bills b
-  WHERE (b.organization_id = p_organization_id OR (b.organization_id IS NULL AND b.user_id::text::uuid = p_organization_id));
+  WHERE b.organization_id = p_organization_id;
 
   -- Calculate total from AP control account
   SELECT COALESCE(SUM(balance), 0)
