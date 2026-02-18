@@ -43,6 +43,9 @@ import {
   Trash2,
   Search,
   X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
 import { financialRecordSchema } from "@/lib/validation-schemas";
@@ -90,18 +93,49 @@ export default function Accounting() {
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "revenue" | "expense">("all");
 
-  const filteredRecords = records.filter((r) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (r.description || "").toLowerCase().includes(q) ||
-      r.category.toLowerCase().includes(q) ||
-      r.type.toLowerCase().includes(q);
-    const matchesFrom = !dateFrom || r.record_date >= dateFrom;
-    const matchesTo = !dateTo || r.record_date <= dateTo;
-    const matchesType = typeFilter === "all" || r.type === typeFilter;
-    return matchesSearch && matchesFrom && matchesTo && matchesType;
-  });
+  // Sort state
+  type SortField = "record_date" | "category" | "amount";
+  type SortDir = "asc" | "desc";
+  const [sortField, setSortField] = useState<SortField>("record_date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+    pagination.setPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40 inline" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="ml-1 h-3 w-3 inline" />
+      : <ArrowDown className="ml-1 h-3 w-3 inline" />;
+  };
+
+  const filteredRecords = records
+    .filter((r) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        !q ||
+        (r.description || "").toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        r.type.toLowerCase().includes(q);
+      const matchesFrom = !dateFrom || r.record_date >= dateFrom;
+      const matchesTo = !dateTo || r.record_date <= dateTo;
+      const matchesType = typeFilter === "all" || r.type === typeFilter;
+      return matchesSearch && matchesFrom && matchesTo && matchesType;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "record_date") cmp = a.record_date.localeCompare(b.record_date);
+      else if (sortField === "category") cmp = a.category.localeCompare(b.category);
+      else if (sortField === "amount") cmp = a.amount - b.amount;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   const pagination = usePagination(filteredRecords, 10);
 
@@ -357,11 +391,17 @@ export default function Accounting() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("record_date")}>
+                    Date <SortIcon field="record_date" />
+                  </TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                    Category <SortIcon field="category" />
+                  </TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort("amount")}>
+                    Amount <SortIcon field="amount" />
+                  </TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
