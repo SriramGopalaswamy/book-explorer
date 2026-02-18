@@ -17,13 +17,15 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
       {/* Developer Mode Banner - Only renders in developer mode */}
       <DeveloperModeBanner />
       <Sidebar />
-      <div className="pl-64 transition-[padding] duration-300">
+      {/* On mobile: no left padding (sidebar is a drawer overlay)
+          On desktop: pad by sidebar width (collapsed=64px, expanded=256px) */}
+      <div className="md:pl-64 transition-[padding] duration-300">
         <Header title={title} subtitle={subtitle} />
-        <main className="p-6">
+        <main className="p-4 md:p-6">
           <AnimatedPage>{children}</AnimatedPage>
         </main>
       </div>
-      {/* Dev Mode Toolbar - Only renders when DEV_MODE=true */}
+      {/* Dev Mode Toolbar */}
       <DevToolbar />
     </div>
   );

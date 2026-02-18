@@ -124,6 +124,7 @@ export function BSDrillDownDialog({ open, onOpenChange, accountName, accountCode
               {children.length > 0 && (
                 <div>
                   <h4 className="text-sm font-semibold mb-2">Sub-accounts</h4>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -144,6 +145,7 @@ export function BSDrillDownDialog({ open, onOpenChange, accountName, accountCode
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
 
@@ -151,6 +153,7 @@ export function BSDrillDownDialog({ open, onOpenChange, accountName, accountCode
               {transactions.length > 0 && (
                 <div>
                   <h4 className="text-sm font-semibold mb-2">Related Transactions</h4>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -177,6 +180,7 @@ export function BSDrillDownDialog({ open, onOpenChange, accountName, accountCode
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
 

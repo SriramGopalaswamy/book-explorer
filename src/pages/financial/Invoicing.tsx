@@ -535,6 +535,7 @@ export default function Invoicing() {
               </p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -641,6 +642,7 @@ export default function Invoicing() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
       </div>
