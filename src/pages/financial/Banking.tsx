@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, RefreshCw, CreditCard, Wallet, MoreHorizontal, Trash2 } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const staggerContainer = {
@@ -79,6 +79,44 @@ export default function Banking() {
   const createTransaction = useCreateTransaction();
   const deleteAccount = useDeleteBankAccount();
 
+  // All state must be before early returns
+  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+  const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const [accountForm, setAccountForm] = useState({
+    name: "",
+    account_type: "Current" as BankAccount["account_type"],
+    account_number: "",
+    balance: "",
+    bank_name: "",
+  });
+
+  const [transactionForm, setTransactionForm] = useState({
+    account_id: "",
+    transaction_type: "credit" as "credit" | "debit",
+    amount: "",
+    description: "",
+    category: "",
+    transaction_date: new Date().toISOString().split("T")[0],
+  });
+
+  const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+
+  const filteredTransactions = transactions.filter((tx) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || tx.description.toLowerCase().includes(q) || (tx.category || "").toLowerCase().includes(q);
+    const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
+    const matchesFrom = !dateFrom || tx.transaction_date >= dateFrom;
+    const matchesTo = !dateTo || tx.transaction_date <= dateTo;
+    return matchesSearch && matchesType && matchesFrom && matchesTo;
+  });
+
+  const hasActiveFilters = searchQuery || typeFilter !== "all" || dateFrom || dateTo;
+
   // Show loading state while checking permissions
   if (isCheckingRole) {
     return (
@@ -102,36 +140,6 @@ export default function Banking() {
       />
     );
   }
-
-  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
-  const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-
-  const [accountForm, setAccountForm] = useState({
-    name: "",
-    account_type: "Current" as BankAccount["account_type"],
-    account_number: "",
-    balance: "",
-    bank_name: "",
-  });
-
-  const [transactionForm, setTransactionForm] = useState({
-    account_id: "",
-    transaction_type: "credit" as "credit" | "debit",
-    amount: "",
-    description: "",
-    category: "",
-    transaction_date: new Date().toISOString().split("T")[0],
-  });
-
-  const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-
-  const filteredTransactions = transactions.filter((tx) => {
-    const matchesSearch = tx.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
-    return matchesSearch && matchesType;
-  });
 
   const handleCreateAccount = () => {
     if (!accountForm.name || !accountForm.account_number || !accountForm.balance) {
@@ -360,31 +368,12 @@ export default function Banking() {
       {/* Recent Transactions */}
       <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.5 }}>
       <Card className="glass-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-gradient-primary">Recent Transactions</CardTitle>
-            <CardDescription>Latest banking activity across all accounts</CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search transactions..."
-                className="pl-9 w-64"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+        <CardHeader className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-gradient-primary">Recent Transactions</CardTitle>
+              <CardDescription>Latest banking activity across all accounts</CardDescription>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="credit">Credits Only</SelectItem>
-                <SelectItem value="debit">Debits Only</SelectItem>
-              </SelectContent>
-            </Select>
             <Dialog open={isTransactionDialogOpen} onOpenChange={setIsTransactionDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
@@ -471,6 +460,57 @@ export default function Banking() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </div>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search description, category…"
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="credit">Credits Only</SelectItem>
+                <SelectItem value="debit">Debits Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
+              <Input
+                type="date"
+                className="w-36"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">To</span>
+              <Input
+                type="date"
+                className="w-36"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => { setSearchQuery(""); setTypeFilter("all"); setDateFrom(""); setDateTo(""); }}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
