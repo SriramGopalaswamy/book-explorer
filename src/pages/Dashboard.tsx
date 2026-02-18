@@ -16,6 +16,7 @@ import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
 import { useDashboardStats, formatIndianCurrency } from "@/hooks/useDashboardStats";
+import { useSparklineData } from "@/hooks/useSparklineData";
 import { useEmployeeStats } from "@/hooks/useEmployees";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const [accountingMode, setAccountingMode] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: sparklines } = useSparklineData();
   const employeeStats = useEmployeeStats();
   const { canShowDevTools } = useAppMode();
   const { activeRole, currentRoleInfo, isImpersonating } = useDevMode();
@@ -131,6 +133,8 @@ export default function Dashboard() {
                 icon={<DollarSign className="h-5 w-5" />}
                 glowColor="primary"
                 index={0}
+                sparklineData={sparklines?.revenue}
+                sparklineColor="primary"
               />
               <StatCardEnhanced
                 title="Total Expenses (This Month)"
@@ -143,6 +147,8 @@ export default function Dashboard() {
                 icon={<TrendingDown className="h-5 w-5" />}
                 glowColor="info"
                 index={1}
+                sparklineData={sparklines?.expenses}
+                sparklineColor="destructive"
               />
               <StatCardEnhanced
                 title="Net Income (This Month)"
@@ -155,6 +161,8 @@ export default function Dashboard() {
                 icon={<Activity className="h-5 w-5" />}
                 glowColor={(stats?.netIncome || 0) >= 0 ? "success" : "info"}
                 index={2}
+                sparklineData={sparklines?.netIncome}
+                sparklineColor={(stats?.netIncome || 0) >= 0 ? "success" : "destructive"}
               />
               <StatCardEnhanced
                 title="Active Employees"
