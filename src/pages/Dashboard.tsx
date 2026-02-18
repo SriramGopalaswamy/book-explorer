@@ -29,6 +29,7 @@ import {
   UserCheck,
   FileText,
   TrendingUp,
+  Activity,
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -81,9 +82,10 @@ export default function Dashboard() {
         <WelcomeHero />
 
         {/* Key Metrics */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {statsLoading ? (
             <>
+              <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
@@ -117,6 +119,18 @@ export default function Dashboard() {
                 index={1}
               />
               <StatCardEnhanced
+                title="Net Income (This Month)"
+                value={Math.abs(stats?.netIncome || 0)}
+                prefix={(stats?.netIncome || 0) < 0 ? "-₹" : "₹"}
+                change={{
+                  value: (stats?.netIncome || 0) >= 0 ? "Profit" : "Loss",
+                  type: (stats?.netIncome || 0) >= 0 ? "increase" : "decrease",
+                }}
+                icon={<Activity className="h-5 w-5" />}
+                glowColor={(stats?.netIncome || 0) >= 0 ? "success" : "info"}
+                index={2}
+              />
+              <StatCardEnhanced
                 title="Active Employees"
                 value={stats?.activeEmployees || 0}
                 change={{
@@ -125,7 +139,7 @@ export default function Dashboard() {
                 }}
                 icon={<UserCheck className="h-5 w-5" />}
                 glowColor="hrms"
-                index={2}
+                index={3}
               />
               <StatCardEnhanced
                 title="Pending Invoices"
@@ -136,7 +150,7 @@ export default function Dashboard() {
                 }}
                 icon={<FileText className="h-5 w-5" />}
                 glowColor="info"
-                index={3}
+                index={4}
               />
               <StatCardEnhanced
                 title="Goals Progress"
@@ -148,7 +162,7 @@ export default function Dashboard() {
                 }}
                 icon={<Target className="h-5 w-5" />}
                 glowColor="success"
-                index={4}
+                index={5}
               />
             </>
           )}

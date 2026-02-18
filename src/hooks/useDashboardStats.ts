@@ -9,6 +9,7 @@ export interface DashboardStats {
   revenueChange: number;
   totalExpenses: number;
   expenseChange: number;
+  netIncome: number;
   activeEmployees: number;
   employeeChange: number;
   pendingInvoices: number;
@@ -165,6 +166,7 @@ export function useDashboardStats() {
         revenueChange: Math.round(revenueChange * 10) / 10,
         totalExpenses,
         expenseChange: Math.round(expenseChange * 10) / 10,
+        netIncome: totalRevenue - totalExpenses,
         activeEmployees,
         employeeChange: 0,
         pendingInvoices,
@@ -184,6 +186,7 @@ function getEmptyStats(): DashboardStats {
     revenueChange: 0,
     totalExpenses: 0,
     expenseChange: 0,
+    netIncome: 0,
     activeEmployees: 0,
     employeeChange: 0,
     pendingInvoices: 0,
