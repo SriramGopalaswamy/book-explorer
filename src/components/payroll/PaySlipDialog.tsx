@@ -6,10 +6,13 @@ import { Download, Printer } from "lucide-react";
 import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 
-const formatCurrency = (value: number) => {
+const fmt = (value: number) => {
   if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
   return `₹${value.toLocaleString("en-IN")}`;
 };
+
+const fmtFull = (value: number) =>
+  `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
@@ -40,43 +43,114 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     { label: "Other Deductions", amount: Number(record.other_deductions) },
   ];
   const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
+  const netPay = Number(record.net_pay);
 
-  const handlePrint = () => {
-    const printContent = document.getElementById("payslip-content");
-    if (!printContent) return;
-    const sanitizedContent = DOMPurify.sanitize(printContent.innerHTML, {
-      ALLOWED_TAGS: ['div', 'span', 'h1', 'h2', 'h3', 'p', 'br', 'table', 'tbody', 'tr', 'td', 'th', 'label', 'hr'],
-      ALLOWED_ATTR: ['class', 'style'],
-    });
+  const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
+  const department = DOMPurify.sanitize(record.profiles?.department || "—");
+  const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
+  const period = periodLabel(record.pay_period);
+  const processedDate = record.processed_at
+    ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  const buildHTML = () => `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Pay Slip — ${employeeName} — ${period}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 48px; max-width: 740px; margin: 0 auto; }
+    .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px solid #e11d74; margin-bottom: 28px; }
+    .hdr-left .co { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #e11d74; margin-bottom: 4px; }
+    .hdr-left .doc { font-size: 22px; font-weight: 700; color: #111827; }
+    .hdr-left .per { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .status { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+    .s-processed { background: #dcfce7; color: #166534; }
+    .s-draft { background: #f3f4f6; color: #6b7280; }
+    .s-pending { background: #fef9c3; color: #854d0e; }
+    .emp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; margin-bottom: 28px; padding: 18px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .emp-field label { display: block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; margin-bottom: 3px; }
+    .emp-field span { font-size: 14px; font-weight: 500; color: #111827; }
+    .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .tbl-section h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7280; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 7px 0; font-size: 13px; }
+    td.r { text-align: right; font-weight: 500; }
+    td.nil { color: #d1d5db; }
+    .sub td { padding-top: 10px; font-weight: 700; font-size: 13px; border-top: 2px solid #d1d5db; }
+    .earn { color: #16a34a; }
+    .deduct { color: #dc2626; }
+    .net { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: linear-gradient(135deg, #fdf2f8, #fce7f3); border: 1px solid #f9a8d4; border-radius: 10px; margin-bottom: 28px; }
+    .net .lbl { font-size: 16px; font-weight: 600; }
+    .net .sub-lbl { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .net .val { font-size: 26px; font-weight: 800; color: #e11d74; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end; }
+    .footer .proc { font-size: 11px; color: #6b7280; }
+    .footer .sig { font-size: 11px; color: #9ca3af; text-align: right; }
+    .footer .sig span { display: block; width: 140px; border-top: 1px solid #d1d5db; padding-top: 4px; margin-top: 28px; }
+    .wm { text-align: center; margin-top: 20px; font-size: 10px; color: #d1d5db; }
+    @media print { body { padding: 28px; } }
+  </style>
+</head>
+<body>
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="co">GRX10 Business Suite</div>
+      <div class="doc">Pay Slip</div>
+      <div class="per">${period}</div>
+    </div>
+    <span class="status s-${record.status}">${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
+  </div>
+
+  <div class="emp-grid">
+    <div class="emp-field"><label>Employee Name</label><span>${employeeName}</span></div>
+    <div class="emp-field"><label>Department</label><span>${department}</span></div>
+    <div class="emp-field"><label>Designation</label><span>${jobTitle}</span></div>
+    <div class="emp-field"><label>Pay Period</label><span>${period}</span></div>
+  </div>
+
+  <div class="tables">
+    <div class="tbl-section">
+      <h3>Earnings</h3>
+      <table><tbody>
+        ${earnings.map(e => `<tr><td>${e.label}</td><td class="r${e.amount === 0 ? ' nil' : ''}">${e.amount === 0 ? '—' : fmtFull(e.amount)}</td></tr>`).join("")}
+        <tr class="sub"><td>Total Earnings</td><td class="r earn">${fmtFull(totalEarnings)}</td></tr>
+      </tbody></table>
+    </div>
+    <div class="tbl-section">
+      <h3>Deductions</h3>
+      <table><tbody>
+        ${deductions.map(d => `<tr><td>${d.label}</td><td class="r${d.amount === 0 ? ' nil' : ''}">${d.amount === 0 ? '—' : fmtFull(d.amount)}</td></tr>`).join("")}
+        <tr class="sub"><td>Total Deductions</td><td class="r deduct">${fmtFull(totalDeductions)}</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <div class="net">
+    <div><div class="lbl">Net Pay</div><div class="sub-lbl">Total Earnings − Total Deductions</div></div>
+    <div class="val">${fmtFull(netPay)}</div>
+  </div>
+
+  <div class="footer">
+    <div class="proc">${processedDate ? `Processed on: <strong>${processedDate}</strong>` : '<em>Not yet processed</em>'}</div>
+    <div class="sig"><span>Authorised Signatory</span></div>
+  </div>
+  <div class="wm">System-generated pay slip. No signature required if digitally authorised. &bull; GRX10 ERP</div>
+</body>
+</html>`;
+
+  const openPrintWindow = () => {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`
-      <html><head><title>Pay Slip - ${DOMPurify.sanitize(record.profiles?.full_name || '')}</title>
-      <style>
-        body { font-family: system-ui, sans-serif; padding: 40px; color: #1a1a1a; max-width: 700px; margin: 0 auto; }
-        h1 { font-size: 24px; margin-bottom: 4px; }
-        h2 { font-size: 18px; color: #555; margin-bottom: 24px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #e11d74; padding-bottom: 16px; }
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
-        .info-item label { font-size: 12px; color: #888; display: block; }
-        .info-item span { font-size: 14px; font-weight: 500; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
-        th { font-weight: 600; color: #555; font-size: 12px; text-transform: uppercase; }
-        .amount { text-align: right; }
-        .total-row { font-weight: 700; border-top: 2px solid #333; }
-        .net-pay { background: #f8f8f8; padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
-        .net-pay .label { font-size: 16px; font-weight: 600; }
-        .net-pay .value { font-size: 24px; font-weight: 700; color: #e11d74; }
-        .footer { margin-top: 40px; font-size: 12px; color: #aaa; text-align: center; }
-        @media print { body { padding: 20px; } }
-      </style></head><body>
-      ${sanitizedContent}
-      <div class="footer">This is a system-generated pay slip. No signature required.</div>
-      </body></html>
-    `);
+    win.document.write(buildHTML());
     win.document.close();
-    win.print();
+    win.onload = () => win.print();
+  };
+
+  const handleDownload = () => {
+    // Open a print window so the user can "Save as PDF" via the browser print dialog
+    openPrintWindow();
   };
 
   return (
@@ -85,26 +159,33 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle className="text-gradient-primary text-xl">Pay Slip</DialogTitle>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint}>
+            <Button variant="outline" size="sm" onClick={openPrintWindow}>
               <Printer className="h-4 w-4 mr-1" />
               Print
+            </Button>
+            <Button size="sm" onClick={handleDownload} className="bg-gradient-financial text-white hover:opacity-90">
+              <Download className="h-4 w-4 mr-1" />
+              Download PDF
             </Button>
           </div>
         </DialogHeader>
 
-        <div id="payslip-content" className="space-y-6">
+        <div className="space-y-6">
           {/* Header */}
-          <div className="header flex justify-between items-start">
+          <div className="flex justify-between items-start">
             <div>
-              <h1 style={{ fontSize: 20, fontWeight: 700 }}>GRX10 Business Suite</h1>
-              <h2 style={{ fontSize: 14, color: "#888" }}>Pay Slip for {periodLabel(record.pay_period)}</h2>
+              <p className="text-xs font-bold tracking-widest text-primary uppercase mb-1">GRX10 Business Suite</p>
+              <h2 className="text-xl font-bold">Pay Slip</h2>
+              <p className="text-sm text-muted-foreground">{period}</p>
             </div>
             <Badge
               variant="outline"
               className={
                 record.status === "processed"
                   ? "bg-green-500/10 text-green-600 border-green-500/30"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                  : record.status === "pending"
+                  ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                  : "bg-muted text-muted-foreground"
               }
             >
               {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
@@ -112,62 +193,60 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           </div>
 
           {/* Employee Info */}
-          <div className="info-grid grid grid-cols-2 gap-4 text-sm">
-            <div className="info-item">
-              <label className="text-xs text-muted-foreground">Employee Name</label>
-              <span className="font-medium">{record.profiles?.full_name || "—"}</span>
+          <div className="grid grid-cols-2 gap-4 text-sm bg-muted/30 rounded-lg p-4">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Employee Name</p>
+              <p className="font-medium">{record.profiles?.full_name || "—"}</p>
             </div>
-            <div className="info-item">
-              <label className="text-xs text-muted-foreground">Department</label>
-              <span className="font-medium">{record.profiles?.department || "—"}</span>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Department</p>
+              <p className="font-medium">{record.profiles?.department || "—"}</p>
             </div>
-            <div className="info-item">
-              <label className="text-xs text-muted-foreground">Designation</label>
-              <span className="font-medium">{record.profiles?.job_title || "—"}</span>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Designation</p>
+              <p className="font-medium">{record.profiles?.job_title || "—"}</p>
             </div>
-            <div className="info-item">
-              <label className="text-xs text-muted-foreground">Pay Period</label>
-              <span className="font-medium">{periodLabel(record.pay_period)}</span>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Pay Period</p>
+              <p className="font-medium">{period}</p>
             </div>
           </div>
 
           <Separator />
 
-          {/* Earnings & Deductions side by side */}
+          {/* Earnings & Deductions */}
           <div className="grid grid-cols-2 gap-6">
-            {/* Earnings */}
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Earnings</h3>
-              <table>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Earnings</h3>
+              <table className="w-full">
                 <tbody>
                   {earnings.filter(e => e.amount > 0).map((e) => (
                     <tr key={e.label}>
-                      <td className="py-2 text-sm">{e.label}</td>
-                      <td className="py-2 text-sm text-right font-medium amount">{formatCurrency(e.amount)}</td>
+                      <td className="py-1.5 text-sm">{e.label}</td>
+                      <td className="py-1.5 text-sm text-right font-medium">{fmt(e.amount)}</td>
                     </tr>
                   ))}
-                  <tr className="total-row border-t-2 border-foreground/20">
-                    <td className="py-2 text-sm font-bold">Total Earnings</td>
-                    <td className="py-2 text-sm text-right font-bold text-green-600 amount">{formatCurrency(totalEarnings)}</td>
+                  <tr className="border-t-2 border-foreground/20">
+                    <td className="pt-2 text-sm font-bold">Total Earnings</td>
+                    <td className="pt-2 text-sm text-right font-bold text-green-600">{fmt(totalEarnings)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* Deductions */}
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Deductions</h3>
-              <table>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Deductions</h3>
+              <table className="w-full">
                 <tbody>
                   {deductions.filter(d => d.amount > 0).map((d) => (
                     <tr key={d.label}>
-                      <td className="py-2 text-sm">{d.label}</td>
-                      <td className="py-2 text-sm text-right font-medium amount">{formatCurrency(d.amount)}</td>
+                      <td className="py-1.5 text-sm">{d.label}</td>
+                      <td className="py-1.5 text-sm text-right font-medium">{fmt(d.amount)}</td>
                     </tr>
                   ))}
-                  <tr className="total-row border-t-2 border-foreground/20">
-                    <td className="py-2 text-sm font-bold">Total Deductions</td>
-                    <td className="py-2 text-sm text-right font-bold text-destructive amount">{formatCurrency(totalDeductions)}</td>
+                  <tr className="border-t-2 border-foreground/20">
+                    <td className="pt-2 text-sm font-bold">Total Deductions</td>
+                    <td className="pt-2 text-sm text-right font-bold text-destructive">{fmt(totalDeductions)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -175,14 +254,17 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           </div>
 
           {/* Net Pay */}
-          <div className="net-pay rounded-xl bg-primary/5 border border-primary/20 p-5 flex justify-between items-center">
-            <span className="label text-lg font-semibold">Net Pay</span>
-            <span className="value text-2xl font-bold text-gradient-primary">{formatCurrency(Number(record.net_pay))}</span>
+          <div className="rounded-xl bg-primary/5 border border-primary/20 p-5 flex justify-between items-center">
+            <div>
+              <p className="text-lg font-semibold">Net Pay</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total Earnings − Total Deductions</p>
+            </div>
+            <span className="text-2xl font-bold text-gradient-primary">{fmt(netPay)}</span>
           </div>
 
-          {record.processed_at && (
+          {processedDate && (
             <p className="text-xs text-muted-foreground text-center">
-              Processed on {new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+              Processed on {processedDate}
             </p>
           )}
         </div>
