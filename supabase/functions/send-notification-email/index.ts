@@ -109,7 +109,7 @@ async function insertNotification(
 }
 
 // Shared email template wrapper
-function emailTemplate(headerColor: string, icon: string, heading: string, subheading: string, rows: string, footer?: string) {
+function emailTemplate(headerColor: string, icon: string, heading: string, subheading: string, rows: string, footer?: string, extraBlock?: string) {
   return `
     <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px 12px 0 0; color: #fff;">
@@ -120,6 +120,7 @@ function emailTemplate(headerColor: string, icon: string, heading: string, subhe
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
           ${rows}
         </table>
+        ${extraBlock || ""}
         ${footer ? `<p style="margin-top: 16px; font-size: 13px; color: #666;">${footer}</p>` : ""}
         <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
         <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10 — sent from the admin account on behalf of the system.</p>
@@ -528,8 +529,16 @@ Deno.serve(async (req) => {
         ...(correction.requested_check_in ? [tableRow("Requested Check-in", correction.requested_check_in)] : []),
         ...(correction.requested_check_out ? [tableRow("Requested Check-out", correction.requested_check_out)] : []),
         ...(reviewer_name ? [tableRow("Reviewed by", reviewer_name)] : []),
-        ...(correction.reviewer_notes ? [tableRow("Notes", correction.reviewer_notes)] : []),
       ].join("");
+
+      // Prominent reviewer notes block shown only in employee email
+      const reviewerNotesBlock = correction.reviewer_notes
+        ? `
+          <div style="margin: 20px 0 4px; border-left: 4px solid ${statusColor}; background: ${isApproved ? "#f0faf4" : "#fdf2f2"}; border-radius: 0 8px 8px 0; padding: 14px 16px;">
+            <p style="margin: 0 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${statusColor};">📝 Reviewer Notes</p>
+            <p style="margin: 0; font-size: 15px; color: #333; line-height: 1.5;">${correction.reviewer_notes}</p>
+          </div>`
+        : "";
 
       // ── In-app notifications (always run) ──
       if (employeeUserId) {
@@ -556,7 +565,9 @@ Deno.serve(async (req) => {
         const htmlBody = emailTemplate(
           statusColor, statusIcon, `Attendance Correction ${statusText}`,
           `Hi ${employeeName}, your correction request has been ${decision}.`,
-          correctionRows
+          correctionRows,
+          undefined,
+          reviewerNotesBlock
         );
         await sendEmail(
           accessToken, senderEmail,
