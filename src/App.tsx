@@ -34,6 +34,9 @@ import OrgChart from "./pages/hrms/OrgChart";
 import Goals from "./pages/performance/Goals";
 import Memos from "./pages/performance/Memos";
 
+// Profile
+import Profile from "./pages/Profile";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -74,7 +77,8 @@ const App = () => (
                   <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
                   <Route path="/performance/memos" element={<ProtectedRoute><Memos /></ProtectedRoute>} />
 
-                  {/* Settings */}
+                  {/* Profile & Settings */}
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
