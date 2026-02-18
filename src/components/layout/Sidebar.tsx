@@ -17,11 +17,17 @@ import {
   BookOpen,
   PartyPopper,
   GitBranch,
-  Menu,
   X,
   ClipboardCheck,
   Inbox,
   Shield,
+  UserCheck,
+  Truck,
+  Quote,
+  FileX,
+  Receipt,
+  Wallet,
+  ScanLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -40,7 +46,14 @@ const navigation: NavItem[] = [
 
 const financialNav: NavItem[] = [
   { name: "Accounting", path: "/financial/accounting", icon: BookOpen, module: "financial" },
+  { name: "Customers", path: "/financial/customers", icon: UserCheck, module: "financial" },
+  { name: "Vendors", path: "/financial/vendors", icon: Truck, module: "financial" },
   { name: "Invoicing", path: "/financial/invoicing", icon: FileText, module: "financial" },
+  { name: "Quotes", path: "/financial/quotes", icon: Quote, module: "financial" },
+  { name: "Expenses", path: "/financial/expenses", icon: Wallet, module: "financial" },
+  { name: "Bills", path: "/financial/bills", icon: ScanLine, module: "financial" },
+  { name: "Credit Notes", path: "/financial/credit-notes", icon: FileX, module: "financial" },
+  { name: "Vendor Credits", path: "/financial/vendor-credits", icon: Receipt, module: "financial" },
   { name: "Banking", path: "/financial/banking", icon: Building2, module: "financial" },
   { name: "Cash Flow", path: "/financial/cashflow", icon: TrendingUp, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
