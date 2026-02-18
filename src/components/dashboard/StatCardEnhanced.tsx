@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { GlowingCard } from "@/components/ui/glowing-card";
+import { Sparkline } from "@/components/ui/sparkline";
+import type { SparklinePoint } from "@/hooks/useSparklineData";
 
 interface StatCardEnhancedProps {
   title: string;
@@ -18,6 +20,8 @@ interface StatCardEnhancedProps {
   className?: string;
   glowColor?: "primary" | "hrms" | "info" | "success";
   index?: number;
+  sparklineData?: SparklinePoint[];
+  sparklineColor?: string;
 }
 
 export function StatCardEnhanced({
@@ -30,7 +34,11 @@ export function StatCardEnhanced({
   className,
   glowColor = "primary",
   index = 0,
+  sparklineData,
+  sparklineColor,
 }: StatCardEnhancedProps) {
+  const resolvedSparklineColor = sparklineColor ?? glowColor;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -86,6 +94,19 @@ export function StatCardEnhanced({
             </motion.div>
           )}
         </div>
+
+        {/* Sparkline trend */}
+        {sparklineData && sparklineData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: index * 0.1 + 0.5 }}
+            className="mt-3 pt-3 border-t border-border/40"
+          >
+            <Sparkline data={sparklineData} color={resolvedSparklineColor} />
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5 text-right">6-month trend</p>
+          </motion.div>
+        )}
       </GlowingCard>
     </motion.div>
   );
