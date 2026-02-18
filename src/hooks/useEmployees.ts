@@ -123,32 +123,26 @@ export function useEmployeeStats() {
   return stats;
 }
 
-// Create employee
+// Create employee — always via edge function so a real auth account is created
+// and the user appears in both Employees and Settings
 export function useCreateEmployee() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (data: CreateEmployeeData) => {
-      if (!user) throw new Error("Not authenticated");
+      const { data: result, error } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "create_user", ...data, role: "employee" },
+      });
 
-      // Note: In a full implementation, you would create a user account first
-      // and then the profile. For now, we create a profile with a placeholder user_id
-      const { data: employee, error } = await supabase
-        .from("profiles")
-        .insert({
-          ...data,
-          user_id: crypto.randomUUID(), // Placeholder - in production, link to actual user
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return employee;
+      if (error || result?.error) throw new Error(result?.error || error?.message || "Failed to create employee");
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast({ title: "Employee Added", description: "New employee has been added successfully." });
+      toast({
+        title: "Employee Added",
+        description: "Account created. The employee can sign in with their email address.",
+      });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -182,14 +176,31 @@ export function useUpdateEmployee() {
   });
 }
 
-// Delete employee
+// Delete employee — removes profile + auth account via edge function
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("profiles").delete().eq("id", id);
-      if (error) throw error;
+      // Get the user_id from the profile first
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("id", id)
+        .single();
+
+      if (profileErr) throw profileErr;
+
+      // Delete via edge function (handles auth + roles + profile)
+      const { data: result, error } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "delete_user", user_id: profile.user_id },
+      });
+
+      if (error || result?.error) {
+        // Fallback: just delete the profile row if edge fn fails (e.g. no auth account)
+        const { error: delErr } = await supabase.from("profiles").delete().eq("id", id);
+        if (delErr) throw delErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });

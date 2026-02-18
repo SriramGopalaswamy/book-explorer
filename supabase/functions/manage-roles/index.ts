@@ -176,6 +176,88 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "create_user") {
+      const { email, full_name, department, job_title, phone, join_date, status, role, manager_id } = body;
+
+      if (!email) {
+        return new Response(JSON.stringify({ error: "email is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const assignedRole = (role || "employee").toLowerCase();
+      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      if (!validRoles.includes(assignedRole)) {
+        return new Response(JSON.stringify({ error: `Invalid role: ${assignedRole}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check if profile already exists
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (existingProfile) {
+        return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Create auth user with a temporary password; they'll reset via email
+      const tempPassword = crypto.randomUUID() + "Aa1!";
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email: email.toLowerCase().trim(),
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: { full_name: full_name || "" },
+      });
+
+      if (createError || !newUser.user) {
+        return new Response(JSON.stringify({ error: createError?.message || "Failed to create auth user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userId = newUser.user.id;
+
+      // Upsert profile
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        user_id: userId,
+        full_name: full_name || null,
+        email: email.toLowerCase().trim(),
+        department: department || null,
+        job_title: job_title || null,
+        phone: phone || null,
+        join_date: join_date || null,
+        status: status || "active",
+        manager_id: manager_id || null,
+      }, { onConflict: "user_id" });
+
+      if (profileError) {
+        console.error("Profile upsert error:", profileError);
+        // Attempt to clean up the auth user
+        await supabase.auth.admin.deleteUser(userId);
+        return new Response(JSON.stringify({ error: "Failed to create profile" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Assign role
+      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
+
+      return new Response(JSON.stringify({ success: true, user_id: userId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "bulk_create_users") {
       const { users: newUsers } = body;
 
