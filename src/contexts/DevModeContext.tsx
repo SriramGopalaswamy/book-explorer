@@ -15,7 +15,7 @@ import { useAppMode } from "./AppModeContext";
 import { toast } from "sonner";
 
 // The app_role enum values from the database
-const APP_ROLES = ["admin", "hr", "manager", "employee"] as const;
+const APP_ROLES = ["admin", "hr", "finance", "manager", "employee"] as const;
 type AppRole = typeof APP_ROLES[number];
 
 interface Role {
@@ -77,6 +77,7 @@ const DevModeContext = createContext<DevModeContextType | undefined>(undefined);
 const ROLE_PRIORITY: Record<AppRole, number> = {
   admin: 100,
   hr: 80,
+  finance: 70,
   manager: 60,
   employee: 20,
 };
@@ -84,6 +85,7 @@ const ROLE_PRIORITY: Record<AppRole, number> = {
 const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   admin: "Full system access",
   hr: "HR management and employee records",
+  finance: "Financial suite, payroll and org chart access",
   manager: "Team and department management",
   employee: "Basic employee access",
 };
@@ -92,6 +94,7 @@ const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
 const ROLE_PERMISSIONS: Record<AppRole, string[]> = {
   admin: ["*"],
   hr: ["profiles:read", "profiles:write", "attendance:read", "attendance:write", "leaves:read", "leaves:write", "payroll:read", "payroll:write", "memos:manage"],
+  finance: ["financial:read", "financial:write", "invoicing:read", "invoicing:write", "banking:read", "cashflow:read", "analytics:read", "payroll:read", "orgchart:read"],
   manager: ["profiles:read", "attendance:read", "leaves:read", "leaves:approve", "goals:read", "goals:write", "payroll:read"],
   employee: ["profiles:own:read", "profiles:own:write", "attendance:own:read", "leaves:own:read", "leaves:own:write", "goals:own:read", "goals:own:write"],
 };
