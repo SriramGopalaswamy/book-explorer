@@ -58,6 +58,8 @@ import {
   useDeleteBankAccount,
   BankAccount,
 } from "@/hooks/useBanking";
+import { useIsFinance } from "@/hooks/useRoles";
+import { AccessDenied } from "@/components/auth/AccessDenied";
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -67,12 +69,39 @@ const formatCurrency = (value: number) => {
 };
 
 export default function Banking() {
+  // Role-based access control
+  const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  
   const { data: accounts = [], isLoading: accountsLoading } = useBankAccounts();
   const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
   const { data: monthlyStats } = useMonthlyTransactionStats();
   const createAccount = useCreateBankAccount();
   const createTransaction = useCreateTransaction();
   const deleteAccount = useDeleteBankAccount();
+
+  // Show loading state while checking permissions
+  if (isCheckingRole) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Checking permissions...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+  
+  // Deny access if user doesn't have finance role
+  if (!hasFinanceAccess) {
+    return (
+      <AccessDenied 
+        message="Finance Access Required"
+        description="You need finance or admin role to access the Banking module. Contact your administrator for access."
+      />
+    );
+  }
 
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
