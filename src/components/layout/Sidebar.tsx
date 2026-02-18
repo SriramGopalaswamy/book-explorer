@@ -65,6 +65,12 @@ const managerHrmsNav: NavItem[] = [
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 
+// Finance HRMS items (Payroll + Org Chart only)
+const financeHrmsNav: NavItem[] = [
+  { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
+  { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+];
+
 const performanceNav: NavItem[] = [
   { name: "Goals", path: "/performance/goals", icon: Target, module: "performance" },
   { name: "Memos", path: "/performance/memos", icon: FileText, module: "performance" },
@@ -84,6 +90,7 @@ export function Sidebar() {
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
+  const isFinance = currentRole === "finance";
   const isLoading = currentRole === undefined;
 
   // Expose setter so Header can trigger it
@@ -153,10 +160,16 @@ export function Sidebar() {
   };
 
   // Build visible nav based on role
-  const restrictedRole = isEmployee || isManager;
+  const restrictedRole = isEmployee || isManager || isFinance;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = restrictedRole ? [] : financialNav;
-  const visibleHrmsNav = isManager ? managerHrmsNav : isEmployee ? employeeHrmsNav : hrmsNav;
+  const visibleFinancialNav = (isEmployee || isManager) ? [] : financialNav; // finance + admin see financial suite
+  const visibleHrmsNav = isManager
+    ? managerHrmsNav
+    : isEmployee
+    ? employeeHrmsNav
+    : isFinance
+    ? financeHrmsNav
+    : hrmsNav;
 
   const sidebarContent = (
     <>
