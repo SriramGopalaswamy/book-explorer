@@ -231,6 +231,7 @@ export default function Leaves() {
                     No leave requests found
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -292,6 +293,7 @@ export default function Leaves() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </TabsContent>
             </Tabs>

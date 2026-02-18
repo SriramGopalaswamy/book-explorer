@@ -137,6 +137,7 @@ export function ChartOfAccountsTable() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -222,6 +223,7 @@ export function ChartOfAccountsTable() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
