@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -144,6 +146,8 @@ export default function Banking() {
       else if (sortField === "amount") cmp = Number(a.amount) - Number(b.amount);
       return sortDir === "asc" ? cmp : -cmp;
     });
+
+  const pagination = usePagination(filteredTransactions, 10);
 
   const hasActiveFilters = searchQuery || typeFilter !== "all" || dateFrom || dateTo;
 
@@ -554,50 +558,64 @@ export default function Banking() {
               <p className="mt-2 text-muted-foreground">No transactions found</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("transaction_date")}>
-                    Date <SortIcon field="transaction_date" />
-                  </TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
-                    Category <SortIcon field="category" />
-                  </TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort("amount")}>
-                    Amount <SortIcon field="amount" />
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="font-medium">{tx.transaction_date}</TableCell>
-                    <TableCell>{tx.description}</TableCell>
-                    <TableCell>{tx.bank_accounts?.name || "-"}</TableCell>
-                    <TableCell>{tx.category || "—"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={tx.transaction_type === "credit" ? "default" : "secondary"}
-                        className={tx.transaction_type === "credit" ? "bg-success/10 text-success border-success/30" : "bg-destructive/10 text-destructive border-destructive/30"}
-                      >
-                        {tx.transaction_type === "credit" ? (
-                          <ArrowDownLeft className="h-3 w-3 mr-1" />
-                        ) : (
-                          <ArrowUpRight className="h-3 w-3 mr-1" />
-                        )}
-                        {tx.transaction_type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${tx.transaction_type === "credit" ? "text-success" : "text-destructive"}`}>
-                      {tx.transaction_type === "credit" ? "+" : "-"}{formatCurrency(Number(tx.amount))}
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("transaction_date")}>
+                      Date <SortIcon field="transaction_date" />
+                    </TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                      Category <SortIcon field="category" />
+                    </TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort("amount")}>
+                      Amount <SortIcon field="amount" />
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pagination.paginatedItems.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="font-medium">{tx.transaction_date}</TableCell>
+                      <TableCell>{tx.description}</TableCell>
+                      <TableCell>{tx.bank_accounts?.name || "-"}</TableCell>
+                      <TableCell>{tx.category || "—"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={tx.transaction_type === "credit" ? "default" : "secondary"}
+                          className={tx.transaction_type === "credit" ? "bg-success/10 text-success border-success/30" : "bg-destructive/10 text-destructive border-destructive/30"}
+                        >
+                          {tx.transaction_type === "credit" ? (
+                            <ArrowDownLeft className="h-3 w-3 mr-1" />
+                          ) : (
+                            <ArrowUpRight className="h-3 w-3 mr-1" />
+                          )}
+                          {tx.transaction_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${tx.transaction_type === "credit" ? "text-success" : "text-destructive"}`}>
+                        {tx.transaction_type === "credit" ? "+" : "-"}{formatCurrency(Number(tx.amount))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="pt-4">
+                <TablePagination
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.totalItems}
+                  from={pagination.from}
+                  to={pagination.to}
+                  pageSize={pagination.pageSize}
+                  onPageChange={pagination.setPage}
+                  onPageSizeChange={(s) => { pagination.setPageSize(s); pagination.setPage(1); }}
+                />
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
