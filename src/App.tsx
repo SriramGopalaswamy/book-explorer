@@ -21,6 +21,13 @@ import Invoicing from "./pages/financial/Invoicing";
 import Banking from "./pages/financial/Banking";
 import CashFlow from "./pages/financial/CashFlow";
 import Analytics from "./pages/financial/Analytics";
+import Customers from "./pages/financial/Customers";
+import Vendors from "./pages/financial/Vendors";
+import Quotes from "./pages/financial/Quotes";
+import Expenses from "./pages/financial/Expenses";
+import CreditNotes from "./pages/financial/CreditNotes";
+import VendorCredits from "./pages/financial/VendorCredits";
+import Bills from "./pages/financial/Bills";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -67,7 +74,14 @@ const App = () => (
 
                   {/* Financial Suite */}
                   <Route path="/financial/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+                  <Route path="/financial/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+                  <Route path="/financial/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
                   <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
+                  <Route path="/financial/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
+                  <Route path="/financial/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+                  <Route path="/financial/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
+                  <Route path="/financial/credit-notes" element={<ProtectedRoute><CreditNotes /></ProtectedRoute>} />
+                  <Route path="/financial/vendor-credits" element={<ProtectedRoute><VendorCredits /></ProtectedRoute>} />
                   <Route path="/financial/banking" element={<ProtectedRoute><Banking /></ProtectedRoute>} />
                   <Route path="/financial/cashflow" element={<ProtectedRoute><CashFlow /></ProtectedRoute>} />
                   <Route path="/financial/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
