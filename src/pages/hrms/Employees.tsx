@@ -42,6 +42,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Users,
   UserPlus,
   Search,
@@ -53,6 +66,8 @@ import {
   Pencil,
   Trash2,
   ShieldAlert,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -72,6 +87,68 @@ const statusStyles = {
 };
 
 const departments = ["Engineering", "Product", "Human Resources", "Finance", "Marketing", "Sales", "Operations"];
+
+interface ManagerComboboxProps {
+  value: string;
+  onChange: (value: string) => void;
+  employees: Employee[];
+  excludeId?: string;
+}
+
+function ManagerCombobox({ value, onChange, employees, excludeId }: ManagerComboboxProps) {
+  const [open, setOpen] = useState(false);
+
+  const options = employees.filter((e) => e.id !== excludeId);
+  const selected = options.find((e) => e.id === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className="truncate">
+            {selected ? (selected.full_name || selected.email || "Unnamed") : "Select manager"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0 z-50" align="start">
+        <Command>
+          <CommandInput placeholder="Search by name..." />
+          <CommandList>
+            <CommandEmpty>No manager found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="none"
+                onSelect={() => { onChange(""); setOpen(false); }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                No Manager
+              </CommandItem>
+              {options.map((emp) => (
+                <CommandItem
+                  key={emp.id}
+                  value={emp.full_name || emp.email || emp.id}
+                  onSelect={() => { onChange(emp.id); setOpen(false); }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", value === emp.id ? "opacity-100" : "opacity-0")} />
+                  <div className="flex flex-col">
+                    <span>{emp.full_name || "Unnamed"}</span>
+                    {emp.job_title && <span className="text-xs text-muted-foreground">{emp.job_title}</span>}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function Employees() {
   const { data: employees = [], isLoading } = useEmployees();
@@ -339,20 +416,11 @@ export default function Employees() {
                     </div>
                     <div className="grid gap-2">
                       <Label>Manager</Label>
-                      <Select
+                      <ManagerCombobox
                         value={formData.manager_id}
-                        onValueChange={(v) => setFormData({ ...formData, manager_id: v === "none" ? "" : v })}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Manager</SelectItem>
-                          {employees.map((emp) => (
-                            <SelectItem key={emp.id} value={emp.id}>
-                              {emp.full_name || emp.email || "Unnamed"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onChange={(v) => setFormData({ ...formData, manager_id: v })}
+                        employees={employees}
+                      />
                     </div>
                   </div>
                   <DialogFooter>
@@ -552,20 +620,12 @@ export default function Employees() {
             </div>
             <div className="grid gap-2">
               <Label>Manager</Label>
-              <Select
+              <ManagerCombobox
                 value={formData.manager_id}
-                onValueChange={(v) => setFormData({ ...formData, manager_id: v === "none" ? "" : v })}
-              >
-                <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Manager</SelectItem>
-                  {employees.filter((emp) => emp.id !== selectedEmployee?.id).map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.email || "Unnamed"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setFormData({ ...formData, manager_id: v })}
+                employees={employees}
+                excludeId={selectedEmployee?.id}
+              />
             </div>
           </div>
           <DialogFooter>
