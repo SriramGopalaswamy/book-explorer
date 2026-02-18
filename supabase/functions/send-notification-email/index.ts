@@ -479,6 +479,121 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ─── REIMBURSEMENT SUBMITTED ──────────────────────────────────────────────
+    if (type === "reimbursement_submitted") {
+      const { reimbursement_id } = payload;
+      let reimbursement: any = null;
+      let manager: any = null;
+
+      try {
+        const { data, error: rErr } = await supabase
+          .from("reimbursement_requests")
+          .select("*, profiles:profile_id (full_name, email, user_id, manager_id)")
+          .eq("id", reimbursement_id)
+          .single();
+        if (rErr || !data) throw new Error(`Reimbursement not found: ${rErr?.message}`);
+        reimbursement = data;
+        const managerId = (reimbursement as any).profiles?.manager_id;
+        if (managerId) {
+          const { data: mgr } = await supabase.from("profiles").select("email, full_name, user_id").eq("id", managerId).single();
+          manager = mgr;
+        }
+      } catch (err) {
+        console.error("reimbursement_submitted: data fetch failed:", err);
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const employeeName = (reimbursement as any).profiles?.full_name || "An employee";
+      const employeeEmail = (reimbursement as any).profiles?.email;
+      const employeeUserId = (reimbursement as any).profiles?.user_id;
+      const rows = [
+        tableRow("Vendor", reimbursement.vendor_name || "—", true),
+        tableRow("Amount", `₹${Number(reimbursement.amount).toLocaleString()}`, true),
+        tableRow("Category", reimbursement.category || "—"),
+        ...(reimbursement.expense_date ? [tableRow("Expense Date", reimbursement.expense_date)] : []),
+        ...(reimbursement.description ? [tableRow("Description", reimbursement.description)] : []),
+      ].join("");
+
+      // Step 2: In-app notifications
+      if (manager?.user_id) {
+        await insertNotification(supabase, manager.user_id, `Reimbursement Request from ${employeeName}`, `${employeeName} submitted a reimbursement claim of ₹${Number(reimbursement.amount).toLocaleString()} for ${reimbursement.category || "expenses"}.`, "info", "/hrms/inbox");
+      }
+      if (employeeUserId) {
+        await insertNotification(supabase, employeeUserId, "Reimbursement Submitted", `Your reimbursement claim of ₹${Number(reimbursement.amount).toLocaleString()} has been submitted and is pending manager approval.`, "info", "/hrms/reimbursements");
+      }
+
+      // Step 3: Emails — best-effort
+      try {
+        if (manager?.email) {
+          const htmlBody = emailTemplate("#f5a623", "💰", `Reimbursement Request from ${employeeName}`, "Requires your approval", rows, "Please log in to <strong>GRX10</strong> to approve or reject this reimbursement.");
+          await sendEmail(accessToken, senderEmail, [{ email: manager.email, name: manager.full_name || undefined }], `💰 Reimbursement Request from ${employeeName} — Approval Required`, htmlBody);
+        }
+        if (employeeEmail) {
+          const htmlBody = emailTemplate("#3498db", "📋", "Reimbursement Submitted", `Hi ${employeeName}, your reimbursement claim has been submitted and is pending manager approval.`, rows);
+          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
+        }
+      } catch (emailErr) {
+        console.warn("reimbursement_submitted: email send failed:", emailErr);
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── REIMBURSEMENT MANAGER DECIDED ───────────────────────────────────────
+    if (type === "reimbursement_manager_decided") {
+      const { reimbursement_id, decision, reviewer_name } = payload;
+      let reimbursement: any = null;
+
+      try {
+        const { data, error: rErr } = await supabase
+          .from("reimbursement_requests")
+          .select("*, profiles:profile_id (full_name, email, user_id)")
+          .eq("id", reimbursement_id)
+          .single();
+        if (rErr || !data) throw new Error(`Reimbursement not found: ${rErr?.message}`);
+        reimbursement = data;
+      } catch (err) {
+        console.error("reimbursement_manager_decided: data fetch failed:", err);
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const employeeName = (reimbursement as any).profiles?.full_name || "Employee";
+      const employeeEmail = (reimbursement as any).profiles?.email;
+      const employeeUserId = (reimbursement as any).profiles?.user_id;
+      const isApproved = decision === "approved";
+      const statusColor = isApproved ? "#27ae60" : "#e74c3c";
+      const statusIcon = isApproved ? "✅" : "❌";
+      const statusText = isApproved ? "Approved" : "Rejected";
+      const rows = [
+        tableRow("Status", statusText, true),
+        tableRow("Vendor", reimbursement.vendor_name || "—"),
+        tableRow("Amount", `₹${Number(reimbursement.amount).toLocaleString()}`, true),
+        tableRow("Category", reimbursement.category || "—"),
+        ...(reviewer_name ? [tableRow("Reviewed by", String(reviewer_name))] : []),
+        ...(reimbursement.manager_notes ? [tableRow("Manager Notes", reimbursement.manager_notes)] : []),
+      ].join("");
+
+      // Step 2: In-app notifications
+      if (employeeUserId) {
+        const msg = isApproved
+          ? `Your reimbursement of ₹${Number(reimbursement.amount).toLocaleString()} has been approved and forwarded to Finance.`
+          : `Your reimbursement of ₹${Number(reimbursement.amount).toLocaleString()} has been rejected by your manager.${reimbursement.manager_notes ? ` Note: ${reimbursement.manager_notes}` : ""}`;
+        await insertNotification(supabase, employeeUserId, `Reimbursement ${statusText}`, msg, isApproved ? "info" : "warning", "/hrms/reimbursements");
+      }
+
+      // Step 3: Emails — best-effort
+      try {
+        if (employeeEmail) {
+          const htmlBody = emailTemplate(statusColor, statusIcon, `Reimbursement ${statusText}`, `Hi ${employeeName}, your reimbursement claim has been ${decision} by your manager.`, rows);
+          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `${statusIcon} Reimbursement ${statusText} — ₹${Number(reimbursement.amount).toLocaleString()}`, htmlBody);
+        }
+      } catch (emailErr) {
+        console.warn("reimbursement_manager_decided: email send failed:", emailErr);
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid notification type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
