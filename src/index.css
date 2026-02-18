@@ -528,3 +528,38 @@ button, a, input, select, textarea {
   background: hsl(var(--primary) / 0.3);
   color: hsl(var(--foreground));
 }
+
+/* ── Table interaction enhancements ──────────────────────────────── */
+@layer components {
+  /* Left-border accent on hover — applies to all TableRow */
+  tbody tr {
+    position: relative;
+  }
+
+  tbody tr::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: hsl(var(--primary));
+    border-radius: 0 2px 2px 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  tbody tr:hover::before {
+    opacity: 1;
+  }
+
+  /* Selected row accent */
+  tbody tr[data-state="selected"]::before {
+    opacity: 1;
+  }
+
+  /* Clickable table rows */
+  tbody tr[data-clickable="true"] {
+    cursor: pointer;
+  }
+}
