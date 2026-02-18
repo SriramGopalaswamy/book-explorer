@@ -10,8 +10,10 @@ import {
   History,
   User,
   MessageSquare,
+  Target,
+  Edit2,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { toast } from "sonner";
+import {
+  useDirectReportsPendingGoalPlans,
+  useApproveGoalPlan,
+  useRejectGoalPlan,
+  GoalItem,
+  GoalPlanWithProfile,
+  totalWeightage,
+  newGoalItem,
+} from "@/hooks/useGoalPlans";
+import { Input } from "@/components/ui/input";
 
 // ─── History hooks ────────────────────────────────────────────────────────────
 
@@ -535,10 +547,38 @@ export default function ManagerInbox() {
   const { data: corrections = [] } = useDirectReportsCorrectionsPending();
   const pendingCount = leaves.length + corrections.length;
 
+  const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
+  const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
+  const [goalItems, setGoalItems] = useState<GoalItem[]>([]);
+  const [goalNotes, setGoalNotes] = useState("");
+  const approveGoal = useApproveGoalPlan();
+  const rejectGoal = useRejectGoalPlan();
+
+  const totalPending = pendingCount + pendingGoals.length;
+
+  const openGoalReview = (plan: GoalPlanWithProfile) => {
+    setReviewingGoal(plan);
+    setGoalItems([...plan.items]);
+    setGoalNotes("");
+  };
+
+  const handleGoalApprove = async () => {
+    if (!reviewingGoal) return;
+    const isScoring = reviewingGoal.status === "pending_score_approval";
+    await approveGoal.mutateAsync({ planId: reviewingGoal.id, items: goalItems, notes: goalNotes, isScoring });
+    setReviewingGoal(null);
+  };
+
+  const handleGoalReject = async () => {
+    if (!reviewingGoal) return;
+    const isScoring = reviewingGoal.status === "pending_score_approval";
+    await rejectGoal.mutateAsync({ planId: reviewingGoal.id, notes: goalNotes, isScoring });
+    setReviewingGoal(null);
+  };
+
   return (
     <MainLayout title="Manager Inbox" subtitle="Review and action requests from your direct reports">
       <div className="space-y-6">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -553,14 +593,13 @@ export default function ManagerInbox() {
               Review and action requests from your direct reports
             </p>
           </div>
-          {pendingCount > 0 && (
+          {totalPending > 0 && (
             <Badge className="ml-auto bg-primary/20 text-primary border-primary/30">
-              {pendingCount} pending
+              {totalPending} pending
             </Badge>
           )}
         </motion.div>
 
-        {/* Tabs */}
         <Tabs defaultValue="pending">
           <TabsList className="mb-4">
             <TabsTrigger value="pending" className="gap-2">
@@ -569,6 +608,15 @@ export default function ManagerInbox() {
               {pendingCount > 0 && (
                 <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                   {pendingCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="goals" className="gap-2">
+              <Target className="h-4 w-4" />
+              Goal Plans
+              {pendingGoals.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingGoals.length}
                 </span>
               )}
             </TabsTrigger>
@@ -619,6 +667,60 @@ export default function ManagerInbox() {
             </div>
           </TabsContent>
 
+          {/* ── Goal Plans ── */}
+          <TabsContent value="goals">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Target className="h-4 w-4 text-primary" />
+                  Pending Goal Plan Reviews
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {pendingGoals.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+                    <Target className="h-8 w-8 opacity-30" />
+                    <p className="text-sm">No pending goal plans from your team.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingGoals.map((plan) => {
+                      const name = plan._profile?.full_name || "Unknown";
+                      const wt = totalWeightage(plan.items);
+                      const LABEL: Record<string, string> = {
+                        pending_approval: "New Plan",
+                        pending_edit_approval: "Plan Edit",
+                        pending_score_approval: "Actuals Scoring",
+                      };
+                      return (
+                        <Card key={plan.id} className="border-border/50 bg-card/60">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm">{name}</span>
+                                  <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-400 bg-amber-500/10">
+                                    {LABEL[plan.status] || plan.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseISO(plan.month), "MMMM yyyy")} · {plan.items.length} items · {wt}% total
+                                </p>
+                              </div>
+                              <Button size="sm" variant="outline" className="border-primary/40 text-primary hover:bg-primary/10" onClick={() => openGoalReview(plan)}>
+                                <Edit2 className="h-3.5 w-3.5 mr-1" /> Review
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ── History ── */}
           <TabsContent value="history">
             <Card>
@@ -634,6 +736,63 @@ export default function ManagerInbox() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Goal Plan Review Dialog */}
+        {reviewingGoal && (
+          <Dialog open={!!reviewingGoal} onOpenChange={(v) => { if (!v) setReviewingGoal(null); }}>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  Review {reviewingGoal.status === "pending_score_approval" ? "Actuals" : "Goal Plan"} —{" "}
+                  {reviewingGoal._profile?.full_name || "Employee"},{" "}
+                  {format(parseISO(reviewingGoal.month), "MMMM yyyy")}
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground">You can edit any field before approving.</p>
+              </DialogHeader>
+              <div className="overflow-x-auto rounded-lg border border-border/50 my-2">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50 bg-muted/30">
+                      {["Client","Bucket","Line Item","Weightage %","Target","Actual"].map(h => (
+                        <th key={h} className="text-left px-2 py-2 font-medium text-muted-foreground">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {goalItems.map((item) => (
+                      <tr key={item.id} className="border-b border-border/30 last:border-0">
+                        {(["client","bucket","line_item","target"] as const).map((f) => (
+                          <td key={f} className="px-2 py-1.5">
+                            <Input value={item[f] as string} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, [f]: e.target.value } : i))} className="h-8 text-sm" />
+                          </td>
+                        ))}
+                        <td className="px-2 py-1.5 w-24">
+                          <Input type="number" value={item.weightage} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, weightage: Number(e.target.value) } : i))} className="h-8 text-sm text-right" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input value={item.actual ?? ""} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, actual: e.target.value || null } : i))} className="h-8 text-sm" placeholder="Actual" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="space-y-2">
+                <Label>Reviewer Notes (optional)</Label>
+                <Textarea placeholder="Add notes…" value={goalNotes} onChange={(e) => setGoalNotes(e.target.value)} rows={3} />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setReviewingGoal(null)}>Cancel</Button>
+                <Button variant="outline" onClick={handleGoalReject} disabled={rejectGoal.isPending || approveGoal.isPending} className="border-red-500/40 text-red-400 hover:bg-red-500/10">
+                  <X className="h-4 w-4 mr-1" /> {reviewingGoal.status === "pending_score_approval" ? "Return for Revision" : "Reject"}
+                </Button>
+                <Button onClick={handleGoalApprove} disabled={approveGoal.isPending || rejectGoal.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Check className="h-4 w-4 mr-1" /> Approve
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </MainLayout>
   );
