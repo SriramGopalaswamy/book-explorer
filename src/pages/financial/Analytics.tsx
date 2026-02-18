@@ -6,6 +6,8 @@ import {
   TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
 } from "lucide-react";
 import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod } from "@/hooks/useAnalytics";
+import { useIsFinance } from "@/hooks/useRoles";
+import { AccessDenied } from "@/components/auth/AccessDenied";
 
 // Report components
 import { ProfitLossStatement } from "@/components/analytics/ProfitLossStatement";
@@ -23,6 +25,9 @@ const formatCurrency = (v: number) => {
 };
 
 export default function Analytics() {
+  // Role-based access control
+  const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  
   const pl = useProfitLoss();
   const bs = useBalanceSheet();
   const expenses = useExpenseByCategory();
@@ -33,6 +38,30 @@ export default function Analytics() {
   const [reportTo, setReportTo] = useState<Date | undefined>();
   const { data: periodPL } = useProfitLossForPeriod(reportFrom, reportTo);
   const hasDateFilter = !!(reportFrom || reportTo);
+
+  // Show loading state while checking permissions
+  if (isCheckingRole) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Checking permissions...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+  
+  // Deny access if user doesn't have finance role
+  if (!hasFinanceAccess) {
+    return (
+      <AccessDenied 
+        message="Finance Access Required"
+        description="You need finance or admin role to access the Analytics module. Contact your administrator for access."
+      />
+    );
+  }
 
   const topExpense = expenses.length > 0 ? expenses.reduce((a, b) => a.value > b.value ? a : b) : null;
 

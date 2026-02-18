@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
   title: string;
@@ -24,6 +25,7 @@ interface HeaderProps {
 export function Header({ title, subtitle }: HeaderProps) {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
@@ -143,11 +145,19 @@ export function Header({ title, subtitle }: HeaderProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="rounded-lg cursor-pointer">
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer"
+                onClick={() => navigate("/profile")}
+              >
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-lg cursor-pointer">Settings</DropdownMenuItem>
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer"
+                onClick={() => navigate("/settings")}
+              >
+                Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-destructive cursor-pointer rounded-lg"
