@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsAdminOrHR, useEmployees } from "@/hooks/useEmployees";
+import { useIsFinance } from "@/hooks/useRoles";
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
   useDeletePayroll, useProcessPayroll, type PayrollRecord, type CreatePayrollData,
@@ -99,7 +100,10 @@ export default function Payroll() {
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
   const [paySlipRecord, setPaySlipRecord] = useState<PayrollRecord | null>(null);
 
-  const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+  const { data: isAdminOrHR, isLoading: roleLoadingHR } = useIsAdminOrHR();
+  const { data: isFinance, isLoading: roleLoadingFinance } = useIsFinance();
+  const isAdmin = isAdminOrHR || isFinance;
+  const roleLoading = roleLoadingHR || roleLoadingFinance;
   const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
