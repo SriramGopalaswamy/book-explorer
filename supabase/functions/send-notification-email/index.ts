@@ -99,6 +99,30 @@ async function insertNotification(
   }
 }
 
+// Shared email template wrapper
+function emailTemplate(headerColor: string, icon: string, heading: string, subheading: string, rows: string, footer?: string) {
+  return `
+    <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px 12px 0 0; color: #fff;">
+        <h1 style="margin: 0 0 8px; font-size: 20px; color: ${headerColor};">${icon} ${heading}</h1>
+        <p style="margin: 0; font-size: 13px; color: #aaa;">${subheading}</p>
+      </div>
+      <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-top: none; border-radius: 0 0 12px 12px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          ${rows}
+        </table>
+        ${footer ? `<p style="margin-top: 16px; font-size: 13px; color: #666;">${footer}</p>` : ""}
+        <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
+        <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10 — sent from the admin account on behalf of the system.</p>
+      </div>
+    </div>
+  `;
+}
+
+function tableRow(label: string, value: string, bold = false) {
+  return `<tr><td style="padding: 8px 0; color: #666; width: 160px;">${label}</td><td style="padding: 8px 0; color: #333; ${bold ? "font-weight: 600;" : ""}">${value}</td></tr>`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -115,39 +139,31 @@ Deno.serve(async (req) => {
     const { type, payload } = await req.json();
 
     const accessToken = await getGraphToken();
-    // Use the admin email as sender (must have a mailbox in MS365)
+    // Admin sender mailbox in MS365
     const senderEmail = "sriram@grx10.com";
 
+    // ─── MEMO PUBLISHED ───────────────────────────────────────────────────────
     if (type === "memo_published") {
       const { memo_id } = payload;
 
-      // Fetch memo details
       const { data: memo, error: memoError } = await supabase
         .from("memos")
         .select("*")
         .eq("id", memo_id)
         .single();
 
-      if (memoError || !memo) {
-        throw new Error(`Memo not found: ${memoError?.message}`);
-      }
+      if (memoError || !memo) throw new Error(`Memo not found: ${memoError?.message}`);
 
-      // Determine recipients: use memo.recipients array (emails), or fall back to all active profiles
       let recipientEmails: string[] = [];
-
       if (memo.recipients && memo.recipients.length > 0) {
         recipientEmails = memo.recipients;
       } else {
-        // Send to all active employees
         const { data: profiles } = await supabase
           .from("profiles")
           .select("email")
           .eq("status", "active")
           .not("email", "is", null);
-
-        recipientEmails = (profiles || [])
-          .map((p: { email: string | null }) => p.email!)
-          .filter(Boolean);
+        recipientEmails = (profiles || []).map((p: any) => p.email!).filter(Boolean);
       }
 
       if (recipientEmails.length === 0) {
@@ -157,31 +173,18 @@ Deno.serve(async (req) => {
         );
       }
 
-      const htmlBody = `
-        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
-            <h1 style="margin: 0 0 8px; font-size: 20px; color: #e94560;">📢 New Memo: ${memo.title}</h1>
-            <p style="margin: 0; font-size: 13px; color: #aaa;">From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}</p>
-          </div>
-          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
-            <p style="color: #333; line-height: 1.6;">${memo.excerpt || memo.content || "No content"}</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
-            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
-          </div>
-        </div>
-      `;
+      const htmlBody = emailTemplate(
+        "#e94560", "📢", `New Memo: ${memo.title}`,
+        `From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}`,
+        tableRow("Content", memo.excerpt || memo.content || "No content")
+      );
 
       const recipients = recipientEmails.map((email) => ({ email }));
-
-      // Send in batches of 50 (Graph API limit)
       for (let i = 0; i < recipients.length; i += 50) {
         const batch = recipients.slice(i, i + 50);
         await sendEmail(accessToken, senderEmail, batch, `📢 New Memo: ${memo.title}`, htmlBody);
       }
 
-      console.log(`Memo email sent to ${recipientEmails.length} recipients`);
-
-      // Insert in-app notifications for all recipients
       const { data: recipientProfiles } = await supabase
         .from("profiles")
         .select("user_id, email")
@@ -190,16 +193,12 @@ Deno.serve(async (req) => {
 
       for (const profile of recipientProfiles || []) {
         await insertNotification(
-          supabase,
-          profile.user_id,
+          supabase, profile.user_id,
           `📢 New Memo: ${memo.title}`,
           memo.excerpt || memo.content?.substring(0, 150) || "New memo published",
-          "memo",
-          "/performance/memos"
+          "memo", "/performance/memos"
         );
       }
-
-      console.log(`Memo notifications inserted for ${(recipientProfiles || []).length} users`);
 
       return new Response(
         JSON.stringify({ success: true, sent_to: recipientEmails.length }),
@@ -207,190 +206,170 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ─── LEAVE REQUEST CREATED ────────────────────────────────────────────────
     if (type === "leave_request_created") {
       const { leave_request_id } = payload;
 
-      // Fetch leave request with employee profile
       const { data: leave, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("*, profiles:profile_id (full_name, email, manager_id)")
+        .select("*, profiles:profile_id (full_name, email, user_id, manager_id)")
         .eq("id", leave_request_id)
         .single();
 
-      if (leaveError || !leave) {
-        throw new Error(`Leave request not found: ${leaveError?.message}`);
-      }
+      if (leaveError || !leave) throw new Error(`Leave request not found: ${leaveError?.message}`);
 
       const employeeName = (leave as any).profiles?.full_name || "An employee";
+      const employeeEmail = (leave as any).profiles?.email;
+      const employeeUserId = (leave as any).profiles?.user_id;
       const managerId = (leave as any).profiles?.manager_id;
 
-      if (!managerId) {
-        console.log("No manager assigned, skipping email notification");
-        return new Response(
-          JSON.stringify({ success: true, message: "No manager to notify" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // Get manager details
+      let manager: { email: string; full_name: string | null; user_id: string } | null = null;
+      if (managerId) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, full_name, user_id")
+          .eq("id", managerId)
+          .single();
+        manager = data;
+      }
+
+      const leaveRows = [
+        tableRow("Type", leave.leave_type, true),
+        tableRow("From", leave.from_date),
+        tableRow("To", leave.to_date),
+        tableRow("Days", String(leave.days), true),
+        ...(leave.reason ? [tableRow("Reason", leave.reason)] : []),
+      ].join("");
+
+      // Email to manager — approval required
+      if (manager?.email) {
+        const htmlBody = emailTemplate(
+          "#f5a623", "🗓️", `Leave Request from ${employeeName}`,
+          "Requires your approval",
+          leaveRows,
+          "Please log in to <strong>GRX10</strong> to approve or reject this request."
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: manager.email, name: manager.full_name || undefined }],
+          `🗓️ Leave Request from ${employeeName} — Approval Required`,
+          htmlBody
+        );
+        // In-app notification for manager
+        if (manager.user_id) {
+          await insertNotification(
+            supabase, manager.user_id,
+            `Leave Request from ${employeeName}`,
+            `${employeeName} requested ${leave.days} day(s) of ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date})`,
+            "leave_request", "/hrms/inbox"
+          );
+        }
+      }
+
+      // Confirmation email to employee (creator)
+      if (employeeEmail) {
+        const htmlBody = emailTemplate(
+          "#3498db", "📋", "Leave Request Submitted",
+          `Hi ${employeeName}, your leave request has been submitted and is pending approval.`,
+          leaveRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: employeeEmail, name: employeeName }],
+          `📋 Leave Request Submitted — Awaiting Approval`,
+          htmlBody
         );
       }
 
-      // Get manager's email and user_id
-      const { data: manager } = await supabase
-        .from("profiles")
-        .select("email, full_name, user_id")
-        .eq("id", managerId)
-        .single();
-
-      if (!manager?.email) {
-        console.log("Manager has no email, skipping");
-        return new Response(
-          JSON.stringify({ success: true, message: "Manager email not found" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Insert in-app notification for manager
-      if (manager.user_id) {
+      // In-app confirmation for employee
+      if (employeeUserId) {
         await insertNotification(
-          supabase,
-          manager.user_id,
-          `Leave Request from ${employeeName}`,
-          `${employeeName} requested ${leave.days} day(s) of ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date})`,
-          "leave_request",
-          "/dashboard"
+          supabase, employeeUserId,
+          "Leave Request Submitted",
+          `Your ${leave.leave_type} leave request (${leave.from_date} to ${leave.to_date}) has been submitted and is pending approval.`,
+          "leave_request", "/hrms/leaves"
         );
       }
-
-      const htmlBody = `
-        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
-            <h1 style="margin: 0 0 8px; font-size: 20px; color: #f5a623;">🗓️ Leave Request from ${employeeName}</h1>
-            <p style="margin: 0; font-size: 13px; color: #aaa;">Requires your approval</p>
-          </div>
-          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <tr><td style="padding: 8px 0; color: #666; width: 120px;">Type</td><td style="padding: 8px 0; color: #333; font-weight: 600;">${leave.leave_type}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">From</td><td style="padding: 8px 0; color: #333;">${leave.from_date}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">To</td><td style="padding: 8px 0; color: #333;">${leave.to_date}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">Days</td><td style="padding: 8px 0; color: #333; font-weight: 600;">${leave.days}</td></tr>
-              ${leave.reason ? `<tr><td style="padding: 8px 0; color: #666;">Reason</td><td style="padding: 8px 0; color: #333;">${leave.reason}</td></tr>` : ""}
-            </table>
-            <p style="margin-top: 16px; font-size: 13px; color: #666;">
-              Please log in to <strong>GRX10</strong> to approve or reject this request from your dashboard.
-            </p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
-            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
-          </div>
-        </div>
-      `;
-
-      await sendEmail(
-        accessToken,
-        senderEmail,
-        [{ email: manager.email, name: manager.full_name || undefined }],
-        `🗓️ Leave Request from ${employeeName} - Approval Required`,
-        htmlBody
-      );
-
-      console.log(`Leave request email sent to manager: ${manager.email}`);
 
       return new Response(
-        JSON.stringify({ success: true, sent_to: manager.email }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // ─── LEAVE REQUEST DECIDED ────────────────────────────────────────────────
     if (type === "leave_request_decided") {
       const { leave_request_id, decision, reviewer_name } = payload;
 
       const { data: leave, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("*, profiles:profile_id (full_name, email, manager_id)")
+        .select("*, profiles:profile_id (full_name, email, user_id, manager_id)")
         .eq("id", leave_request_id)
         .single();
 
-      if (leaveError || !leave) {
-        throw new Error(`Leave request not found: ${leaveError?.message}`);
-      }
+      if (leaveError || !leave) throw new Error(`Leave request not found: ${leaveError?.message}`);
 
       const employeeEmail = (leave as any).profiles?.email;
       const employeeName = (leave as any).profiles?.full_name || "Employee";
       const managerId = (leave as any).profiles?.manager_id;
-
-      // We need the employee's user_id for in-app notification
-      // The leave_request has user_id but that's the requester's auth id
-      const employeeUserId = leave.user_id;
-
-      // Look up manager email and user_id
-      let managerRecipient: { email: string; name?: string } | null = null;
-      let managerUserId: string | null = null;
-      if (managerId) {
-        const { data: manager } = await supabase
-          .from("profiles")
-          .select("email, full_name, user_id")
-          .eq("id", managerId)
-          .single();
-        if (manager?.email) {
-          managerRecipient = { email: manager.email, name: manager.full_name || undefined };
-          managerUserId = manager.user_id;
-        }
-      }
-
-      if (!employeeEmail) {
-        console.log("Employee has no email, skipping");
-        return new Response(
-          JSON.stringify({ success: true, message: "Employee email not found" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
 
       const isApproved = decision === "approved";
       const statusColor = isApproved ? "#27ae60" : "#e74c3c";
       const statusIcon = isApproved ? "✅" : "❌";
       const statusText = isApproved ? "Approved" : "Rejected";
 
-      const htmlBody = `
-        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
-            <h1 style="margin: 0 0 8px; font-size: 20px; color: ${statusColor};">${statusIcon} Leave Request ${statusText}</h1>
-            <p style="margin: 0; font-size: 13px; color: #aaa;">Hi ${employeeName}, your leave request has been ${decision}.</p>
-          </div>
-          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <tr><td style="padding: 8px 0; color: #666; width: 120px;">Status</td><td style="padding: 8px 0; font-weight: 600; color: ${statusColor};">${statusText}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">Type</td><td style="padding: 8px 0; color: #333;">${leave.leave_type}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">From</td><td style="padding: 8px 0; color: #333;">${leave.from_date}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">To</td><td style="padding: 8px 0; color: #333;">${leave.to_date}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">Days</td><td style="padding: 8px 0; color: #333; font-weight: 600;">${leave.days}</td></tr>
-              ${reviewer_name ? `<tr><td style="padding: 8px 0; color: #666;">Reviewed by</td><td style="padding: 8px 0; color: #333;">${reviewer_name}</td></tr>` : ""}
-            </table>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
-            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
-          </div>
-        </div>
-      `;
-
-      const recipients = [{ email: employeeEmail, name: employeeName }];
-      if (managerRecipient && managerRecipient.email !== employeeEmail) {
-        recipients.push(managerRecipient);
+      // Get manager details for CC
+      let manager: { email: string; full_name: string | null; user_id: string } | null = null;
+      if (managerId) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, full_name, user_id")
+          .eq("id", managerId)
+          .single();
+        manager = data;
       }
 
-      await sendEmail(
-        accessToken,
-        senderEmail,
-        recipients,
-        `${statusIcon} Leave Request ${statusText} - ${employeeName}`,
-        htmlBody
-      );
+      const leaveRows = [
+        tableRow("Status", statusText, true),
+        tableRow("Type", leave.leave_type),
+        tableRow("From", leave.from_date),
+        tableRow("To", leave.to_date),
+        tableRow("Days", String(leave.days), true),
+        ...(reviewer_name ? [tableRow("Reviewed by", reviewer_name)] : []),
+      ].join("");
 
-      const sentTo = recipients.map(r => r.email);
-      console.log(`Leave decision email sent to: ${sentTo.join(", ")}`);
+      // Email to employee
+      if (employeeEmail) {
+        const htmlBody = emailTemplate(
+          statusColor, statusIcon, `Leave Request ${statusText}`,
+          `Hi ${employeeName}, your leave request has been ${decision}.`,
+          leaveRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: employeeEmail, name: employeeName }],
+          `${statusIcon} Leave Request ${statusText} — ${employeeName}`,
+          htmlBody
+        );
+      }
 
-      // Insert in-app notifications
-      const notifType = isApproved ? "leave_approved" : "leave_rejected";
-      const notifTitle = `Leave ${statusText}`;
-      const notifMsg = `Your ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) has been ${decision}.`;
+      // CC email to manager/reviewer confirming their action
+      if (manager?.email && manager.email !== employeeEmail) {
+        const htmlBody = emailTemplate(
+          statusColor, statusIcon, `Leave ${statusText} — ${employeeName}`,
+          `This confirms you ${decision} ${employeeName}'s leave request.`,
+          leaveRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: manager.email, name: manager.full_name || undefined }],
+          `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`,
+          htmlBody
+        );
+      }
 
-      // Notify the employee whose leave was decided
-      // The leave requests were seeded with the manager's user_id, so look up the actual employee user_id from profile
+      // In-app: notify employee
       const { data: empProfile } = await supabase
         .from("profiles")
         .select("user_id")
@@ -398,27 +377,122 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (empProfile?.user_id) {
-        await insertNotification(supabase, empProfile.user_id, notifTitle, notifMsg, notifType, "/hrms/leaves");
+        await insertNotification(
+          supabase, empProfile.user_id,
+          `Leave ${statusText}`,
+          `Your ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) has been ${decision}.`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/leaves"
+        );
       }
 
-      // Notify the manager
-      if (managerUserId) {
+      // In-app: confirm action to manager
+      if (manager?.user_id) {
         await insertNotification(
-          supabase,
-          managerUserId,
+          supabase, manager.user_id,
           `Leave ${statusText} — ${employeeName}`,
           `${employeeName}'s ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) was ${decision}.`,
-          notifType,
-          "/dashboard"
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/inbox"
         );
       }
 
       return new Response(
-        JSON.stringify({ success: true, sent_to: sentTo }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // ─── CORRECTION REQUEST CREATED ───────────────────────────────────────────
+    if (type === "correction_request_created") {
+      const { correction_request_id } = payload;
+
+      const { data: correction, error: corrError } = await supabase
+        .from("attendance_correction_requests")
+        .select("*, profiles:profile_id (full_name, email, user_id, manager_id)")
+        .eq("id", correction_request_id)
+        .single();
+
+      if (corrError || !correction) throw new Error(`Correction request not found: ${corrError?.message}`);
+
+      const employeeName = (correction as any).profiles?.full_name || "An employee";
+      const employeeEmail = (correction as any).profiles?.email;
+      const employeeUserId = (correction as any).profiles?.user_id;
+      const managerId = (correction as any).profiles?.manager_id;
+
+      let manager: { email: string; full_name: string | null; user_id: string } | null = null;
+      if (managerId) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, full_name, user_id")
+          .eq("id", managerId)
+          .single();
+        manager = data;
+      }
+
+      const correctionRows = [
+        tableRow("Date", correction.date, true),
+        ...(correction.requested_check_in ? [tableRow("Requested Check-in", correction.requested_check_in)] : []),
+        ...(correction.requested_check_out ? [tableRow("Requested Check-out", correction.requested_check_out)] : []),
+        tableRow("Reason", correction.reason),
+      ].join("");
+
+      // Email to manager — approval required
+      if (manager?.email) {
+        const htmlBody = emailTemplate(
+          "#f5a623", "📝", `Attendance Correction Request from ${employeeName}`,
+          "Requires your review",
+          correctionRows,
+          "Please log in to <strong>GRX10</strong> to approve or reject this correction request."
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: manager.email, name: manager.full_name || undefined }],
+          `📝 Attendance Correction Request from ${employeeName} — Review Required`,
+          htmlBody
+        );
+        if (manager.user_id) {
+          await insertNotification(
+            supabase, manager.user_id,
+            `Correction Request from ${employeeName}`,
+            `${employeeName} submitted an attendance correction for ${correction.date}.`,
+            "leave_request", "/hrms/inbox"
+          );
+        }
+      }
+
+      // Confirmation email to employee (submitter)
+      if (employeeEmail) {
+        const htmlBody = emailTemplate(
+          "#3498db", "📋", "Attendance Correction Submitted",
+          `Hi ${employeeName}, your correction request has been submitted and is pending review.`,
+          correctionRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: employeeEmail, name: employeeName }],
+          `📋 Attendance Correction Submitted — Awaiting Review`,
+          htmlBody
+        );
+      }
+
+      // In-app confirmation for employee
+      if (employeeUserId) {
+        await insertNotification(
+          supabase, employeeUserId,
+          "Correction Request Submitted",
+          `Your attendance correction for ${correction.date} has been submitted and is pending review.`,
+          "leave_request", "/hrms/my-attendance"
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ─── CORRECTION REQUEST DECIDED ───────────────────────────────────────────
     if (type === "correction_request_decided") {
       const { correction_request_id, decision, reviewer_name } = payload;
 
@@ -428,72 +502,92 @@ Deno.serve(async (req) => {
         .eq("id", correction_request_id)
         .single();
 
-      if (corrError || !correction) {
-        throw new Error(`Correction request not found: ${corrError?.message}`);
-      }
+      if (corrError || !correction) throw new Error(`Correction request not found: ${corrError?.message}`);
 
       const employeeEmail = (correction as any).profiles?.email;
       const employeeName = (correction as any).profiles?.full_name || "Employee";
       const employeeProfileUserId = (correction as any).profiles?.user_id;
+      const managerId = (correction as any).profiles?.manager_id;
 
       const isApproved = decision === "approved";
       const statusIcon = isApproved ? "✅" : "❌";
       const statusText = isApproved ? "Approved" : "Rejected";
       const statusColor = isApproved ? "#27ae60" : "#e74c3c";
 
+      // Get manager for CC
+      let manager: { email: string; full_name: string | null; user_id: string } | null = null;
+      if (managerId) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("email, full_name, user_id")
+          .eq("id", managerId)
+          .single();
+        manager = data;
+      }
+
+      const correctionRows = [
+        tableRow("Status", statusText, true),
+        tableRow("Date", correction.date),
+        ...(correction.requested_check_in ? [tableRow("Requested Check-in", correction.requested_check_in)] : []),
+        ...(correction.requested_check_out ? [tableRow("Requested Check-out", correction.requested_check_out)] : []),
+        ...(reviewer_name ? [tableRow("Reviewed by", reviewer_name)] : []),
+        ...(correction.reviewer_notes ? [tableRow("Notes", correction.reviewer_notes)] : []),
+      ].join("");
+
+      // Email to employee
+      if (employeeEmail) {
+        const htmlBody = emailTemplate(
+          statusColor, statusIcon, `Attendance Correction ${statusText}`,
+          `Hi ${employeeName}, your correction request has been ${decision}.`,
+          correctionRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: employeeEmail, name: employeeName }],
+          `${statusIcon} Attendance Correction ${statusText} — ${correction.date}`,
+          htmlBody
+        );
+      }
+
+      // CC email to manager/reviewer confirming their action
+      if (manager?.email && manager.email !== employeeEmail) {
+        const htmlBody = emailTemplate(
+          statusColor, statusIcon, `Correction ${statusText} — ${employeeName}`,
+          `This confirms you ${decision} ${employeeName}'s attendance correction request.`,
+          correctionRows
+        );
+        await sendEmail(
+          accessToken, senderEmail,
+          [{ email: manager.email, name: manager.full_name || undefined }],
+          `${statusIcon} Confirmation: Correction ${statusText} for ${employeeName}`,
+          htmlBody
+        );
+      }
+
       // In-app notification for employee
       if (employeeProfileUserId) {
         await insertNotification(
-          supabase,
-          employeeProfileUserId,
+          supabase, employeeProfileUserId,
           `Attendance Correction ${statusText}`,
-          `Your attendance correction request for ${correction.date} has been ${decision}.${correction.reviewer_notes ? ` Note: ${correction.reviewer_notes}` : ""}`,
+          `Your attendance correction for ${correction.date} has been ${decision}.${correction.reviewer_notes ? ` Note: ${correction.reviewer_notes}` : ""}`,
           isApproved ? "leave_approved" : "leave_rejected",
           "/hrms/my-attendance"
         );
       }
 
-      if (!employeeEmail) {
-        console.log("Employee has no email, skipping email notification");
-        return new Response(
-          JSON.stringify({ success: true, message: "In-app notification sent, no email found" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // In-app: confirm action to manager
+      if (manager?.user_id) {
+        await insertNotification(
+          supabase, manager.user_id,
+          `Correction ${statusText} — ${employeeName}`,
+          `${employeeName}'s attendance correction for ${correction.date} was ${decision}.`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/inbox"
         );
       }
 
-      const htmlBody = `
-        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px; color: #fff;">
-            <h1 style="margin: 0 0 8px; font-size: 20px; color: ${statusColor};">${statusIcon} Attendance Correction ${statusText}</h1>
-            <p style="margin: 0; font-size: 13px; color: #aaa;">Hi ${employeeName}, your correction request has been ${decision}.</p>
-          </div>
-          <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 0 0 12px 12px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <tr><td style="padding: 8px 0; color: #666; width: 140px;">Status</td><td style="padding: 8px 0; font-weight: 600; color: ${statusColor};">${statusText}</td></tr>
-              <tr><td style="padding: 8px 0; color: #666;">Date</td><td style="padding: 8px 0; color: #333;">${correction.date}</td></tr>
-              ${correction.requested_check_in ? `<tr><td style="padding: 8px 0; color: #666;">Requested Check-in</td><td style="padding: 8px 0; color: #333;">${correction.requested_check_in}</td></tr>` : ""}
-              ${correction.requested_check_out ? `<tr><td style="padding: 8px 0; color: #666;">Requested Check-out</td><td style="padding: 8px 0; color: #333;">${correction.requested_check_out}</td></tr>` : ""}
-              ${reviewer_name ? `<tr><td style="padding: 8px 0; color: #666;">Reviewed by</td><td style="padding: 8px 0; color: #333;">${reviewer_name}</td></tr>` : ""}
-              ${correction.reviewer_notes ? `<tr><td style="padding: 8px 0; color: #666;">Notes</td><td style="padding: 8px 0; color: #333;">${correction.reviewer_notes}</td></tr>` : ""}
-            </table>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
-            <p style="font-size: 12px; color: #999;">This is an automated notification from GRX10.</p>
-          </div>
-        </div>
-      `;
-
-      await sendEmail(
-        accessToken,
-        senderEmail,
-        [{ email: employeeEmail, name: employeeName }],
-        `${statusIcon} Attendance Correction ${statusText} — ${correction.date}`,
-        htmlBody
-      );
-
-      console.log(`Correction decision email sent to: ${employeeEmail}`);
-
       return new Response(
-        JSON.stringify({ success: true, sent_to: employeeEmail }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
