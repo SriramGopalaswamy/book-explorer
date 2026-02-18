@@ -280,6 +280,18 @@ function PendingCorrections() {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-pending"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-history"] });
       setDialogOpen(false);
+
+      // Fire notification (in-app + email) — fire-and-forget
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "correction_request_decided",
+          payload: {
+            correction_request_id: selected.id,
+            decision: pendingAction,
+            reviewer_name: user.email ?? undefined,
+          },
+        },
+      }).catch((err) => console.warn("Failed to send correction decision notification:", err));
     }
   };
 
