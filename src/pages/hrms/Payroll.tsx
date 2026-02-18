@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,6 +132,8 @@ export default function Payroll() {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
       return matchSearch && matchStatus;
     }), [records, searchQuery, statusFilter]);
+
+  const pagination = usePagination(filtered, 10);
 
   const toggleSelect = (id: string) =>
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -402,7 +406,7 @@ export default function Payroll() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((r) => {
+                    {pagination.paginatedItems.map((r) => {
                       const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
                       const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
                       return (
@@ -466,6 +470,16 @@ export default function Payroll() {
                     })}
                   </TableBody>
                 </Table>
+                <TablePagination
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.totalItems}
+                  from={pagination.from}
+                  to={pagination.to}
+                  pageSize={pagination.pageSize}
+                  onPageChange={pagination.setPage}
+                  onPageSizeChange={pagination.setPageSize}
+                />
               </div>
             )}
 
