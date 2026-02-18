@@ -5,6 +5,27 @@ import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { mockLeaveRequests, mockLeaveBalances, mockHolidays } from "@/lib/mock-data";
 import { toast } from "sonner";
 
+// Lightweight audit helper — fire-and-forget, never throws
+function writeAudit(entry: {
+  actor_id: string; actor_name: string; action: string;
+  entity_type: string; entity_id?: string;
+  target_user_id?: string; target_name?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  supabase.from("audit_logs" as any).insert({
+    actor_id: entry.actor_id,
+    actor_name: entry.actor_name,
+    action: entry.action,
+    entity_type: entry.entity_type,
+    entity_id: entry.entity_id ?? null,
+    target_user_id: entry.target_user_id ?? null,
+    target_name: entry.target_name ?? null,
+    metadata: entry.metadata ?? {},
+  } as any).then(({ error }) => {
+    if (error) console.warn("Audit write failed:", error.message);
+  });
+}
+
 export interface LeaveRequest {
   id: string;
   user_id: string;
@@ -177,7 +198,7 @@ export function useCreateLeaveRequest() {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
       toast.success("Leave request submitted successfully");
-      // Notify manager via email (fire-and-forget)
+      if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_submitted", entity_type: "leave_request", entity_id: data.id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date, days: data.days } });
       supabase.functions.invoke("send-notification-email", {
         body: { type: "leave_request_created", payload: { leave_request_id: data.id } },
       }).catch((err) => console.warn("Failed to send leave notification:", err));
@@ -211,6 +232,7 @@ export function useApproveLeaveRequest() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       toast.success("Leave request approved");
+      if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_approved", entity_type: "leave_request", entity_id: data.id, target_user_id: data.user_id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date, days: data.days } });
       supabase.functions.invoke("send-notification-email", {
         body: { type: "leave_request_decided", payload: { leave_request_id: data.id, decision: "approved" } },
       }).catch((err) => console.warn("Failed to send approval email:", err));
@@ -244,6 +266,7 @@ export function useRejectLeaveRequest() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       toast.success("Leave request rejected");
+      if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_rejected", entity_type: "leave_request", entity_id: data.id, target_user_id: data.user_id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date } });
       supabase.functions.invoke("send-notification-email", {
         body: { type: "leave_request_decided", payload: { leave_request_id: data.id, decision: "rejected" } },
       }).catch((err) => console.warn("Failed to send rejection email:", err));
@@ -256,6 +279,7 @@ export function useRejectLeaveRequest() {
 
 export function useDeleteLeaveRequest() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (requestId: string) => {
@@ -266,10 +290,11 @@ export function useDeleteLeaveRequest() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, requestId) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
       toast.success("Leave request cancelled");
+      if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_cancelled", entity_type: "leave_request", entity_id: requestId });
     },
     onError: (error) => {
       toast.error("Failed to cancel request: " + error.message);
