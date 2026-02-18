@@ -15,6 +15,10 @@ import {
   FileText,
   Paperclip,
   Download,
+  BadgeDollarSign,
+  Eye,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -120,6 +124,28 @@ function useDirectReportsCorrectionsPending() {
         .select("*")
         .in("profile_id", reports.map((r) => r.id))
         .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: (!!user || isDevMode) && reports.length > 0,
+  });
+}
+
+function useDirectReportsPendingReimbursements() {
+  const { data: reports = [] } = useDirectReports();
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+
+  return useQuery({
+    queryKey: ["direct-reports-reimbursements-pending", reports.map((r) => r.id), isDevMode],
+    queryFn: async () => {
+      if (isDevMode || !user || reports.length === 0) return [];
+      const { data, error } = await supabase
+        .from("reimbursement_requests" as any)
+        .select("*, profiles:profile_id(full_name, email)")
+        .in("profile_id", reports.map((r) => r.id))
+        .eq("status", "pending_manager")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -662,12 +688,194 @@ function PendingMemos() {
   );
 }
 
+// ─── Pending Reimbursements Component ─────────────────────────────────────────
+
+function PendingReimbursements() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: requests = [], isLoading } = useDirectReportsPendingReimbursements();
+  const { data: reports = [] } = useDirectReports();
+  const [reviewItem, setReviewItem] = useState<any>(null);
+  const [notes, setNotes] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const openReview = async (item: any) => {
+    setReviewItem(item);
+    setNotes("");
+    setPreviewUrl(null);
+    if (item.attachment_url) {
+      const { data } = await supabase.storage
+        .from("reimbursement-attachments")
+        .createSignedUrl(item.attachment_url, 3600);
+      setPreviewUrl(data?.signedUrl ?? null);
+    }
+  };
+
+  const decide = async (decision: "manager_approved" | "manager_rejected") => {
+    if (!reviewItem || !user) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("reimbursement_requests" as any)
+        .update({
+          status: decision === "manager_approved" ? "pending_finance" : "manager_rejected",
+          manager_notes: notes || null,
+          manager_reviewed_by: user.id,
+          manager_reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", reviewItem.id);
+      if (error) throw error;
+
+      // Notify employee
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "reimbursement_manager_decided",
+          payload: {
+            reimbursement_id: reviewItem.id,
+            decision: decision === "manager_approved" ? "approved" : "rejected",
+            reviewer_name: user.email,
+          },
+        },
+      }).catch((e) => console.warn("Notification failed:", e));
+
+      toast.success(decision === "manager_approved" ? "Approved and sent to Finance" : "Reimbursement rejected");
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-reimbursements-pending"] });
+      setReviewItem(null);
+    } catch (err: any) {
+      toast.error(`Failed: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-4 text-center">Loading…</div>;
+  if (requests.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+      <BadgeDollarSign className="h-8 w-8 opacity-30" />
+      <p className="text-sm">No pending reimbursement requests.</p>
+    </div>
+  );
+
+  const getEmployeeName = (item: any) => {
+    const p = item.profiles;
+    if (p?.full_name) return p.full_name;
+    const report = reports.find((r: any) => r.id === item.profile_id);
+    return report?.full_name || "Unknown";
+  };
+
+  return (
+    <>
+      <div className="space-y-3">
+        {requests.map((item: any) => (
+          <div key={item.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-border/50 bg-muted/20">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm">{getEmployeeName(item)}</span>
+                {item.ai_extracted && (
+                  <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-400 bg-purple-500/10">
+                    <Sparkles className="h-3 w-3 mr-1" /> AI Read
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {item.category} · ₹{Number(item.amount).toLocaleString()} · {item.vendor_name}
+              </p>
+              {item.description && (
+                <p className="text-xs text-muted-foreground truncate max-w-xs italic mt-0.5">{item.description}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Submitted {format(new Date(item.created_at), "dd MMM yyyy")}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => openReview(item)}>
+              <Eye className="h-3.5 w-3.5 mr-1" /> Review
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* Review Dialog */}
+      {reviewItem && (
+        <Dialog open={!!reviewItem} onOpenChange={(v) => { if (!v) setReviewItem(null); }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Review Reimbursement — {getEmployeeName(reviewItem)}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                  { label: "Vendor", value: reviewItem.vendor_name },
+                  { label: "Amount", value: `₹${Number(reviewItem.amount).toLocaleString()}` },
+                  { label: "Category", value: reviewItem.category },
+                  { label: "Date", value: reviewItem.expense_date },
+                ].map((row) => row.value ? (
+                  <div key={row.label}>
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className="font-medium">{row.value}</p>
+                  </div>
+                ) : null)}
+              </div>
+              {reviewItem.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Description</p>
+                  <p className="text-sm">{reviewItem.description}</p>
+                </div>
+              )}
+              {previewUrl && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Attached Document</p>
+                  {reviewItem.file_type?.startsWith("image/") ? (
+                    <img src={previewUrl} alt="Receipt" className="rounded-lg max-h-48 object-contain border border-border" />
+                  ) : (
+                    <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
+                      <ExternalLink className="h-4 w-4" /> Open PDF in new tab
+                    </a>
+                  )}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label>Notes (optional)</Label>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Add notes for the employee…"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setReviewItem(null)}>Cancel</Button>
+              <Button
+                variant="outline"
+                disabled={submitting}
+                className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                onClick={() => decide("manager_rejected")}
+              >
+                <X className="h-4 w-4 mr-1" /> Reject
+              </Button>
+              <Button
+                disabled={submitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => decide("manager_approved")}
+              >
+                <Check className="h-4 w-4 mr-1" /> Approve & Forward to Finance
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ManagerInbox() {
   const { data: leaves = [] } = useDirectReportsLeaves();
   const { data: corrections = [] } = useDirectReportsCorrectionsPending();
   const pendingCount = leaves.length + corrections.length;
+  const { data: pendingReimbursements = [] } = useDirectReportsPendingReimbursements();
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -676,7 +884,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length;
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length;
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -736,6 +944,15 @@ export default function ManagerInbox() {
             <TabsTrigger value="memos" className="gap-2">
               <FileText className="h-4 w-4" />
               Memos
+            </TabsTrigger>
+            <TabsTrigger value="reimbursements" className="gap-2">
+              <BadgeDollarSign className="h-4 w-4" />
+              Reimbursements
+              {pendingReimbursements.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingReimbursements.length}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="goals" className="gap-2">
               <Target className="h-4 w-4" />
@@ -804,6 +1021,26 @@ export default function ManagerInbox() {
               </CardHeader>
               <CardContent className="pt-0">
                 <PendingMemos />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Reimbursements ── */}
+          <TabsContent value="reimbursements">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BadgeDollarSign className="h-4 w-4 text-primary" />
+                  Pending Reimbursement Approvals
+                  {pendingReimbursements.length > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {pendingReimbursements.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PendingReimbursements />
               </CardContent>
             </Card>
           </TabsContent>
