@@ -114,3 +114,39 @@ export function useIsManager() {
     enabled: !!user || canShowDevTools,
   });
 }
+
+/**
+ * Hook to get the current user's primary role
+ * Returns the highest-privilege role: admin > hr > finance > manager > employee
+ */
+export function useCurrentRole() {
+  const { user } = useAuth();
+  const { canShowDevTools } = useAppMode();
+  const { activeRole } = useDevMode();
+
+  return useQuery({
+    queryKey: ["user-role", user?.id, canShowDevTools, activeRole, "current-role"],
+    queryFn: async () => {
+      if (canShowDevTools && activeRole) return activeRole as string;
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching role:", error);
+        return "employee";
+      }
+
+      const roles = data?.map((r) => r.role) ?? [];
+      if (roles.includes("admin")) return "admin";
+      if (roles.includes("hr")) return "hr";
+      if (roles.includes("finance")) return "finance";
+      if (roles.includes("manager")) return "manager";
+      return roles.includes("employee") ? "employee" : "employee";
+    },
+    enabled: !!user || canShowDevTools,
+  });
+}
