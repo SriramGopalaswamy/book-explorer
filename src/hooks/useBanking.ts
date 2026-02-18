@@ -30,7 +30,14 @@ export interface BankTransaction {
   transaction_date: string;
   reference: string | null;
   created_at: string;
-  bank_accounts?: BankAccount;
+  reconcile_status?: string | null;
+  ai_suggested_category?: string | null;
+  ai_match_id?: string | null;
+  ai_match_type?: string | null;
+  is_duplicate_flag?: boolean | null;
+  reconciled?: boolean | null;
+  reconciled_at?: string | null;
+  bank_accounts?: { name: string } | null;
 }
 
 export interface CreateBankAccountData {
