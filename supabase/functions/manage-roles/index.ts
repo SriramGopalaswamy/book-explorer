@@ -297,7 +297,21 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (existingProfile) {
-            results.push({ email, success: false, error: "User already exists" });
+            // User exists — update their profile attributes and role
+            const updateFields: Record<string, string | null> = {};
+            if (fullName) updateFields.full_name = fullName;
+            if (department !== null) updateFields.department = department;
+            if (jobTitle !== null) updateFields.job_title = jobTitle;
+
+            if (Object.keys(updateFields).length > 0) {
+              await supabase.from("profiles").update(updateFields).eq("user_id", existingProfile.user_id);
+            }
+
+            // Update role: delete existing, insert new
+            await supabase.from("user_roles").delete().eq("user_id", existingProfile.user_id);
+            await supabase.from("user_roles").insert({ user_id: existingProfile.user_id, role });
+
+            results.push({ email, success: true });
             continue;
           }
 
