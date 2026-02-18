@@ -28,6 +28,7 @@ import {
   Receipt,
   Wallet,
   ScanLine,
+  BadgeDollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -52,6 +53,7 @@ const financialNav: NavItem[] = [
   { name: "Quotes", path: "/financial/quotes", icon: Quote, module: "financial" },
   { name: "Expenses", path: "/financial/expenses", icon: Wallet, module: "financial" },
   { name: "Bills", path: "/financial/bills", icon: ScanLine, module: "financial" },
+  { name: "Reimbursements", path: "/financial/reimbursements", icon: BadgeDollarSign, module: "financial" },
   { name: "Credit Notes", path: "/financial/credit-notes", icon: FileX, module: "financial" },
   { name: "Vendor Credits", path: "/financial/vendor-credits", icon: Receipt, module: "financial" },
   { name: "Banking", path: "/financial/banking", icon: Building2, module: "financial" },
@@ -71,11 +73,13 @@ const hrmsNav: NavItem[] = [
 // Employee-only HRMS items
 const employeeHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
 ];
 
 // Manager HRMS items (same as employee + Inbox)
 const managerHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 

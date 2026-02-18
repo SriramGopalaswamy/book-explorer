@@ -269,16 +269,17 @@ export default function Reimbursements() {
           status: "pending_manager",
           submitted_at: new Date().toISOString(),
         })
-        .select()
+        .select("id")
         .single();
 
       if (error) throw error;
 
       // Fire notification to manager
+      const insertedId = (inserted as any)?.id;
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "reimbursement_submitted",
-          payload: { reimbursement_id: inserted.id },
+          payload: { reimbursement_id: insertedId },
         },
       }).catch((e) => console.warn("Notification failed:", e));
 
