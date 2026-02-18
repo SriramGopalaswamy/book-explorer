@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +67,8 @@ export default function Accounting() {
   const addRecord = useAddFinancialRecord();
   const updateRecord = useUpdateFinancialRecord();
   const deleteRecord = useDeleteFinancialRecord();
+
+  const pagination = usePagination(records, 10);
 
   // Show loading state while checking permissions
   if (isCheckingRole) {
@@ -272,6 +276,7 @@ export default function Accounting() {
               <p>No financial records yet. Click "Add Entry" to create one.</p>
             </div>
           ) : (
+            <div className="px-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -284,7 +289,7 @@ export default function Accounting() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {records.map((record) => (
+                {pagination.paginatedItems.map((record) => (
                   <TableRow key={record.id} className="group hover:bg-secondary/50">
                     <TableCell>{record.record_date}</TableCell>
                     <TableCell>{record.description || "—"}</TableCell>
@@ -341,6 +346,19 @@ export default function Accounting() {
                 ))}
               </TableBody>
             </Table>
+            <div className="px-6 pb-4">
+              <TablePagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                from={pagination.from}
+                to={pagination.to}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.setPage}
+                onPageSizeChange={pagination.setPageSize}
+              />
+            </div>
+            </div>
           )}
         </div>
       </div>
