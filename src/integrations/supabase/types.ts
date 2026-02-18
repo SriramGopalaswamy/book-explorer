@@ -1428,6 +1428,109 @@ export type Database = {
           },
         ]
       }
+      reimbursement_requests: {
+        Row: {
+          ai_extracted: boolean
+          ai_raw_data: Json | null
+          amount: number
+          attachment_url: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          expense_date: string | null
+          expense_id: string | null
+          file_name: string | null
+          file_type: string | null
+          finance_notes: string | null
+          finance_reviewed_at: string | null
+          finance_reviewed_by: string | null
+          id: string
+          manager_notes: string | null
+          manager_reviewed_at: string | null
+          manager_reviewed_by: string | null
+          profile_id: string | null
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+          vendor_name: string | null
+        }
+        Insert: {
+          ai_extracted?: boolean
+          ai_raw_data?: Json | null
+          amount?: number
+          attachment_url?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          expense_date?: string | null
+          expense_id?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          finance_notes?: string | null
+          finance_reviewed_at?: string | null
+          finance_reviewed_by?: string | null
+          id?: string
+          manager_notes?: string | null
+          manager_reviewed_at?: string | null
+          manager_reviewed_by?: string | null
+          profile_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+          vendor_name?: string | null
+        }
+        Update: {
+          ai_extracted?: boolean
+          ai_raw_data?: Json | null
+          amount?: number
+          attachment_url?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          expense_date?: string | null
+          expense_id?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          finance_notes?: string | null
+          finance_reviewed_at?: string | null
+          finance_reviewed_by?: string | null
+          id?: string
+          manager_notes?: string | null
+          manager_reviewed_at?: string | null
+          manager_reviewed_by?: string | null
+          profile_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reimbursement_requests_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reimbursement_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reimbursement_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_payments: {
         Row: {
           amount: number
