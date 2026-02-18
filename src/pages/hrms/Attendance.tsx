@@ -368,6 +368,7 @@ export default function Attendance() {
               No attendance records found for this date
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -398,6 +399,7 @@ export default function Attendance() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -80,6 +80,7 @@ export function PLDrillDownDialog({ open, onOpenChange, categoryName, type, from
           ) : transactions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No transactions found for this category.</p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -106,6 +107,7 @@ export function PLDrillDownDialog({ open, onOpenChange, categoryName, type, from
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
         {transactions.length > 0 && (
