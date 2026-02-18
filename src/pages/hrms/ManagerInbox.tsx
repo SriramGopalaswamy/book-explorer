@@ -142,7 +142,7 @@ function useDirectReportsPendingReimbursements() {
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .select("*, profiles:profile_id(full_name, email)")
         .in("profile_id", reports.map((r) => r.id))
         .eq("status", "pending_manager")
@@ -717,7 +717,7 @@ function PendingReimbursements() {
     setSubmitting(true);
     try {
       const { error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .update({
           status: decision === "manager_approved" ? "pending_finance" : "manager_rejected",
           manager_notes: notes || null,
