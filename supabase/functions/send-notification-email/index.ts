@@ -37,47 +37,55 @@ async function getGraphToken(): Promise<string> {
   return access_token;
 }
 
-// Send email via MS Graph API
+// Send email via MS Graph API — returns false on failure instead of throwing
 async function sendEmail(
-  accessToken: string,
+  accessToken: string | null,
   senderEmail: string,
   toRecipients: { email: string; name?: string }[],
   subject: string,
   htmlBody: string
-) {
-  const message = {
-    message: {
-      subject,
-      body: {
-        contentType: "HTML",
-        content: htmlBody,
+): Promise<boolean> {
+  if (!accessToken) {
+    console.warn("No Graph token available — skipping email to:", toRecipients.map(r => r.email));
+    return false;
+  }
+  try {
+    const message = {
+      message: {
+        subject,
+        body: { contentType: "HTML", content: htmlBody },
+        toRecipients: toRecipients.map((r) => ({
+          emailAddress: { address: r.email, name: r.name || r.email },
+        })),
       },
-      toRecipients: toRecipients.map((r) => ({
-        emailAddress: { address: r.email, name: r.name || r.email },
-      })),
-    },
-    saveToSentItems: false,
-  };
+      saveToSentItems: false,
+    };
 
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(message),
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(message),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn(`Graph sendMail failed [${res.status}]: ${err}`);
+      return false;
     }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph sendMail failed [${res.status}]: ${err}`);
+    return true;
+  } catch (err) {
+    console.warn("sendEmail exception:", err);
+    return false;
   }
 }
 
-// Helper to insert in-app notifications
+// Helper to insert in-app notifications — always runs, never throws
 async function insertNotification(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -87,15 +95,16 @@ async function insertNotification(
   link?: string
 ) {
   try {
-    await supabase.from("notifications").insert({
+    const { error } = await supabase.from("notifications").insert({
       user_id: userId,
       title,
       message,
       type,
       link,
     });
+    if (error) console.warn("Failed to insert notification:", error.message);
   } catch (err) {
-    console.warn("Failed to insert notification:", err);
+    console.warn("insertNotification exception:", err);
   }
 }
 
@@ -138,8 +147,13 @@ Deno.serve(async (req) => {
 
     const { type, payload } = await req.json();
 
-    const accessToken = await getGraphToken();
-    // Admin sender mailbox in MS365
+    // Try to get Graph token — email is best-effort; in-app notifications ALWAYS run
+    let accessToken: string | null = null;
+    try {
+      accessToken = await getGraphToken();
+    } catch (err) {
+      console.warn("Could not obtain Graph token — emails will be skipped:", err);
+    }
     const senderEmail = "sriram@grx10.com";
 
     // ─── MEMO PUBLISHED ───────────────────────────────────────────────────────
@@ -166,31 +180,13 @@ Deno.serve(async (req) => {
         recipientEmails = (profiles || []).map((p: any) => p.email!).filter(Boolean);
       }
 
-      if (recipientEmails.length === 0) {
-        return new Response(
-          JSON.stringify({ success: true, message: "No recipients found" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const htmlBody = emailTemplate(
-        "#e94560", "📢", `New Memo: ${memo.title}`,
-        `From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}`,
-        tableRow("Content", memo.excerpt || memo.content || "No content")
-      );
-
-      const recipients = recipientEmails.map((email) => ({ email }));
-      for (let i = 0; i < recipients.length; i += 50) {
-        const batch = recipients.slice(i, i + 50);
-        await sendEmail(accessToken, senderEmail, batch, `📢 New Memo: ${memo.title}`, htmlBody);
-      }
-
       const { data: recipientProfiles } = await supabase
         .from("profiles")
         .select("user_id, email")
         .in("email", recipientEmails)
         .not("user_id", "is", null);
 
+      // In-app notifications — always runs
       for (const profile of recipientProfiles || []) {
         await insertNotification(
           supabase, profile.user_id,
@@ -198,6 +194,20 @@ Deno.serve(async (req) => {
           memo.excerpt || memo.content?.substring(0, 150) || "New memo published",
           "memo", "/performance/memos"
         );
+      }
+
+      // Emails — best-effort
+      if (recipientEmails.length > 0 && accessToken) {
+        const htmlBody = emailTemplate(
+          "#e94560", "📢", `New Memo: ${memo.title}`,
+          `From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}`,
+          tableRow("Content", memo.excerpt || memo.content || "No content")
+        );
+        const recipients = recipientEmails.map((email) => ({ email }));
+        for (let i = 0; i < recipients.length; i += 50) {
+          const batch = recipients.slice(i, i + 50);
+          await sendEmail(accessToken, senderEmail, batch, `📢 New Memo: ${memo.title}`, htmlBody);
+        }
       }
 
       return new Response(
@@ -223,7 +233,6 @@ Deno.serve(async (req) => {
       const employeeUserId = (leave as any).profiles?.user_id;
       const managerId = (leave as any).profiles?.manager_id;
 
-      // Get manager details
       let manager: { email: string; full_name: string | null; user_id: string } | null = null;
       if (managerId) {
         const { data } = await supabase
@@ -242,7 +251,25 @@ Deno.serve(async (req) => {
         ...(leave.reason ? [tableRow("Reason", leave.reason)] : []),
       ].join("");
 
-      // Email to manager — approval required
+      // ── In-app notifications (always run) ──
+      if (manager?.user_id) {
+        await insertNotification(
+          supabase, manager.user_id,
+          `Leave Request from ${employeeName}`,
+          `${employeeName} requested ${leave.days} day(s) of ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date})`,
+          "leave_request", "/hrms/inbox"
+        );
+      }
+      if (employeeUserId) {
+        await insertNotification(
+          supabase, employeeUserId,
+          "Leave Request Submitted",
+          `Your ${leave.leave_type} leave request (${leave.from_date} to ${leave.to_date}) has been submitted and is pending approval.`,
+          "leave_request", "/hrms/leaves"
+        );
+      }
+
+      // ── Emails (best-effort) ──
       if (manager?.email) {
         const htmlBody = emailTemplate(
           "#f5a623", "🗓️", `Leave Request from ${employeeName}`,
@@ -256,18 +283,7 @@ Deno.serve(async (req) => {
           `🗓️ Leave Request from ${employeeName} — Approval Required`,
           htmlBody
         );
-        // In-app notification for manager
-        if (manager.user_id) {
-          await insertNotification(
-            supabase, manager.user_id,
-            `Leave Request from ${employeeName}`,
-            `${employeeName} requested ${leave.days} day(s) of ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date})`,
-            "leave_request", "/hrms/inbox"
-          );
-        }
       }
-
-      // Confirmation email to employee (creator)
       if (employeeEmail) {
         const htmlBody = emailTemplate(
           "#3498db", "📋", "Leave Request Submitted",
@@ -279,16 +295,6 @@ Deno.serve(async (req) => {
           [{ email: employeeEmail, name: employeeName }],
           `📋 Leave Request Submitted — Awaiting Approval`,
           htmlBody
-        );
-      }
-
-      // In-app confirmation for employee
-      if (employeeUserId) {
-        await insertNotification(
-          supabase, employeeUserId,
-          "Leave Request Submitted",
-          `Your ${leave.leave_type} leave request (${leave.from_date} to ${leave.to_date}) has been submitted and is pending approval.`,
-          "leave_request", "/hrms/leaves"
         );
       }
 
@@ -312,6 +318,7 @@ Deno.serve(async (req) => {
 
       const employeeEmail = (leave as any).profiles?.email;
       const employeeName = (leave as any).profiles?.full_name || "Employee";
+      const employeeUserId = (leave as any).profiles?.user_id;
       const managerId = (leave as any).profiles?.manager_id;
 
       const isApproved = decision === "approved";
@@ -319,7 +326,6 @@ Deno.serve(async (req) => {
       const statusIcon = isApproved ? "✅" : "❌";
       const statusText = isApproved ? "Approved" : "Rejected";
 
-      // Get manager details for CC
       let manager: { email: string; full_name: string | null; user_id: string } | null = null;
       if (managerId) {
         const { data } = await supabase
@@ -339,7 +345,31 @@ Deno.serve(async (req) => {
         ...(reviewer_name ? [tableRow("Reviewed by", reviewer_name)] : []),
       ].join("");
 
-      // Email to employee
+      // ── In-app notifications (always run) ──
+      const empUserId = employeeUserId || (await supabase
+        .from("profiles").select("user_id").eq("id", leave.profile_id).maybeSingle()
+      ).data?.user_id;
+
+      if (empUserId) {
+        await insertNotification(
+          supabase, empUserId,
+          `Leave ${statusText}`,
+          `Your ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) has been ${decision}.`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/leaves"
+        );
+      }
+      if (manager?.user_id) {
+        await insertNotification(
+          supabase, manager.user_id,
+          `Leave ${statusText} — ${employeeName}`,
+          `${employeeName}'s ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) was ${decision}.`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/inbox"
+        );
+      }
+
+      // ── Emails (best-effort) ──
       if (employeeEmail) {
         const htmlBody = emailTemplate(
           statusColor, statusIcon, `Leave Request ${statusText}`,
@@ -353,8 +383,6 @@ Deno.serve(async (req) => {
           htmlBody
         );
       }
-
-      // CC email to manager/reviewer confirming their action
       if (manager?.email && manager.email !== employeeEmail) {
         const htmlBody = emailTemplate(
           statusColor, statusIcon, `Leave ${statusText} — ${employeeName}`,
@@ -366,34 +394,6 @@ Deno.serve(async (req) => {
           [{ email: manager.email, name: manager.full_name || undefined }],
           `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`,
           htmlBody
-        );
-      }
-
-      // In-app: notify employee
-      const { data: empProfile } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("id", leave.profile_id)
-        .maybeSingle();
-
-      if (empProfile?.user_id) {
-        await insertNotification(
-          supabase, empProfile.user_id,
-          `Leave ${statusText}`,
-          `Your ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) has been ${decision}.`,
-          isApproved ? "leave_approved" : "leave_rejected",
-          "/hrms/leaves"
-        );
-      }
-
-      // In-app: confirm action to manager
-      if (manager?.user_id) {
-        await insertNotification(
-          supabase, manager.user_id,
-          `Leave ${statusText} — ${employeeName}`,
-          `${employeeName}'s ${leave.leave_type} leave (${leave.from_date} to ${leave.to_date}) was ${decision}.`,
-          isApproved ? "leave_approved" : "leave_rejected",
-          "/hrms/inbox"
         );
       }
 
@@ -437,7 +437,25 @@ Deno.serve(async (req) => {
         tableRow("Reason", correction.reason),
       ].join("");
 
-      // Email to manager — approval required
+      // ── In-app notifications (always run) ──
+      if (manager?.user_id) {
+        await insertNotification(
+          supabase, manager.user_id,
+          `Correction Request from ${employeeName}`,
+          `${employeeName} submitted an attendance correction for ${correction.date}.`,
+          "leave_request", "/hrms/inbox"
+        );
+      }
+      if (employeeUserId) {
+        await insertNotification(
+          supabase, employeeUserId,
+          "Correction Request Submitted",
+          `Your attendance correction for ${correction.date} has been submitted and is pending review.`,
+          "leave_request", "/hrms/my-attendance"
+        );
+      }
+
+      // ── Emails (best-effort) ──
       if (manager?.email) {
         const htmlBody = emailTemplate(
           "#f5a623", "📝", `Attendance Correction Request from ${employeeName}`,
@@ -451,17 +469,7 @@ Deno.serve(async (req) => {
           `📝 Attendance Correction Request from ${employeeName} — Review Required`,
           htmlBody
         );
-        if (manager.user_id) {
-          await insertNotification(
-            supabase, manager.user_id,
-            `Correction Request from ${employeeName}`,
-            `${employeeName} submitted an attendance correction for ${correction.date}.`,
-            "leave_request", "/hrms/inbox"
-          );
-        }
       }
-
-      // Confirmation email to employee (submitter)
       if (employeeEmail) {
         const htmlBody = emailTemplate(
           "#3498db", "📋", "Attendance Correction Submitted",
@@ -473,16 +481,6 @@ Deno.serve(async (req) => {
           [{ email: employeeEmail, name: employeeName }],
           `📋 Attendance Correction Submitted — Awaiting Review`,
           htmlBody
-        );
-      }
-
-      // In-app confirmation for employee
-      if (employeeUserId) {
-        await insertNotification(
-          supabase, employeeUserId,
-          "Correction Request Submitted",
-          `Your attendance correction for ${correction.date} has been submitted and is pending review.`,
-          "leave_request", "/hrms/my-attendance"
         );
       }
 
@@ -506,7 +504,7 @@ Deno.serve(async (req) => {
 
       const employeeEmail = (correction as any).profiles?.email;
       const employeeName = (correction as any).profiles?.full_name || "Employee";
-      const employeeProfileUserId = (correction as any).profiles?.user_id;
+      const employeeUserId = (correction as any).profiles?.user_id;
       const managerId = (correction as any).profiles?.manager_id;
 
       const isApproved = decision === "approved";
@@ -514,7 +512,6 @@ Deno.serve(async (req) => {
       const statusText = isApproved ? "Approved" : "Rejected";
       const statusColor = isApproved ? "#27ae60" : "#e74c3c";
 
-      // Get manager for CC
       let manager: { email: string; full_name: string | null; user_id: string } | null = null;
       if (managerId) {
         const { data } = await supabase
@@ -534,7 +531,27 @@ Deno.serve(async (req) => {
         ...(correction.reviewer_notes ? [tableRow("Notes", correction.reviewer_notes)] : []),
       ].join("");
 
-      // Email to employee
+      // ── In-app notifications (always run) ──
+      if (employeeUserId) {
+        await insertNotification(
+          supabase, employeeUserId,
+          `Attendance Correction ${statusText}`,
+          `Your attendance correction for ${correction.date} has been ${decision}.${correction.reviewer_notes ? ` Note: ${correction.reviewer_notes}` : ""}`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/my-attendance"
+        );
+      }
+      if (manager?.user_id) {
+        await insertNotification(
+          supabase, manager.user_id,
+          `Correction ${statusText} — ${employeeName}`,
+          `${employeeName}'s attendance correction for ${correction.date} was ${decision}.`,
+          isApproved ? "leave_approved" : "leave_rejected",
+          "/hrms/inbox"
+        );
+      }
+
+      // ── Emails (best-effort) ──
       if (employeeEmail) {
         const htmlBody = emailTemplate(
           statusColor, statusIcon, `Attendance Correction ${statusText}`,
@@ -548,8 +565,6 @@ Deno.serve(async (req) => {
           htmlBody
         );
       }
-
-      // CC email to manager/reviewer confirming their action
       if (manager?.email && manager.email !== employeeEmail) {
         const htmlBody = emailTemplate(
           statusColor, statusIcon, `Correction ${statusText} — ${employeeName}`,
@@ -561,28 +576,6 @@ Deno.serve(async (req) => {
           [{ email: manager.email, name: manager.full_name || undefined }],
           `${statusIcon} Confirmation: Correction ${statusText} for ${employeeName}`,
           htmlBody
-        );
-      }
-
-      // In-app notification for employee
-      if (employeeProfileUserId) {
-        await insertNotification(
-          supabase, employeeProfileUserId,
-          `Attendance Correction ${statusText}`,
-          `Your attendance correction for ${correction.date} has been ${decision}.${correction.reviewer_notes ? ` Note: ${correction.reviewer_notes}` : ""}`,
-          isApproved ? "leave_approved" : "leave_rejected",
-          "/hrms/my-attendance"
-        );
-      }
-
-      // In-app: confirm action to manager
-      if (manager?.user_id) {
-        await insertNotification(
-          supabase, manager.user_id,
-          `Correction ${statusText} — ${employeeName}`,
-          `${employeeName}'s attendance correction for ${correction.date} was ${decision}.`,
-          isApproved ? "leave_approved" : "leave_rejected",
-          "/hrms/inbox"
         );
       }
 
@@ -604,4 +597,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
