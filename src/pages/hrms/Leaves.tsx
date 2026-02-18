@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,6 +72,8 @@ export default function Leaves() {
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
   const rejectRequest = useRejectLeaveRequest();
+
+  const pagination = usePagination(leaveRequests, 10);
 
   const handleSubmitLeave = async () => {
     if (!fromDate || !toDate) return;
@@ -212,7 +216,7 @@ export default function Leaves() {
             </Dialog>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
               <TabsList className="mb-4">
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -231,6 +235,7 @@ export default function Leaves() {
                     No leave requests found
                   </div>
                 ) : (
+                  <>
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -244,7 +249,7 @@ export default function Leaves() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {leaveRequests.map((request) => (
+                      {pagination.paginatedItems.map((request) => (
                         <TableRow key={request.id}>
                           <TableCell className="font-medium">
                             {request.profiles?.full_name || "You"}
@@ -270,7 +275,7 @@ export default function Leaves() {
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-8 w-8 text-green-600"
+                                    className="h-8 w-8 text-success"
                                     onClick={() => approveRequest.mutate(request.id)}
                                     disabled={approveRequest.isPending}
                                   >
@@ -279,7 +284,7 @@ export default function Leaves() {
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-8 w-8 text-red-600"
+                                    className="h-8 w-8 text-destructive"
                                     onClick={() => rejectRequest.mutate(request.id)}
                                     disabled={rejectRequest.isPending}
                                   >
@@ -294,6 +299,19 @@ export default function Leaves() {
                     </TableBody>
                   </Table>
                   </div>
+                  <div className="mt-2">
+                    <TablePagination
+                      page={pagination.page}
+                      totalPages={pagination.totalPages}
+                      totalItems={pagination.totalItems}
+                      from={pagination.from}
+                      to={pagination.to}
+                      pageSize={pagination.pageSize}
+                      onPageChange={pagination.setPage}
+                      onPageSizeChange={pagination.setPageSize}
+                    />
+                  </div>
+                  </>
                 )}
               </TabsContent>
             </Tabs>
