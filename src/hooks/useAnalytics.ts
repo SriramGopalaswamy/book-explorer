@@ -198,19 +198,35 @@ export function useBalanceSheet() {
   } as BalanceSheetData;
 }
 
-// Expense breakdown with percentages
+// Expense breakdown with percentages — sourced from financial_records (same as dashboard)
 export function useExpenseByCategory() {
-  const { data: accounts = [] } = useChartOfAccounts();
+  const { user } = useAuth();
 
-  const expenseAccounts = accounts
-    .filter((a) => a.account_type === "expense" && a.account_code !== "5000" && Number(a.current_balance) > 0);
+  const { data: records = [] } = useQuery({
+    queryKey: ["expense-by-category-fr", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("financial_records")
+        .select("category, amount")
+        .eq("user_id", user.id)
+        .eq("type", "expense");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
-  const total = expenseAccounts.reduce((s, a) => s + Number(a.current_balance), 0);
+  const categoryMap = new Map<string, number>();
+  records.forEach((r) => {
+    categoryMap.set(r.category, (categoryMap.get(r.category) || 0) + Number(r.amount));
+  });
 
-  return expenseAccounts.map((a, i) => ({
-    name: a.account_name,
-    value: Number(a.current_balance),
-    percentage: total > 0 ? (Number(a.current_balance) / total) * 100 : 0,
+  const total = Array.from(categoryMap.values()).reduce((s, v) => s + v, 0);
+  return Array.from(categoryMap.entries()).map(([name, value], i) => ({
+    name,
+    value,
+    percentage: total > 0 ? (value / total) * 100 : 0,
     color: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
   })) as ExpenseByCategoryData[];
 }
@@ -309,17 +325,35 @@ export function useMonthlyTrend() {
   });
 }
 
-// Revenue by source
+// Revenue by source — sourced from financial_records (same as dashboard)
 export function useRevenueBySource() {
-  const { data: accounts = [] } = useChartOfAccounts();
+  const { user } = useAuth();
 
-  return accounts
-    .filter((a) => a.account_type === "revenue" && a.account_code !== "4000" && Number(a.current_balance) > 0)
-    .map((a, i) => ({
-      name: a.account_name,
-      value: Number(a.current_balance),
-      color: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
-    }));
+  const { data: records = [] } = useQuery({
+    queryKey: ["revenue-by-source-fr", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("financial_records")
+        .select("category, amount")
+        .eq("user_id", user.id)
+        .eq("type", "revenue");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const categoryMap = new Map<string, number>();
+  records.forEach((r) => {
+    categoryMap.set(r.category, (categoryMap.get(r.category) || 0) + Number(r.amount));
+  });
+
+  return Array.from(categoryMap.entries()).map(([name, value], i) => ({
+    name,
+    value,
+    color: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
+  }));
 }
 
 function getDefaultARAging(): ARAgingData {

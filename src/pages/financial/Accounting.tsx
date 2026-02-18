@@ -278,21 +278,26 @@ export default function Accounting() {
     >
       <div className="space-y-6 animate-fade-in">
         {/* Stats */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            All-time totals · Dashboard shows current month only
+          </span>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Total Revenue"
+            title="Total Revenue (All-time)"
             value={formatAmount(totalRevenue)}
             change={{ value: records.length > 0 ? `${records.filter(r => r.type === "revenue").length} entries` : "0", type: "increase" }}
             icon={<Wallet className="h-4 w-4" />}
           />
           <StatCard
-            title="Total Expenses"
+            title="Total Expenses (All-time)"
             value={formatAmount(totalExpenses)}
             change={{ value: records.length > 0 ? `${records.filter(r => r.type === "expense").length} entries` : "0", type: "decrease" }}
             icon={<ArrowDownRight className="h-4 w-4" />}
           />
           <StatCard
-            title="Net Income"
+            title="Net Income (All-time)"
             value={formatAmount(netIncome)}
             change={{ value: totalRevenue > 0 ? `${((netIncome / totalRevenue) * 100).toFixed(1)}% margin` : "0%", type: netIncome >= 0 ? "increase" : "decrease" }}
             icon={<TrendingUp className="h-4 w-4" />}
