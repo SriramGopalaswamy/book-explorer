@@ -221,6 +221,8 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
     const validRoles = ["admin", "hr", "manager", "employee", "finance"];
     const errors: string[] = [];
     let success = 0;
+    let created = 0;
+    let updated = 0;
 
     for (const row of rows) {
       const email = row.email?.trim();
@@ -238,7 +240,7 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      // If full_name is provided, treat as new user creation
+      // If full_name is provided, treat as new/update user — edge function handles upsert
       if (full_name) {
         const { data, error } = await supabase.functions.invoke("manage-roles", {
           body: { action: "bulk_create_users", users: [{ email, full_name, department, job_title, role }] },
@@ -249,6 +251,8 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
           errors.push(...data.errors.map((e: string) => `${email}: ${e}`));
         } else {
           success++;
+          if (data?.updated > 0) updated++;
+          else created++;
         }
       } else {
         // Existing user — just set role
@@ -259,12 +263,13 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
           errors.push(`${email}: ${data?.error || error?.message || "Failed"}`);
         } else {
           success++;
+          updated++;
         }
       }
     }
 
     qc.invalidateQueries({ queryKey: ["user-roles"] });
-    return { success, errors };
+    return { success, errors, created, updated };
   }, [qc]);
 
   return {
