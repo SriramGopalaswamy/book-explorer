@@ -89,7 +89,7 @@ export default function ReimbursementsFinance() {
     queryKey: ["finance-reimbursements"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .select("*, profiles:profile_id(full_name, email)")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -148,7 +148,7 @@ export default function ReimbursementsFinance() {
 
       // Update reimbursement
       const { error: updErr } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .update({
           status: "paid",
           finance_notes: financeNotes || null,
@@ -186,7 +186,7 @@ export default function ReimbursementsFinance() {
     setSubmitting(true);
     try {
       const { error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .update({
           status: "finance_rejected",
           finance_notes: rejectNotes || null,
