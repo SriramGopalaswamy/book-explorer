@@ -103,7 +103,7 @@ export default function Reimbursements() {
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -252,7 +252,7 @@ export default function Reimbursements() {
         .maybeSingle();
 
       const { data: inserted, error } = await supabase
-        .from("reimbursement_requests" as any)
+        .from("reimbursement_requests")
         .insert({
           user_id: user.id,
           profile_id: profile?.id ?? null,
