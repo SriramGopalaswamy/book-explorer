@@ -2,6 +2,12 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   LayoutDashboard,
   Users,
   Target,
@@ -136,71 +142,115 @@ function NavSection({
   if (items.length === 0) return null;
 
   return (
-    <div className="mb-4">
-      {!collapsed && (
-        <button
-          onClick={toggleSection}
-          className="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-sidebar-accent/50 transition-all duration-200 group"
-        >
-          <span>{title}</span>
-          <ChevronDown
-            className={cn(
-              "h-3.5 w-3.5 transition-transform duration-200",
-              sectionOpen ? "rotate-0" : "-rotate-90"
-            )}
-          />
-        </button>
-      )}
-      <AnimatePresence initial={false}>
-        {sectionOpen && (
-          <motion.nav
-            key={sectionId}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden space-y-1"
+    <TooltipProvider delayDuration={300}>
+      <div className="mb-4">
+        {/* Full sidebar: clickable section header */}
+        {!collapsed && (
+          <button
+            onClick={toggleSection}
+            className="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-sidebar-accent/50 transition-all duration-200 group"
           >
-            {items.map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={onItemClick}
-                  className={cn(
-                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
-                  )}
-                >
-                  {isActive && (
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
-                  )}
-                  {!isActive && (
-                    <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                  )}
-                  <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
-                    <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
-                  </div>
-                  {!collapsed && (
-                    <span className="relative z-10 whitespace-nowrap">{item.name}</span>
-                  )}
-                  {isActive && (
-                    <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
-                  )}
-                </NavLink>
-              );
-            })}
-          </motion.nav>
+            <span>{title}</span>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-200",
+                sectionOpen ? "rotate-0" : "-rotate-90"
+              )}
+            />
+          </button>
         )}
-      </AnimatePresence>
-    </div>
+
+        {/* Mini sidebar: subtle divider with tooltip on hover */}
+        {collapsed && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="mx-auto mb-2 mt-1 h-px w-8 rounded-full bg-sidebar-foreground/20 cursor-default" />
+            </TooltipTrigger>
+            <TooltipContent side="right" className="flex flex-col gap-0.5 py-2">
+              <span className="font-semibold text-xs uppercase tracking-wider">{title}</span>
+              <span className="text-xs text-muted-foreground">
+                {items.length} item{items.length !== 1 ? "s" : ""}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        <AnimatePresence initial={false}>
+          {sectionOpen && (
+            <motion.nav
+              key={sectionId}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden space-y-1"
+            >
+              {items.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
+
+                const linkContent = (
+                  <>
+                    {isActive && (
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
+                    )}
+                    {!isActive && (
+                      <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                    )}
+                    <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
+                      <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+                    </div>
+                    {!collapsed && (
+                      <span className="relative z-10 whitespace-nowrap">{item.name}</span>
+                    )}
+                    {isActive && !collapsed && (
+                      <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
+                    )}
+                  </>
+                );
+
+                return collapsed ? (
+                  <Tooltip key={item.path}>
+                    <TooltipTrigger asChild>
+                      <NavLink
+                        to={item.path}
+                        onClick={onItemClick}
+                        className={cn(
+                          "group relative flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                          isActive
+                            ? "text-sidebar-primary-foreground"
+                            : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+                        )}
+                      >
+                        {linkContent}
+                      </NavLink>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.name}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={onItemClick}
+                    className={cn(
+                      "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    {linkContent}
+                  </NavLink>
+                );
+              })}
+            </motion.nav>
+          )}
+        </AnimatePresence>
+      </div>
+    </TooltipProvider>
   );
 }
+
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
