@@ -261,6 +261,7 @@ export function Sidebar() {
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
   const isFinance = currentRole === "finance";
+  const isHR = currentRole === "hr";
   const isLoading = currentRole === undefined;
 
   // Expose setter so Header can trigger it
@@ -275,9 +276,9 @@ export function Sidebar() {
 
 
   // Build visible nav based on role
-  const restrictedRole = isEmployee || isManager || isFinance;
+  const restrictedRole = isEmployee || isManager || isFinance || isHR;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = (isEmployee || isManager) ? [] : financialNav; // finance + admin see financial suite
+  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] : financialNav; // finance + admin see financial suite
   const visibleHrmsNav = isManager
     ? managerHrmsNav
     : isEmployee
