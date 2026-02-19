@@ -306,46 +306,52 @@ export default function Attendance() {
 
       {/* Attendance Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Daily Attendance</CardTitle>
-            <CardDescription>Employee check-in and check-out records</CardDescription>
-          </div>
-          <div className="flex gap-2 items-center">
-            <Button variant="outline" size="icon" onClick={handlePrevDay}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-40"
-            />
-            <Button variant="outline" size="icon" onClick={handleNextDay}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <div className="relative ml-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search employee..." 
-                className="pl-9 w-48" 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Daily Attendance</CardTitle>
+                <CardDescription>Employee check-in and check-out records</CardDescription>
+              </div>
+              <BulkUploadDialog config={bulkUploadConfig} />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="present">Present</SelectItem>
-                <SelectItem value="absent">Absent</SelectItem>
-                <SelectItem value="late">Late</SelectItem>
-                <SelectItem value="leave">On Leave</SelectItem>
-              </SelectContent>
-            </Select>
-            <BulkUploadDialog config={bulkUploadConfig} />
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" onClick={handlePrevDay}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-36"
+                />
+                <Button variant="outline" size="icon" onClick={handleNextDay}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search employee..." 
+                  className="pl-9 w-44" 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="leave">On Leave</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -376,7 +382,7 @@ export default function Attendance() {
                   <tbody>
                     {pagination.paginatedItems.map((record, idx) => (
                       <tr key={record.id} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
-                        <td className="px-6 py-3 align-middle font-semibold min-w-[160px] text-card-foreground">{record.profiles?.full_name || "Unknown"}</td>
+                        <td className="px-6 py-3 align-middle font-semibold min-w-[160px] text-foreground">{record.profiles?.full_name || "Unknown"}</td>
                         <td className="px-4 py-3 align-middle text-muted-foreground min-w-[120px]">{record.profiles?.department || "-"}</td>
                         <td className="px-4 py-3 align-middle text-foreground min-w-[100px]">{formatTime(record.check_in)}</td>
                         <td className="px-4 py-3 align-middle text-foreground min-w-[100px]">{formatTime(record.check_out)}</td>
