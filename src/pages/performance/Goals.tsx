@@ -257,7 +257,7 @@ function GoalItemsEditor({
               <th className="text-left px-2 py-2 font-medium text-muted-foreground min-w-[140px]">Line Item</th>
               <th className="text-right px-2 py-2 font-medium text-muted-foreground w-24">Weightage %</th>
               <th className="text-left px-2 py-2 font-medium text-muted-foreground min-w-[120px]">Target</th>
-              <th className="text-left px-2 py-2 font-medium text-muted-foreground min-w-[120px]">Actual</th>
+              {showActual && <th className="text-left px-2 py-2 font-medium text-muted-foreground min-w-[120px]">Actual</th>}
               {isFull && <th className="w-8" />}
             </tr>
           </thead>
@@ -332,18 +332,16 @@ function GoalItemsEditor({
                   )}
                 </td>
                 {/* Actual */}
-                <td className="px-2 py-1.5 min-w-[120px]">
-                  {mode === "score-only" || mode === "manager-review" ? (
+                {showActual && (
+                  <td className="px-2 py-1.5 min-w-[120px]">
                     <Input
                       value={item.actual ?? ""}
                       onChange={(e) => update(item.id, "actual", e.target.value || null)}
                       className="h-8 text-sm w-full"
                       placeholder="Actual"
                     />
-                  ) : (
-                    <span className="px-1 text-muted-foreground">—</span>
-                  )}
-                </td>
+                  </td>
+                )}
                 {/* Remove */}
                 {isFull && (
                   <td className="px-2 py-1.5 w-8">
@@ -369,7 +367,7 @@ function GoalItemsEditor({
                   {totalWeightage(items)}%
                 </span>
               </td>
-              <td colSpan={isFull ? 3 : 2} />
+              <td colSpan={isFull && showActual ? 3 : 2} />
             </tr>
           </tfoot>
         </table>
