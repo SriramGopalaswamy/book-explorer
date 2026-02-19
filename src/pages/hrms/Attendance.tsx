@@ -367,27 +367,27 @@ export default function Attendance() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm text-card-foreground">
                   <thead>
                     <tr className="border-b border-border/50 bg-muted/30">
-                      <th className="h-11 px-6 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[160px] w-[22%]">Employee</th>
-                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px] w-[16%]">Department</th>
-                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px] w-[14%]">Check In</th>
-                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px] w-[14%]">Check Out</th>
-                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[130px] w-[18%]">Working Hours</th>
-                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px] w-[14%]">Status</th>
+                      <th className="h-11 px-6 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-48">Employee</th>
+                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-36">Department</th>
+                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-28">Check In</th>
+                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-28">Check Out</th>
+                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-32">Working Hours</th>
+                      <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-28">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pagination.paginatedItems.map((record, idx) => (
                       <tr key={record.id} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
-                        <td className="px-6 py-3 align-middle font-semibold min-w-[160px] text-foreground">{record.profiles?.full_name || "Unknown"}</td>
-                        <td className="px-4 py-3 align-middle text-muted-foreground min-w-[120px]">{record.profiles?.department || "-"}</td>
-                        <td className="px-4 py-3 align-middle text-foreground min-w-[100px]">{formatTime(record.check_in)}</td>
-                        <td className="px-4 py-3 align-middle text-foreground min-w-[100px]">{formatTime(record.check_out)}</td>
-                        <td className="px-4 py-3 align-middle text-foreground min-w-[130px]">{calculateHours(record.check_in, record.check_out)}</td>
-                        <td className="px-4 py-3 align-middle min-w-[100px]">
+                        <td className="px-6 py-3 align-middle font-semibold w-48 text-card-foreground">{record.profiles?.full_name || "Unknown"}</td>
+                        <td className="px-4 py-3 align-middle w-36 text-muted-foreground">{record.profiles?.department || "-"}</td>
+                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{formatTime(record.check_in)}</td>
+                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{formatTime(record.check_out)}</td>
+                        <td className="px-4 py-3 align-middle w-32 text-card-foreground">{calculateHours(record.check_in, record.check_out)}</td>
+                        <td className="px-4 py-3 align-middle w-28">
                           <Badge variant="outline" className={getStatusBadge(record.status)}>
                             {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
                           </Badge>
