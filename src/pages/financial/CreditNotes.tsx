@@ -44,7 +44,7 @@ export default function CreditNotes() {
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [form, setForm] = useState({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
+  const [form, setForm] = useState({ amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
 
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["credit-notes", user?.id],
@@ -68,14 +68,26 @@ export default function CreditNotes() {
     enabled: !!user,
   });
 
+  const resetForm = () => {
+    setForm({ amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
+    setSelectedCustomerId("");
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
-      if (!form.client_name || !form.amount) throw new Error("Client name and amount are required.");
+      if (!selectedCustomerId) throw new Error("Please select a customer.");
+      if (!form.amount || Number(form.amount) <= 0) throw new Error("Please enter a valid amount.");
+      const customer = customers.find((c) => c.id === selectedCustomerId);
+      if (!customer) throw new Error("Selected customer not found.");
       const { error } = await supabase.from("credit_notes").insert({
-        user_id: user.id, credit_note_number: `CN-${Date.now().toString().slice(-6)}`,
-        client_name: form.client_name, customer_id: selectedCustomerId || null,
-        amount: Number(form.amount), reason: form.reason || null, issue_date: form.issue_date,
+        user_id: user.id,
+        credit_note_number: `CN-${Date.now().toString().slice(-6)}`,
+        client_name: customer.name,
+        customer_id: selectedCustomerId,
+        amount: Number(form.amount),
+        reason: form.reason || null,
+        issue_date: form.issue_date,
         status: form.status,
       });
       if (error) throw error;
@@ -84,8 +96,7 @@ export default function CreditNotes() {
       queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
       toast({ title: "Credit Note Created" });
       setIsDialogOpen(false);
-      setForm({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
-      setSelectedCustomerId("");
+      resetForm();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -95,12 +106,6 @@ export default function CreditNotes() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Credit Note Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
-
-  const handleCustomerSelect = (id: string) => {
-    setSelectedCustomerId(id);
-    const c = customers.find((x) => x.id === id);
-    if (c) setForm((f) => ({ ...f, client_name: c.name }));
-  };
 
   const filtered = creditNotes.filter((cn) => cn.client_name.toLowerCase().includes(search.toLowerCase()) || cn.credit_note_number.toLowerCase().includes(search.toLowerCase()));
   const pagination = usePagination(filtered, 10);
@@ -122,20 +127,24 @@ export default function CreditNotes() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" placeholder="Search credit notes..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Credit Note</Button></DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Create Credit Note</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-2">
                 <div>
-                  <Label>Customer</Label>
-                  <Select value={selectedCustomerId} onValueChange={handleCustomerSelect}>
+                  <Label>Customer <span className="text-destructive">*</span></Label>
+                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                     <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                    <SelectContent>{customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {customers.length === 0
+                        ? <SelectItem value="_none" disabled>No active customers found</SelectItem>
+                        : customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                      }
+                    </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Client Name *</Label><Input value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} /></div>
-                <div><Label>Amount (₹) *</Label><Input type="number" min={0} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+                <div><Label>Amount (₹) <span className="text-destructive">*</span></Label><Input type="number" min={0} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
                 <div><Label>Issue Date</Label><Input type="date" value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} /></div>
                 <div>
                   <Label>Status</Label>
@@ -151,7 +160,7 @@ export default function CreditNotes() {
                 <div><Label>Reason</Label><Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={3} /></div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
                 <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>Create</Button>
               </DialogFooter>
             </DialogContent>
