@@ -52,6 +52,24 @@ function parseCSV(text: string): string[][] {
   });
 }
 
+/**
+ * Safety fallback: convert Excel date serial numbers (e.g. 46023) to YYYY-MM-DD strings.
+ * Excel stores dates as days since 1900-01-01 (with the erroneous 1900 leap-year offset).
+ * This handles edge cases where cellDates/raw:false don't fully resolve the conversion.
+ */
+function maybeConvertExcelSerial(value: string): string {
+  const num = Number(value);
+  // Excel date serials for years 2000-2100 fall roughly in 36526–73050
+  if (!isNaN(num) && num > 36526 && num < 73050 && String(num) === value.trim()) {
+    const utcDays = num - 25569; // offset from Excel epoch (1900-01-01) to Unix epoch (1970-01-01)
+    const date = new Date(utcDays * 86400 * 1000);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split("T")[0]; // → YYYY-MM-DD
+    }
+  }
+  return value;
+}
+
 export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -103,7 +121,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     setHeaders(fileHeaders);
     const dataRows = rawRows.slice(1).map((cells, idx) => {
       const row: Record<string, string> = {};
-      fileHeaders.forEach((h, i) => { row[h] = String(cells[i] ?? "").trim(); });
+      fileHeaders.forEach((h, i) => { row[h] = maybeConvertExcelSerial(String(cells[i] ?? "").trim()); });
       return validateRow(row, idx);
     });
     setParsedRows(dataRows);
@@ -127,9 +145,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
+        // cellDates: true → Excel date cells become JS Date objects
+        // dateNF + raw: false → dates are serialised as "yyyy-mm-dd" strings
+        const workbook = XLSX.read(data, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        const rows: string[][] = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: "",
+          raw: false,
+          dateNF: "yyyy-mm-dd",
+        });
         processRows(rows);
       };
       reader.readAsArrayBuffer(file);
