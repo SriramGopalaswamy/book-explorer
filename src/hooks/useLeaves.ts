@@ -76,7 +76,7 @@ export function useLeaveRequests(status?: string) {
       }
       let query = supabase
         .from("leave_requests")
-        .select(`*, profiles:profile_id (full_name, department)`)
+        .select(`*, profiles!profile_id(full_name, department)`)
         .order("created_at", { ascending: false });
 
       if (status && status !== "all") {
