@@ -43,7 +43,7 @@ export function useAttendance(date?: string) {
         .from("attendance_records")
         .select(`
           *,
-          profiles:profile_id (
+          profiles!profile_id (
             full_name,
             department
           )
