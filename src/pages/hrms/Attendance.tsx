@@ -28,7 +28,7 @@ import {
   UserCheck, 
   UserX, 
   Search, 
-  Download, 
+   
   ChevronLeft, 
   ChevronRight,
   LogIn,
@@ -352,10 +352,6 @@ export default function Attendance() {
                 <SelectItem value="leave">On Leave</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
             <BulkUploadDialog config={bulkUploadConfig} />
           </div>
         </CardHeader>
