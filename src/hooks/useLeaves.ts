@@ -173,15 +173,30 @@ export function useCreateLeaveRequest() {
       to_date: string;
       reason?: string;
     }) => {
-      // Calculate days
-      const fromDate = new Date(request.from_date);
-      const toDate = new Date(request.to_date);
-      const days = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Timezone-safe day calculation: parse date parts directly to avoid UTC offset shifts
+      const [fy, fm, fd] = request.from_date.split("-").map(Number);
+      const [ty, tm, td] = request.to_date.split("-").map(Number);
+      const from = new Date(fy, fm - 1, fd);
+      const to = new Date(ty, tm - 1, td);
+      const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Sanity guard: reject obviously corrupt ranges (>365 days)
+      if (days < 1 || days > 365) {
+        throw new Error(`Invalid date range: ${days} days. Please check your from/to dates.`);
+      }
+
+      // Fetch the user's profile_id so the join works in the table
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user?.id)
+        .maybeSingle();
 
       const { data, error } = await supabase
         .from("leave_requests")
         .insert({
           user_id: user?.id,
+          profile_id: profile?.id ?? null,
           leave_type: request.leave_type,
           from_date: request.from_date,
           to_date: request.to_date,
