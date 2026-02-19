@@ -6,14 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
 import {
   Select,
   SelectContent,
@@ -367,37 +360,49 @@ export default function Attendance() {
               No attendance records found for this date
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Check In</TableHead>
-                    <TableHead>Check Out</TableHead>
-                    <TableHead>Working Hours</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pagination.paginatedItems.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium">
-                        {record.profiles?.full_name ?? "Unknown"}
-                      </TableCell>
-                      <TableCell>{record.profiles?.department ?? "-"}</TableCell>
-                      <TableCell>{formatTime(record.check_in)}</TableCell>
-                      <TableCell>{formatTime(record.check_out)}</TableCell>
-                      <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusBadge(record.status)}>
-                          {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <>
+            <DataTable
+              columns={[
+                {
+                  key: "employee",
+                  header: "Employee",
+                  render: (record) => (
+                    <span className="font-medium">{record.profiles?.full_name ?? "Unknown"}</span>
+                  ),
+                },
+                {
+                  key: "department",
+                  header: "Department",
+                  render: (record) => record.profiles?.department ?? "-",
+                },
+                {
+                  key: "check_in",
+                  header: "Check In",
+                  render: (record) => formatTime(record.check_in),
+                },
+                {
+                  key: "check_out",
+                  header: "Check Out",
+                  render: (record) => formatTime(record.check_out),
+                },
+                {
+                  key: "hours",
+                  header: "Working Hours",
+                  render: (record) => calculateHours(record.check_in, record.check_out),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  render: (record) => (
+                    <Badge variant="outline" className={getStatusBadge(record.status)}>
+                      {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
+                    </Badge>
+                  ),
+                },
+              ]}
+              data={pagination.paginatedItems}
+            />
+            <div className="mt-4">
               <TablePagination
                 page={pagination.page}
                 totalPages={pagination.totalPages}
@@ -409,6 +414,7 @@ export default function Attendance() {
                 onPageSizeChange={pagination.setPageSize}
               />
             </div>
+            </>
           )}
         </CardContent>
       </Card>
