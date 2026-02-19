@@ -366,6 +366,7 @@ export default function Attendance() {
                 {
                   key: "employee",
                   header: "Employee",
+                  className: "min-w-[160px]",
                   render: (record) => (
                     <span className="font-medium">{record.profiles?.full_name ?? "Unknown"}</span>
                   ),
@@ -373,26 +374,31 @@ export default function Attendance() {
                 {
                   key: "department",
                   header: "Department",
+                  className: "min-w-[120px]",
                   render: (record) => record.profiles?.department ?? "-",
                 },
                 {
                   key: "check_in",
                   header: "Check In",
+                  className: "min-w-[100px]",
                   render: (record) => formatTime(record.check_in),
                 },
                 {
                   key: "check_out",
                   header: "Check Out",
+                  className: "min-w-[100px]",
                   render: (record) => formatTime(record.check_out),
                 },
                 {
                   key: "hours",
                   header: "Working Hours",
+                  className: "min-w-[120px]",
                   render: (record) => calculateHours(record.check_in, record.check_out),
                 },
                 {
                   key: "status",
                   header: "Status",
+                  className: "min-w-[100px]",
                   render: (record) => (
                     <Badge variant="outline" className={getStatusBadge(record.status)}>
                       {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}

@@ -58,38 +58,36 @@ export function DataTable<T extends { id: string | number }>({
 
   return (
     <div className="rounded-md border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            {visibleColumns.map((col) => (
+              <TableHead key={col.key} className={cn("whitespace-nowrap font-semibold", col.headerClassName)}>
+                {col.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((item) => (
+            <TableRow
+              key={item.id}
+              className={cn(
+                "transition-colors",
+                onRowClick ? "cursor-pointer hover:bg-muted/50" : "",
+                rowClassName?.(item)
+              )}
+              onClick={() => onRowClick?.(item)}
+            >
               {visibleColumns.map((col) => (
-                <TableHead key={col.key} className={cn("whitespace-nowrap font-semibold", col.headerClassName)}>
-                  {col.header}
-                </TableHead>
+                <TableCell key={`${item.id}-${col.key}`} className={cn("py-3", col.className)}>
+                  {col.render ? col.render(item) : (item as any)[col.key]}
+                </TableCell>
               ))}
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((item) => (
-              <TableRow
-                key={item.id}
-                className={cn(
-                  "transition-colors",
-                  onRowClick ? "cursor-pointer hover:bg-muted/50" : "",
-                  rowClassName?.(item)
-                )}
-                onClick={() => onRowClick?.(item)}
-              >
-                {visibleColumns.map((col) => (
-                  <TableCell key={`${item.id}-${col.key}`} className={cn("py-3", col.className)}>
-                    {col.render ? col.render(item) : (item as any)[col.key]}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
