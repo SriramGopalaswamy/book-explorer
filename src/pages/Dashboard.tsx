@@ -86,16 +86,14 @@ export default function Dashboard() {
         {/* Welcome Hero */}
         <WelcomeHero />
 
-        {/* Financial Overview Filter */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Financial Integrity Status</h3>
-            <FinancialIntegrityBadge showDetails={true} />
-          </div>
+        {/* Financial Integrity Status */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Financial Integrity Status</h3>
+          <FinancialIntegrityBadge showDetails={true} />
         </div>
 
         {/* Key Metrics */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 items-stretch">
           {statsLoading ? (
             <>
               <Skeleton className="h-32 rounded-2xl" />
