@@ -101,6 +101,94 @@ let persistedCollapsed = false;
 export let mobileMenuOpen = false;
 export let setMobileMenuOpen: (v: boolean) => void = () => {};
 
+function NavSection({
+  title,
+  items,
+  sectionId,
+  defaultOpen = true,
+  collapsed,
+  onItemClick,
+}: {
+  title: string;
+  items: NavItem[];
+  sectionId: string;
+  defaultOpen?: boolean;
+  collapsed: boolean;
+  onItemClick: () => void;
+}) {
+  const location = useLocation();
+  const hasActiveItem = items.some((item) => location.pathname === item.path);
+  const [sectionOpen, setSectionOpen] = useState(defaultOpen || hasActiveItem);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      {!collapsed && (
+        <button
+          onClick={() => setSectionOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-sidebar-accent/50 transition-all duration-200 group"
+        >
+          <span>{title}</span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform duration-200",
+              sectionOpen ? "rotate-0" : "-rotate-90"
+            )}
+          />
+        </button>
+      )}
+      <AnimatePresence initial={false}>
+        {sectionOpen && (
+          <motion.nav
+            key={sectionId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden space-y-1"
+          >
+            {items.map((item) => {
+              const isActive = location.pathname === item.path;
+              const Icon = item.icon;
+
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={onItemClick}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  {isActive && (
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
+                  )}
+                  {!isActive && (
+                    <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  )}
+                  <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
+                    <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+                  </div>
+                  {!collapsed && (
+                    <span className="relative z-10 whitespace-nowrap">{item.name}</span>
+                  )}
+                  {isActive && (
+                    <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
+                  )}
+                </NavLink>
+              );
+            })}
+          </motion.nav>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -122,88 +210,6 @@ export function Sidebar() {
 
   const closeMobile = () => setMobileOpen(false);
 
-  const NavSection = ({
-    title,
-    items,
-    sectionId,
-    defaultOpen = true,
-  }: {
-    title: string;
-    items: NavItem[];
-    sectionId: string;
-    defaultOpen?: boolean;
-  }) => {
-    const hasActiveItem = items.some((item) => location.pathname === item.path);
-    const [sectionOpen, setSectionOpen] = useState(defaultOpen || hasActiveItem);
-
-    if (items.length === 0) return null;
-
-    return (
-      <div className="mb-4">
-        {!collapsed && (
-          <button
-            onClick={() => setSectionOpen((prev) => !prev)}
-            className="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-sidebar-accent/50 transition-all duration-200 group"
-          >
-            <span>{title}</span>
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-200",
-                sectionOpen ? "rotate-0" : "-rotate-90"
-              )}
-            />
-          </button>
-        )}
-        <AnimatePresence initial={false}>
-          {(!collapsed || true) && sectionOpen && (
-            <motion.nav
-              key={sectionId}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="overflow-hidden space-y-1"
-            >
-              {items.map((item) => {
-                const isActive = location.pathname === item.path;
-                const Icon = item.icon;
-
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={closeMobile}
-                    className={cn(
-                      "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                      isActive
-                        ? "text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    {isActive && (
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg transition-all duration-200" />
-                    )}
-                    {!isActive && (
-                      <div className="absolute inset-0 rounded-xl bg-sidebar-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                    )}
-                    <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
-                      <Icon className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
-                    </div>
-                    {!collapsed && (
-                      <span className="relative z-10 whitespace-nowrap">{item.name}</span>
-                    )}
-                    {isActive && (
-                      <div className="absolute right-2 h-2 w-2 rounded-full bg-white/80 animate-scale-in" />
-                    )}
-                  </NavLink>
-                );
-              })}
-            </motion.nav>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
 
   // Build visible nav based on role
   const restrictedRole = isEmployee || isManager || isFinance;
@@ -242,18 +248,20 @@ export function Sidebar() {
         {!isLoading && (
           <>
             {visibleMainNav.length > 0 && (
-              <NavSection title="Main" items={visibleMainNav} sectionId="main" />
+              <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             {visibleFinancialNav.length > 0 && (
-              <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" />
+              <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
             )}
-            <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" />
-            <NavSection title="Performance OS" items={performanceNav} sectionId="performance" />
+            <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
+            <NavSection title="Performance OS" items={performanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
             {(currentRole === "admin" || currentRole === "hr") && (
               <NavSection
                 title="Admin"
                 items={[{ name: "Audit Log", path: "/admin/audit-log", icon: Shield }]}
                 sectionId="admin"
+                collapsed={collapsed}
+                onItemClick={closeMobile}
               />
             )}
           </>
