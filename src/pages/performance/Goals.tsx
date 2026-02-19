@@ -265,12 +265,12 @@ function GoalItemsEditor({
             {items.map((item) => (
               <tr key={item.id} className="border-b border-border/30 last:border-0">
                 {/* Client */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 min-w-[100px]">
                   {isFull ? (
                     <Input
                       value={item.client}
                       onChange={(e) => update(item.id, "client", e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-8 text-sm w-full"
                       placeholder="Client"
                     />
                   ) : (
@@ -278,12 +278,12 @@ function GoalItemsEditor({
                   )}
                 </td>
                 {/* Bucket */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 min-w-[100px]">
                   {isFull ? (
                     <Input
                       value={item.bucket}
                       onChange={(e) => update(item.id, "bucket", e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-8 text-sm w-full"
                       placeholder="Bucket"
                     />
                   ) : (
@@ -291,12 +291,12 @@ function GoalItemsEditor({
                   )}
                 </td>
                 {/* Line Item */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 min-w-[140px]">
                   {isFull ? (
                     <Input
                       value={item.line_item}
                       onChange={(e) => update(item.id, "line_item", e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-8 text-sm w-full"
                       placeholder="Line Item"
                     />
                   ) : (
@@ -304,7 +304,7 @@ function GoalItemsEditor({
                   )}
                 </td>
                 {/* Weightage */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 w-24">
                   {isFull ? (
                     <Input
                       type="number"
@@ -312,19 +312,19 @@ function GoalItemsEditor({
                       max={100}
                       value={item.weightage}
                       onChange={(e) => update(item.id, "weightage", Number(e.target.value))}
-                      className="h-8 text-sm text-right"
+                      className="h-8 text-sm text-right w-full"
                     />
                   ) : (
                     <span className="px-1 block text-right">{item.weightage}%</span>
                   )}
                 </td>
                 {/* Target */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 min-w-[120px]">
                   {isFull ? (
                     <Input
                       value={item.target}
                       onChange={(e) => update(item.id, "target", e.target.value)}
-                      className="h-8 text-sm"
+                      className="h-8 text-sm w-full"
                       placeholder="Target"
                     />
                   ) : (
@@ -332,12 +332,12 @@ function GoalItemsEditor({
                   )}
                 </td>
                 {/* Actual */}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1.5 min-w-[120px]">
                   {mode === "score-only" || mode === "manager-review" ? (
                     <Input
                       value={item.actual ?? ""}
                       onChange={(e) => update(item.id, "actual", e.target.value || null)}
-                      className="h-8 text-sm"
+                      className="h-8 text-sm w-full"
                       placeholder="Actual"
                     />
                   ) : (
@@ -346,7 +346,7 @@ function GoalItemsEditor({
                 </td>
                 {/* Remove */}
                 {isFull && (
-                  <td className="px-2 py-1.5">
+                  <td className="px-2 py-1.5 w-8">
                     <Button
                       variant="ghost"
                       size="icon"
