@@ -85,7 +85,7 @@ export function usePayrollRecords(payPeriod?: string) {
 
       let query = supabase
         .from("payroll_records")
-        .select("*, profiles(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .order("created_at", { ascending: false });
 
       if (payPeriod) {
@@ -147,7 +147,7 @@ export function useCreatePayroll() {
           notes: validated.notes ?? null,
           user_id: profile?.user_id || user.id,
         })
-        .select("*, profiles(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .single();
 
       if (error) throw error;
@@ -177,7 +177,7 @@ export function useUpdatePayroll() {
         .from("payroll_records")
         .update(updateData)
         .eq("id", id)
-        .select("*, profiles(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .single();
 
       if (error) throw error;
