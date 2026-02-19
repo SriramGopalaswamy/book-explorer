@@ -258,81 +258,52 @@ export default function Leaves() {
                   </div>
                 ) : (
                   <>
-                  <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead>Days</TableHead>
-                        <TableHead>Status</TableHead>
-                        {isAdminOrHR && <TableHead>Actions</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pagination.paginatedItems.map((request) => {
-                        // DEBUG: log what profiles join actually returns
-                        console.log("[LeaveTable] row:", request.id, "profiles:", JSON.stringify(request.profiles), "leave_type:", request.leave_type);
-                        return (
-                        <TableRow key={request.id}>
-                          <TableCell className="font-medium">
-                            {request.profiles && request.profiles.full_name
-                              ? request.profiles.full_name
-                              : "You"}
-                          </TableCell>
-                          <TableCell>
-                            {leaveTypeConfig[request.leave_type]?.label || request.leave_type}
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm">
-                              {(() => {
-                                // Parse date parts directly to avoid UTC-to-local timezone shifts
-                                const [fy, fm, fd] = request.from_date.split("-").map(Number);
-                                const [ty, tm, td] = request.to_date.split("-").map(Number);
-                                const from = new Date(fy, fm - 1, fd);
-                                const to = new Date(ty, tm - 1, td);
-                                return `${format(from, "MMM d")} – ${format(to, "MMM d, yyyy")}`;
-                              })()}
-                            </span>
-                          </TableCell>
-                          <TableCell>{request.days}</TableCell>
-                          <TableCell>
+                  {/* Grid layout avoids HTML table first-column rendering quirks */}
+                  <div className="w-full overflow-x-auto">
+                    <div className="min-w-[580px]">
+                      <div className={`grid border-b border-border/50 bg-muted/30 rounded-t-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 ${isAdminOrHR ? "grid-cols-[140px_130px_1fr_50px_90px_80px]" : "grid-cols-[140px_130px_1fr_50px_90px]"}`}>
+                        <span>Employee</span>
+                        <span>Type</span>
+                        <span>Duration</span>
+                        <span>Days</span>
+                        <span>Status</span>
+                        {isAdminOrHR && <span>Actions</span>}
+                      </div>
+                      {pagination.paginatedItems.map((request, idx) => (
+                        <div
+                          key={request.id}
+                          className={`grid items-center border-b border-border/50 px-4 py-3 text-sm ${isAdminOrHR ? "grid-cols-[140px_130px_1fr_50px_90px_80px]" : "grid-cols-[140px_130px_1fr_50px_90px]"} ${idx % 2 === 1 ? "bg-muted/20" : ""}`}
+                        >
+                          <span className="font-medium truncate pr-2">{request.profiles?.full_name ?? "You"}</span>
+                          <span className="truncate pr-2">{leaveTypeConfig[request.leave_type]?.label || request.leave_type}</span>
+                          <span className="text-xs text-muted-foreground pr-2">
+                            {(() => {
+                              const [fy, fm, fd] = request.from_date.split("-").map(Number);
+                              const [ty, tm, td] = request.to_date.split("-").map(Number);
+                              const from = new Date(fy, fm - 1, fd);
+                              const to = new Date(ty, tm - 1, td);
+                              return `${format(from, "MMM d")} – ${format(to, "MMM d, yyyy")}`;
+                            })()}
+                          </span>
+                          <span>{request.days}</span>
+                          <span>
                             <Badge variant="outline" className={getStatusBadge(request.status)}>
                               {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                             </Badge>
-                          </TableCell>
+                          </span>
                           {isAdminOrHR && (
-                            <TableCell>
+                            <span>
                               {request.status === "pending" && (
                                 <div className="flex gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-success"
-                                    onClick={() => approveRequest.mutate(request.id)}
-                                    disabled={approveRequest.isPending}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-destructive"
-                                    onClick={() => rejectRequest.mutate(request.id)}
-                                    disabled={rejectRequest.isPending}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-success" onClick={() => approveRequest.mutate(request.id)} disabled={approveRequest.isPending}><Check className="h-4 w-4" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => rejectRequest.mutate(request.id)} disabled={rejectRequest.isPending}><X className="h-4 w-4" /></Button>
                                 </div>
                               )}
-                            </TableCell>
+                            </span>
                           )}
-                        </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="mt-2">
                     <TablePagination
