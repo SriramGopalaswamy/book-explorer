@@ -50,7 +50,7 @@ export default function Quotes() {
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [formData, setFormData] = useState({ client_name: "", client_email: "", due_date: "", notes: "" });
+  const [formData, setFormData] = useState({ due_date: "", notes: "" });
   const [items, setItems] = useState<QuoteItem[]>([{ ...emptyItem }]);
 
   const { data: quotes = [], isLoading } = useQuery({
@@ -78,12 +78,14 @@ export default function Quotes() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
-      if (!formData.client_name || !formData.due_date) throw new Error("Client name and due date are required.");
+      const customer = customers.find((c) => c.id === selectedCustomerId);
+      if (!customer) throw new Error("Please select a customer.");
+      if (!formData.due_date) throw new Error("Valid Until date is required.");
       const total = items.reduce((s, i) => s + i.amount, 0);
       const quoteNum = `QT-${Date.now().toString().slice(-6)}`;
       const { data: quote, error } = await supabase.from("quotes").insert({
-        user_id: user.id, quote_number: quoteNum, client_name: formData.client_name,
-        client_email: formData.client_email || null, customer_id: selectedCustomerId || null,
+        user_id: user.id, quote_number: quoteNum, client_name: customer.name,
+        client_email: customer.email ?? null, customer_id: customer.id,
         amount: total, due_date: formData.due_date, notes: formData.notes || null,
       }).select().single();
       if (error) throw error;
@@ -98,7 +100,7 @@ export default function Quotes() {
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
       if (!user) throw new Error("Not authenticated");
-      const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
+      const invoiceNum = `INV-${Date.now().toString().slice(-8)}`;
       const { data: inv, error } = await supabase.from("invoices").insert({
         user_id: user.id, invoice_number: invoiceNum, client_name: quote.client_name,
         client_email: quote.client_email ?? "", amount: quote.amount, due_date: quote.due_date,
@@ -121,7 +123,7 @@ export default function Quotes() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const resetForm = () => { setFormData({ client_name: "", client_email: "", due_date: "", notes: "" }); setItems([{ ...emptyItem }]); setSelectedCustomerId(""); };
+  const resetForm = () => { setFormData({ due_date: "", notes: "" }); setItems([{ ...emptyItem }]); setSelectedCustomerId(""); };
 
   const updateItem = (idx: number, field: keyof QuoteItem, value: string | number) => {
     setItems((prev) => {
@@ -132,11 +134,6 @@ export default function Quotes() {
     });
   };
 
-  const handleCustomerSelect = (id: string) => {
-    setSelectedCustomerId(id);
-    const c = customers.find((x) => x.id === id);
-    if (c) setFormData((f) => ({ ...f, client_name: c.name, client_email: c.email ?? "" }));
-  };
 
   const total = items.reduce((s, i) => s + i.amount, 0);
   const filtered = quotes.filter((q) => q.client_name.toLowerCase().includes(search.toLowerCase()) || q.quote_number.toLowerCase().includes(search.toLowerCase()));
@@ -166,40 +163,57 @@ export default function Quotes() {
               <DialogHeader><DialogTitle>Create Quote</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-2">
                 <div>
-                  <Label>Customer</Label>
-                  <Select value={selectedCustomerId} onValueChange={handleCustomerSelect}>
+                  <Label className="mb-1.5 block">Customer *</Label>
+                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                     <SelectTrigger><SelectValue placeholder="Select a registered customer" /></SelectTrigger>
-                    <SelectContent>{customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {customers.length === 0
+                        ? <SelectItem value="__none__" disabled>No customers found — add one first</SelectItem>
+                        : customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ""}</SelectItem>)
+                      }
+                    </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Client Name *</Label><Input value={formData.client_name} onChange={(e) => setFormData({ ...formData, client_name: e.target.value })} /></div>
-                  <div><Label>Client Email</Label><Input type="email" value={formData.client_email} onChange={(e) => setFormData({ ...formData, client_email: e.target.value })} /></div>
-                  <div><Label>Valid Until *</Label><Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} /></div>
+                <div className="grid gap-1.5">
+                  <Label>Valid Until *</Label>
+                  <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
                 </div>
                 <div>
                   <Label className="mb-2 block">Line Items</Label>
                   <div className="rounded-lg border border-border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Description</TableHead><TableHead className="w-20">Qty</TableHead>
-                          <TableHead className="w-28">Rate (₹)</TableHead><TableHead className="w-28">Amount</TableHead>
-                          <TableHead className="w-10"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">Description</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground w-20">Qty</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Rate (₹)</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Amount</th>
+                          <th className="w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {items.map((item, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell><Input value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="h-8" /></TableCell>
-                            <TableCell><Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))} className="h-8" /></TableCell>
-                            <TableCell><Input type="number" min={0} value={item.rate} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))} className="h-8" /></TableCell>
-                            <TableCell className="text-sm font-medium">{formatCurrency(item.amount)}</TableCell>
-                            <TableCell><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setItems(items.filter((_, i) => i !== idx))}>×</Button></TableCell>
-                          </TableRow>
+                          <tr key={idx} className="border-b border-border last:border-0">
+                            <td className="px-3 py-2">
+                              <Input value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="h-8" placeholder="Item description" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))} className="h-8 w-16" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input type="number" min={0} value={item.rate} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))} className="h-8 w-24" />
+                            </td>
+                            <td className="px-3 py-2 font-medium text-foreground">{formatCurrency(item.amount)}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                                className="text-destructive hover:text-destructive/80 font-bold text-base leading-none"
+                              >×</button>
+                            </td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                   <Button variant="outline" size="sm" className="mt-2" onClick={() => setItems([...items, { ...emptyItem }])}><Plus className="h-3 w-3 mr-1" />Add Line</Button>
                   <div className="mt-2 text-right font-semibold">Total: {formatCurrency(total)}</div>
@@ -211,6 +225,7 @@ export default function Quotes() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
         </div>
 
         <div className="rounded-xl border border-border bg-card overflow-hidden">
