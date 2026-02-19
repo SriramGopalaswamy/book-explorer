@@ -36,6 +36,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { 
   useLeaveRequests, 
   useLeaveBalances, 
@@ -86,12 +87,12 @@ export default function Leaves() {
     const to = new Date(ty, tm - 1, td);
 
     if (to < from) {
-      import("sonner").then(({ toast }) => toast.error("To date cannot be before From date."));
+      toast.error("To date cannot be before From date.");
       return;
     }
     const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (days > 365) {
-      import("sonner").then(({ toast }) => toast.error("Leave duration cannot exceed 365 days."));
+      toast.error("Leave duration cannot exceed 365 days.");
       return;
     }
 
@@ -199,6 +200,8 @@ export default function Leaves() {
                       <Input 
                         type="date" 
                         value={fromDate}
+                        min="2020-01-01"
+                        max="2099-12-31"
                         onChange={(e) => setFromDate(e.target.value)}
                       />
                     </div>
@@ -207,6 +210,8 @@ export default function Leaves() {
                       <Input 
                         type="date" 
                         value={toDate}
+                        min={fromDate || "2020-01-01"}
+                        max="2099-12-31"
                         onChange={(e) => setToDate(e.target.value)}
                       />
                     </div>
