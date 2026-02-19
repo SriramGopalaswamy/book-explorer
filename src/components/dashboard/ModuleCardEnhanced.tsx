@@ -113,7 +113,7 @@ export function ModuleCardEnhanced({
             {stats.map((stat, statIndex) => (
               <motion.div
                 key={statIndex}
-                className="rounded-xl bg-secondary/50 p-4 backdrop-blur-sm border border-border/50"
+                className="rounded-xl bg-secondary/50 p-4 backdrop-blur-sm"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.15 + 0.4 + statIndex * 0.1 }}
