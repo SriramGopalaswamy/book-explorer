@@ -271,10 +271,15 @@ export default function Leaves() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pagination.paginatedItems.map((request) => (
+                      {pagination.paginatedItems.map((request) => {
+                        // DEBUG: log what profiles join actually returns
+                        console.log("[LeaveTable] row:", request.id, "profiles:", JSON.stringify(request.profiles), "leave_type:", request.leave_type);
+                        return (
                         <TableRow key={request.id}>
                           <TableCell className="font-medium">
-                            {request.profiles?.full_name || "You"}
+                            {request.profiles && request.profiles.full_name
+                              ? request.profiles.full_name
+                              : "You"}
                           </TableCell>
                           <TableCell>
                             {leaveTypeConfig[request.leave_type]?.label || request.leave_type}
@@ -324,7 +329,8 @@ export default function Leaves() {
                             </TableCell>
                           )}
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                   </div>
