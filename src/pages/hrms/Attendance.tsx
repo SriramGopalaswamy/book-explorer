@@ -367,37 +367,36 @@ export default function Attendance() {
               No attendance records found for this date
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[180px]">Employee</TableHead>
-                    <TableHead className="w-[140px]">Department</TableHead>
-                    <TableHead className="w-[120px]">Check In</TableHead>
-                    <TableHead className="w-[120px]">Check Out</TableHead>
-                    <TableHead className="w-[140px]">Working Hours</TableHead>
-                    <TableHead className="w-[100px]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pagination.paginatedItems.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium w-[180px]">
-                        {record.profiles?.full_name || "Unknown"}
-                      </TableCell>
-                      <TableCell className="w-[140px]">{record.profiles?.department || "-"}</TableCell>
-                      <TableCell className="w-[120px]">{formatTime(record.check_in)}</TableCell>
-                      <TableCell className="w-[120px]">{formatTime(record.check_out)}</TableCell>
-                      <TableCell className="w-[140px]">{calculateHours(record.check_in, record.check_out)}</TableCell>
-                      <TableCell className="w-[100px]">
-                        <Badge variant="outline" className={getStatusBadge(record.status)}>
-                          {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Check In</TableHead>
+                <TableHead>Check Out</TableHead>
+                <TableHead>Working Hours</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pagination.paginatedItems.map((record) => (
+                <TableRow key={record.id}>
+                  <TableCell className="font-medium">
+                    {record.profiles?.full_name ?? "Unknown"}
+                  </TableCell>
+                  <TableCell>{record.profiles?.department ?? "-"}</TableCell>
+                  <TableCell>{formatTime(record.check_in)}</TableCell>
+                  <TableCell>{formatTime(record.check_out)}</TableCell>
+                  <TableCell>{calculateHours(record.check_in, record.check_out)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={getStatusBadge(record.status)}>
+                      {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
               <TablePagination
                 page={pagination.page}
                 totalPages={pagination.totalPages}
