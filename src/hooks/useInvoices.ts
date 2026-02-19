@@ -12,6 +12,7 @@ export interface Invoice {
   invoice_number: string;
   client_name: string;
   client_email: string;
+  customer_id?: string | null;
   amount: number;
   due_date: string;
   status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
@@ -33,6 +34,7 @@ export interface InvoiceItem {
 export interface CreateInvoiceData {
   client_name: string;
   client_email: string;
+  customer_id?: string;
   amount: number;
   due_date: string;
   items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
@@ -42,6 +44,7 @@ export interface UpdateInvoiceData {
   id: string;
   client_name: string;
   client_email: string;
+  customer_id?: string;
   amount: number;
   due_date: string;
   items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
@@ -106,34 +109,49 @@ export function useCreateInvoice() {
     mutationFn: async (data: CreateInvoiceData) => {
       if (!user) throw new Error("User not authenticated");
 
-      const validated = createInvoiceSchema.parse(data);
+      const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
-      const { data: invoiceId, error: rpcError } = await (supabase as any).rpc(
-        "create_invoice_with_items",
-        {
-          p_client_name: validated.client_name,
-          p_client_email: validated.client_email,
-          p_amount: validated.amount,
-          p_due_date: validated.due_date,
-          p_items: validated.items,
-        }
-      );
-
-      if (rpcError) throw rpcError;
-      if (!invoiceId) throw new Error("Failed to create invoice");
-
-      const { data: invoice, error: fetchError } = await supabase
+      const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
-        .select(`
-          *,
-          invoice_items (*)
-        `)
-        .eq("id", invoiceId as string)
+        .insert({
+          user_id: user.id,
+          invoice_number: invoiceNumber,
+          client_name: data.client_name,
+          client_email: data.client_email,
+          customer_id: data.customer_id || null,
+          amount: data.amount,
+          due_date: data.due_date,
+          status: "draft",
+        })
+        .select()
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      if (data.items && data.items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("invoice_items")
+          .insert(
+            data.items.map((item) => ({
+              invoice_id: invoice.id,
+              description: item.description,
+              quantity: item.quantity,
+              rate: item.rate,
+              amount: item.amount,
+            }))
+          );
+        if (itemsError) throw itemsError;
+      }
+
+      const { data: fullInvoice, error: fetchError } = await supabase
+        .from("invoices")
+        .select(`*, invoice_items (*)`)
+        .eq("id", invoice.id)
         .single();
 
       if (fetchError) throw fetchError;
 
-      return invoice;
+      return fullInvoice;
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -189,30 +207,47 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
-      const validated = updateInvoiceSchema.parse(data);
+      // Update the invoice record
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .update({
+          client_name: data.client_name,
+          client_email: data.client_email,
+          customer_id: data.customer_id || null,
+          amount: data.amount,
+          due_date: data.due_date,
+        })
+        .eq("id", data.id);
 
-      const { data: invoiceId, error: rpcError } = await (supabase as any).rpc(
-        "update_invoice_with_items",
-        {
-          p_invoice_id: validated.id,
-          p_client_name: validated.client_name,
-          p_client_email: validated.client_email,
-          p_amount: validated.amount,
-          p_due_date: validated.due_date,
-          p_items: validated.items,
-        }
-      );
+      if (invoiceError) throw invoiceError;
 
-      if (rpcError) throw rpcError;
-      if (!invoiceId) throw new Error("Failed to update invoice");
+      // Delete old items and reinsert
+      const { error: deleteError } = await supabase
+        .from("invoice_items")
+        .delete()
+        .eq("invoice_id", data.id);
+
+      if (deleteError) throw deleteError;
+
+      if (data.items && data.items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("invoice_items")
+          .insert(
+            data.items.map((item) => ({
+              invoice_id: data.id,
+              description: item.description,
+              quantity: item.quantity,
+              rate: item.rate,
+              amount: item.amount,
+            }))
+          );
+        if (itemsError) throw itemsError;
+      }
 
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
-        .select(`
-          *,
-          invoice_items (*)
-        `)
-        .eq("id", invoiceId as string)
+        .select(`*, invoice_items (*)`)
+        .eq("id", data.id)
         .single();
 
       if (fetchError) throw fetchError;
