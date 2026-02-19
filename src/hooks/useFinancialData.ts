@@ -76,7 +76,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   return useQuery({
     queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<MonthlyData[]> => {
-      if (!user) return getDefaultMonthlyData();
+      if (!user) return [];
 
       const fromDate = dateRange?.from || (() => {
         const d = new Date();
@@ -93,10 +93,6 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
       if (error) throw error;
-
-      if (!data || data.length === 0) {
-        return getDefaultMonthlyData();
-      }
 
       const monthlyMap = new Map<string, { revenue: number; expenses: number }>();
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -264,16 +260,6 @@ export function useDeleteFinancialRecord() {
   });
 }
 
-function getDefaultMonthlyData(): MonthlyData[] {
-  return [
-    { month: "Jan", revenue: 2850000, expenses: 1800000 },
-    { month: "Feb", revenue: 3200000, expenses: 2100000 },
-    { month: "Mar", revenue: 2900000, expenses: 1900000 },
-    { month: "Apr", revenue: 3800000, expenses: 2400000 },
-    { month: "May", revenue: 4100000, expenses: 2600000 },
-    { month: "Jun", revenue: 4523000, expenses: 2900000 },
-  ];
-}
 
 function getDefaultExpenseData(): CategoryData[] {
   return [
