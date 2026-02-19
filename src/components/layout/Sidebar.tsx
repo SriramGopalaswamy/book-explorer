@@ -118,7 +118,20 @@ function NavSection({
 }) {
   const location = useLocation();
   const hasActiveItem = items.some((item) => location.pathname === item.path);
-  const [sectionOpen, setSectionOpen] = useState(defaultOpen || hasActiveItem);
+  const storageKey = `sidebar-section-${sectionId}`;
+  const [sectionOpen, setSectionOpen] = useState<boolean>(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored !== null) return stored === "true";
+    return defaultOpen || hasActiveItem;
+  });
+
+  const toggleSection = () => {
+    setSectionOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem(storageKey, String(next));
+      return next;
+    });
+  };
 
   if (items.length === 0) return null;
 
@@ -126,7 +139,7 @@ function NavSection({
     <div className="mb-4">
       {!collapsed && (
         <button
-          onClick={() => setSectionOpen((prev) => !prev)}
+          onClick={toggleSection}
           className="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-lg text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/80 hover:bg-sidebar-accent/50 transition-all duration-200 group"
         >
           <span>{title}</span>
