@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
@@ -7,6 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -83,6 +93,7 @@ const getStatusConfig = (status: Invoice["status"]) => {
 };
 
 export default function Invoicing() {
+  const { user } = useAuth();
   // All hooks must be declared before any conditional returns (Rules of Hooks)
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { data: invoices = [], isLoading } = useInvoices();
@@ -92,13 +103,31 @@ export default function Invoicing() {
   const deleteInvoice = useDeleteInvoice();
   const pagination = usePagination(invoices, 10);
 
+  // Fetch customers for dropdown
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, email")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [editSelectedCustomerId, setEditSelectedCustomerId] = useState("");
+
   const [formData, setFormData] = useState({
-    clientName: "",
-    clientEmail: "",
     description: "",
     quantity: "1",
     rate: "",
@@ -107,8 +136,6 @@ export default function Invoicing() {
   });
 
   const [editFormData, setEditFormData] = useState({
-    clientName: "",
-    clientEmail: "",
     description: "",
     quantity: "1",
     rate: "",
@@ -161,9 +188,8 @@ export default function Invoicing() {
   const handleEditInvoice = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     const firstItem = invoice.invoice_items?.[0];
+    setEditSelectedCustomerId(invoice.customer_id || "");
     setEditFormData({
-      clientName: invoice.client_name,
-      clientEmail: invoice.client_email,
       description: firstItem?.description || "",
       quantity: String(firstItem?.quantity || 1),
       rate: String(firstItem?.rate || invoice.amount),
@@ -174,13 +200,14 @@ export default function Invoicing() {
 
   const handleUpdateInvoice = () => {
     if (!editingInvoice) return;
-    
-    if (!editFormData.clientName.trim() || !editFormData.clientEmail.trim() || !editFormData.rate || !editFormData.dueDate) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+
+    const customer = customers.find((c) => c.id === editSelectedCustomerId);
+    if (!customer) {
+      toast({ title: "Validation Error", description: "Please select a customer", variant: "destructive" });
+      return;
+    }
+    if (!editFormData.rate || !editFormData.dueDate) {
+      toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
       return;
     }
 
@@ -191,18 +218,12 @@ export default function Invoicing() {
     updateInvoice.mutate(
       {
         id: editingInvoice.id,
-        client_name: editFormData.clientName.trim(),
-        client_email: editFormData.clientEmail.trim(),
+        client_name: customer.name,
+        client_email: customer.email || "",
+        customer_id: customer.id,
         amount,
         due_date: editFormData.dueDate,
-        items: [
-          {
-            description: editFormData.description || "Services",
-            quantity,
-            rate,
-            amount,
-          },
-        ],
+        items: [{ description: editFormData.description || "Services", quantity, rate, amount }],
       },
       {
         onSuccess: () => {
@@ -214,12 +235,13 @@ export default function Invoicing() {
   };
 
   const handleCreateInvoice = () => {
-    if (!formData.clientName.trim() || !formData.clientEmail.trim() || !formData.rate || !formData.dueDate) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+    const customer = customers.find((c) => c.id === selectedCustomerId);
+    if (!customer) {
+      toast({ title: "Validation Error", description: "Please select a customer", variant: "destructive" });
+      return;
+    }
+    if (!formData.rate || !formData.dueDate) {
+      toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
       return;
     }
 
@@ -229,35 +251,23 @@ export default function Invoicing() {
 
     createInvoice.mutate(
       {
-        client_name: formData.clientName.trim(),
-        client_email: formData.clientEmail.trim(),
+        client_name: customer.name,
+        client_email: customer.email || "",
+        customer_id: customer.id,
         amount,
         due_date: formData.dueDate,
-        items: [
-          {
-            description: formData.description || "Services",
-            quantity,
-            rate,
-            amount,
-          },
-        ],
+        items: [{ description: formData.description || "Services", quantity, rate, amount }],
       },
       {
         onSuccess: () => {
-          setFormData({
-            clientName: "",
-            clientEmail: "",
-            description: "",
-            quantity: "1",
-            rate: "",
-            dueDate: "",
-            notes: "",
-          });
+          setSelectedCustomerId("");
+          setFormData({ description: "", quantity: "1", rate: "", dueDate: "", notes: "" });
           setIsDialogOpen(false);
         },
       }
     );
   };
+
 
   const handleStatusChange = (invoiceId: string, newStatus: Invoice["status"]) => {
     updateStatus.mutate({ id: invoiceId, status: newStatus });
@@ -324,23 +334,23 @@ export default function Invoicing() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="clientName">Client Name *</Label>
-                    <Input
-                      id="clientName"
-                      placeholder="Enter client name"
-                      value={formData.clientName}
-                      onChange={(e) => handleInputChange("clientName", e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="clientEmail">Client Email *</Label>
-                    <Input
-                      id="clientEmail"
-                      type="email"
-                      placeholder="client@example.com"
-                      value={formData.clientEmail}
-                      onChange={(e) => handleInputChange("clientEmail", e.target.value)}
-                    />
+                    <Label htmlFor="customer">Customer *</Label>
+                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                      <SelectTrigger id="customer">
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.length === 0 ? (
+                          <SelectItem value="__none__" disabled>No customers found — add one first</SelectItem>
+                        ) : (
+                          customers.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name} {c.email ? `(${c.email})` : ""}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="description">Description</Label>
@@ -433,23 +443,19 @@ export default function Invoicing() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="editClientName">Client Name *</Label>
-                    <Input
-                      id="editClientName"
-                      placeholder="Enter client name"
-                      value={editFormData.clientName}
-                      onChange={(e) => handleEditInputChange("clientName", e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="editClientEmail">Client Email *</Label>
-                    <Input
-                      id="editClientEmail"
-                      type="email"
-                      placeholder="client@example.com"
-                      value={editFormData.clientEmail}
-                      onChange={(e) => handleEditInputChange("clientEmail", e.target.value)}
-                    />
+                    <Label htmlFor="editCustomer">Customer *</Label>
+                    <Select value={editSelectedCustomerId} onValueChange={setEditSelectedCustomerId}>
+                      <SelectTrigger id="editCustomer">
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} {c.email ? `(${c.email})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="editDescription">Description</Label>
@@ -520,6 +526,7 @@ export default function Invoicing() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
           </div>
 
           {isLoading ? (
