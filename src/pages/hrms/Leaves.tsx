@@ -79,7 +79,22 @@ export default function Leaves() {
 
   const handleSubmitLeave = async () => {
     if (!fromDate || !toDate) return;
-    
+
+    const [fy, fm, fd] = fromDate.split("-").map(Number);
+    const [ty, tm, td] = toDate.split("-").map(Number);
+    const from = new Date(fy, fm - 1, fd);
+    const to = new Date(ty, tm - 1, td);
+
+    if (to < from) {
+      import("sonner").then(({ toast }) => toast.error("To date cannot be before From date."));
+      return;
+    }
+    const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    if (days > 365) {
+      import("sonner").then(({ toast }) => toast.error("Leave duration cannot exceed 365 days."));
+      return;
+    }
+
     await createLeaveRequest.mutateAsync({
       leave_type: leaveType,
       from_date: fromDate,
@@ -261,7 +276,14 @@ export default function Leaves() {
                           </TableCell>
                           <TableCell>
                             <span className="text-sm">
-                              {format(new Date(request.from_date), "MMM d")} - {format(new Date(request.to_date), "MMM d, yyyy")}
+                              {(() => {
+                                // Parse date parts directly to avoid UTC-to-local timezone shifts
+                                const [fy, fm, fd] = request.from_date.split("-").map(Number);
+                                const [ty, tm, td] = request.to_date.split("-").map(Number);
+                                const from = new Date(fy, fm - 1, fd);
+                                const to = new Date(ty, tm - 1, td);
+                                return `${format(from, "MMM d")} – ${format(to, "MMM d, yyyy")}`;
+                              })()}
                             </span>
                           </TableCell>
                           <TableCell>{request.days}</TableCell>
