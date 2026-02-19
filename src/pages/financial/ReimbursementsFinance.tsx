@@ -129,7 +129,7 @@ export default function ReimbursementsFinance() {
     try {
       const category = classifyCategory || approveDialog.category || "Other";
 
-      // Create expense record
+      // 1. Create expense record in HRMS expenses table
       const { data: expense, error: expErr } = await supabase
         .from("expenses")
         .insert({
@@ -146,7 +146,21 @@ export default function ReimbursementsFinance() {
 
       if (expErr) throw expErr;
 
-      // Update reimbursement
+      // 2. Also record as a financial_records expense so it appears in the Accounting module
+      const { error: frErr } = await supabase
+        .from("financial_records")
+        .insert({
+          user_id: user.id,
+          type: "expense",
+          category,
+          amount: approveDialog.amount,
+          description: `[Reimbursement] ${approveDialog.vendor_name}${approveDialog.profiles?.full_name ? ` (${approveDialog.profiles.full_name})` : ""} — ${approveDialog.description || ""}`,
+          record_date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
+        });
+
+      if (frErr) console.warn("financial_records insert failed:", frErr.message);
+
+      // 3. Update reimbursement status to paid
       const { error: updErr } = await supabase
         .from("reimbursement_requests")
         .update({
