@@ -35,15 +35,15 @@ export interface DateRangeFilter {
 }
 
 const categoryColors: Record<string, string> = {
-  "Salaries": "hsl(222, 47%, 14%)",
-  "Operations": "hsl(262, 52%, 47%)",
-  "Marketing": "hsl(38, 92%, 50%)",
-  "Rent & Utilities": "hsl(199, 89%, 48%)",
-  "Software": "hsl(142, 76%, 36%)",
-  "Others": "hsl(220, 9%, 46%)",
-  "Sales": "hsl(222, 47%, 14%)",
-  "Services": "hsl(262, 52%, 47%)",
-  "Investments": "hsl(38, 92%, 50%)",
+  "Salaries":        "hsl(328, 86%, 58%)",  // magenta-pink — brand accent, highly visible
+  "Operations":      "hsl(262, 70%, 65%)",  // bright violet
+  "Marketing":       "hsl(38, 95%, 55%)",   // vivid amber
+  "Rent & Utilities":"hsl(199, 85%, 55%)",  // bright sky blue
+  "Software":        "hsl(142, 65%, 48%)",  // bright green
+  "Others":          "hsl(220, 25%, 60%)",  // medium steel blue — readable on both themes
+  "Sales":           "hsl(328, 86%, 58%)",  // magenta-pink
+  "Services":        "hsl(262, 70%, 65%)",  // bright violet
+  "Investments":     "hsl(38, 95%, 55%)",   // vivid amber
 };
 
 export function useFinancialRecords() {
@@ -277,11 +277,11 @@ function getDefaultMonthlyData(): MonthlyData[] {
 
 function getDefaultExpenseData(): CategoryData[] {
   return [
-    { name: "Salaries", value: 1850000, color: "hsl(222, 47%, 14%)" },
-    { name: "Operations", value: 420000, color: "hsl(262, 52%, 47%)" },
-    { name: "Marketing", value: 280000, color: "hsl(38, 92%, 50%)" },
-    { name: "Rent & Utilities", value: 180000, color: "hsl(199, 89%, 48%)" },
-    { name: "Software", value: 120000, color: "hsl(142, 76%, 36%)" },
-    { name: "Others", value: 150000, color: "hsl(220, 9%, 46%)" },
+    { name: "Salaries",         value: 1850000, color: "hsl(328, 86%, 58%)" },
+    { name: "Operations",       value: 420000,  color: "hsl(262, 70%, 65%)" },
+    { name: "Marketing",        value: 280000,  color: "hsl(38, 95%, 55%)"  },
+    { name: "Rent & Utilities", value: 180000,  color: "hsl(199, 85%, 55%)" },
+    { name: "Software",         value: 120000,  color: "hsl(142, 65%, 48%)" },
+    { name: "Others",           value: 150000,  color: "hsl(220, 25%, 60%)" },
   ];
 }
