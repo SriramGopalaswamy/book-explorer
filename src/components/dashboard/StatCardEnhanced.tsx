@@ -44,8 +44,9 @@ export function StatCardEnhanced({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5, type: "spring" }}
+      className="h-full"
     >
-      <GlowingCard glowColor={glowColor} className={cn("p-5", className)}>
+      <GlowingCard glowColor={glowColor} className={cn("p-5 h-full flex flex-col", className)}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-muted-foreground">{title}</span>
           <motion.div
@@ -57,7 +58,7 @@ export function StatCardEnhanced({
           </motion.div>
         </div>
         
-        <div className="space-y-1">
+        <div className="space-y-1 flex-1">
           <p className="text-3xl font-bold text-foreground tracking-tight">
             <AnimatedCounter
               value={value}

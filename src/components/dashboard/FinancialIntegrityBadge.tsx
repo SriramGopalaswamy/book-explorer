@@ -27,6 +27,11 @@ export const FinancialIntegrityBadge = ({ organizationId, showDetails = true }: 
   const unresolvedAlerts = integrity?.unresolvedAlerts || 0;
   const lastReconciled = integrity?.lastReconciledAt;
 
+  // Don't render anything if status is still unknown and no alerts
+  if (status === "unknown" && criticalAlerts === 0 && unresolvedAlerts === 0) {
+    return null;
+  }
+
   // Determine badge variant and icon
   let variant: "default" | "destructive" | "secondary" | "outline" = "secondary";
   let Icon = Clock;
