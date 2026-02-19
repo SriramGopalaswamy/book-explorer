@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
 import { ManagerTeamSection } from "@/components/dashboard/ManagerTeamSection";
 import { FinancialIntegrityBadge } from "@/components/dashboard/FinancialIntegrityBadge";
-import { AccountingFilters } from "@/components/dashboard/AccountingFilters";
+
 import {
   Wallet,
   Users,
@@ -40,7 +40,6 @@ export default function Dashboard() {
     from: subMonths(new Date(), 6),
     to: new Date(),
   });
-  const [accountingMode, setAccountingMode] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: sparklines } = useSparklineData();
@@ -48,17 +47,10 @@ export default function Dashboard() {
   const { canShowDevTools } = useAppMode();
   const { activeRole, currentRoleInfo, isImpersonating } = useDevMode();
 
+  // Only pass a complete range (both from + to) to charts — never undefined mid-selection
   const filterRange = dateRange?.from && dateRange?.to
     ? { from: dateRange.from, to: dateRange.to }
-    : undefined;
-
-  const handleDateRangeChange = (range: { start: Date | null; end: Date | null }) => {
-    if (range.start && range.end) {
-      setDateRange({ from: range.start, to: range.end });
-    } else {
-      setDateRange(undefined);
-    }
-  };
+    : { from: subMonths(new Date(), 6), to: new Date() };
 
   return (
     <MainLayout
@@ -94,19 +86,12 @@ export default function Dashboard() {
         {/* Welcome Hero */}
         <WelcomeHero />
 
-        {/* Financial Integrity Status & Filters */}
+        {/* Financial Overview Filter */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Financial Integrity Status</h3>
             <FinancialIntegrityBadge showDetails={true} />
           </div>
-          <AccountingFilters
-            onDateRangeChange={handleDateRangeChange}
-            onAccountingModeChange={setAccountingMode}
-            showAccountingMode={true}
-            showDateFilter={true}
-            baseCurrency="USD"
-          />
         </div>
 
         {/* Key Metrics */}
