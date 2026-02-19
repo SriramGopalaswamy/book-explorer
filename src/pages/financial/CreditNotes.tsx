@@ -44,7 +44,7 @@ export default function CreditNotes() {
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [form, setForm] = useState({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
 
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["credit-notes", user?.id],
@@ -76,6 +76,7 @@ export default function CreditNotes() {
         user_id: user.id, credit_note_number: `CN-${Date.now().toString().slice(-6)}`,
         client_name: form.client_name, customer_id: selectedCustomerId || null,
         amount: Number(form.amount), reason: form.reason || null, issue_date: form.issue_date,
+        status: form.status,
       });
       if (error) throw error;
     },
@@ -83,7 +84,7 @@ export default function CreditNotes() {
       queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
       toast({ title: "Credit Note Created" });
       setIsDialogOpen(false);
-      setForm({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0] });
+      setForm({ client_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
       setSelectedCustomerId("");
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -136,6 +137,17 @@ export default function CreditNotes() {
                 <div><Label>Client Name *</Label><Input value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} /></div>
                 <div><Label>Amount (₹) *</Label><Input type="number" min={0} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
                 <div><Label>Issue Date</Label><Input type="date" value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} /></div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="issued">Issued</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="void">Void</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Reason</Label><Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={3} /></div>
               </div>
               <DialogFooter>
