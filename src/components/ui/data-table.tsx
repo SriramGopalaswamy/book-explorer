@@ -80,7 +80,7 @@ export function DataTable<T extends { id: string | number }>({
               onClick={() => onRowClick?.(item)}
             >
               {visibleColumns.map((col) => (
-                <TableCell key={`${item.id}-${col.key}`} className={cn("py-3", col.className)}>
+                <TableCell key={`${item.id}-${col.key}`} className={cn("py-3 text-foreground", col.className)}>
                   {col.render ? col.render(item) : (item as any)[col.key]}
                 </TableCell>
               ))}
