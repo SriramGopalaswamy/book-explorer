@@ -38,7 +38,7 @@ import {
   type AuditLogFilters,
 } from "@/hooks/useAuditLogs";
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 25;
 
 const ENTITY_TYPE_OPTIONS = [
   { value: "all", label: "All Types" },
@@ -109,6 +109,7 @@ export default function AuditLog() {
   const { data: isAdminOrHR, isLoading: roleLoading } = useIsAdminOrHR();
 
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("all");
   const [action, setAction] = useState("all");
@@ -123,10 +124,10 @@ export default function AuditLog() {
     ...(toDate && { to: toDate }),
   };
 
-  const { data, isLoading } = useAuditLogs(filters, page, PAGE_SIZE);
+  const { data, isLoading } = useAuditLogs(filters, page, pageSize);
   const logs = data?.logs ?? [];
   const total = data?.total ?? 0;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.ceil(total / pageSize);
 
   function resetFilters() {
     setSearch("");
@@ -153,8 +154,8 @@ export default function AuditLog() {
     return <AccessDenied />;
   }
 
-  const startItem = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const endItem = Math.min(page * PAGE_SIZE, total);
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
 
   return (
     <MainLayout
@@ -368,9 +369,9 @@ export default function AuditLog() {
                   totalItems={total}
                   from={startItem}
                   to={endItem}
-                  pageSize={PAGE_SIZE}
+                  pageSize={pageSize}
                   onPageChange={setPage}
-                  onPageSizeChange={() => {}}
+                  onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
                 />
               </div>
             </>
