@@ -165,6 +165,7 @@ export default function Invoicing() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [editSelectedCustomerId, setEditSelectedCustomerId] = useState("");
@@ -644,6 +645,9 @@ export default function Invoicing() {
                               <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setViewingInvoice(invoice)}>
+                                <Eye className="mr-2 h-4 w-4" /> View Invoice
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
                               </DropdownMenuItem>
@@ -696,6 +700,126 @@ export default function Invoicing() {
             </div>
           )}
         </div>
+
+        {/* View Invoice Dialog */}
+        <Dialog open={!!viewingInvoice} onOpenChange={(o) => { if (!o) setViewingInvoice(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Invoice {viewingInvoice?.invoice_number}</DialogTitle>
+              <DialogDescription>
+                {viewingInvoice && (
+                  <Badge variant={getStatusConfig(viewingInvoice.status).variant} className={getStatusConfig(viewingInvoice.status).className}>
+                    {getStatusConfig(viewingInvoice.status).label}
+                  </Badge>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {viewingInvoice && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Client</p>
+                    <p className="font-medium">{viewingInvoice.client_name}</p>
+                    <p className="text-sm text-muted-foreground">{viewingInvoice.client_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Due Date</p>
+                    <p className="font-medium">{viewingInvoice.due_date}</p>
+                  </div>
+                  {(viewingInvoice as any).customer_gstin && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Customer GSTIN</p>
+                      <p className="font-medium font-mono text-sm">{(viewingInvoice as any).customer_gstin}</p>
+                    </div>
+                  )}
+                  {(viewingInvoice as any).place_of_supply && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Place of Supply</p>
+                      <p className="font-medium">{(viewingInvoice as any).place_of_supply}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Line Items</p>
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Description</TableHead>
+                          <TableHead className="text-xs text-right">Qty</TableHead>
+                          <TableHead className="text-xs text-right">Rate</TableHead>
+                          <TableHead className="text-xs text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(viewingInvoice.invoice_items || []).map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="text-sm">
+                              {item.description}
+                              {(item as any).hsn_sac && <span className="block text-xs text-muted-foreground">HSN: {(item as any).hsn_sac}</span>}
+                            </TableCell>
+                            <TableCell className="text-sm text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-sm text-right">{formatCurrency(Number(item.rate))}</TableCell>
+                            <TableCell className="text-sm text-right">{formatCurrency(Number(item.amount))}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-secondary/50 p-4 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{formatCurrency(Number((viewingInvoice as any).subtotal || viewingInvoice.amount))}</span>
+                  </div>
+                  {Number((viewingInvoice as any).cgst_total) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">CGST</span>
+                      <span>{formatCurrency(Number((viewingInvoice as any).cgst_total))}</span>
+                    </div>
+                  )}
+                  {Number((viewingInvoice as any).sgst_total) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">SGST</span>
+                      <span>{formatCurrency(Number((viewingInvoice as any).sgst_total))}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-base font-semibold border-t pt-1.5">
+                    <span>Total</span>
+                    <span>{formatCurrency(Number((viewingInvoice as any).total_amount || viewingInvoice.amount))}</span>
+                  </div>
+                </div>
+
+                {(viewingInvoice as any).notes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Notes</p>
+                    <p className="text-sm">{(viewingInvoice as any).notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingInvoice(null)}>Close</Button>
+              <Button
+                onClick={async () => {
+                  if (!viewingInvoice) return;
+                  try {
+                    toast({ title: "Generating PDF", description: "Please wait..." });
+                    await downloadInvoicePdf(viewingInvoice.id);
+                    toast({ title: "Download Complete" });
+                  } catch (error) {
+                    toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed", variant: "destructive" });
+                  }
+                }}
+                className="bg-gradient-financial text-white hover:opacity-90"
+              >
+                <Download className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
