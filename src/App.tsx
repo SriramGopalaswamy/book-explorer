@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
 import { DevModeProvider } from "@/contexts/DevModeContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { FinanceRoute } from "@/components/auth/FinanceRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -74,19 +75,19 @@ const App = () => (
                   <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
 
                   {/* Financial Suite */}
-                  <Route path="/financial/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
-                  <Route path="/financial/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-                  <Route path="/financial/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
-                  <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
-                  <Route path="/financial/invoice-settings" element={<ProtectedRoute><InvoiceSettings /></ProtectedRoute>} />
-                  <Route path="/financial/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
-                  <Route path="/financial/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-                  <Route path="/financial/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
-                  <Route path="/financial/credit-notes" element={<ProtectedRoute><CreditNotes /></ProtectedRoute>} />
-                  <Route path="/financial/vendor-credits" element={<ProtectedRoute><VendorCredits /></ProtectedRoute>} />
-                  <Route path="/financial/banking" element={<ProtectedRoute><Banking /></ProtectedRoute>} />
-                  <Route path="/financial/cashflow" element={<ProtectedRoute><CashFlow /></ProtectedRoute>} />
-                  <Route path="/financial/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                  <Route path="/financial/accounting" element={<ProtectedRoute><FinanceRoute><Accounting /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/customers" element={<ProtectedRoute><FinanceRoute><Customers /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/vendors" element={<ProtectedRoute><FinanceRoute><Vendors /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/invoicing" element={<ProtectedRoute><FinanceRoute><Invoicing /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/invoice-settings" element={<ProtectedRoute><FinanceRoute><InvoiceSettings /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/quotes" element={<ProtectedRoute><FinanceRoute><Quotes /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/expenses" element={<ProtectedRoute><FinanceRoute><Expenses /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/bills" element={<ProtectedRoute><FinanceRoute><Bills /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/credit-notes" element={<ProtectedRoute><FinanceRoute><CreditNotes /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/vendor-credits" element={<ProtectedRoute><FinanceRoute><VendorCredits /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/banking" element={<ProtectedRoute><FinanceRoute><Banking /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/cashflow" element={<ProtectedRoute><FinanceRoute><CashFlow /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/analytics" element={<ProtectedRoute><FinanceRoute><Analytics /></FinanceRoute></ProtectedRoute>} />
 
                   {/* HRMS */}
                   <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
@@ -98,7 +99,7 @@ const App = () => (
                   <Route path="/hrms/my-attendance" element={<ProtectedRoute><MyAttendance /></ProtectedRoute>} />
                   <Route path="/hrms/inbox" element={<ProtectedRoute><ManagerInbox /></ProtectedRoute>} />
                   <Route path="/hrms/reimbursements" element={<ProtectedRoute><Reimbursements /></ProtectedRoute>} />
-                  <Route path="/financial/reimbursements" element={<ProtectedRoute><ReimbursementsFinance /></ProtectedRoute>} />
+                  <Route path="/financial/reimbursements" element={<ProtectedRoute><FinanceRoute><ReimbursementsFinance /></FinanceRoute></ProtectedRoute>} />
 
                   {/* Performance OS */}
                   <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
