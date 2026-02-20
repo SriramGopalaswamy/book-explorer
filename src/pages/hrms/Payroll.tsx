@@ -283,7 +283,7 @@ export default function Payroll() {
     );
   }
 
-  const SalaryFormFields = () => (
+  const salaryFormFields = (
     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
       {!editTarget && (
         <div className="grid gap-2">
@@ -445,7 +445,7 @@ export default function Payroll() {
                     <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
                     <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
                   </DialogHeader>
-                  <SalaryFormFields />
+                  {salaryFormFields}
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                     <Button onClick={handleAdd} disabled={createPayroll.isPending}>
@@ -614,7 +614,7 @@ export default function Payroll() {
               Update salary for {editTarget?.profiles?.full_name || "employee"}
             </DialogDescription>
           </DialogHeader>
-          <SalaryFormFields />
+          {salaryFormFields}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
             <Button onClick={handleEdit} disabled={updatePayroll.isPending}>
