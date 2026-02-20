@@ -146,8 +146,12 @@ export default function Attendance() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-5 gap-4">
-            {weekData.length > 0 ? weekData.map((day, idx) => (
-              <div key={day.day} className={`p-4 rounded-lg border ${idx === 0 ? "border-primary bg-primary/5" : ""}`}>
+            {weekData.length > 0 ? weekData.map((day, idx) => {
+              const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+              const todayIdx = new Date().getDay() - 1; // 0=Mon, 4=Fri
+              const isToday = idx === todayIdx || day.day === dayNames[todayIdx];
+              return (
+              <div key={day.day} className={`p-4 rounded-lg border transition-colors ${isToday ? "border-primary bg-primary/10 ring-1 ring-primary/30" : ""}`}>
                 <p className="text-sm font-medium text-center mb-3">{day.day}</p>
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
@@ -168,7 +172,8 @@ export default function Attendance() {
                   </div>
                 </div>
               </div>
-            )) : (
+              );
+            }) : (
               Array.from({ length: 5 }).map((_, idx) => (
                 <Skeleton key={idx} className="h-32" />
               ))
