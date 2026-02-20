@@ -119,7 +119,7 @@ export default function Holidays() {
     setForm({ name: h.name, date: h.date });
   };
 
-  const HolidayForm = ({ onSubmit, isPending, submitLabel }: { onSubmit: () => void; isPending: boolean; submitLabel: string }) => (
+  const holidayFormContent = (onSubmit: () => void, isPending: boolean, submitLabel: string) => (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
         <Label>Holiday Name *</Label>
@@ -129,12 +129,12 @@ export default function Holidays() {
         <Label>Date *</Label>
         <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
       </div>
-      <DialogFooter>
+      <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={() => { setIsAddOpen(false); setEditTarget(null); }}>Cancel</Button>
         <Button onClick={onSubmit} disabled={isPending || !form.name || !form.date}>
           {isPending ? "Saving..." : submitLabel}
         </Button>
-      </DialogFooter>
+      </div>
     </div>
   );
 
@@ -225,11 +225,11 @@ export default function Holidays() {
                       <DialogTitle>Add Holiday</DialogTitle>
                       <DialogDescription>Add a new company holiday</DialogDescription>
                     </DialogHeader>
-                    <HolidayForm
-                      onSubmit={() => createHoliday.mutate(form)}
-                      isPending={createHoliday.isPending}
-                      submitLabel="Add Holiday"
-                    />
+                    {holidayFormContent(
+                      () => createHoliday.mutate(form),
+                      createHoliday.isPending,
+                      "Add Holiday"
+                    )}
                   </DialogContent>
                 </Dialog>
                 </>
@@ -297,11 +297,11 @@ export default function Holidays() {
             <DialogTitle>Edit Holiday</DialogTitle>
             <DialogDescription>Update holiday details</DialogDescription>
           </DialogHeader>
-          <HolidayForm
-            onSubmit={() => editTarget && updateHoliday.mutate({ id: editTarget.id, ...form })}
-            isPending={updateHoliday.isPending}
-            submitLabel="Save Changes"
-          />
+          {holidayFormContent(
+            () => editTarget && updateHoliday.mutate({ id: editTarget.id, ...form }),
+            updateHoliday.isPending,
+            "Save Changes"
+          )}
         </DialogContent>
       </Dialog>
 
