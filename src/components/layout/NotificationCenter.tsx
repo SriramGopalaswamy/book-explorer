@@ -152,7 +152,7 @@ export function NotificationCenter() {
             )}
           </div>
         </div>
-        <ScrollArea className="max-h-[400px]">
+        <ScrollArea className="max-h-[400px] overflow-y-auto">
           <div className="p-2 space-y-1">
             {isLoading ? (
               <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
