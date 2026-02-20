@@ -64,6 +64,7 @@ export default function Expenses() {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
       if (!form.category || !form.amount) throw new Error("Category and amount are required.");
+      if (!receiptFile) throw new Error("Bill/receipt upload is required.");
       let receiptUrl: string | null = null;
       if (receiptFile) {
         const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
@@ -138,8 +139,8 @@ export default function Expenses() {
                 <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description" /></div>
                 <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
                 <div>
-                  <Label>Receipt (optional)</Label>
-                  <label className="flex items-center gap-2 cursor-pointer border border-dashed border-border rounded-lg p-3 hover:bg-muted/30 transition-colors mt-1">
+                  <Label>Receipt / Bill *</Label>
+                  <label className={`flex items-center gap-2 cursor-pointer border border-dashed rounded-lg p-3 hover:bg-muted/30 transition-colors mt-1 ${receiptFile ? 'border-border' : 'border-destructive/50'}`}>
                     <Upload className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{receiptFile ? receiptFile.name : "Upload receipt"}</span>
                     <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
