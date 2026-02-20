@@ -211,7 +211,9 @@ export default function InvoiceSettings() {
       title="Invoice Settings"
       subtitle="Configure company details, logos, and bank information for your invoices"
     >
-      <div className="space-y-6 animate-fade-in max-w-4xl">
+      <div className="space-y-6 animate-fade-in">
+        {/* Company Information + Logo & Signature side by side */}
+        <div className="grid lg:grid-cols-[1fr_auto] gap-6">
         {/* Company Information */}
         <Card>
           <CardHeader>
@@ -249,7 +251,7 @@ export default function InvoiceSettings() {
         </Card>
 
         {/* Logo & Signature */}
-        <Card>
+        <Card className="lg:w-80">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSignature className="h-5 w-5 text-primary" />
@@ -313,6 +315,7 @@ export default function InvoiceSettings() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
         {/* Bank Details */}
         <Card>
