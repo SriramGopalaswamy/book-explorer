@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   GitBranch, Users, ShieldAlert, Building2,
   ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut,
-  Maximize2, X, Mail, Phone, CalendarDays, ExternalLink,
+  Maximize2, X, Mail, Phone, CalendarDays,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -164,7 +164,7 @@ function Edge({ parentX, parentY, childX, childY }: { parentX: number; parentY: 
 
 // ─── Hover tooltip ────────────────────────────────────────────────────
 function NodeTooltip({ node, color }: { node: ProfileNode; color: string }) {
-  const navigate = useNavigate();
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 6, scale: 0.97 }}
@@ -205,16 +205,6 @@ function NodeTooltip({ node, color }: { node: ProfileNode; color: string }) {
         {!node.email && !node.phone && !node.join_date && (
           <p className="text-muted-foreground italic">No contact details</p>
         )}
-        <div className="pt-1 border-t border-border">
-          <button
-            onClick={() => navigate("/profile")}
-            className="flex items-center gap-1.5 text-[10px] font-medium transition-colors hover:opacity-80"
-            style={{ color }}
-          >
-            <ExternalLink className="h-3 w-3" />
-            View Profile
-          </button>
-        </div>
       </div>
     </motion.div>
   );
