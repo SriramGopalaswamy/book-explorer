@@ -18,7 +18,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Users, MoreHorizontal, Pencil, Trash2, Search, Building2, Mail, Phone } from "lucide-react";
+import { Plus, Users, MoreHorizontal, Pencil, Trash2, Search, Building2, Mail, Phone, ToggleRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,6 +80,17 @@ export default function Customers() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "Customer Removed" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
+      const newStatus = currentStatus === "active" ? "inactive" : "active";
+      const { error } = await supabase.from("customers").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      return newStatus;
+    },
+    onSuccess: (newStatus) => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: `Customer marked as ${newStatus}` }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -182,6 +193,7 @@ export default function Customers() {
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(c)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({ id: c.id, currentStatus: c.status })}><ToggleRight className="h-4 w-4 mr-2" />{c.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(c.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
