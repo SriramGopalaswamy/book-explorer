@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +51,7 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMyTodayAttendance, useSelfCheckIn, useSelfCheckOut } from "@/hooks/useAttendance";
+import { useMyTodayAttendance } from "@/hooks/useAttendance";
 import { useLeaveBalances, useCreateLeaveRequest } from "@/hooks/useLeaves";
 import { toast } from "sonner";
 
@@ -173,7 +173,6 @@ function useSubmitCorrectionRequest() {
 // ─── Component ────────────────────────────────────────────────────────
 export default function MyAttendance() {
   const { user } = useAuth();
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState("overview");
 
   // Leave dialog state
@@ -195,15 +194,8 @@ export default function MyAttendance() {
   const { data: leaveBalances = [], isLoading: isLoadingBalances } = useLeaveBalances();
   const { data: corrections = [], isLoading: isLoadingCorrections } = useMyCorrectionRequests();
 
-  const checkIn = useSelfCheckIn();
-  const checkOut = useSelfCheckOut();
   const submitLeave = useCreateLeaveRequest();
   const submitCorrection = useSubmitCorrectionRequest();
-
-  useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   const handleLeaveSubmit = async () => {
     if (!fromDate || !toDate) return;
@@ -233,85 +225,58 @@ export default function MyAttendance() {
     setCorrReason("");
   };
 
-  const isCheckedIn = !!todayAttendance?.check_in;
-  const isCheckedOut = !!todayAttendance?.check_out;
-
   return (
-    <MainLayout title="My Attendance" subtitle="Track your attendance, leaves, and corrections">
+    <MainLayout title="My Attendance" subtitle="View your attendance records, leaves, and submit corrections">
       <div className="space-y-6">
 
-        {/* ── Today's clock-in card ─────────────────────────── */}
+        {/* ── Today's status card (read-only) ─────────────────────────── */}
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-              {/* Live clock */}
+              {/* Today info */}
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                  {format(currentTime, "EEEE, MMMM d, yyyy")}
+                  {format(new Date(), "EEEE, MMMM d, yyyy")}
                 </p>
-                <p className="text-4xl font-bold font-mono tracking-tight text-foreground mt-1">
-                  {format(currentTime, "HH:mm:ss")}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Today's attendance status from biometric records
                 </p>
               </div>
 
-              {/* Status & actions */}
-              <div className="flex flex-col gap-3 min-w-[260px]">
+              {/* Status display */}
+              <div className="flex items-center gap-4 min-w-[260px]">
                 {isLoadingToday ? (
                   <Skeleton className="h-10 w-full" />
-                ) : (
+                ) : todayAttendance ? (
                   <>
                     <div className="flex items-center gap-3 text-sm">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <LogIn className="h-4 w-4 text-success" />
-                        <span>Check-in:</span>
+                        <span>In:</span>
                         <span className="font-medium text-foreground">
-                          {todayAttendance?.check_in
+                          {todayAttendance.check_in
                             ? format(new Date(todayAttendance.check_in), "HH:mm")
                             : "—"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <LogOut className="h-4 w-4 text-destructive" />
-                        <span>Check-out:</span>
+                        <span>Out:</span>
                         <span className="font-medium text-foreground">
-                          {todayAttendance?.check_out
+                          {todayAttendance.check_out
                             ? format(new Date(todayAttendance.check_out), "HH:mm")
                             : "—"}
                         </span>
                       </div>
                     </div>
-
-                    {todayAttendance?.status && (
-                      <Badge
-                        variant="outline"
-                        className={STATUS_BADGE[todayAttendance.status]?.class}
-                      >
+                    {todayAttendance.status && (
+                      <Badge variant="outline" className={STATUS_BADGE[todayAttendance.status]?.class}>
                         {STATUS_BADGE[todayAttendance.status]?.label}
                       </Badge>
                     )}
-
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => checkIn.mutate()}
-                        disabled={isCheckedIn || checkIn.isPending}
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <LogIn className="h-4 w-4 mr-1.5" />
-                        {isCheckedIn ? "Checked In" : "Check In"}
-                      </Button>
-                      <Button
-                        onClick={() => todayAttendance && checkOut.mutate(todayAttendance.id)}
-                        disabled={!isCheckedIn || isCheckedOut || checkOut.isPending}
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        <LogOut className="h-4 w-4 mr-1.5" />
-                        {isCheckedOut ? "Checked Out" : "Check Out"}
-                      </Button>
-                    </div>
                   </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No biometric record for today</p>
                 )}
               </div>
 
@@ -353,7 +318,7 @@ export default function MyAttendance() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Last 30 Days</CardTitle>
-                <CardDescription>Your recent attendance records</CardDescription>
+                <CardDescription>Your biometric attendance records</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingHistory ? (
@@ -623,4 +588,3 @@ export default function MyAttendance() {
     </MainLayout>
   );
 }
-
