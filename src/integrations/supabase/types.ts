@@ -894,30 +894,51 @@ export type Database = {
       invoice_items: {
         Row: {
           amount: number
+          cgst_amount: number
+          cgst_rate: number
           created_at: string
           description: string
+          hsn_sac: string | null
           id: string
+          igst_amount: number
+          igst_rate: number
           invoice_id: string
           quantity: number
           rate: number
+          sgst_amount: number
+          sgst_rate: number
         }
         Insert: {
           amount: number
+          cgst_amount?: number
+          cgst_rate?: number
           created_at?: string
           description: string
+          hsn_sac?: string | null
           id?: string
+          igst_amount?: number
+          igst_rate?: number
           invoice_id: string
           quantity?: number
           rate: number
+          sgst_amount?: number
+          sgst_rate?: number
         }
         Update: {
           amount?: number
+          cgst_amount?: number
+          cgst_rate?: number
           created_at?: string
           description?: string
+          hsn_sac?: string | null
           id?: string
+          igst_amount?: number
+          igst_rate?: number
           invoice_id?: string
           quantity?: number
           rate?: number
+          sgst_amount?: number
+          sgst_rate?: number
         }
         Relationships: [
           {
@@ -929,43 +950,160 @@ export type Database = {
           },
         ]
       }
+      invoice_settings: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          account_type: string | null
+          address_line1: string | null
+          address_line2: string | null
+          bank_name: string | null
+          branch: string | null
+          cin: string | null
+          city: string | null
+          company_name: string | null
+          country: string | null
+          created_at: string
+          custom_footer_text: string | null
+          email: string | null
+          gstin: string | null
+          id: string
+          ifsc_code: string | null
+          logo_url: string | null
+          msme_number: string | null
+          phone: string | null
+          pincode: string | null
+          signature_url: string | null
+          state: string | null
+          updated_at: string
+          upi_code: string | null
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_name?: string | null
+          branch?: string | null
+          cin?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string
+          custom_footer_text?: string | null
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          ifsc_code?: string | null
+          logo_url?: string | null
+          msme_number?: string | null
+          phone?: string | null
+          pincode?: string | null
+          signature_url?: string | null
+          state?: string | null
+          updated_at?: string
+          upi_code?: string | null
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_name?: string | null
+          branch?: string | null
+          cin?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string
+          custom_footer_text?: string | null
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          ifsc_code?: string | null
+          logo_url?: string | null
+          msme_number?: string | null
+          phone?: string | null
+          pincode?: string | null
+          signature_url?: string | null
+          state?: string | null
+          updated_at?: string
+          upi_code?: string | null
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
+          cgst_total: number
           client_email: string
           client_name: string
           created_at: string
+          customer_gstin: string | null
           customer_id: string | null
           due_date: string
           id: string
+          igst_total: number
           invoice_number: string
+          notes: string | null
+          payment_terms: string | null
+          place_of_supply: string | null
+          sgst_total: number
           status: string
+          subtotal: number
+          total_amount: number
           updated_at: string
           user_id: string
         }
         Insert: {
           amount: number
+          cgst_total?: number
           client_email: string
           client_name: string
           created_at?: string
+          customer_gstin?: string | null
           customer_id?: string | null
           due_date: string
           id?: string
+          igst_total?: number
           invoice_number: string
+          notes?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
+          sgst_total?: number
           status?: string
+          subtotal?: number
+          total_amount?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           amount?: number
+          cgst_total?: number
           client_email?: string
           client_name?: string
           created_at?: string
+          customer_gstin?: string | null
           customer_id?: string | null
           due_date?: string
           id?: string
+          igst_total?: number
           invoice_number?: string
+          notes?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
+          sgst_total?: number
           status?: string
+          subtotal?: number
+          total_amount?: number
           updated_at?: string
           user_id?: string
         }
