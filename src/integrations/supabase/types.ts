@@ -1468,30 +1468,51 @@ export type Database = {
       quote_items: {
         Row: {
           amount: number
+          cgst_amount: number
+          cgst_rate: number
           created_at: string
           description: string
+          hsn_sac: string | null
           id: string
+          igst_amount: number
+          igst_rate: number
           quantity: number
           quote_id: string
           rate: number
+          sgst_amount: number
+          sgst_rate: number
         }
         Insert: {
           amount: number
+          cgst_amount?: number
+          cgst_rate?: number
           created_at?: string
           description: string
+          hsn_sac?: string | null
           id?: string
+          igst_amount?: number
+          igst_rate?: number
           quantity?: number
           quote_id: string
           rate: number
+          sgst_amount?: number
+          sgst_rate?: number
         }
         Update: {
           amount?: number
+          cgst_amount?: number
+          cgst_rate?: number
           created_at?: string
           description?: string
+          hsn_sac?: string | null
           id?: string
+          igst_amount?: number
+          igst_rate?: number
           quantity?: number
           quote_id?: string
           rate?: number
+          sgst_amount?: number
+          sgst_rate?: number
         }
         Relationships: [
           {
@@ -1506,46 +1527,70 @@ export type Database = {
       quotes: {
         Row: {
           amount: number
+          cgst_total: number
           client_email: string | null
           client_name: string
           converted_invoice_id: string | null
           created_at: string
+          customer_gstin: string | null
           customer_id: string | null
           due_date: string
           id: string
+          igst_total: number
           notes: string | null
+          payment_terms: string | null
+          place_of_supply: string | null
           quote_number: string
+          sgst_total: number
           status: string
+          subtotal: number
+          total_amount: number
           updated_at: string
           user_id: string
         }
         Insert: {
           amount?: number
+          cgst_total?: number
           client_email?: string | null
           client_name: string
           converted_invoice_id?: string | null
           created_at?: string
+          customer_gstin?: string | null
           customer_id?: string | null
           due_date: string
           id?: string
+          igst_total?: number
           notes?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
           quote_number: string
+          sgst_total?: number
           status?: string
+          subtotal?: number
+          total_amount?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           amount?: number
+          cgst_total?: number
           client_email?: string | null
           client_name?: string
           converted_invoice_id?: string | null
           created_at?: string
+          customer_gstin?: string | null
           customer_id?: string | null
           due_date?: string
           id?: string
+          igst_total?: number
           notes?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
           quote_number?: string
+          sgst_total?: number
           status?: string
+          subtotal?: number
+          total_amount?: number
           updated_at?: string
           user_id?: string
         }
