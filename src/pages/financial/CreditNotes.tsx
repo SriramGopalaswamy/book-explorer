@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Trash2, Search, FileX } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,8 +43,12 @@ export default function CreditNotes() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingCreditNote, setEditingCreditNote] = useState<CreditNote | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [editCustomerId, setEditCustomerId] = useState("");
   const [form, setForm] = useState({ amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
+  const [editForm, setEditForm] = useState({ amount: "", reason: "", issue_date: "", status: "" });
 
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["credit-notes", user?.id],
@@ -110,11 +114,44 @@ export default function CreditNotes() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingCreditNote) throw new Error("No credit note selected");
+      if (!editCustomerId) throw new Error("Please select a customer.");
+      if (!editForm.amount || Number(editForm.amount) <= 0) throw new Error("Please enter a valid amount.");
+      const customer = customers.find((c) => c.id === editCustomerId);
+      if (!customer) throw new Error("Selected customer not found.");
+      const { error } = await supabase.from("credit_notes").update({
+        client_name: customer.name,
+        customer_id: editCustomerId,
+        amount: Number(editForm.amount),
+        reason: editForm.reason || null,
+        issue_date: editForm.issue_date,
+        status: editForm.status,
+      }).eq("id", editingCreditNote.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
+      toast({ title: "Credit Note Updated" });
+      setIsEditDialogOpen(false);
+      setEditingCreditNote(null);
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("credit_notes").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Credit Note Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const handleEdit = (cn: CreditNote) => {
+    setEditingCreditNote(cn);
+    setEditCustomerId(cn.customer_id || "");
+    setEditForm({ amount: String(cn.amount), reason: cn.reason || "", issue_date: cn.issue_date, status: cn.status });
+    setIsEditDialogOpen(true);
+  };
 
   const filtered = creditNotes.filter((cn) => cn.client_name.toLowerCase().includes(search.toLowerCase()) || cn.credit_note_number.toLowerCase().includes(search.toLowerCase()));
   const pagination = usePagination(filtered, 10);
@@ -202,6 +239,7 @@ export default function CreditNotes() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                         {cn.status !== "issued" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "issued" })}>Mark as Issued</DropdownMenuItem>}
                         {cn.status !== "applied" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "applied" })}>Mark as Applied</DropdownMenuItem>}
                         {cn.status !== "void" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "void" })}>Mark as Void</DropdownMenuItem>}
@@ -218,6 +256,46 @@ export default function CreditNotes() {
             <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </div>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingCreditNote(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Edit Credit Note</DialogTitle></DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div>
+                <Label>Customer <span className="text-destructive">*</span></Label>
+                <Select value={editCustomerId} onValueChange={setEditCustomerId}>
+                  <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                  <SelectContent>
+                    {customers.length === 0
+                      ? <SelectItem value="_none" disabled>No active customers found</SelectItem>
+                      : customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Amount (₹) <span className="text-destructive">*</span></Label><Input type="number" min={0} value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} /></div>
+              <div><Label>Issue Date</Label><Input type="date" value={editForm.issue_date} onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })} /></div>
+              <div>
+                <Label>Status</Label>
+                <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="issued">Issued</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="applied">Applied</SelectItem>
+                    <SelectItem value="void">Void</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Reason</Label><Textarea value={editForm.reason} onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })} rows={3} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setEditingCreditNote(null); }}>Cancel</Button>
+              <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
