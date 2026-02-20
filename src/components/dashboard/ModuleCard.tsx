@@ -72,7 +72,7 @@ export function ModuleCard({
 
       {/* Content */}
       <h3 className="mb-1 text-lg font-semibold text-foreground">{title}</h3>
-      <p className="mb-4 text-sm text-muted-foreground">{description}</p>
+      <p className="mb-4 text-sm text-muted-foreground truncate">{description}</p>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
