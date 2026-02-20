@@ -100,7 +100,7 @@ export function ModuleCardEnhanced({
             {title}
           </motion.h3>
           <motion.p
-            className="mb-5 text-sm text-muted-foreground leading-relaxed"
+            className="mb-5 text-sm text-muted-foreground leading-relaxed truncate"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: index * 0.15 + 0.3 }}
