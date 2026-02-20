@@ -101,6 +101,15 @@ export default function CreditNotes() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("credit_notes").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Status Updated" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("credit_notes").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Credit Note Deleted" }); },
@@ -153,6 +162,7 @@ export default function CreditNotes() {
                     <SelectContent>
                       <SelectItem value="issued">Issued</SelectItem>
                       <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="applied">Applied</SelectItem>
                       <SelectItem value="void">Void</SelectItem>
                     </SelectContent>
                   </Select>
@@ -192,6 +202,10 @@ export default function CreditNotes() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {cn.status !== "issued" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "issued" })}>Mark as Issued</DropdownMenuItem>}
+                        {cn.status !== "applied" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "applied" })}>Mark as Applied</DropdownMenuItem>}
+                        {cn.status !== "void" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "void" })}>Mark as Void</DropdownMenuItem>}
+                        {cn.status !== "draft" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "draft" })}>Revert to Draft</DropdownMenuItem>}
                         <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(cn.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
