@@ -44,7 +44,7 @@ export default function VendorCredits() {
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState("");
-  const [form, setForm] = useState({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
 
   const { data: vendorCredits = [], isLoading } = useQuery({
     queryKey: ["vendor-credits", user?.id],
@@ -76,6 +76,7 @@ export default function VendorCredits() {
         user_id: user.id, vendor_credit_number: `VC-${Date.now().toString().slice(-6)}`,
         vendor_name: form.vendor_name, vendor_id: selectedVendorId || null,
         amount: Number(form.amount), reason: form.reason || null, issue_date: form.issue_date,
+        status: form.status,
       });
       if (error) throw error;
     },
@@ -83,7 +84,7 @@ export default function VendorCredits() {
       queryClient.invalidateQueries({ queryKey: ["vendor-credits"] });
       toast({ title: "Vendor Credit Created" });
       setIsDialogOpen(false);
-      setForm({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0] });
+      setForm({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
       setSelectedVendorId("");
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -136,6 +137,18 @@ export default function VendorCredits() {
                 <div><Label>Vendor Name *</Label><Input value={form.vendor_name} onChange={(e) => setForm({ ...form, vendor_name: e.target.value })} /></div>
                 <div><Label>Amount (₹) *</Label><Input type="number" min={0} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
                 <div><Label>Issue Date</Label><Input type="date" value={form.issue_date} onChange={(e) => setForm({ ...form, issue_date: e.target.value })} /></div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="issued">Issued</SelectItem>
+                      <SelectItem value="applied">Applied</SelectItem>
+                      <SelectItem value="void">Void</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Reason</Label><Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={3} /></div>
               </div>
               <DialogFooter>
