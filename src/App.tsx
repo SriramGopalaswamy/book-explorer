@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 // Financial Suite
 import Accounting from "./pages/financial/Accounting";
 import Invoicing from "./pages/financial/Invoicing";
+import InvoiceSettings from "./pages/financial/InvoiceSettings";
 import Banking from "./pages/financial/Banking";
 import CashFlow from "./pages/financial/CashFlow";
 import Analytics from "./pages/financial/Analytics";
@@ -77,6 +78,7 @@ const App = () => (
                   <Route path="/financial/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
                   <Route path="/financial/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
                   <Route path="/financial/invoicing" element={<ProtectedRoute><Invoicing /></ProtectedRoute>} />
+                  <Route path="/financial/invoice-settings" element={<ProtectedRoute><InvoiceSettings /></ProtectedRoute>} />
                   <Route path="/financial/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
                   <Route path="/financial/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
                   <Route path="/financial/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />

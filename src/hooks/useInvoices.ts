@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { mockInvoices } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
-import { createInvoiceSchema, updateInvoiceSchema } from "@/lib/validation-schemas";
 
 export interface Invoice {
   id: string;
@@ -18,6 +17,15 @@ export interface Invoice {
   status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
   created_at: string;
   updated_at: string;
+  place_of_supply?: string | null;
+  payment_terms?: string | null;
+  subtotal?: number;
+  cgst_total?: number;
+  sgst_total?: number;
+  igst_total?: number;
+  total_amount?: number;
+  notes?: string | null;
+  customer_gstin?: string | null;
   invoice_items?: InvoiceItem[];
 }
 
@@ -28,6 +36,13 @@ export interface InvoiceItem {
   quantity: number;
   rate: number;
   amount: number;
+  hsn_sac?: string | null;
+  cgst_rate?: number;
+  sgst_rate?: number;
+  igst_rate?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   created_at: string;
 }
 
@@ -37,32 +52,44 @@ export interface CreateInvoiceData {
   customer_id?: string;
   amount: number;
   due_date: string;
-  items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
+  status?: string;
+  place_of_supply?: string;
+  payment_terms?: string;
+  subtotal?: number;
+  cgst_total?: number;
+  sgst_total?: number;
+  igst_total?: number;
+  total_amount?: number;
+  notes?: string;
+  customer_gstin?: string;
+  items: {
+    description: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+    hsn_sac?: string;
+    cgst_rate?: number;
+    sgst_rate?: number;
+    igst_rate?: number;
+    cgst_amount?: number;
+    sgst_amount?: number;
+    igst_amount?: number;
+  }[];
 }
 
-export interface UpdateInvoiceData {
+export interface UpdateInvoiceData extends CreateInvoiceData {
   id: string;
-  client_name: string;
-  client_email: string;
-  customer_id?: string;
-  amount: number;
-  due_date: string;
-  items: Omit<InvoiceItem, "id" | "invoice_id" | "created_at">[];
 }
 
 export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    throw new Error("Not authenticated");
-  }
+  if (!session) throw new Error("Not authenticated");
 
   const response = await supabase.functions.invoke("generate-invoice-pdf", {
     body: { invoiceId },
   });
 
-  if (response.error) {
-    throw new Error(response.error.message || "Failed to generate PDF");
-  }
+  if (response.error) throw new Error(response.error.message || "Failed to generate PDF");
 
   const blob = response.data;
   const url = URL.createObjectURL(blob);
@@ -87,10 +114,7 @@ export function useInvoices() {
 
       const { data, error } = await supabase
         .from("invoices")
-        .select(`
-          *,
-          invoice_items (*)
-        `)
+        .select(`*, invoice_items (*)`)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -121,7 +145,16 @@ export function useCreateInvoice() {
           customer_id: data.customer_id || null,
           amount: data.amount,
           due_date: data.due_date,
-          status: "draft",
+          status: data.status || "draft",
+          place_of_supply: data.place_of_supply || null,
+          payment_terms: data.payment_terms || "Due on Receipt",
+          subtotal: data.subtotal || data.amount,
+          cgst_total: data.cgst_total || 0,
+          sgst_total: data.sgst_total || 0,
+          igst_total: data.igst_total || 0,
+          total_amount: data.total_amount || data.amount,
+          notes: data.notes || null,
+          customer_gstin: data.customer_gstin || null,
         })
         .select()
         .single();
@@ -138,26 +171,25 @@ export function useCreateInvoice() {
               quantity: item.quantity,
               rate: item.rate,
               amount: item.amount,
+              hsn_sac: item.hsn_sac || null,
+              cgst_rate: item.cgst_rate || 0,
+              sgst_rate: item.sgst_rate || 0,
+              igst_rate: item.igst_rate || 0,
+              cgst_amount: item.cgst_amount || 0,
+              sgst_amount: item.sgst_amount || 0,
+              igst_amount: item.igst_amount || 0,
             }))
           );
         if (itemsError) throw itemsError;
       }
 
-      const { data: fullInvoice, error: fetchError } = await supabase
-        .from("invoices")
-        .select(`*, invoice_items (*)`)
-        .eq("id", invoice.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      return fullInvoice;
+      return invoice;
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast({
         title: "Invoice Created",
-        description: `Invoice ${invoice.invoice_number} has been created as a draft.`,
+        description: `Invoice ${invoice.invoice_number} has been created.`,
       });
     },
     onError: (error) => {
@@ -181,23 +213,15 @@ export function useUpdateInvoiceStatus() {
         .eq("id", id)
         .select()
         .single();
-
       if (error) throw error;
       return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({
-        title: "Status Updated",
-        description: `Invoice status changed to ${variables.status}.`,
-      });
+      toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to update status: ${error.message}`,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: `Failed to update status: ${error.message}`, variant: "destructive" });
     },
   });
 }
@@ -207,7 +231,6 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
-      // Update the invoice record
       const { error: invoiceError } = await supabase
         .from("invoices")
         .update({
@@ -216,9 +239,17 @@ export function useUpdateInvoice() {
           customer_id: data.customer_id || null,
           amount: data.amount,
           due_date: data.due_date,
+          place_of_supply: data.place_of_supply || null,
+          payment_terms: data.payment_terms || "Due on Receipt",
+          subtotal: data.subtotal || data.amount,
+          cgst_total: data.cgst_total || 0,
+          sgst_total: data.sgst_total || 0,
+          igst_total: data.igst_total || 0,
+          total_amount: data.total_amount || data.amount,
+          notes: data.notes || null,
+          customer_gstin: data.customer_gstin || null,
         })
         .eq("id", data.id);
-
       if (invoiceError) throw invoiceError;
 
       // Delete old items and reinsert
@@ -226,7 +257,6 @@ export function useUpdateInvoice() {
         .from("invoice_items")
         .delete()
         .eq("invoice_id", data.id);
-
       if (deleteError) throw deleteError;
 
       if (data.items && data.items.length > 0) {
@@ -239,6 +269,13 @@ export function useUpdateInvoice() {
               quantity: item.quantity,
               rate: item.rate,
               amount: item.amount,
+              hsn_sac: item.hsn_sac || null,
+              cgst_rate: item.cgst_rate || 0,
+              sgst_rate: item.sgst_rate || 0,
+              igst_rate: item.igst_rate || 0,
+              cgst_amount: item.cgst_amount || 0,
+              sgst_amount: item.sgst_amount || 0,
+              igst_amount: item.igst_amount || 0,
             }))
           );
         if (itemsError) throw itemsError;
@@ -249,24 +286,15 @@ export function useUpdateInvoice() {
         .select(`*, invoice_items (*)`)
         .eq("id", data.id)
         .single();
-
       if (fetchError) throw fetchError;
-
       return invoice;
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({
-        title: "Invoice Updated",
-        description: `Invoice ${invoice.invoice_number} has been updated.`,
-      });
+      toast({ title: "Invoice Updated", description: `Invoice ${invoice.invoice_number} has been updated.` });
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to update invoice: ${error.message}`,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: `Failed to update invoice: ${error.message}`, variant: "destructive" });
     },
   });
 }
@@ -276,26 +304,15 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("invoices")
-        .delete()
-        .eq("id", id);
-
+      const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({
-        title: "Invoice Deleted",
-        description: "The invoice has been removed.",
-      });
+      toast({ title: "Invoice Deleted", description: "The invoice has been removed." });
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to delete invoice: ${error.message}`,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: `Failed to delete invoice: ${error.message}`, variant: "destructive" });
     },
   });
 }
