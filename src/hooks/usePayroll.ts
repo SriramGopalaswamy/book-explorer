@@ -100,6 +100,27 @@ export function usePayrollRecords(payPeriod?: string) {
   });
 }
 
+export function useMyPayrollRecords() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-payroll", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from("payroll_records")
+        .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .eq("user_id", user.id)
+        .order("pay_period", { ascending: false });
+
+      if (error) throw error;
+      return data as PayrollRecord[];
+    },
+    enabled: !!user,
+  });
+}
+
 export function usePayrollStats(payPeriod?: string) {
   const { data: records = [] } = usePayrollRecords(payPeriod);
 

@@ -31,10 +31,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsAdminOrHR, useEmployees } from "@/hooks/useEmployees";
-import { useIsFinance } from "@/hooks/useRoles";
+import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
-  useDeletePayroll, useProcessPayroll, type PayrollRecord, type CreatePayrollData,
+  useDeletePayroll, useProcessPayroll, useMyPayrollRecords,
+  type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -102,9 +103,12 @@ export default function Payroll() {
 
   const { data: isAdminOrHR, isLoading: roleLoadingHR } = useIsAdminOrHR();
   const { data: isFinance, isLoading: roleLoadingFinance } = useIsFinance();
+  const { data: currentRole } = useCurrentRole();
   const isAdmin = isAdminOrHR || isFinance;
   const roleLoading = roleLoadingHR || roleLoadingFinance;
+  const isEmployeeOrManager = currentRole === "employee" || currentRole === "manager";
   const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
+  const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
   const createPayroll = useCreatePayroll();
@@ -182,7 +186,88 @@ export default function Payroll() {
     processPayroll.mutate(selectedIds, { onSuccess: () => setSelectedIds([]) });
   };
 
-  if (!roleLoading && !isAdmin) {
+  // Employee / Manager view — read-only payslips
+  if (!roleLoading && !isAdmin && isEmployeeOrManager) {
+    return (
+      <MainLayout title="My Payslips" subtitle="View your salary details">
+        <div className="space-y-6">
+          <motion.div variants={fadeUp} initial="hidden" animate="show">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-gradient-primary">Payslip History</CardTitle>
+                <CardDescription>Your payslips across all months</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {myLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                  </div>
+                ) : myRecords.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <p className="mt-3 text-muted-foreground">No payslips found</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[500px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Pay Period</TableHead>
+                          <TableHead className="text-right">Basic</TableHead>
+                          <TableHead className="text-right">Allowances</TableHead>
+                          <TableHead className="text-right">Deductions</TableHead>
+                          <TableHead className="text-right">Net Pay</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {myRecords.map((r) => {
+                          const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
+                          const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
+                          return (
+                            <TableRow
+                              key={r.id}
+                              className="cursor-pointer hover:bg-primary/5 transition-colors"
+                              onClick={() => setPaySlipRecord(r)}
+                            >
+                              <TableCell className="font-medium">{periodLabel(r.pay_period)}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
+                              <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
+                              <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                              <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
+                                  {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPaySlipRecord(r)}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        <PaySlipDialog
+          record={paySlipRecord}
+          open={!!paySlipRecord}
+          onOpenChange={(open) => !open && setPaySlipRecord(null)}
+        />
+      </MainLayout>
+    );
+  }
+
+  if (!roleLoading && !isAdmin && !isEmployeeOrManager) {
     return (
       <MainLayout title="Payroll" subtitle="Manage salaries and compensation">
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
