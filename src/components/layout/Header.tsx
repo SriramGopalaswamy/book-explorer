@@ -3,7 +3,7 @@ import { Search, User, LogOut, Command, Moon, Sun, Menu } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CommandSearch, useCommandSearch } from "@/components/layout/CommandSearch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const { openMobileMenu } = useMobileMenu();
+  const commandSearch = useCommandSearch();
 
   const handleSignOut = async () => {
     await signOut();
@@ -94,16 +95,19 @@ export function Header({ title, subtitle }: HeaderProps) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="w-64 pl-9 pr-12 bg-secondary/50 border-transparent focus:border-primary focus:bg-background rounded-xl transition-all duration-300 focus:w-80"
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-muted-foreground">
-            <Command className="h-3 w-3" />
-            <span>K</span>
-          </div>
+          <button
+            onClick={() => commandSearch.setOpen(true)}
+            className="flex items-center gap-2 w-64 h-10 px-3 rounded-xl bg-secondary/50 border border-transparent text-sm text-muted-foreground hover:border-primary hover:bg-background transition-all duration-300 cursor-pointer"
+          >
+            <Search className="h-4 w-4" />
+            <span className="flex-1 text-left">Search…</span>
+            <kbd className="flex items-center gap-0.5 text-xs bg-muted px-1.5 py-0.5 rounded">
+              <Command className="h-3 w-3" />K
+            </kbd>
+          </button>
         </motion.div>
+
+        <CommandSearch open={commandSearch.open} setOpen={commandSearch.setOpen} />
 
         {/* Dark Mode Toggle */}
         <motion.div
