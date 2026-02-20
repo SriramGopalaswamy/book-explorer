@@ -80,12 +80,14 @@ const hrmsNav: NavItem[] = [
 // Employee-only HRMS items
 const employeeHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
 ];
 
 // Manager HRMS items (same as employee + Inbox)
 const managerHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
