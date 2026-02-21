@@ -8,74 +8,38 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Get an app-only access token using client credentials flow
-async function getGraphToken(): Promise<string> {
-  const tenantId = Deno.env.get("AZURE_TENANT_ID")!;
-  const clientId = Deno.env.get("AZURE_CLIENT_ID")!;
-  const clientSecret = Deno.env.get("AZURE_CLIENT_SECRET")!;
+const senderEmail = "admin@grx10.com";
 
-  const tokenRes = await fetch(
-    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope: "https://graph.microsoft.com/.default",
-        grant_type: "client_credentials",
-      }),
-    }
-  );
-
-  if (!tokenRes.ok) {
-    const err = await tokenRes.text();
-    throw new Error(`Failed to get Graph token: ${err}`);
-  }
-
-  const { access_token } = await tokenRes.json();
-  return access_token;
-}
-
-// Send email via MS Graph API — returns false on failure instead of throwing
+// Send email via Resend API — returns false on failure instead of throwing
 async function sendEmail(
-  accessToken: string | null,
-  senderEmail: string,
   toRecipients: { email: string; name?: string }[],
   subject: string,
   htmlBody: string
 ): Promise<boolean> {
-  if (!accessToken) {
-    console.warn("No Graph token available — skipping email to:", toRecipients.map(r => r.email));
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY not configured — skipping email to:", toRecipients.map(r => r.email));
     return false;
   }
-  try {
-    const message = {
-      message: {
-        subject,
-        body: { contentType: "HTML", content: htmlBody },
-        toRecipients: toRecipients.map((r) => ({
-          emailAddress: { address: r.email, name: r.name || r.email },
-        })),
-      },
-      saveToSentItems: false,
-    };
 
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(message),
-      }
-    );
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `GRX10 <${senderEmail}>`,
+        to: toRecipients.map(r => r.name ? `${r.name} <${r.email}>` : r.email),
+        subject,
+        html: htmlBody,
+      }),
+    });
 
     if (!res.ok) {
       const err = await res.text();
-      console.warn(`Graph sendMail failed [${res.status}]: ${err}`);
+      console.warn(`Resend API failed [${res.status}]: ${err}`);
       return false;
     }
     return true;
@@ -160,15 +124,6 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Try to get Graph token — email is ALWAYS best-effort; in-app notifications ALWAYS run regardless
-  let accessToken: string | null = null;
-  try {
-    accessToken = await getGraphToken();
-  } catch (err) {
-    console.warn("Could not obtain Graph token — emails will be skipped, in-app notifications will still be created:", err);
-  }
-  const senderEmail = "admin@grx10.com";
-
   try {
 
     // ─── TEST EMAIL ───────────────────────────────────────────────────────────
@@ -178,7 +133,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "to_email is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const htmlBody = emailTemplate("#3498db", "🧪", subject || "Test Notification", "This is a test email from GRX10 system.", tableRow("Message", String(message || "Hello! The email notification system is working correctly.")));
-      const sent = await sendEmail(accessToken, senderEmail, [{ email: String(to_email), name: String(to_name || to_email) }], String(subject || "🧪 Test Notification from GRX10"), htmlBody);
+      const sent = await sendEmail([{ email: String(to_email), name: String(to_name || to_email) }], String(subject || "🧪 Test Notification from GRX10"), htmlBody);
       return new Response(JSON.stringify({ success: true, email_sent: sent }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -212,11 +167,11 @@ Deno.serve(async (req) => {
       }
 
       try {
-        if (recipientEmails.length > 0 && accessToken) {
+        if (recipientEmails.length > 0) {
           const htmlBody = emailTemplate("#e94560", "📢", `New Memo: ${memo.title}`, `From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}`, tableRow("Content", memo.excerpt || memo.content || "No content"));
           const recipients = recipientEmails.map((email: string) => ({ email }));
           for (let i = 0; i < recipients.length; i += 50) {
-            await sendEmail(accessToken, senderEmail, recipients.slice(i, i + 50), `📢 New Memo: ${memo.title}`, htmlBody);
+            await sendEmail(recipients.slice(i, i + 50), `📢 New Memo: ${memo.title}`, htmlBody);
           }
         }
       } catch (emailErr) {
@@ -271,11 +226,11 @@ Deno.serve(async (req) => {
       try {
         if (manager?.email) {
           const htmlBody = emailTemplate("#f5a623", "🗓️", `Leave Request from ${employeeName}`, "Requires your approval", leaveRows, "Please log in to <strong>GRX10</strong> to approve or reject this request.");
-          await sendEmail(accessToken, senderEmail, [{ email: manager.email, name: manager.full_name || undefined }], `🗓️ Leave Request from ${employeeName} — Approval Required`, htmlBody);
+          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `🗓️ Leave Request from ${employeeName} — Approval Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Leave Request Submitted", `Hi ${employeeName}, your leave request has been submitted and is pending approval.`, leaveRows);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `📋 Leave Request Submitted — Awaiting Approval`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Leave Request Submitted — Awaiting Approval`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("leave_request_created: email send failed (in-app notifications already created):", emailErr);
@@ -335,11 +290,11 @@ Deno.serve(async (req) => {
       try {
         if (employeeEmail) {
           const htmlBody = emailTemplate(statusColor, statusIcon, `Leave Request ${statusText}`, `Hi ${employeeName}, your leave request has been ${decision}.`, leaveRows);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `${statusIcon} Leave Request ${statusText} — ${employeeName}`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `${statusIcon} Leave Request ${statusText} — ${employeeName}`, htmlBody);
         }
         if (manager?.email && manager.email !== employeeEmail) {
           const htmlBody = emailTemplate(statusColor, statusIcon, `Leave ${statusText} — ${employeeName}`, `This confirms you ${decision} ${employeeName}'s leave request.`, leaveRows);
-          await sendEmail(accessToken, senderEmail, [{ email: manager.email, name: manager.full_name || undefined }], `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`, htmlBody);
+          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("leave_request_decided: email send failed (in-app notifications already created):", emailErr);
@@ -392,11 +347,11 @@ Deno.serve(async (req) => {
       try {
         if (manager?.email) {
           const htmlBody = emailTemplate("#9b59b6", "📋", `Attendance Correction from ${employeeName}`, "Requires your review", correctionRows, "Please log in to <strong>GRX10</strong> to approve or reject this request.");
-          await sendEmail(accessToken, senderEmail, [{ email: manager.email, name: manager.full_name || undefined }], `📋 Correction Request from ${employeeName} — Review Required`, htmlBody);
+          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `📋 Correction Request from ${employeeName} — Review Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Correction Request Submitted", `Hi ${employeeName}, your attendance correction has been submitted.`, correctionRows);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `📋 Correction Request Submitted`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Correction Request Submitted`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("correction_request_created: email send failed (in-app notifications already created):", emailErr);
@@ -453,7 +408,7 @@ Deno.serve(async (req) => {
           const color = isApproved ? "#27ae60" : "#e74c3c";
           const icon = isApproved ? "✅" : "❌";
           const htmlBody = emailTemplate(color, icon, `Attendance Correction ${statusText}`, `Hi ${employeeName}`, rows);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `${icon} Attendance Correction ${statusText}`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Attendance Correction ${statusText}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("correction_request_decided: email send failed:", emailErr);
@@ -491,16 +446,13 @@ Deno.serve(async (req) => {
       const employeeUserId = reimbursement.profiles?.user_id;
       const amountStr = `₹${Number(reimbursement.amount).toLocaleString()}`;
 
-      // Notify manager (in-app)
       if (manager?.user_id) {
         await insertNotification(supabase, manager.user_id, `Reimbursement Request from ${employeeName}`, `${employeeName} submitted a reimbursement claim of ${amountStr} for ${reimbursement.category || "expenses"}.`, "info", "/hrms/inbox");
       }
-      // Confirm to employee (in-app)
       if (employeeUserId) {
         await insertNotification(supabase, employeeUserId, "Reimbursement Submitted", `Your reimbursement claim of ${amountStr} has been submitted and is pending manager approval.`, "info", "/hrms/reimbursements");
       }
 
-      // Email — best-effort
       try {
         const rows = [
           tableRow("Vendor", reimbursement.vendor_name || "—"),
@@ -511,11 +463,11 @@ Deno.serve(async (req) => {
 
         if (manager?.email) {
           const htmlBody = emailTemplate("#f5a623", "💸", `Reimbursement Request from ${employeeName}`, "Requires your approval", rows, "Please log in to GRX10 Manager Inbox to approve or reject this claim.");
-          await sendEmail(accessToken, senderEmail, [{ email: manager.email, name: manager.full_name || undefined }], `💸 Reimbursement Request from ${employeeName} — Approval Required`, htmlBody);
+          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `💸 Reimbursement Request from ${employeeName} — Approval Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Reimbursement Submitted", `Hi ${employeeName}, your claim has been submitted.`, rows, "Your manager will review and approve shortly.");
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_submitted: email send failed:", emailErr);
@@ -549,7 +501,6 @@ Deno.serve(async (req) => {
       const statusText = isApproved ? "Approved by Manager" : "Rejected by Manager";
       const amountStr = `₹${Number(reimbursement.amount).toLocaleString()}`;
 
-      // Notify employee (in-app)
       if (employeeUserId) {
         const msg = isApproved
           ? `Your reimbursement of ${amountStr} has been approved by your manager and forwarded to Finance for processing.`
@@ -557,7 +508,6 @@ Deno.serve(async (req) => {
         await insertNotification(supabase, employeeUserId, `Reimbursement ${statusText}`, msg, isApproved ? "info" : "warning", "/hrms/reimbursements");
       }
 
-      // If approved → notify all Finance/Admin users (in-app) so they can action it
       if (isApproved) {
         try {
           const { data: financeUsers } = await supabase
@@ -579,7 +529,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Email — best-effort
       try {
         if (employeeEmail) {
           const rows = [
@@ -595,7 +544,7 @@ Deno.serve(async (req) => {
             ? "Your claim is now with the Finance team for final approval and payment processing."
             : "Please contact your manager if you have questions.";
           const htmlBody = emailTemplate(color, icon, `Reimbursement ${statusText}`, `Hi ${employeeName}`, rows, footer);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_manager_decided: email send failed:", emailErr);
@@ -629,7 +578,6 @@ Deno.serve(async (req) => {
       const statusText = isPaid ? "Approved & Paid" : "Rejected by Finance";
       const amountStr = `₹${Number(reimbursement.amount).toLocaleString()}`;
 
-      // Notify employee (in-app)
       if (employeeUserId) {
         const msg = isPaid
           ? `Your reimbursement claim of ${amountStr} has been approved by Finance and recorded as a paid expense.`
@@ -637,7 +585,6 @@ Deno.serve(async (req) => {
         await insertNotification(supabase, employeeUserId, `Reimbursement ${statusText}`, msg, isPaid ? "info" : "warning", "/hrms/reimbursements");
       }
 
-      // Email — best-effort
       try {
         if (employeeEmail) {
           const rows = [
@@ -654,7 +601,7 @@ Deno.serve(async (req) => {
             ? "Your reimbursement has been processed. Please check with Finance for payment details."
             : "Please contact the Finance team if you have any questions.";
           const htmlBody = emailTemplate(color, icon, `Reimbursement ${statusText}`, `Hi ${employeeName}`, rows, footer);
-          await sendEmail(accessToken, senderEmail, [{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_finance_decided: email send failed:", emailErr);
