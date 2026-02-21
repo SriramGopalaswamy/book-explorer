@@ -44,7 +44,16 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify requesting user is admin
+  // Verify requesting user is admin AND resolve their org
+  const { data: adminMembership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", requestingUserId)
+    .limit(1)
+    .maybeSingle();
+
+  const requestingOrgId = adminMembership?.organization_id;
+
   const { data: adminRole } = await supabase
     .from("user_roles")
     .select("id")
@@ -52,23 +61,25 @@ Deno.serve(async (req) => {
     .eq("role", "admin")
     .maybeSingle();
 
-  if (!adminRole) {
-    return new Response(JSON.stringify({ error: "Admin access required" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    if (!adminRole || !requestingOrgId) {
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
   try {
     const body = await req.json();
     const { action } = body;
 
     if (action === "list_users") {
+      // Scope to requesting admin's organization
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, email, department, job_title");
+        .select("user_id, full_name, email, department, job_title")
+        .eq("organization_id", requestingOrgId);
 
-      const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+      const { data: roles } = await supabase.from("user_roles").select("user_id, role").eq("organization_id", requestingOrgId);
 
       const roleMap = new Map<string, string[]>();
       for (const r of roles || []) {
@@ -108,8 +119,22 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Delete existing roles for the user
-      await supabase.from("user_roles").delete().eq("user_id", user_id);
+      // SECURITY: Verify target user belongs to same org
+      const { data: targetMember } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+      if (!targetMember) {
+        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Delete existing roles for the user (scoped)
+      await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
       // Insert new role
       const { error: insertError } = await supabase.from("user_roles").insert({
@@ -136,6 +161,20 @@ Deno.serve(async (req) => {
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // SECURITY: Verify target user belongs to same org
+      const { data: targetMemberDel } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+      if (!targetMemberDel) {
+        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
+          status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

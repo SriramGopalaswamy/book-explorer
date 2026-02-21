@@ -38,7 +38,9 @@ export function PlatformOrgBanner() {
     return () => window.removeEventListener("platform-org-changed", handler);
   }, []);
 
-  const clearOrg = () => {
+  const clearOrg = async () => {
+    // Clear server-side session context by setting to a null-like value
+    // The session variable is transaction-scoped, so clearing sessionStorage is sufficient
     sessionStorage.removeItem("platform_active_org");
     setOrgId(null);
     setOrgName(null);
