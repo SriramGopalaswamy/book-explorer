@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.warn("Could not obtain Graph token — emails will be skipped, in-app notifications will still be created:", err);
   }
-  const senderEmail = "sriram@grx10.com";
+  const senderEmail = "admin@grx10.com";
 
   try {
 
