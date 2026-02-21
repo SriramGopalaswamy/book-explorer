@@ -610,6 +610,149 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ─── INVOICE STATUS CHANGED ──────────────────────────────────────────────
+    if (type === "invoice_status_changed") {
+      const { invoice_id, new_status } = payload as any;
+      try {
+        const { data: invoice, error } = await supabase.from("invoices").select("*").eq("id", invoice_id).single();
+        if (error || !invoice) throw new Error(`Invoice not found: ${error?.message}`);
+
+        const statusLabel = new_status === "paid" ? "Paid" : new_status === "sent" ? "Sent" : new_status;
+        const icon = new_status === "paid" ? "💰" : "📤";
+        const color = new_status === "paid" ? "#27ae60" : "#3498db";
+        const amountStr = `₹${Number(invoice.total_amount || invoice.amount).toLocaleString()}`;
+
+        // Notify the invoice creator
+        await insertNotification(supabase, invoice.user_id, `${icon} Invoice ${statusLabel}`, `Invoice ${invoice.invoice_number} to ${invoice.client_name} (${amountStr}) is now ${statusLabel}.`, "finance", "/financial/invoicing");
+
+        // Notify all finance/admin users in the org
+        if (invoice.organization_id) {
+          const { data: finUsers } = await supabase.from("user_roles").select("user_id").in("role", ["finance", "admin"]);
+          for (const fu of (finUsers || []).filter((f: any) => f.user_id !== invoice.user_id)) {
+            await insertNotification(supabase, fu.user_id, `${icon} Invoice ${statusLabel}`, `Invoice ${invoice.invoice_number} — ${invoice.client_name} (${amountStr})`, "finance", "/financial/invoicing");
+          }
+        }
+
+        // Email the creator
+        const { data: creatorProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", invoice.user_id).maybeSingle();
+        if (creatorProfile?.email) {
+          const rows = [tableRow("Invoice", invoice.invoice_number, true), tableRow("Client", invoice.client_name), tableRow("Amount", amountStr, true), tableRow("Status", statusLabel, true)].join("");
+          const htmlBody = emailTemplate(color, icon, `Invoice ${statusLabel}`, `Invoice ${invoice.invoice_number} status update`, rows);
+          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Invoice ${invoice.invoice_number} — ${statusLabel}`, htmlBody);
+        }
+      } catch (err) {
+        console.error("invoice_status_changed error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── BILL STATUS CHANGED ─────────────────────────────────────────────────
+    if (type === "bill_status_changed") {
+      const { bill_id, new_status } = payload as any;
+      try {
+        const { data: bill, error } = await supabase.from("bills").select("*").eq("id", bill_id).single();
+        if (error || !bill) throw new Error(`Bill not found: ${error?.message}`);
+
+        const statusLabel = new_status === "paid" ? "Paid" : new_status === "approved" ? "Approved" : new_status;
+        const icon = new_status === "paid" ? "💰" : "✅";
+        const color = new_status === "paid" ? "#27ae60" : "#3498db";
+        const amountStr = `₹${Number(bill.total_amount || bill.amount).toLocaleString()}`;
+
+        await insertNotification(supabase, bill.user_id, `${icon} Bill ${statusLabel}`, `Bill ${bill.bill_number} from ${bill.vendor_name} (${amountStr}) is now ${statusLabel}.`, "finance", "/financial/bills");
+
+        if (bill.organization_id) {
+          const { data: finUsers } = await supabase.from("user_roles").select("user_id").in("role", ["finance", "admin"]);
+          for (const fu of (finUsers || []).filter((f: any) => f.user_id !== bill.user_id)) {
+            await insertNotification(supabase, fu.user_id, `${icon} Bill ${statusLabel}`, `Bill ${bill.bill_number} — ${bill.vendor_name} (${amountStr})`, "finance", "/financial/bills");
+          }
+        }
+
+        const { data: creatorProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", bill.user_id).maybeSingle();
+        if (creatorProfile?.email) {
+          const rows = [tableRow("Bill", bill.bill_number, true), tableRow("Vendor", bill.vendor_name), tableRow("Amount", amountStr, true), tableRow("Status", statusLabel, true)].join("");
+          const htmlBody = emailTemplate(color, icon, `Bill ${statusLabel}`, `Bill ${bill.bill_number} status update`, rows);
+          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Bill ${bill.bill_number} — ${statusLabel}`, htmlBody);
+        }
+      } catch (err) {
+        console.error("bill_status_changed error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── ASSET REGISTERED ────────────────────────────────────────────────────
+    if (type === "asset_registered") {
+      const { asset_id } = payload as any;
+      try {
+        const { data: asset, error } = await supabase.from("assets").select("*").eq("id", asset_id).single();
+        if (error || !asset) throw new Error(`Asset not found: ${error?.message}`);
+
+        const amountStr = `₹${Number(asset.purchase_price).toLocaleString()}`;
+
+        // Notify finance/admin users
+        const { data: finUsers } = await supabase.from("user_roles").select("user_id").in("role", ["finance", "admin"]);
+        for (const fu of (finUsers || [])) {
+          await insertNotification(supabase, fu.user_id, `🏷️ New Asset Registered`, `${asset.name} (${asset.asset_tag}) — ${amountStr}`, "finance", "/financial/assets");
+        }
+
+        const { data: creatorProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", asset.user_id).maybeSingle();
+        if (creatorProfile?.email) {
+          const rows = [tableRow("Asset", asset.name, true), tableRow("Tag", asset.asset_tag), tableRow("Category", asset.category), tableRow("Purchase Price", amountStr, true)].join("");
+          const htmlBody = emailTemplate("#3498db", "🏷️", "New Asset Registered", `Asset ${asset.asset_tag} has been added to the register`, rows);
+          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🏷️ New Asset Registered — ${asset.name}`, htmlBody);
+        }
+      } catch (err) {
+        console.error("asset_registered error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── ASSET DEPRECIATION POSTED ───────────────────────────────────────────
+    if (type === "asset_depreciation_posted") {
+      const { asset_id, amount, book_value } = payload as any;
+      try {
+        const { data: asset, error } = await supabase.from("assets").select("name, asset_tag, user_id, organization_id").eq("id", asset_id).single();
+        if (error || !asset) throw new Error(`Asset not found: ${error?.message}`);
+
+        const depStr = `₹${Number(amount).toLocaleString()}`;
+        const bvStr = `₹${Number(book_value).toLocaleString()}`;
+
+        const { data: finUsers } = await supabase.from("user_roles").select("user_id").in("role", ["finance", "admin"]);
+        for (const fu of (finUsers || [])) {
+          await insertNotification(supabase, fu.user_id, `📉 Depreciation Posted`, `${asset.name} (${asset.asset_tag}): ${depStr} depreciated. Book value: ${bvStr}`, "finance", "/financial/assets");
+        }
+      } catch (err) {
+        console.error("asset_depreciation_posted error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── ASSET DISPOSED ──────────────────────────────────────────────────────
+    if (type === "asset_disposed") {
+      const { asset_id } = payload as any;
+      try {
+        const { data: asset, error } = await supabase.from("assets").select("*").eq("id", asset_id).single();
+        if (error || !asset) throw new Error(`Asset not found: ${error?.message}`);
+
+        const bvStr = `₹${Number(asset.current_book_value).toLocaleString()}`;
+        const dispStr = asset.disposal_price ? `₹${Number(asset.disposal_price).toLocaleString()}` : "N/A";
+
+        const { data: finUsers } = await supabase.from("user_roles").select("user_id").in("role", ["finance", "admin"]);
+        for (const fu of (finUsers || [])) {
+          await insertNotification(supabase, fu.user_id, `🗑️ Asset Disposed`, `${asset.name} (${asset.asset_tag}) disposed. Book value: ${bvStr}, Proceeds: ${dispStr}`, "finance", "/financial/assets");
+        }
+
+        const { data: creatorProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", asset.user_id).maybeSingle();
+        if (creatorProfile?.email) {
+          const rows = [tableRow("Asset", asset.name, true), tableRow("Tag", asset.asset_tag), tableRow("Book Value", bvStr), tableRow("Disposal Price", dispStr), tableRow("Method", asset.disposal_method || "—")].join("");
+          const htmlBody = emailTemplate("#e74c3c", "🗑️", "Asset Disposed", `${asset.name} has been removed from the asset register`, rows);
+          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🗑️ Asset Disposed — ${asset.name}`, htmlBody);
+        }
+      } catch (err) {
+        console.error("asset_disposed error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown notification type: ${type}` }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -216,9 +216,15 @@ export function useUpdateInvoiceStatus() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
+      // Fire financial notification
+      if (["sent", "paid"].includes(variables.status)) {
+        supabase.functions.invoke("send-notification-email", {
+          body: { type: "invoice_status_changed", payload: { invoice_id: variables.id, new_status: variables.status } },
+        }).catch((err) => console.warn("Failed to send invoice notification:", err));
+      }
     },
     onError: (error) => {
       toast({ title: "Error", description: `Failed to update status: ${error.message}`, variant: "destructive" });
