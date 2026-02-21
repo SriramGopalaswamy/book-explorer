@@ -2894,6 +2894,7 @@ export type Database = {
       is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_finance: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
+      is_org_active: { Args: { _org_id: string }; Returns: boolean }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean

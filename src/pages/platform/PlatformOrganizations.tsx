@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { PlatformLayout } from "@/components/platform/PlatformLayout";
 import { useOrganizations, useOrgMemberCounts, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Badge } from "@/components/ui/badge";
@@ -7,27 +8,45 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Building2, Users, Eye, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function PlatformOrganizations() {
   const { data: orgs, isLoading } = useOrganizations();
   const { data: memberCounts } = useOrgMemberCounts();
   const logAction = useLogPlatformAction();
+  const [switching, setSwitching] = useState<string | null>(null);
 
   const switchToOrg = async (orgId: string, orgName: string) => {
-    sessionStorage.setItem(
-      "platform_active_org",
-      JSON.stringify({ id: orgId, name: orgName })
-    );
-    window.dispatchEvent(new Event("platform-org-changed"));
+    setSwitching(orgId);
+    try {
+      // SECURITY: Call server-side RPC to set session context first
+      const { error: rpcError } = await supabase.rpc("set_org_context", { _org_id: orgId });
+      if (rpcError) {
+        toast.error(`Failed to set org context: ${rpcError.message}`);
+        return;
+      }
 
-    await logAction.mutateAsync({
-      action: "org_switch",
-      target_type: "organization",
-      target_id: orgId,
-      target_name: orgName,
-    });
+      // Only update frontend state AFTER RPC succeeds
+      sessionStorage.setItem(
+        "platform_active_org",
+        JSON.stringify({ id: orgId, name: orgName })
+      );
+      window.dispatchEvent(new Event("platform-org-changed"));
 
-    toast.success(`Switched to ${orgName}`);
+      // Log the switch event
+      await logAction.mutateAsync({
+        action: "org_switch",
+        target_type: "organization",
+        target_id: orgId,
+        target_name: orgName,
+      });
+
+      toast.success(`Switched to ${orgName}`);
+    } catch (err: any) {
+      toast.error(`Org switch failed: ${err.message}`);
+    } finally {
+      setSwitching(null);
+    }
   };
 
   return (
@@ -117,9 +136,14 @@ export default function PlatformOrganizations() {
                         variant="outline"
                         size="sm"
                         onClick={() => switchToOrg(org.id, org.name)}
+                        disabled={switching === org.id}
                       >
-                        <Eye className="h-3.5 w-3.5 mr-1" />
-                        View as Org
+                        {switching === org.id ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {switching === org.id ? "Switching..." : "View as Org"}
                       </Button>
                     </TableCell>
                   </TableRow>
