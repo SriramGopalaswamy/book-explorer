@@ -2044,6 +2044,7 @@ export type Database = {
           name: string
           settings: Json | null
           slug: string | null
+          status: string
           updated_at: string
         }
         Insert: {
@@ -2052,6 +2053,7 @@ export type Database = {
           name: string
           settings?: Json | null
           slug?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -2060,6 +2062,7 @@ export type Database = {
           name?: string
           settings?: Json | null
           slug?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -2155,6 +2158,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_admin_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          target_id: string | null
+          target_name: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_name?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_name?: string | null
+          target_type?: string
+        }
+        Relationships: []
       }
       platform_roles: {
         Row: {
@@ -2876,6 +2915,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      set_org_context: { Args: { _org_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance"
