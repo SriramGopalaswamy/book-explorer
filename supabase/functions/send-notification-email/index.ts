@@ -171,6 +171,17 @@ Deno.serve(async (req) => {
 
   try {
 
+    // ─── TEST EMAIL ───────────────────────────────────────────────────────────
+    if (type === "test_email") {
+      const { to_email, to_name, subject, message } = payload as any;
+      if (!to_email) {
+        return new Response(JSON.stringify({ error: "to_email is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const htmlBody = emailTemplate("#3498db", "🧪", subject || "Test Notification", "This is a test email from GRX10 system.", tableRow("Message", String(message || "Hello! The email notification system is working correctly.")));
+      const sent = await sendEmail(accessToken, senderEmail, [{ email: String(to_email), name: String(to_name || to_email) }], String(subject || "🧪 Test Notification from GRX10"), htmlBody);
+      return new Response(JSON.stringify({ success: true, email_sent: sent }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // ─── MEMO PUBLISHED ───────────────────────────────────────────────────────
     if (type === "memo_published") {
       const { memo_id } = payload;
