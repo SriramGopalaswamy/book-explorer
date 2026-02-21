@@ -1,0 +1,3 @@
+asset_tag,name,category,purchase_date,purchase_price,useful_life_months,salvage_value,depreciation_method,serial_number,model_number,manufacturer,location,department,condition,warranty_expiry,notes
+AST-001,Dell Latitude 5540,IT Equipment,2025-01-15,85000,36,5000,straight_line,SN12345,LAT5540,Dell,Floor 2 - Bay A,Engineering,good,2028-01-15,Employee laptop
+AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,straight_line,HM98765,AER-B,Herman Miller,Floor 3 - Open Area,HR,excellent,,Ergonomic office chair
