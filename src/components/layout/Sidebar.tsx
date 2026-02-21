@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +39,7 @@ import {
   BadgeDollarSign,
   Package,
   Landmark,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -265,6 +267,7 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { data: currentRole } = useCurrentRole();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
@@ -332,6 +335,15 @@ export function Sidebar() {
                 title="Admin"
                 items={[{ name: "Audit Log", path: "/admin/audit-log", icon: Shield }]}
                 sectionId="admin"
+                collapsed={collapsed}
+                onItemClick={closeMobile}
+              />
+            )}
+            {isSuperAdmin && (
+              <NavSection
+                title="Platform"
+                items={[{ name: "Control Plane", path: "/platform", icon: Crown }]}
+                sectionId="platform"
                 collapsed={collapsed}
                 onItemClick={closeMobile}
               />

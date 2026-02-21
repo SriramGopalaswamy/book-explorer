@@ -53,6 +53,14 @@ import Memos from "./pages/performance/Memos";
 // Admin
 import AuditLog from "./pages/AuditLog";
 
+// Platform (Super Admin)
+import { PlatformRoute } from "@/components/auth/PlatformRoute";
+import PlatformOrganizations from "./pages/platform/PlatformOrganizations";
+import PlatformIntegrity from "./pages/platform/PlatformIntegrity";
+import PlatformHealth from "./pages/platform/PlatformHealth";
+import PlatformActions from "./pages/platform/PlatformActions";
+import PlatformAudit from "./pages/platform/PlatformAudit";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -116,6 +124,13 @@ const App = () => (
                   {/* Profile & Settings */}
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+
+                  {/* Platform Admin (Super Admin only) */}
+                  <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformOrganizations /></PlatformRoute></ProtectedRoute>} />
+                  <Route path="/platform/integrity" element={<ProtectedRoute><PlatformRoute><PlatformIntegrity /></PlatformRoute></ProtectedRoute>} />
+                  <Route path="/platform/health" element={<ProtectedRoute><PlatformRoute><PlatformHealth /></PlatformRoute></ProtectedRoute>} />
+                  <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
+                  <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
 
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
