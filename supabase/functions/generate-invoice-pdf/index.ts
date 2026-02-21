@@ -394,33 +394,35 @@ serve(async (req) => {
     const subtotal = Number(invoice.subtotal) || Number(invoice.amount);
     drawText(page, "Sub Total:", totalsX, y, regular, 9, BRAND_COLORS.muted);
     drawText(page, formatCurrency(subtotal), totalsValX, y, regular, 9, BRAND_COLORS.text);
-    y -= 15;
+    y -= 18;
 
     const cgstTotal = Number(invoice.cgst_total) || 0;
     const sgstTotal = Number(invoice.sgst_total) || 0;
     const igstTotal = Number(invoice.igst_total) || 0;
 
     if (cgstTotal > 0) {
-      // Find the rate from first item
       const cgstRate = items.length > 0 ? (items[0].cgst_rate || 0) : 0;
       drawText(page, `CGST (${cgstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
       drawText(page, formatCurrency(cgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text);
-      y -= 15;
+      y -= 18;
     }
 
     if (sgstTotal > 0) {
       const sgstRate = items.length > 0 ? (items[0].sgst_rate || 0) : 0;
       drawText(page, `SGST (${sgstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
       drawText(page, formatCurrency(sgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text);
-      y -= 15;
+      y -= 18;
     }
 
     if (igstTotal > 0) {
       const igstRate = items.length > 0 ? (items[0].igst_rate || 0) : 0;
       drawText(page, `IGST (${igstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
       drawText(page, formatCurrency(igstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text);
-      y -= 15;
+      y -= 18;
     }
+
+    // Extra gap before Total bar
+    y -= 6;
 
     // Total with accent
     page.drawRectangle({
@@ -432,10 +434,10 @@ serve(async (req) => {
     });
     drawText(page, "Total:", totalsX, y, bold, 11, BRAND_COLORS.white);
     drawText(page, `Rs. ${formatCurrency(totalAmount)}`, totalsValX - 10, y, bold, 11, BRAND_COLORS.white);
-    y -= 15;
+    y -= 30;
 
     // Balance Due
-    y -= 10;
+    y -= 5;
     drawText(page, "Balance Due:", totalsX, y, bold, 10, BRAND_COLORS.text);
     drawText(page, `Rs. ${formatCurrency(totalAmount)}`, totalsValX - 10, y, bold, 10, BRAND_COLORS.primary);
 
