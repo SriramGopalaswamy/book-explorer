@@ -307,7 +307,7 @@ serve(async (req) => {
     const totalsValX = 480;
     const subtotal = Number(quote.subtotal) || Number(quote.amount);
     drawText(page, "Sub Total:", totalsX, y, regular, 9, BRAND_COLORS.muted);
-    drawText(page, formatCurrency(subtotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 15;
+    drawText(page, formatCurrency(subtotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 18;
 
     const cgstTotal = Number(quote.cgst_total) || 0;
     const sgstTotal = Number(quote.sgst_total) || 0;
@@ -316,18 +316,21 @@ serve(async (req) => {
     if (cgstTotal > 0) {
       const cgstRate = items.length > 0 ? (items[0].cgst_rate || 0) : 0;
       drawText(page, `CGST (${cgstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
-      drawText(page, formatCurrency(cgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 15;
+      drawText(page, formatCurrency(cgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 18;
     }
     if (sgstTotal > 0) {
       const sgstRate = items.length > 0 ? (items[0].sgst_rate || 0) : 0;
       drawText(page, `SGST (${sgstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
-      drawText(page, formatCurrency(sgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 15;
+      drawText(page, formatCurrency(sgstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 18;
     }
     if (igstTotal > 0) {
       const igstRate = items.length > 0 ? (items[0].igst_rate || 0) : 0;
       drawText(page, `IGST (${igstRate}%):`, totalsX, y, regular, 9, BRAND_COLORS.muted);
-      drawText(page, formatCurrency(igstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 15;
+      drawText(page, formatCurrency(igstTotal), totalsValX, y, regular, 9, BRAND_COLORS.text); y -= 18;
     }
+
+    // Extra gap before Total bar
+    y -= 6;
 
     page.drawRectangle({ x: totalsX - 10, y: y - 8, width: rightEdge - totalsX + 10, height: 25, color: BRAND_COLORS.primary });
     drawText(page, "Total:", totalsX, y, bold, 11, BRAND_COLORS.white);
