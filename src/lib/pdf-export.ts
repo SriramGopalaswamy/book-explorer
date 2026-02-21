@@ -66,7 +66,7 @@ export function exportReportAsPDF(options: PDFOptions) {
     .section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7280; margin-bottom: 12px; }
     .row { display: flex; justify-content: space-between; padding: 6px 12px; font-size: 13px; border-radius: 4px; }
     .row:hover { background: #f9fafb; }
-    .total-row { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 14px; border-radius: 6px; margin-top: 8px; border: 1px solid; }
+    .total-row { display: flex; justify-content: space-between; padding: 10px 12px; font-size: 14px; border-radius: 6px; margin-top: 14px; border: 1px solid; }
     .footer-section { margin-top: 32px; padding: 20px; background: #f8f7ff; border-radius: 8px; border: 1px solid #e5e4ff; display: flex; justify-content: space-around; }
     .footer-item { text-align: center; }
     .footer-label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 4px; }
