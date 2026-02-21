@@ -461,9 +461,14 @@ export default function Bills() {
       const { error } = await supabase.from("bills").update({ status }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       toast.success("Status updated");
+      if (["approved", "paid"].includes(variables.status)) {
+        supabase.functions.invoke("send-notification-email", {
+          body: { type: "bill_status_changed", payload: { bill_id: variables.id, new_status: variables.status } },
+        }).catch((err) => console.warn("Failed to send bill notification:", err));
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
