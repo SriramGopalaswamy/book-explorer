@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ModuleInsightBar } from "@/components/ai/ModuleInsightBar";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -442,6 +443,7 @@ export default function Invoicing() {
       subtitle="Create, send, and track invoices for your clients"
     >
       <div className="space-y-6 animate-fade-in">
+        <ModuleInsightBar module="invoicing" />
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard title="Total Outstanding" value={formatCurrency(totalOutstanding)} icon={<Send className="h-4 w-4" />} />

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ModuleInsightBar } from "@/components/ai/ModuleInsightBar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -272,6 +273,7 @@ export default function Employees() {
   return (
     <MainLayout title="Employees" subtitle="Manage your workforce and employee information">
       <div className="space-y-6 animate-fade-in">
+        <ModuleInsightBar module="employees" />
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard

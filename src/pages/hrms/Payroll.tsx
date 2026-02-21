@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ModuleInsightBar } from "@/components/ai/ModuleInsightBar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -349,6 +350,7 @@ export default function Payroll() {
   return (
     <MainLayout title="Payroll" subtitle="Manage salaries and compensation">
       <div className="space-y-6">
+        <ModuleInsightBar module="payroll" />
         {/* Stats */}
         <motion.div
           className="grid gap-4 md:grid-cols-4"

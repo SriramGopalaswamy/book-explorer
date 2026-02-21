@@ -9,6 +9,7 @@ import { AppModeProvider } from "@/contexts/AppModeContext";
 import { DevModeProvider } from "@/contexts/DevModeContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
+import { AIChatAssistant } from "@/components/ai/AIChatAssistant";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -115,6 +116,7 @@ const App = () => (
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                <AIChatAssistant />
               </BrowserRouter>
             </TooltipProvider>
           </DevModeProvider>
