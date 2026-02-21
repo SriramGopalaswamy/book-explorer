@@ -14,6 +14,234 @@ export type Database = {
   }
   public: {
     Tables: {
+      asset_depreciation_entries: {
+        Row: {
+          accumulated_depreciation: number
+          asset_id: string
+          book_value_after: number
+          created_at: string
+          depreciation_amount: number
+          financial_record_id: string | null
+          id: string
+          is_posted: boolean
+          notes: string | null
+          period_date: string
+        }
+        Insert: {
+          accumulated_depreciation?: number
+          asset_id: string
+          book_value_after?: number
+          created_at?: string
+          depreciation_amount?: number
+          financial_record_id?: string | null
+          id?: string
+          is_posted?: boolean
+          notes?: string | null
+          period_date: string
+        }
+        Update: {
+          accumulated_depreciation?: number
+          asset_id?: string
+          book_value_after?: number
+          created_at?: string
+          depreciation_amount?: number
+          financial_record_id?: string | null
+          id?: string
+          is_posted?: boolean
+          notes?: string | null
+          period_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_depreciation_entries_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_depreciation_entries_financial_record_id_fkey"
+            columns: ["financial_record_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          accumulated_depreciation: number
+          asset_tag: string
+          assigned_to: string | null
+          barcode: string | null
+          bill_id: string | null
+          category: string
+          condition: string
+          created_at: string
+          current_book_value: number
+          custodian: string | null
+          department: string | null
+          depreciation_method: string
+          depreciation_start_date: string | null
+          description: string | null
+          disposal_date: string | null
+          disposal_method: string | null
+          disposal_notes: string | null
+          disposal_price: number | null
+          id: string
+          insurance_expiry: string | null
+          insurance_policy: string | null
+          last_tagged_by: string | null
+          last_tagged_date: string | null
+          location: string | null
+          manufacturer: string | null
+          model_number: string | null
+          name: string
+          notes: string | null
+          organization_id: string | null
+          po_number: string | null
+          purchase_date: string
+          purchase_price: number
+          salvage_value: number
+          serial_number: string | null
+          status: string
+          sub_category: string | null
+          tag_verified: boolean
+          updated_at: string
+          useful_life_months: number
+          user_id: string
+          vendor_id: string | null
+          warranty_expiry: string | null
+          warranty_provider: string | null
+        }
+        Insert: {
+          accumulated_depreciation?: number
+          asset_tag: string
+          assigned_to?: string | null
+          barcode?: string | null
+          bill_id?: string | null
+          category?: string
+          condition?: string
+          created_at?: string
+          current_book_value?: number
+          custodian?: string | null
+          department?: string | null
+          depreciation_method?: string
+          depreciation_start_date?: string | null
+          description?: string | null
+          disposal_date?: string | null
+          disposal_method?: string | null
+          disposal_notes?: string | null
+          disposal_price?: number | null
+          id?: string
+          insurance_expiry?: string | null
+          insurance_policy?: string | null
+          last_tagged_by?: string | null
+          last_tagged_date?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          name: string
+          notes?: string | null
+          organization_id?: string | null
+          po_number?: string | null
+          purchase_date?: string
+          purchase_price?: number
+          salvage_value?: number
+          serial_number?: string | null
+          status?: string
+          sub_category?: string | null
+          tag_verified?: boolean
+          updated_at?: string
+          useful_life_months?: number
+          user_id: string
+          vendor_id?: string | null
+          warranty_expiry?: string | null
+          warranty_provider?: string | null
+        }
+        Update: {
+          accumulated_depreciation?: number
+          asset_tag?: string
+          assigned_to?: string | null
+          barcode?: string | null
+          bill_id?: string | null
+          category?: string
+          condition?: string
+          created_at?: string
+          current_book_value?: number
+          custodian?: string | null
+          department?: string | null
+          depreciation_method?: string
+          depreciation_start_date?: string | null
+          description?: string | null
+          disposal_date?: string | null
+          disposal_method?: string | null
+          disposal_notes?: string | null
+          disposal_price?: number | null
+          id?: string
+          insurance_expiry?: string | null
+          insurance_policy?: string | null
+          last_tagged_by?: string | null
+          last_tagged_date?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string | null
+          po_number?: string | null
+          purchase_date?: string
+          purchase_price?: number
+          salvage_value?: number
+          serial_number?: string | null
+          status?: string
+          sub_category?: string | null
+          tag_verified?: boolean
+          updated_at?: string
+          useful_life_months?: number
+          user_id?: string
+          vendor_id?: string | null
+          warranty_expiry?: string | null
+          warranty_provider?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_correction_requests: {
         Row: {
           created_at: string
