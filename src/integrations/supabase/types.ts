@@ -2156,6 +2156,27 @@ export type Database = {
           },
         ]
       }
+      platform_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2817,6 +2838,11 @@ export type Database = {
           total_debits: number
         }[]
       }
+      check_org_access: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
@@ -2849,6 +2875,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance"
