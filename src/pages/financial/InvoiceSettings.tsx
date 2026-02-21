@@ -259,7 +259,7 @@ export default function InvoiceSettings() {
             </CardTitle>
             <CardDescription>Upload your company logo and authorized signature</CardDescription>
           </CardHeader>
-          <CardContent className="grid sm:grid-cols-2 gap-6">
+          <CardContent className="space-y-6">
             <div className="space-y-3">
               <Label>Company Logo</Label>
               {form.logo_url && (
