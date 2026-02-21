@@ -157,9 +157,12 @@ export function useCreateAsset() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       toast.success("Asset created successfully");
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "asset_registered", payload: { asset_id: data.id } },
+      }).catch((err) => console.warn("Failed to send asset notification:", err));
     },
     onError: (error: Error) => {
       toast.error("Failed to create asset: " + error.message);
@@ -181,9 +184,14 @@ export function useUpdateAsset() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       toast.success("Asset updated successfully");
+      if (variables.status === "disposed") {
+        supabase.functions.invoke("send-notification-email", {
+          body: { type: "asset_disposed", payload: { asset_id: variables.id } },
+        }).catch((err) => console.warn("Failed to send disposal notification:", err));
+      }
     },
     onError: (error: Error) => {
       toast.error("Failed to update asset: " + error.message);
@@ -344,11 +352,14 @@ export function useRunDepreciation() {
 
       return { monthlyDep, accumAfter, bvAfter };
     },
-    onSuccess: (data) => {
+    onSuccess: (data, assetId) => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       queryClient.invalidateQueries({ queryKey: ["asset_depreciation"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast.success(`Depreciation of ₹${data.monthlyDep.toLocaleString()} recorded`);
+      supabase.functions.invoke("send-notification-email", {
+        body: { type: "asset_depreciation_posted", payload: { asset_id: assetId, amount: data.monthlyDep, book_value: data.bvAfter } },
+      }).catch((err) => console.warn("Failed to send depreciation notification:", err));
     },
     onError: (error: Error) => {
       toast.error(error.message);
