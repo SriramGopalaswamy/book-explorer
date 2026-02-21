@@ -32,6 +32,7 @@ import CreditNotes from "./pages/financial/CreditNotes";
 import VendorCredits from "./pages/financial/VendorCredits";
 import Bills from "./pages/financial/Bills";
 import Assets from "./pages/financial/Assets";
+import StatutoryFilings from "./pages/financial/StatutoryFilings";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -91,6 +92,7 @@ const App = () => (
                   <Route path="/financial/cashflow" element={<ProtectedRoute><FinanceRoute><CashFlow /></FinanceRoute></ProtectedRoute>} />
                   <Route path="/financial/analytics" element={<ProtectedRoute><FinanceRoute><Analytics /></FinanceRoute></ProtectedRoute>} />
                   <Route path="/financial/assets" element={<ProtectedRoute><FinanceRoute><Assets /></FinanceRoute></ProtectedRoute>} />
+                  <Route path="/financial/statutory" element={<ProtectedRoute><FinanceRoute><StatutoryFilings /></FinanceRoute></ProtectedRoute>} />
 
                   {/* HRMS */}
                   <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
