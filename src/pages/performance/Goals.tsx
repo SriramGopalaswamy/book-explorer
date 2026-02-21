@@ -26,6 +26,7 @@ import {
   Save,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ModuleInsightBar } from "@/components/ai/ModuleInsightBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -977,6 +978,7 @@ export default function Goals() {
       subtitle="Monthly goal planning with manager approval workflow"
     >
       <div className="space-y-6">
+        <ModuleInsightBar module="goals" />
         <Tabs defaultValue="my-goals">
           <TabsList>
             <TabsTrigger value="my-goals" className="gap-2">
