@@ -36,6 +36,7 @@ import {
   Wallet,
   ScanLine,
   BadgeDollarSign,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -65,6 +66,7 @@ const financialNav: NavItem[] = [
   { name: "Vendor Credits", path: "/financial/vendor-credits", icon: Receipt, module: "financial" },
   { name: "Banking", path: "/financial/banking", icon: Building2, module: "financial" },
   { name: "Cash Flow", path: "/financial/cashflow", icon: TrendingUp, module: "financial" },
+  { name: "Assets", path: "/financial/assets", icon: Package, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
 ];
 
