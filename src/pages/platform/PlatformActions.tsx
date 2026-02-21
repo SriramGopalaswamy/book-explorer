@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PlatformLayout } from "@/components/platform/PlatformLayout";
-import { useOrganizations, useOrgStatusAction } from "@/hooks/useSuperAdmin";
+import { useOrganizations, useOrgStatusAction, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +27,18 @@ export default function PlatformActions() {
     action: "suspend" | "reactivate";
   } | null>(null);
 
+  const logAction = useLogPlatformAction();
+
   const handleExport = async (orgId: string, orgName: string) => {
-    // Export basic org data as JSON
+    // SECURITY: Log export event BEFORE data extraction
+    await logAction.mutateAsync({
+      action: "org_data_export",
+      target_type: "organization",
+      target_id: orgId,
+      target_name: orgName,
+      metadata: { exported_at: new Date().toISOString() },
+    });
+
     const [profiles, invoices, expenses] = await Promise.all([
       supabase.from("profiles").select("*").eq("organization_id", orgId),
       supabase.from("invoices").select("*").eq("organization_id", orgId),
