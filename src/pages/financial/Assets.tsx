@@ -56,6 +56,10 @@ import {
   CheckCircle,
   Calendar,
 } from "lucide-react";
+import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/BulkUploadDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   useAssets,
@@ -100,6 +104,73 @@ export default function Assets() {
   const updateAsset = useUpdateAsset();
   const deleteAsset = useDeleteAsset();
   const runDepreciation = useRunDepreciation();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const bulkUploadConfig: BulkUploadConfig = {
+    title: "Bulk Upload Fixed Assets",
+    description: "Upload multiple assets at once using a CSV or Excel file.",
+    module: "assets",
+    columns: [
+      { key: "asset_tag", label: "Asset Tag", required: true },
+      { key: "name", label: "Asset Name", required: true },
+      { key: "category", label: "Category", required: true },
+      { key: "purchase_date", label: "Purchase Date", required: true },
+      { key: "purchase_price", label: "Purchase Price", required: true },
+      { key: "useful_life_months", label: "Useful Life (Months)" },
+      { key: "salvage_value", label: "Salvage Value" },
+      { key: "depreciation_method", label: "Depreciation Method" },
+      { key: "serial_number", label: "Serial Number" },
+      { key: "model_number", label: "Model Number" },
+      { key: "manufacturer", label: "Manufacturer" },
+      { key: "location", label: "Location" },
+      { key: "department", label: "Department" },
+      { key: "condition", label: "Condition" },
+      { key: "warranty_expiry", label: "Warranty Expiry" },
+      { key: "notes", label: "Notes" },
+    ],
+    templateFileName: "assets_template.csv",
+    templateContent: `asset_tag,name,category,purchase_date,purchase_price,useful_life_months,salvage_value,depreciation_method,serial_number,model_number,manufacturer,location,department,condition,warranty_expiry,notes
+AST-001,Dell Latitude 5540,IT Equipment,2025-01-15,85000,36,5000,straight_line,SN12345,LAT5540,Dell,Floor 2 - Bay A,Engineering,good,2028-01-15,Employee laptop
+AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,straight_line,HM98765,AER-B,Herman Miller,Floor 3 - Open Area,HR,excellent,,Ergonomic office chair`,
+    onUpload: async (rows) => {
+      if (!user) throw new Error("Not authenticated");
+      let success = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        try {
+          const { error } = await supabase.from("assets").insert({
+            user_id: user.id,
+            asset_tag: row.asset_tag,
+            name: row.name,
+            category: row.category || "Other",
+            purchase_date: row.purchase_date,
+            purchase_price: parseFloat(row.purchase_price) || 0,
+            useful_life_months: parseInt(row.useful_life_months) || 60,
+            salvage_value: parseFloat(row.salvage_value) || 0,
+            depreciation_method: row.depreciation_method || "straight_line",
+            serial_number: row.serial_number || null,
+            model_number: row.model_number || null,
+            manufacturer: row.manufacturer || null,
+            location: row.location || null,
+            department: row.department || null,
+            condition: row.condition || "good",
+            warranty_expiry: row.warranty_expiry || null,
+            notes: row.notes || null,
+          } as any);
+          if (error) throw error;
+          success++;
+        } catch (err: any) {
+          errors.push(`Row ${i + 1} (${row.asset_tag}): ${err.message}`);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      return { success, errors, created: success };
+    },
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -393,9 +464,12 @@ export default function Assets() {
                 Manage capital assets, depreciation, and tagging
               </p>
             </div>
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" /> Register Asset
-            </Button>
+            <div className="flex gap-2">
+              <BulkUploadDialog config={bulkUploadConfig} />
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="h-4 w-4" /> Register Asset
+              </Button>
+            </div>
           </div>
 
           {/* Stat Cards */}
