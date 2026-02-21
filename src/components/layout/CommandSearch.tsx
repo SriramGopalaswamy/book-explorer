@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  CommandDialog,
+  Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
@@ -106,6 +106,29 @@ export function useCommandSearch() {
 export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
   const navigate = useNavigate();
   const { data: currentRole } = useCurrentRole();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, setOpen]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, setOpen]);
 
   const filteredItems = useMemo(() => {
     const isEmployee = currentRole === "employee";
@@ -114,7 +137,6 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     const isHR = currentRole === "hr";
 
     return ALL_ITEMS.filter((item) => {
-      // Role-based filtering
       if (item.section === "Financial" && (isEmployee || isManager || isHR)) return false;
       if (item.section === "Admin" && !["admin", "hr"].includes(currentRole ?? "")) return false;
       if (item.path === "/hrms/inbox" && !isManager) return false;
@@ -144,30 +166,37 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     [navigate, setOpen]
   );
 
+  if (!open) return null;
+
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search menus…" />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {Object.entries(grouped).map(([section, items]) => (
-          <CommandGroup key={section} heading={section}>
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <CommandItem
-                  key={item.path}
-                  value={`${item.name} ${item.keywords ?? ""}`}
-                  onSelect={() => handleSelect(item.path)}
-                  className="gap-3 cursor-pointer"
-                >
-                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span>{item.name}</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        ))}
-      </CommandList>
-    </CommandDialog>
+    <div
+      ref={containerRef}
+      className="absolute top-full right-0 mt-2 w-80 z-50 rounded-xl border bg-popover shadow-lg overflow-hidden"
+    >
+      <Command className="rounded-xl">
+        <CommandInput placeholder="Search menus…" autoFocus />
+        <CommandList className="max-h-72">
+          <CommandEmpty>No results found.</CommandEmpty>
+          {Object.entries(grouped).map(([section, items]) => (
+            <CommandGroup key={section} heading={section}>
+              {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <CommandItem
+                    key={item.path}
+                    value={`${item.name} ${item.keywords ?? ""}`}
+                    onSelect={() => handleSelect(item.path)}
+                    className="gap-3 cursor-pointer"
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{item.name}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </Command>
+    </div>
   );
 }

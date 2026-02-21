@@ -96,7 +96,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           transition={{ delay: 0.2 }}
         >
           <button
-            onClick={() => commandSearch.setOpen(true)}
+            onClick={() => commandSearch.setOpen(!commandSearch.open)}
             className="flex items-center gap-2 w-64 h-10 px-3 rounded-xl bg-secondary/50 border border-transparent text-sm text-muted-foreground hover:border-primary hover:bg-background transition-all duration-300 cursor-pointer"
           >
             <Search className="h-4 w-4" />
@@ -105,9 +105,9 @@ export function Header({ title, subtitle }: HeaderProps) {
               <Command className="h-3 w-3" />K
             </kbd>
           </button>
-        </motion.div>
 
-        <CommandSearch open={commandSearch.open} setOpen={commandSearch.setOpen} />
+          <CommandSearch open={commandSearch.open} setOpen={commandSearch.setOpen} />
+        </motion.div>
 
         {/* Dark Mode Toggle */}
         <motion.div
