@@ -261,7 +261,7 @@ export default function Leaves() {
                   {/* Grid layout avoids HTML table first-column rendering quirks */}
                   <div className="w-full overflow-x-auto">
                     <div className="min-w-[580px]">
-                      <div className={`grid border-b border-border/50 bg-muted/30 rounded-t-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 ${isAdminOrHR ? "grid-cols-[140px_130px_1fr_50px_90px_80px]" : "grid-cols-[140px_130px_1fr_50px_90px]"}`}>
+                      <div className={`grid border-b border-border/50 bg-muted/30 rounded-t-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 ${isAdminOrHR ? "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px_80px]" : "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px]"}`}>
                         <span>Employee</span>
                         <span>Type</span>
                         <span>Duration</span>
@@ -272,7 +272,7 @@ export default function Leaves() {
                       {pagination.paginatedItems.map((request, idx) => (
                         <div
                           key={request.id}
-                          className={`grid items-center border-b border-border/50 px-4 py-3 text-sm ${isAdminOrHR ? "grid-cols-[140px_130px_1fr_50px_90px_80px]" : "grid-cols-[140px_130px_1fr_50px_90px]"} ${idx % 2 === 1 ? "bg-muted/20" : ""}`}
+                          className={`grid items-center border-b border-border/50 px-4 py-3 text-sm ${isAdminOrHR ? "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px_80px]" : "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px]"} ${idx % 2 === 1 ? "bg-muted/20" : ""}`}
                         >
                           <span className="font-medium truncate pr-2">{request.profiles?.full_name ?? "You"}</span>
                           <span className="truncate pr-2">{leaveTypeConfig[request.leave_type]?.label || request.leave_type}</span>
