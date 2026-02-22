@@ -2039,27 +2039,39 @@ export type Database = {
       }
       organizations: {
         Row: {
+          auto_reset_enabled: boolean
           created_at: string
+          environment_type: string
           id: string
           name: string
+          sandbox_expires_at: string | null
+          sandbox_owner: string | null
           settings: Json | null
           slug: string | null
           status: string
           updated_at: string
         }
         Insert: {
+          auto_reset_enabled?: boolean
           created_at?: string
+          environment_type?: string
           id?: string
           name: string
+          sandbox_expires_at?: string | null
+          sandbox_owner?: string | null
           settings?: Json | null
           slug?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
+          auto_reset_enabled?: boolean
           created_at?: string
+          environment_type?: string
           id?: string
           name?: string
+          sandbox_expires_at?: string | null
+          sandbox_owner?: string | null
           settings?: Json | null
           slug?: string | null
           status?: string
@@ -2579,6 +2591,41 @@ export type Database = {
           },
         ]
       }
+      sandbox_users: {
+        Row: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          persona_role: string
+          sandbox_org_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          email: string
+          id?: string
+          persona_role: string
+          sandbox_org_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          persona_role?: string
+          sandbox_org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sandbox_users_sandbox_org_id_fkey"
+            columns: ["sandbox_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_payments: {
         Row: {
           amount: number
@@ -2881,8 +2928,15 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      clear_sandbox_impersonation: { Args: never; Returns: undefined }
+      create_sandbox_org: {
+        Args: { _auto_reset?: boolean; _name: string }
+        Returns: string
+      }
+      delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
+      get_effective_uid: { Args: never; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -2916,7 +2970,12 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
+      set_sandbox_impersonation: {
+        Args: { _sandbox_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance"
