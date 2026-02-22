@@ -1,26 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAppMode } from "@/contexts/AppModeContext";
-import { useDevMode } from "@/contexts/DevModeContext";
 
 /**
  * Hook to check if user has Admin or HR role
- * Respects dev mode active role for testing
+ * No dev mode bypass — always queries server
  */
 export function useIsAdminOrHR() {
   const { user } = useAuth();
-  const { canShowDevTools } = useAppMode();
-  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-role", user?.id, canShowDevTools, activeRole, "admin-hr"],
+    queryKey: ["user-role", user?.id, "admin-hr"],
     queryFn: async () => {
-      // In dev mode, respect the active role from the role switcher
-      if (canShowDevTools && activeRole) {
-        return activeRole === "admin" || activeRole === "hr";
-      }
-
       if (!user) return false;
       
       const { data, error } = await supabase
@@ -36,29 +27,19 @@ export function useIsAdminOrHR() {
 
       return data && data.length > 0;
     },
-    enabled: !!user || canShowDevTools,
+    enabled: !!user,
   });
 }
 
 /**
  * Hook to check if user has Finance role or Admin role
- * Finance users can access financial modules
- * Admins have access to all modules including finance
  */
 export function useIsFinance() {
   const { user } = useAuth();
-  const { canShowDevTools } = useAppMode();
-  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-role", user?.id, canShowDevTools, activeRole, "finance"],
+    queryKey: ["user-role", user?.id, "finance"],
     queryFn: async () => {
-      // In dev mode, respect the active role from the role switcher
-      if (canShowDevTools && activeRole) {
-        // Admin and finance roles have access
-        return activeRole === "admin" || activeRole === "finance";
-      }
-
       if (!user) return false;
       
       const { data, error } = await supabase
@@ -74,30 +55,21 @@ export function useIsFinance() {
 
       return data && data.length > 0;
     },
-    enabled: !!user || canShowDevTools,
+    enabled: !!user,
   });
 }
 
 /**
  * Hook to check if user is a Manager
- * Managers can view their team data
  */
 export function useIsManager() {
   const { user } = useAuth();
-  const { canShowDevTools } = useAppMode();
-  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-role", user?.id, canShowDevTools, activeRole, "manager"],
+    queryKey: ["user-role", user?.id, "manager"],
     queryFn: async () => {
-      // In dev mode, respect the active role from the role switcher
-      if (canShowDevTools && activeRole) {
-        return activeRole === "manager" || activeRole === "admin" || activeRole === "hr";
-      }
-
       if (!user) return false;
       
-      // Check if user is a manager by looking for employees with this user as manager
       const { data, error } = await supabase
         .from("profiles")
         .select("id")
@@ -111,23 +83,19 @@ export function useIsManager() {
 
       return data && data.length > 0;
     },
-    enabled: !!user || canShowDevTools,
+    enabled: !!user,
   });
 }
 
 /**
  * Hook to get the current user's primary role
- * Returns the highest-privilege role: admin > hr > finance > manager > employee
  */
 export function useCurrentRole() {
   const { user } = useAuth();
-  const { canShowDevTools } = useAppMode();
-  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-role", user?.id, canShowDevTools, activeRole, "current-role"],
+    queryKey: ["user-role", user?.id, "current-role"],
     queryFn: async () => {
-      if (canShowDevTools && activeRole) return activeRole as string;
       if (!user) return null;
 
       const { data, error } = await supabase
@@ -145,8 +113,8 @@ export function useCurrentRole() {
       if (roles.includes("hr")) return "hr";
       if (roles.includes("finance")) return "finance";
       if (roles.includes("manager")) return "manager";
-      return roles.includes("employee") ? "employee" : "employee";
+      return "employee";
     },
-    enabled: !!user || canShowDevTools,
+    enabled: !!user,
   });
 }

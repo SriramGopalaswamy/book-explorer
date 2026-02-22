@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -8,13 +8,14 @@ import {
   ClipboardList,
   ChevronLeft,
   Zap,
-  Settings,
+  FlaskConical,
 } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { PlatformOrgBanner } from "./PlatformOrgBanner";
 
 const platformNav = [
   { name: "Organizations", path: "/platform", icon: Building2 },
+  { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
   { name: "Integrity", path: "/platform/integrity", icon: Shield },
   { name: "Health", path: "/platform/health", icon: Activity },
   { name: "Actions", path: "/platform/actions", icon: Zap },
@@ -34,7 +35,6 @@ export function PlatformLayout({ children, title, subtitle }: PlatformLayoutProp
     <div className="min-h-screen bg-background">
       <PlatformOrgBanner />
 
-      {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-md">
         <div className="flex h-14 items-center gap-4 px-6">
           <NavLink to="/" className="flex items-center gap-2 mr-4">
@@ -85,7 +85,6 @@ export function PlatformLayout({ children, title, subtitle }: PlatformLayoutProp
         </div>
       </header>
 
-      {/* Page content */}
       <main className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">{title}</h1>
