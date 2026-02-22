@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
-import { AIChatAssistant } from "@/components/ai/AIChatAssistant";
+import { AIChatAssistantGuarded } from "@/components/ai/AIChatAssistantGuarded";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -133,7 +133,7 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-            <AIChatAssistant />
+            <AIChatAssistantGuarded />
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
