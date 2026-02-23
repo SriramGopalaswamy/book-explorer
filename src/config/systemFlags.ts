@@ -24,16 +24,18 @@ export const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || (!isProducti
 export const ALLOW_PERMISSION_EDITING = import.meta.env.VITE_ALLOW_PERMISSION_EDITING === 'true' || (!isProduction && import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false');
 
 /**
- * AI_CHAT_ENABLED - Controls the floating AI chat assistant
- * Phase 1 soft decommission: set to false to hide chatbot UI
+ * AI_CHAT_ENABLED - DECOMMISSIONED
+ * Chatbot has been permanently removed and replaced by Financial Risk Monitor.
+ * Kept as false constant for backward compatibility with any remaining references.
  */
-export const AI_CHAT_ENABLED = import.meta.env.VITE_AI_CHAT_ENABLED === 'true' ? true : false;
+export const AI_CHAT_ENABLED = false;
 
 /**
- * AI_ANALYTICS_ENABLED - Controls AI insight widgets and module insight bars
- * Phase 1 soft decommission: set to false to disable AI analytics
+ * AI_ANALYTICS_ENABLED - DECOMMISSIONED
+ * LLM-based analytics have been permanently replaced by structured Financial Control Center.
+ * Kept as false constant for backward compatibility with any remaining references.
  */
-export const AI_ANALYTICS_ENABLED = import.meta.env.VITE_AI_ANALYTICS_ENABLED === 'true' ? true : false;
+export const AI_ANALYTICS_ENABLED = false;
 
 /**
  * Get all system flags
@@ -58,8 +60,8 @@ export const logSystemFlags = () => {
   console.log(`Production:              ${isProduction}`);
   console.log(`Developer Mode:          ${DEV_MODE ? '✓ ENABLED' : '✗ DISABLED'}`);
   console.log(`Permission Editing:      ${ALLOW_PERMISSION_EDITING ? '✓ ENABLED' : '✗ DISABLED'}`);
-  console.log(`AI Chat:                 ${AI_CHAT_ENABLED ? '✓ ENABLED' : '✗ DISABLED'}`);
-  console.log(`AI Analytics:            ${AI_ANALYTICS_ENABLED ? '✓ ENABLED' : '✗ DISABLED'}`);
+  console.log(`AI Chat:                 ✗ DECOMMISSIONED`);
+  console.log(`AI Analytics:            ✗ DECOMMISSIONED → Financial Risk Monitor`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   if (isProduction && (DEV_MODE || ALLOW_PERMISSION_EDITING)) {
