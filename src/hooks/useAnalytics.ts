@@ -71,7 +71,7 @@ const EXPENSE_COLORS = [
   "hsl(120, 40%, 45%)",
 ];
 
-// Fetch chart of accounts
+// Fetch chart of accounts — org-scoped via RLS (includes onboarding-seeded accounts)
 export function useChartOfAccounts() {
   const { user } = useAuth();
   return useQuery({
@@ -81,7 +81,6 @@ export function useChartOfAccounts() {
       const { data, error } = await supabase
         .from("chart_of_accounts")
         .select("*")
-        .eq("user_id", user.id)
         .order("account_code");
       if (error) throw error;
       return data as ChartAccount[];
@@ -198,7 +197,7 @@ export function useBalanceSheet() {
   } as BalanceSheetData;
 }
 
-// Expense breakdown with percentages — sourced from financial_records (same as dashboard)
+// Expense breakdown with percentages — org-scoped via RLS
 export function useExpenseByCategory() {
   const { user } = useAuth();
 
@@ -209,7 +208,6 @@ export function useExpenseByCategory() {
       const { data, error } = await supabase
         .from("financial_records")
         .select("category, amount")
-        .eq("user_id", user.id)
         .eq("type", "expense");
       if (error) throw error;
       return data;
@@ -231,7 +229,7 @@ export function useExpenseByCategory() {
   })) as ExpenseByCategoryData[];
 }
 
-// AR Aging from invoices
+// AR Aging from invoices — org-scoped via RLS
 export function useARAging() {
   const { user } = useAuth();
 
@@ -243,7 +241,6 @@ export function useARAging() {
       const { data, error } = await supabase
         .from("invoices")
         .select("amount, due_date, status")
-        .eq("user_id", user.id)
         .in("status", ["sent", "overdue", "draft"]);
 
       if (error) throw error;
@@ -272,7 +269,7 @@ export function useARAging() {
   });
 }
 
-// Monthly revenue trend from financial records
+// Monthly revenue trend — org-scoped via RLS
 export function useMonthlyTrend() {
   const { user } = useAuth();
 
@@ -287,7 +284,6 @@ export function useMonthlyTrend() {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("user_id", user.id)
         .gte("record_date", twelveMonthsAgo.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -325,7 +321,7 @@ export function useMonthlyTrend() {
   });
 }
 
-// Revenue by source — sourced from financial_records (same as dashboard)
+// Revenue by source — org-scoped via RLS
 export function useRevenueBySource() {
   const { user } = useAuth();
 
@@ -336,7 +332,6 @@ export function useRevenueBySource() {
       const { data, error } = await supabase
         .from("financial_records")
         .select("category, amount")
-        .eq("user_id", user.id)
         .eq("type", "revenue");
       if (error) throw error;
       return data;
@@ -373,7 +368,7 @@ function getDefaultMonthlyTrend(): MonthlyTrendData[] {
   }));
 }
 
-// All-time P&L from financial_records (matches dashboard data source)
+// All-time P&L — org-scoped via RLS
 export function useProfitLossAllTime() {
   const { user } = useAuth();
 
@@ -384,8 +379,7 @@ export function useProfitLossAllTime() {
 
       const { data, error } = await supabase
         .from("financial_records")
-        .select("type, category, amount")
-        .eq("user_id", user.id);
+        .select("type, category, amount");
 
       if (error) throw error;
 
@@ -415,7 +409,7 @@ export function useProfitLossAllTime() {
   });
 }
 
-// P&L computed from financial_records filtered by date range
+// P&L by date range — org-scoped via RLS
 export function useProfitLossForPeriod(from?: Date, to?: Date) {
   const { user } = useAuth();
 
@@ -426,8 +420,7 @@ export function useProfitLossForPeriod(from?: Date, to?: Date) {
 
       let query = supabase
         .from("financial_records")
-        .select("*")
-        .eq("user_id", user.id);
+        .select("*");
 
       if (from) query = query.gte("record_date", from.toISOString().split("T")[0]);
       if (to) query = query.lte("record_date", to.toISOString().split("T")[0]);

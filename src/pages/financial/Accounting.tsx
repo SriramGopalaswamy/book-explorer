@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
 
 const REVENUE_CATEGORIES = ["Software Services", "SaaS Subscriptions", "Training & Workshops", "Support Contracts", "Consulting"];
 const EXPENSE_CATEGORIES = ["Salaries & Wages", "Rent & Utilities", "Cloud & Infrastructure", "Marketing & Sales", "Professional Fees", "Travel & Conveyance", "Office Supplies", "Depreciation"];
@@ -277,7 +278,7 @@ export default function Accounting() {
       subtitle="Manage your financial transactions and ledgers"
     >
       <div className="space-y-6 animate-fade-in">
-        {/* Stats */}
+        <OnboardingBanner />
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
             All-time totals · Dashboard shows current month only

@@ -8,6 +8,7 @@ import {
 import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod, useProfitLossAllTime } from "@/hooks/useAnalytics";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
 
 // Report components
 import { ProfitLossStatement } from "@/components/analytics/ProfitLossStatement";
@@ -76,7 +77,7 @@ export default function Analytics() {
   return (
     <MainLayout title="Analytics & Reports" subtitle="Comprehensive financial intelligence and standard reports">
       <div className="space-y-6 animate-fade-in">
-        {/* KPI Cards — sourced from financial_records (same as main dashboard) */}
+        <OnboardingBanner />
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
             {hasDateFilter ? `Filtered period` : "All-time totals · same source as dashboard"}

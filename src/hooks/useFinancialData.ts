@@ -46,6 +46,7 @@ const categoryColors: Record<string, string> = {
   "Investments":     "hsl(38, 95%, 55%)",   // vivid amber
 };
 
+// Org-scoped via RLS — no user_id filter needed for SELECT
 export function useFinancialRecords() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
@@ -59,7 +60,6 @@ export function useFinancialRecords() {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("user_id", user.id)
         .order("record_date", { ascending: false });
 
       if (error) throw error;
@@ -69,6 +69,7 @@ export function useFinancialRecords() {
   });
 }
 
+// Monthly revenue — org-scoped via RLS
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
@@ -88,7 +89,6 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("user_id", user.id)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
@@ -129,6 +129,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   });
 }
 
+// Expense breakdown — org-scoped via RLS
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
@@ -147,7 +148,6 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("user_id", user.id)
         .eq("type", "expense")
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
