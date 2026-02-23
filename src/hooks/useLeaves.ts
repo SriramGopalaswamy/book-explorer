@@ -246,6 +246,7 @@ export function useApproveLeaveRequest() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave request approved");
       if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_approved", entity_type: "leave_request", entity_id: data.id, target_user_id: data.user_id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date, days: data.days } });
       supabase.functions.invoke("send-notification-email", {
@@ -280,6 +281,7 @@ export function useRejectLeaveRequest() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave request rejected");
       if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_rejected", entity_type: "leave_request", entity_id: data.id, target_user_id: data.user_id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date } });
       supabase.functions.invoke("send-notification-email", {
