@@ -2,21 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { useDevMode } from "@/contexts/DevModeContext";
-import { useAppMode } from "@/contexts/AppModeContext";
 import { mockEmployees } from "@/lib/mock-data";
 
 export function useIsManager() {
   const { user } = useAuth();
-  const { canShowDevTools } = useAppMode();
-  const { activeRole } = useDevMode();
 
   return useQuery({
-    queryKey: ["user-is-manager", user?.id, canShowDevTools, activeRole],
+    queryKey: ["user-is-manager", user?.id],
     queryFn: async () => {
-      if (canShowDevTools && activeRole) {
-        return ["admin", "hr", "manager"].includes(activeRole);
-      }
       if (!user) return false;
       const { data, error } = await supabase
         .from("user_roles")
@@ -26,7 +19,7 @@ export function useIsManager() {
       if (error) return false;
       return data && data.length > 0;
     },
-    enabled: !!user || canShowDevTools,
+    enabled: !!user,
   });
 }
 
@@ -38,13 +31,11 @@ export function useDirectReports() {
     queryKey: ["direct-reports", user?.id, isDevMode],
     queryFn: async () => {
       if (isDevMode) {
-        // In dev mode, show mock employees that report to the CEO (dev user)
         const manager = mockEmployees.find((e) => e.user_id === "dev-mode-user");
         return mockEmployees.filter((e) => e.manager_id === manager?.id);
       }
       if (!user) return [];
 
-      // Get the current user's profile id
       const { data: myProfile, error: profileError } = await supabase
         .from("profiles")
         .select("id")
@@ -53,7 +44,6 @@ export function useDirectReports() {
 
       if (profileError || !myProfile) return [];
 
-      // Get direct reports
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -123,7 +113,6 @@ export function useLeaveApproval() {
     mutationFn: async ({ leaveId, action }: { leaveId: string; action: "approved" | "rejected" }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Fetch reviewer's name for the notification
       const { data: reviewerProfile } = await supabase
         .from("profiles")
         .select("full_name")
@@ -144,7 +133,6 @@ export function useLeaveApproval() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
-      // Notify employee via in-app + email (fire-and-forget)
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "leave_request_decided",
