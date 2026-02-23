@@ -2044,6 +2044,7 @@ export type Database = {
           environment_type: string
           id: string
           name: string
+          org_state: string
           sandbox_expires_at: string | null
           sandbox_owner: string | null
           settings: Json | null
@@ -2057,6 +2058,7 @@ export type Database = {
           environment_type?: string
           id?: string
           name: string
+          org_state?: string
           sandbox_expires_at?: string | null
           sandbox_owner?: string | null
           settings?: Json | null
@@ -2070,6 +2072,7 @@ export type Database = {
           environment_type?: string
           id?: string
           name?: string
+          org_state?: string
           sandbox_expires_at?: string | null
           sandbox_owner?: string | null
           settings?: Json | null
@@ -2929,6 +2932,7 @@ export type Database = {
         Returns: boolean
       }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
+      controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
       create_sandbox_org: {
         Args: { _auto_reset?: boolean; _name: string }
         Returns: string
@@ -2971,6 +2975,7 @@ export type Database = {
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
         Args: { _sandbox_user_id: string }
