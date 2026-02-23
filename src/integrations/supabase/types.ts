@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_alerts: {
+        Row: {
+          alert_type: string
+          amount: number | null
+          created_at: string
+          description: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          is_resolved: boolean
+          metadata: Json | null
+          organization_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          alert_type: string
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_resolved?: boolean
+          metadata?: Json | null
+          organization_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          alert_type?: string
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_resolved?: boolean
+          metadata?: Json | null
+          organization_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_calibration: {
         Row: {
           avg_ticket_size: number | null
@@ -51,6 +113,247 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_customer_profiles: {
+        Row: {
+          avg_payment_days: number | null
+          created_at: string
+          customer_id: string
+          id: string
+          last_payment_date: string | null
+          lifetime_value: number | null
+          metadata: Json | null
+          organization_id: string
+          overdue_amount: number | null
+          overdue_invoices_count: number | null
+          risk_score: number
+          trend: string | null
+          updated_at: string
+        }
+        Insert: {
+          avg_payment_days?: number | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_payment_date?: string | null
+          lifetime_value?: number | null
+          metadata?: Json | null
+          organization_id: string
+          overdue_amount?: number | null
+          overdue_invoices_count?: number | null
+          risk_score?: number
+          trend?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avg_payment_days?: number | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_payment_date?: string | null
+          lifetime_value?: number | null
+          metadata?: Json | null
+          organization_id?: string
+          overdue_amount?: number | null
+          overdue_invoices_count?: number | null
+          risk_score?: number
+          trend?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_customer_profiles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_customer_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_financial_snapshots: {
+        Row: {
+          burn_rate_daily: number | null
+          cash_position: number
+          created_at: string
+          expenses_30d: number | null
+          health_score: number
+          id: string
+          metadata: Json | null
+          net_margin_pct: number | null
+          organization_id: string
+          payables_overdue: number | null
+          payables_total: number | null
+          receivables_overdue: number | null
+          receivables_total: number | null
+          revenue_30d: number | null
+          runway_days: number | null
+          snapshot_date: string
+          updated_at: string
+        }
+        Insert: {
+          burn_rate_daily?: number | null
+          cash_position?: number
+          created_at?: string
+          expenses_30d?: number | null
+          health_score?: number
+          id?: string
+          metadata?: Json | null
+          net_margin_pct?: number | null
+          organization_id: string
+          payables_overdue?: number | null
+          payables_total?: number | null
+          receivables_overdue?: number | null
+          receivables_total?: number | null
+          revenue_30d?: number | null
+          runway_days?: number | null
+          snapshot_date?: string
+          updated_at?: string
+        }
+        Update: {
+          burn_rate_daily?: number | null
+          cash_position?: number
+          created_at?: string
+          expenses_30d?: number | null
+          health_score?: number
+          id?: string
+          metadata?: Json | null
+          net_margin_pct?: number | null
+          organization_id?: string
+          payables_overdue?: number | null
+          payables_total?: number | null
+          receivables_overdue?: number | null
+          receivables_total?: number | null
+          revenue_30d?: number | null
+          runway_days?: number | null
+          snapshot_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_financial_snapshots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_risk_scores: {
+        Row: {
+          cash_risk: number
+          compliance_risk: number
+          created_at: string
+          id: string
+          margin_risk: number
+          metadata: Json | null
+          organization_id: string
+          overall_risk: number
+          receivables_risk: number
+          score_date: string
+          updated_at: string
+        }
+        Insert: {
+          cash_risk?: number
+          compliance_risk?: number
+          created_at?: string
+          id?: string
+          margin_risk?: number
+          metadata?: Json | null
+          organization_id: string
+          overall_risk?: number
+          receivables_risk?: number
+          score_date?: string
+          updated_at?: string
+        }
+        Update: {
+          cash_risk?: number
+          compliance_risk?: number
+          created_at?: string
+          id?: string
+          margin_risk?: number
+          metadata?: Json | null
+          organization_id?: string
+          overall_risk?: number
+          receivables_risk?: number
+          score_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_risk_scores_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_vendor_profiles: {
+        Row: {
+          avg_delivery_days: number | null
+          created_at: string
+          dispute_count: number | null
+          id: string
+          last_bill_date: string | null
+          metadata: Json | null
+          organization_id: string
+          reliability_score: number
+          total_spend: number | null
+          trend: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          avg_delivery_days?: number | null
+          created_at?: string
+          dispute_count?: number | null
+          id?: string
+          last_bill_date?: string | null
+          metadata?: Json | null
+          organization_id: string
+          reliability_score?: number
+          total_spend?: number | null
+          trend?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          avg_delivery_days?: number | null
+          created_at?: string
+          dispute_count?: number | null
+          id?: string
+          last_bill_date?: string | null
+          metadata?: Json | null
+          organization_id?: string
+          reliability_score?: number
+          total_spend?: number | null
+          trend?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_vendor_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_vendor_profiles_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
