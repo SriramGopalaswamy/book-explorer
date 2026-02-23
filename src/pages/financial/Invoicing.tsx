@@ -174,11 +174,11 @@ export default function Invoicing() {
   // Create form state
   const [createStatus, setCreateStatus] = useState<"draft" | "sent">("draft");
   const [lineItems, setLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [formMeta, setFormMeta] = useState({ dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
 
   // Edit form state
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [editFormMeta, setEditFormMeta] = useState({ dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
 
   if (isCheckingRole) {
     return (
@@ -250,6 +250,7 @@ export default function Invoicing() {
         client_email: customer.email || "",
         customer_id: customer.id,
         amount: total,
+        invoice_date: formMeta.invoiceDate,
         due_date: formMeta.dueDate,
         status: createStatus,
         place_of_supply: formMeta.placeOfSupply,
@@ -278,7 +279,7 @@ export default function Invoicing() {
         onSuccess: () => {
           setSelectedCustomerId("");
           setLineItems([{ ...emptyLineItem }]);
-          setFormMeta({ dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
           setCreateStatus("draft");
           setIsDialogOpen(false);
         },
@@ -303,6 +304,7 @@ export default function Invoicing() {
         : [{ ...emptyLineItem, rate: String(invoice.amount) }]
     );
     setEditFormMeta({
+      invoiceDate: (invoice as any).invoice_date || invoice.created_at?.split("T")[0] || "",
       dueDate: invoice.due_date,
       notes: (invoice as any).notes || "",
       placeOfSupply: (invoice as any).place_of_supply || "",
@@ -333,6 +335,7 @@ export default function Invoicing() {
         client_email: customer.email || "",
         customer_id: customer.id,
         amount: total,
+        invoice_date: editFormMeta.invoiceDate,
         due_date: editFormMeta.dueDate,
         place_of_supply: editFormMeta.placeOfSupply,
         payment_terms: editFormMeta.paymentTerms,
@@ -502,7 +505,11 @@ export default function Invoicing() {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Invoice Date *</Label>
+                        <Input type="date" value={formMeta.invoiceDate} onChange={e => setFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                      </div>
                       <div className="grid gap-2">
                         <Label>Due Date *</Label>
                         <Input type="date" value={formMeta.dueDate} onChange={e => setFormMeta(prev => ({ ...prev, dueDate: e.target.value }))} />
@@ -558,7 +565,11 @@ export default function Invoicing() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Invoice Date *</Label>
+                        <Input type="date" value={editFormMeta.invoiceDate} onChange={e => setEditFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                      </div>
                       <div className="grid gap-2">
                         <Label>Due Date *</Label>
                         <Input type="date" value={editFormMeta.dueDate} onChange={e => setEditFormMeta(prev => ({ ...prev, dueDate: e.target.value }))} />
@@ -607,11 +618,12 @@ export default function Invoicing() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
+                     <TableHead>Invoice #</TableHead>
+                     <TableHead>Client</TableHead>
+                     <TableHead>Amount</TableHead>
+                     <TableHead>Invoice Date</TableHead>
+                     <TableHead>Due Date</TableHead>
+                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -634,6 +646,7 @@ export default function Invoicing() {
                           </div>
                         </TableCell>
                         <TableCell className="font-semibold">{formatCurrency(Number(invoice.amount))}</TableCell>
+                        <TableCell className="text-muted-foreground">{(invoice as any).invoice_date || invoice.created_at?.split("T")[0]}</TableCell>
                         <TableCell>{invoice.due_date}</TableCell>
                         <TableCell>
                           <Badge variant={statusConfig.variant} className={statusConfig.className}>
@@ -723,6 +736,10 @@ export default function Invoicing() {
                     <p className="text-xs text-muted-foreground">Client</p>
                     <p className="font-medium">{viewingInvoice.client_name}</p>
                     <p className="text-sm text-muted-foreground">{viewingInvoice.client_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Invoice Date</p>
+                    <p className="font-medium">{(viewingInvoice as any).invoice_date || viewingInvoice.created_at?.split("T")[0]}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Due Date</p>
