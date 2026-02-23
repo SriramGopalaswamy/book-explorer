@@ -55,30 +55,14 @@ export function useUserOrganization() {
 export function useOnboardingStatus() {
   const { data: org, isLoading: orgLoading } = useUserOrganization();
 
-  const { data: snapshot, isLoading: snapLoading } = useQuery({
-    queryKey: ["onboarding-snapshot", org?.organizationId],
-    queryFn: async () => {
-      if (!org?.organizationId) return null;
-
-      const { data, error } = await supabase
-        .from("onboarding_snapshots")
-        .select("id, version, initialized_at")
-        .eq("organization_id", org.organizationId)
-        .order("version", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!org?.organizationId,
-    staleTime: 1000 * 60 * 5,
-  });
+  // If the org is in "active" state, it's considered initialized.
+  // The onboarding_snapshots table may not exist yet, so we don't rely on it.
+  const initialized = org?.orgState === "active";
 
   return {
-    initialized: org?.orgState === "active" && !!snapshot,
+    initialized,
     orgState: org?.orgState,
-    loading: orgLoading || snapLoading,
-    snapshot,
+    loading: orgLoading,
+    snapshot: null,
   };
 }
