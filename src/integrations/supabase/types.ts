@@ -1223,6 +1223,121 @@ export type Database = {
           },
         ]
       }
+      employee_details: {
+        Row: {
+          aadhaar_last_four: string | null
+          address_line1: string | null
+          address_line2: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_ifsc: string | null
+          bank_name: string | null
+          blood_group: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          date_of_birth: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relation: string | null
+          employee_id_number: string | null
+          esi_number: string | null
+          gender: string | null
+          id: string
+          marital_status: string | null
+          nationality: string | null
+          organization_id: string
+          pan_number: string | null
+          pincode: string | null
+          profile_id: string
+          state: string | null
+          uan_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          aadhaar_last_four?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_ifsc?: string | null
+          bank_name?: string | null
+          blood_group?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relation?: string | null
+          employee_id_number?: string | null
+          esi_number?: string | null
+          gender?: string | null
+          id?: string
+          marital_status?: string | null
+          nationality?: string | null
+          organization_id?: string
+          pan_number?: string | null
+          pincode?: string | null
+          profile_id: string
+          state?: string | null
+          uan_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aadhaar_last_four?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_ifsc?: string | null
+          bank_name?: string | null
+          blood_group?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relation?: string | null
+          employee_id_number?: string | null
+          esi_number?: string | null
+          gender?: string | null
+          id?: string
+          marital_status?: string | null
+          nationality?: string | null
+          organization_id?: string
+          pan_number?: string | null
+          pincode?: string | null
+          profile_id?: string
+          state?: string | null
+          uan_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_details_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
