@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PlatformLayout } from "@/components/platform/PlatformLayout";
 import { useOrganizations, useOrgMemberCounts, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,24 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+function getStateBadge(status: string, orgState: string) {
+  if (status === "active" && orgState === "active") {
+    return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">🟢 Operational</Badge>;
+  }
+  if (orgState === "initializing" || orgState === "draft") {
+    return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">🟡 {orgState}</Badge>;
+  }
+  if (orgState === "locked" || status === "suspended") {
+    return <Badge variant="destructive">🔴 {status === "suspended" ? "Suspended" : "Locked"}</Badge>;
+  }
+  if (orgState === "archived") {
+    return <Badge className="bg-neutral-500/10 text-neutral-400 border-neutral-500/20">⚫ Archived</Badge>;
+  }
+  return <Badge variant="outline">{orgState}</Badge>;
+}
+
 export default function PlatformOrganizations() {
+  const navigate = useNavigate();
   const { data: orgs, isLoading } = useOrganizations();
   const { data: memberCounts } = useOrgMemberCounts();
   const logAction = useLogPlatformAction();
@@ -19,28 +37,22 @@ export default function PlatformOrganizations() {
   const switchToOrg = async (orgId: string, orgName: string) => {
     setSwitching(orgId);
     try {
-      // SECURITY: Call server-side RPC to set session context first
       const { error: rpcError } = await supabase.rpc("set_org_context", { _org_id: orgId });
       if (rpcError) {
         toast.error(`Failed to set org context: ${rpcError.message}`);
         return;
       }
-
-      // Only update frontend state AFTER RPC succeeds
       sessionStorage.setItem(
         "platform_active_org",
         JSON.stringify({ id: orgId, name: orgName })
       );
       window.dispatchEvent(new Event("platform-org-changed"));
-
-      // Log the switch event
       await logAction.mutateAsync({
         action: "org_switch",
         target_type: "organization",
         target_id: orgId,
         target_name: orgName,
       });
-
       toast.success(`Switched to ${orgName}`);
     } catch (err: any) {
       toast.error(`Org switch failed: ${err.message}`);
@@ -50,11 +62,11 @@ export default function PlatformOrganizations() {
   };
 
   return (
-    <PlatformLayout title="Organizations" subtitle="All registered tenants in the platform">
+    <PlatformLayout title="Tenants" subtitle="All registered tenants in the platform">
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Organizations</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Tenants</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">{orgs?.length ?? 0}</div>
@@ -62,21 +74,21 @@ export default function PlatformOrganizations() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Operational</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {orgs?.filter((o) => (o as any).status !== "suspended").length ?? 0}
+              {orgs?.filter((o) => (o as any).status !== "suspended" && (o as any).org_state === "active").length ?? 0}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Suspended</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Suspended / Locked</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {orgs?.filter((o) => (o as any).status === "suspended").length ?? 0}
+              {orgs?.filter((o) => (o as any).status === "suspended" || (o as any).org_state === "locked").length ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -86,7 +98,7 @@ export default function PlatformOrganizations() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Organizations
+            Tenants
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -98,8 +110,8 @@ export default function PlatformOrganizations() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Legal Name</TableHead>
+                  <TableHead>Operational Readiness</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Members</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -107,7 +119,7 @@ export default function PlatformOrganizations() {
               </TableHeader>
               <TableBody>
                 {(orgs ?? []).map((org) => (
-                  <TableRow key={org.id}>
+                  <TableRow key={org.id} className="cursor-pointer" onClick={() => navigate(`/platform/tenant/${org.id}`)}>
                     <TableCell className="font-medium text-foreground">
                       {org.name}
                       {org.slug && (
@@ -115,12 +127,7 @@ export default function PlatformOrganizations() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={(org as any).status === "suspended" ? "destructive" : "default"}
-                        className={(org as any).status !== "suspended" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : ""}
-                      >
-                        {(org as any).status ?? "active"}
-                      </Badge>
+                      {getStateBadge((org as any).status ?? "active", (org as any).org_state ?? "active")}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {format(new Date(org.created_at), "MMM d, yyyy")}
@@ -135,7 +142,10 @@ export default function PlatformOrganizations() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => switchToOrg(org.id, org.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          switchToOrg(org.id, org.name);
+                        }}
                         disabled={switching === org.id}
                       >
                         {switching === org.id ? (

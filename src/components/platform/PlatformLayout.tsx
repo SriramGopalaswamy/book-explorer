@@ -14,11 +14,11 @@ import grx10Logo from "@/assets/grx10-logo.webp";
 import { PlatformOrgBanner } from "./PlatformOrgBanner";
 
 const platformNav = [
-  { name: "Organizations", path: "/platform", icon: Building2 },
-  { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
-  { name: "Integrity", path: "/platform/integrity", icon: Shield },
-  { name: "Health", path: "/platform/health", icon: Activity },
+  { name: "Tenants", path: "/platform", icon: Building2 },
+  { name: "Integrity Monitor", path: "/platform/integrity", icon: Shield },
+  { name: "System Health", path: "/platform/health", icon: Activity },
   { name: "Actions", path: "/platform/actions", icon: Zap },
+  { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
   { name: "Audit Console", path: "/platform/audit", icon: ClipboardList },
 ];
 

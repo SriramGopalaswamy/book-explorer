@@ -342,7 +342,12 @@ export function Sidebar() {
             {isSuperAdmin && (
               <NavSection
                 title="Platform"
-                items={[{ name: "Control Plane", path: "/platform", icon: Crown }]}
+                items={[
+                  { name: "Tenants", path: "/platform", icon: Building2 },
+                  { name: "Integrity Monitor", path: "/platform/integrity", icon: Shield },
+                  { name: "Audit Console", path: "/platform/audit", icon: Crown },
+                  { name: "System Health", path: "/platform/health", icon: Settings },
+                ]}
                 sectionId="platform"
                 collapsed={collapsed}
                 onItemClick={closeMobile}
