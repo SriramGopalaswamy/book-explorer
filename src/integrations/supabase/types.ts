@@ -1402,6 +1402,66 @@ export type Database = {
           },
         ]
       }
+      gl_accounts: {
+        Row: {
+          account_type: string
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          normal_balance: string
+          organization_id: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_type: string
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          normal_balance?: string
+          organization_id: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_type?: string
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          normal_balance?: string
+          organization_id?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goal_plans: {
         Row: {
           created_at: string
@@ -1835,6 +1895,108 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entry_date: string
+          id: string
+          is_reversal: boolean
+          memo: string | null
+          organization_id: string
+          posted_at: string
+          reversed_entry_id: string | null
+          source_id: string | null
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          id?: string
+          is_reversal?: boolean
+          memo?: string | null
+          organization_id: string
+          posted_at?: string
+          reversed_entry_id?: string | null
+          source_id?: string | null
+          source_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          id?: string
+          is_reversal?: boolean
+          memo?: string | null
+          organization_id?: string
+          posted_at?: string
+          reversed_entry_id?: string | null
+          source_id?: string | null
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_lines: {
+        Row: {
+          created_at: string
+          credit: number
+          debit: number
+          description: string | null
+          gl_account_id: string
+          id: string
+          journal_entry_id: string
+        }
+        Insert: {
+          created_at?: string
+          credit?: number
+          debit?: number
+          description?: string | null
+          gl_account_id: string
+          id?: string
+          journal_entry_id: string
+        }
+        Update: {
+          created_at?: string
+          credit?: number
+          debit?: number
+          description?: string | null
+          gl_account_id?: string
+          id?: string
+          journal_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_lines_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -3126,6 +3288,10 @@ export type Database = {
       get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
       get_effective_uid: { Args: never; Returns: string }
+      get_gl_account_id: {
+        Args: { _code: string; _org_id: string }
+        Returns: string
+      }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -3163,7 +3329,16 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      post_bill_journal: { Args: { _bill_id: string }; Returns: string }
+      post_bill_payment_journal: { Args: { _bill_id: string }; Returns: string }
+      post_expense_journal: { Args: { _expense_id: string }; Returns: string }
+      post_invoice_journal: { Args: { _invoice_id: string }; Returns: string }
+      post_invoice_payment_journal: {
+        Args: { _invoice_id: string }
+        Returns: string
+      }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
