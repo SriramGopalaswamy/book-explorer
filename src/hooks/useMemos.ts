@@ -131,6 +131,19 @@ export function useCreateMemo() {
       recipients: string[];
       attachment_url?: string | null;
     }) => {
+      if (!user?.id) throw new Error("You must be logged in to create a memo");
+
+      // Fetch the user's organization_id so the insert passes RLS
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profileError || !profile?.organization_id) {
+        throw new Error("Could not determine your organization. Please contact an admin.");
+      }
+
       const excerpt = memo.content
         ? memo.content.substring(0, 150) + (memo.content.length > 150 ? "..." : "")
         : null;
@@ -148,7 +161,8 @@ export function useCreateMemo() {
           author_name: memo.author_name,
           recipients: memo.recipients,
           attachment_url: memo.attachment_url ?? null,
-          user_id: user?.id,
+          user_id: user.id,
+          organization_id: profile.organization_id,
           published_at: null,
         } as any)
         .select()
