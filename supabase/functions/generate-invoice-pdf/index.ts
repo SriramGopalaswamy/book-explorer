@@ -172,21 +172,22 @@ serve(async (req) => {
     const leftMargin = 40;
     const rightEdge = width - 40;
 
-    // Try to embed logo if available
+    // Try to embed logo — use company logo from settings, or fall back to GRX10 branding logo
     let logoImage: any = null;
-    if (s.logo_url) {
-      try {
-        const logoResponse = await fetch(s.logo_url);
+    const logoUrl = s.logo_url || `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/branding/grx10-logo.png`;
+    try {
+      const logoResponse = await fetch(logoUrl);
+      if (logoResponse.ok) {
         const logoBytes = new Uint8Array(await logoResponse.arrayBuffer());
         const contentType = logoResponse.headers.get("content-type") || "";
-        if (contentType.includes("png")) {
+        if (contentType.includes("png") || contentType.includes("webp")) {
           logoImage = await pdfDoc.embedPng(logoBytes);
         } else {
           logoImage = await pdfDoc.embedJpg(logoBytes);
         }
-      } catch (e) {
-        console.log("Could not embed logo:", e);
       }
+    } catch (e) {
+      console.log("Could not embed logo:", e);
     }
 
     // ========== COMPANY HEADER ==========
