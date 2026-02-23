@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { AI_ANALYTICS_ENABLED, AI_CHAT_ENABLED } from "@/config/systemFlags";
 
 export interface AIInsight {
   severity: "critical" | "warning" | "opportunity" | "positive";
@@ -29,8 +30,9 @@ export function useAIInsights(module: string = "dashboard") {
       if (error) throw error;
       return data as AIInsightsResponse;
     },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000, // 5 min
+    // Phase 1: Disable queries when AI analytics flag is off
+    enabled: !!user && AI_ANALYTICS_ENABLED,
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }

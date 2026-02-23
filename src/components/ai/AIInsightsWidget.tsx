@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
+import { AI_ANALYTICS_ENABLED } from "@/config/systemFlags";
 
 const severityConfig = {
   critical: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/30", badge: "bg-red-500/20 text-red-300" },
@@ -30,6 +31,9 @@ interface Props {
 export function AIInsightsWidget({ module = "dashboard", compact = false }: Props) {
   const { data, isLoading, error, refetch, isFetching } = useAIInsights(module);
   const [expanded, setExpanded] = useState(!compact);
+
+  // Phase 1: Feature flag kill switch — render nothing when disabled
+  if (!AI_ANALYTICS_ENABLED) return null;
 
   if (isLoading) {
     return (
@@ -68,7 +72,6 @@ export function AIInsightsWidget({ module = "dashboard", compact = false }: Prop
 
   return (
     <Card className="overflow-hidden border-primary/20 bg-card/80 backdrop-blur-sm">
-      {/* Header */}
       <div
         className="p-6 pb-4 cursor-pointer"
         onClick={() => compact && setExpanded(!expanded)}
@@ -109,14 +112,12 @@ export function AIInsightsWidget({ module = "dashboard", compact = false }: Prop
         </div>
       </div>
 
-      {/* One-liner */}
       <div className="px-6 pb-3">
         <p className="text-sm italic text-muted-foreground border-l-2 border-primary/50 pl-3">
           "{data.one_liner}"
         </p>
       </div>
 
-      {/* Insights */}
       <AnimatePresence>
         {expanded && (
           <motion.div
