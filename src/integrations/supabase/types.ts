@@ -1223,6 +1223,44 @@ export type Database = {
           },
         ]
       }
+      document_sequences: {
+        Row: {
+          created_at: string
+          document_type: string
+          id: string
+          next_number: number
+          organization_id: string
+          prefix: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_type: string
+          id?: string
+          next_number?: number
+          organization_id: string
+          prefix?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: string
+          id?: string
+          next_number?: number
+          organization_id?: string
+          prefix?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_details: {
         Row: {
           aadhaar_last_four: string | null
@@ -1517,6 +1555,63 @@ export type Database = {
           },
         ]
       }
+      fiscal_periods: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          end_date: string
+          financial_year_id: string
+          id: string
+          organization_id: string
+          period_name: string
+          period_number: number
+          start_date: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          end_date: string
+          financial_year_id: string
+          id?: string
+          organization_id: string
+          period_name: string
+          period_number: number
+          start_date: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          end_date?: string
+          financial_year_id?: string
+          id?: string
+          organization_id?: string
+          period_name?: string
+          period_number?: number
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_periods_financial_year_id_fkey"
+            columns: ["financial_year_id"]
+            isOneToOne: false
+            referencedRelation: "financial_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gl_accounts: {
         Row: {
           account_type: string
@@ -1525,6 +1620,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          is_locked: boolean
           is_system: boolean
           name: string
           normal_balance: string
@@ -1539,6 +1635,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_locked?: boolean
           is_system?: boolean
           name: string
           normal_balance?: string
@@ -1553,6 +1650,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_locked?: boolean
           is_system?: boolean
           name?: string
           normal_balance?: string
@@ -2021,8 +2119,11 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          document_sequence_number: string | null
           entry_date: string
+          fiscal_period_id: string | null
           id: string
+          is_posted: boolean
           is_reversal: boolean
           memo: string | null
           organization_id: string
@@ -2034,8 +2135,11 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          document_sequence_number?: string | null
           entry_date?: string
+          fiscal_period_id?: string | null
           id?: string
+          is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
           organization_id: string
@@ -2047,8 +2151,11 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          document_sequence_number?: string | null
           entry_date?: string
+          fiscal_period_id?: string | null
           id?: string
+          is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
           organization_id?: string
@@ -2058,6 +2165,13 @@ export type Database = {
           source_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
@@ -3459,6 +3573,10 @@ export type Database = {
       get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
       get_effective_uid: { Args: never; Returns: string }
+      get_fiscal_period: {
+        Args: { _d: string; _org_id: string }
+        Returns: string
+      }
       get_gl_account_id: {
         Args: { _code: string; _org_id: string }
         Returns: string
@@ -3500,6 +3618,10 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      next_document_sequence: {
+        Args: { _doc_type: string; _org_id: string }
+        Returns: string
+      }
       post_bill_journal: { Args: { _bill_id: string }; Returns: string }
       post_bill_payment_journal: { Args: { _bill_id: string }; Returns: string }
       post_expense_journal: { Args: { _expense_id: string }; Returns: string }
@@ -3508,7 +3630,19 @@ export type Database = {
         Args: { _invoice_id: string }
         Returns: string
       }
+      post_journal_entry: {
+        Args: {
+          p_date: string
+          p_doc_id: string
+          p_doc_type: string
+          p_lines: Json
+          p_memo: string
+          p_org_id: string
+        }
+        Returns: string
+      }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      reverse_journal_entry: { Args: { p_eid: string }; Returns: string }
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
