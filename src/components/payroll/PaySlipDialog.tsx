@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Printer } from "lucide-react";
 import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
+import grx10Logo from "@/assets/grx10-logo.webp";
 
 const fmt = (value: number) => {
   if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
@@ -62,6 +63,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 48px; max-width: 740px; margin: 0 auto; }
     .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px solid #e11d74; margin-bottom: 28px; }
+    .hdr-left { display: flex; align-items: center; gap: 14px; }
+    .hdr-logo { height: 44px; width: auto; }
     .hdr-left .co { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #e11d74; margin-bottom: 4px; }
     .hdr-left .doc { font-size: 22px; font-weight: 700; color: #111827; }
     .hdr-left .per { font-size: 13px; color: #6b7280; margin-top: 2px; }
@@ -96,9 +99,12 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 <body>
   <div class="hdr">
     <div class="hdr-left">
+      <img src="${new URL(grx10Logo, window.location.origin).href}" alt="GRX10 Logo" class="hdr-logo" />
+      <div>
       <div class="co">GRX10 Business Suite</div>
       <div class="doc">Pay Slip</div>
       <div class="per">${period}</div>
+      </div>
     </div>
     <span class="status s-${record.status}">${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
   </div>
@@ -173,10 +179,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
         <div className="space-y-6">
           {/* Header */}
           <div className="flex justify-between items-start">
-            <div>
+            <div className="flex items-center gap-3">
+              <img src={grx10Logo} alt="GRX10 Logo" className="h-10 w-auto" />
+              <div>
               <p className="text-xs font-bold tracking-widest text-primary uppercase mb-1">GRX10 Business Suite</p>
               <h2 className="text-xl font-bold">Pay Slip</h2>
               <p className="text-sm text-muted-foreground">{period}</p>
+              </div>
             </div>
             <Badge
               variant="outline"
