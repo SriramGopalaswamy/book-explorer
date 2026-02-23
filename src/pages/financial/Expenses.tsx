@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { ModuleInsightBar } from "@/components/ai/ModuleInsightBar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +109,7 @@ export default function Expenses() {
   return (
     <MainLayout title="Expenses" subtitle="Track out-of-pocket expenses and reimbursements">
       <div className="space-y-6">
-        <ModuleInsightBar module="expenses" />
+        
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="Total Expenses" value={String(expenses.length)} icon={<Wallet className="h-4 w-4" />} />
           <StatCard title="Total Amount" value={formatCurrency(total)} icon={<Wallet className="h-4 w-4" />} />
