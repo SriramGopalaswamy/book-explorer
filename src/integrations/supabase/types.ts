@@ -3622,6 +3622,10 @@ export type Database = {
         Args: { _doc_type: string; _org_id: string }
         Returns: string
       }
+      post_asset_disposal_journal: {
+        Args: { _asset_id: string }
+        Returns: string
+      }
       post_bill_journal: { Args: { _bill_id: string }; Returns: string }
       post_bill_payment_journal: { Args: { _bill_id: string }; Returns: string }
       post_expense_journal: { Args: { _expense_id: string }; Returns: string }
