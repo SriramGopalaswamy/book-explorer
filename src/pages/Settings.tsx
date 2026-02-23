@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,7 +19,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Users, AlertCircle, Trash2, UserPlus } from "lucide-react";
+import { Shield, Users, AlertCircle, Trash2, UserPlus, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
@@ -57,6 +58,20 @@ export default function Settings() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const q = searchQuery.toLowerCase();
+    return users.filter(
+      (u) =>
+        u.full_name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.department?.toLowerCase().includes(q) ||
+        u.job_title?.toLowerCase().includes(q) ||
+        u.roles.some((r) => r.toLowerCase().includes(q))
+    );
+  }, [users, searchQuery]);
 
   useEffect(() => {
     checkAdminAndLoad();
@@ -183,13 +198,24 @@ export default function Settings() {
             <BulkUploadDialog config={bulkUploadConfig} />
           </CardHeader>
           <CardContent>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, department, or role..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
             <div className="space-y-3">
-              {users.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">
-                  No users found. Users will appear here after they sign in.
+                  {users.length === 0
+                    ? "No users found. Users will appear here after they sign in."
+                    : "No users match your search."}
                 </p>
               ) : (
-                users.map((u) => {
+                filteredUsers.map((u) => {
                   const currentRole = u.roles[0] || "employee";
                   const isSelf = u.user_id === user?.id;
                   const isProtected = u.email?.toLowerCase() === "sriram@grx10.com";
