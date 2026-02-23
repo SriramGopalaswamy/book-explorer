@@ -8,7 +8,9 @@ import {
   useIntegrityAudit,
   useControlledReinitialize,
   useOrgStateOverride,
+  useInitializeFinancialOS,
 } from "@/hooks/usePlatformOps";
+import type { FinancialOSCalibration } from "@/hooks/usePlatformOps";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +38,9 @@ import {
   ArrowLeft,
   Lock,
   RefreshCw,
+  Zap,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -85,6 +89,7 @@ export default function PlatformTenantDetail() {
   const { data: audit, isLoading: auditLoading, refetch: refetchAudit } = useIntegrityAudit(orgId ?? null);
   const reinitialize = useControlledReinitialize();
   const stateOverride = useOrgStateOverride();
+  const initFinancialOS = useInitializeFinancialOS();
 
   // Reinitialization modal state
   const [reinitOpen, setReinitOpen] = useState(false);
@@ -97,6 +102,15 @@ export default function PlatformTenantDetail() {
   // State override
   const [overrideState, setOverrideState] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
+
+  // Financial OS onboarding modal
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [calibration, setCalibration] = useState<FinancialOSCalibration>({
+    monthly_revenue_range: "",
+    avg_ticket_size: 0,
+    employee_count: 0,
+    revenue_model: "",
+  });
 
   if (orgLoading) {
     return (
@@ -175,6 +189,20 @@ export default function PlatformTenantDetail() {
       reason: overrideReason,
     });
     setOverrideReason("");
+  };
+
+  const handleInitFinancialOS = async () => {
+    try {
+      await initFinancialOS.mutateAsync({
+        orgId: org.id,
+        orgName: org.name,
+        calibration,
+      });
+      setOnboardOpen(false);
+      refetchAudit();
+    } catch {
+      // Error handled by mutation
+    }
   };
 
   const integrityScore = audit?.integrity_score ?? 0;
@@ -299,6 +327,106 @@ export default function PlatformTenantDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Financial OS Onboarding */}
+      {(orgState === "draft" || orgState === "initializing") && (
+        <Card className="mb-6 border-primary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Initialize Financial Operating System
+            </CardTitle>
+            <CardDescription>
+              Seed the core financial infrastructure — Chart of Accounts, tax ledgers,
+              fiscal year, approval workflows, and AI calibration model.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setOnboardOpen(true)} disabled={initFinancialOS.isPending}>
+              {initFinancialOS.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
+              Initialize Financial Operating System
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Financial OS Onboarding Modal */}
+      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Initialize Financial Operating System</DialogTitle>
+            <DialogDescription>
+              Provide calibration parameters. This process is idempotent and safe to run multiple times.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Monthly Revenue Range</Label>
+              <Select
+                value={calibration.monthly_revenue_range}
+                onValueChange={(v) => setCalibration((p) => ({ ...p, monthly_revenue_range: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select range" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0-1L">₹0 – ₹1 Lakh</SelectItem>
+                  <SelectItem value="1L-10L">₹1 Lakh – ₹10 Lakhs</SelectItem>
+                  <SelectItem value="10L-50L">₹10 Lakhs – ₹50 Lakhs</SelectItem>
+                  <SelectItem value="50L-1Cr">₹50 Lakhs – ₹1 Crore</SelectItem>
+                  <SelectItem value="1Cr+">₹1 Crore+</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Avg Ticket Size (₹)</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 5000"
+                value={calibration.avg_ticket_size || ""}
+                onChange={(e) => setCalibration((p) => ({ ...p, avg_ticket_size: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Employee Count</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 25"
+                value={calibration.employee_count || ""}
+                onChange={(e) => setCalibration((p) => ({ ...p, employee_count: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Revenue Model</Label>
+              <Select
+                value={calibration.revenue_model}
+                onValueChange={(v) => setCalibration((p) => ({ ...p, revenue_model: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select model" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="subscription">Subscription</SelectItem>
+                  <SelectItem value="transactional">Transactional</SelectItem>
+                  <SelectItem value="project_based">Project-Based</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOnboardOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleInitFinancialOS}
+              disabled={initFinancialOS.isPending || !calibration.monthly_revenue_range || !calibration.revenue_model}
+            >
+              {initFinancialOS.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Initialize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Controlled Reinitialization */}
       <Card className="mb-6">

@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_calibration: {
+        Row: {
+          avg_ticket_size: number | null
+          employee_count: number | null
+          id: string
+          initialized_at: string
+          monthly_revenue_range: string | null
+          organization_id: string
+          revenue_model: string | null
+          updated_at: string
+        }
+        Insert: {
+          avg_ticket_size?: number | null
+          employee_count?: number | null
+          id?: string
+          initialized_at?: string
+          monthly_revenue_range?: string | null
+          organization_id: string
+          revenue_model?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avg_ticket_size?: number | null
+          employee_count?: number | null
+          id?: string
+          initialized_at?: string
+          monthly_revenue_range?: string | null
+          organization_id?: string
+          revenue_model?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_calibration_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_workflows: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          required_role: string
+          threshold_amount: number
+          workflow_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          required_role?: string
+          threshold_amount?: number
+          workflow_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          required_role?: string
+          threshold_amount?: number
+          workflow_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_workflows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_depreciation_entries: {
         Row: {
           accumulated_depreciation: number
@@ -1288,6 +1367,41 @@ export type Database = {
           },
         ]
       }
+      financial_years: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_years_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goal_plans: {
         Row: {
           created_at: string
@@ -1873,6 +1987,45 @@ export type Database = {
           },
         ]
       }
+      master_coa_template: {
+        Row: {
+          account_code: string
+          account_name: string
+          account_type: string
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_deletable: boolean
+          is_system: boolean
+          parent_code: string | null
+        }
+        Insert: {
+          account_code: string
+          account_name: string
+          account_type: string
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_deletable?: boolean
+          is_system?: boolean
+          parent_code?: string | null
+        }
+        Update: {
+          account_code?: string
+          account_name?: string
+          account_type?: string
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_deletable?: boolean
+          is_system?: boolean
+          parent_code?: string | null
+        }
+        Relationships: []
+      }
       memos: {
         Row: {
           attachment_url: string | null
@@ -1998,6 +2151,38 @@ export type Database = {
           },
           {
             foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_snapshots: {
+        Row: {
+          config_hash: string
+          id: string
+          initialized_at: string
+          organization_id: string
+          version: number
+        }
+        Insert: {
+          config_hash: string
+          id?: string
+          initialized_at?: string
+          organization_id: string
+          version?: number
+        }
+        Update: {
+          config_hash?: string
+          id?: string
+          initialized_at?: string
+          organization_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_snapshots_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2948,6 +3133,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      initialize_financial_os: {
+        Args: { _calibration?: Json; _force?: boolean; _org_id: string }
+        Returns: Json
       }
       is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_finance: { Args: { _user_id: string }; Returns: boolean }
