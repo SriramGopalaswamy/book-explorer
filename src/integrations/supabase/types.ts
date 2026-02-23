@@ -811,6 +811,61 @@ export type Database = {
           },
         ]
       }
+      budgets: {
+        Row: {
+          account_id: string
+          budget_amount: number
+          created_at: string
+          fiscal_period_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          budget_amount?: number
+          created_at?: string
+          fiscal_period_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          budget_amount?: number
+          created_at?: string
+          fiscal_period_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_upload_history: {
         Row: {
           created_at: string
@@ -2186,6 +2241,13 @@ export type Database = {
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_base"
+            referencedColumns: ["journal_entry_id"]
+          },
         ]
       }
       journal_lines: {
@@ -2230,6 +2292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_base"
+            referencedColumns: ["journal_entry_id"]
           },
         ]
       }
@@ -3510,6 +3579,66 @@ export type Database = {
       }
     }
     Views: {
+      ledger_base: {
+        Row: {
+          account_code: string | null
+          account_id: string | null
+          account_name: string | null
+          account_type: string | null
+          credit: number | null
+          debit: number | null
+          document_sequence_number: string | null
+          document_type: string | null
+          entry_date: string | null
+          fiscal_period_id: string | null
+          is_reversal: boolean | null
+          journal_entry_id: string | null
+          line_description: string | null
+          line_id: string | null
+          memo: string | null
+          net_amount: number | null
+          normal_balance: string | null
+          organization_id: string | null
+          reversed_entry_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_base"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_lines_gl_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles_safe: {
         Row: {
           avatar_url: string | null
@@ -3570,6 +3699,63 @@ export type Database = {
         Returns: string
       }
       delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      get_ap_aging: {
+        Args: { p_as_of: string; p_org_id: string }
+        Returns: {
+          aging_bucket: string
+          bill_date: string
+          bill_id: string
+          bill_number: string
+          days_overdue: number
+          due_date: string
+          total_amount: number
+          vendor_name: string
+        }[]
+      }
+      get_ar_aging: {
+        Args: { p_as_of: string; p_org_id: string }
+        Returns: {
+          aging_bucket: string
+          client_name: string
+          days_overdue: number
+          due_date: string
+          invoice_date: string
+          invoice_id: string
+          invoice_number: string
+          total_amount: number
+        }[]
+      }
+      get_balance_sheet: {
+        Args: { p_as_of: string; p_org_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          balance: number
+        }[]
+      }
+      get_budget_vs_actual: {
+        Args: { p_from: string; p_org_id: string; p_to: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          actual_amount: number
+          budget_amount: number
+          variance: number
+          variance_pct: number
+        }[]
+      }
+      get_cash_flow_indirect: {
+        Args: { p_from: string; p_org_id: string; p_to: string }
+        Returns: {
+          amount: number
+          description: string
+          section: string
+        }[]
+      }
       get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
       get_effective_uid: { Args: never; Returns: string }
@@ -3577,9 +3763,69 @@ export type Database = {
         Args: { _d: string; _org_id: string }
         Returns: string
       }
+      get_general_ledger: {
+        Args: {
+          p_account_id: string
+          p_from: string
+          p_org_id: string
+          p_to: string
+        }
+        Returns: {
+          credit: number
+          debit: number
+          description: string
+          document_sequence_number: string
+          document_type: string
+          entry_date: string
+          journal_entry_id: string
+          running_balance: number
+        }[]
+      }
       get_gl_account_id: {
         Args: { _code: string; _org_id: string }
         Returns: string
+      }
+      get_profit_loss: {
+        Args: { p_from: string; p_org_id: string; p_to: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          amount: number
+        }[]
+      }
+      get_profit_loss_comparative: {
+        Args: {
+          p_from_1: string
+          p_from_2: string
+          p_org_id: string
+          p_to_1: string
+          p_to_2: string
+        }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          period_1: number
+          period_2: number
+          variance: number
+          variance_pct: number
+        }[]
+      }
+      get_trial_balance: {
+        Args: { p_from: string; p_org_id: string; p_to: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          net_balance: number
+          normal_balance: string
+          total_credit: number
+          total_debit: number
+        }[]
       }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
