@@ -4,14 +4,13 @@
  * Simplified dev mode context that reads roles from the user_roles table
  * and allows admins to preview the app as different roles (client-side only).
  * 
- * No Express backend dependency - uses Supabase directly.
+ * Uses DEV_MODE flag + authenticated user only (no legacy developer mode).
  */
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { DEV_MODE } from "@/config/systemFlags";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
-import { useAppMode } from "./AppModeContext";
 import { toast } from "sonner";
 
 // The app_role enum values from the database
@@ -101,7 +100,6 @@ const ROLE_PERMISSIONS: Record<AppRole, string[]> = {
 
 export function DevModeProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const { appMode, isDeveloperAuthenticated, canShowDevTools } = useAppMode();
   
   const [isLoading, setIsLoading] = useState(true);
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
@@ -113,12 +111,11 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
   const [userActualRole, setUserActualRole] = useState<string | null>(null);
 
   /**
-   * Fetch user's actual role from user_roles table and build role data
+   * Fetch user's actual role from user_roles table and build role data.
+   * Only runs when DEV_MODE is enabled AND user is authenticated.
    */
   const fetchDevData = useCallback(async () => {
-    const shouldFetch = (appMode === 'developer' && isDeveloperAuthenticated) || (user && DEV_MODE);
-    
-    if (!shouldFetch) {
+    if (!user || !DEV_MODE) {
       setIsLoading(false);
       return;
     }
@@ -128,21 +125,19 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       
       // Fetch the current user's role(s) from user_roles table
       let actualRole: string = "employee";
-      if (user) {
-        const { data: userRoles, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id);
-        
-        if (error) {
-          console.warn('Could not fetch user roles:', error.message);
-        } else if (userRoles && userRoles.length > 0) {
-          // Pick highest priority role
-          const sorted = userRoles.sort((a, b) => 
-            (ROLE_PRIORITY[b.role as AppRole] || 0) - (ROLE_PRIORITY[a.role as AppRole] || 0)
-          );
-          actualRole = sorted[0].role;
-        }
+      const { data: userRoles, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+      
+      if (error) {
+        console.warn('Could not fetch user roles:', error.message);
+      } else if (userRoles && userRoles.length > 0) {
+        // Pick highest priority role
+        const sorted = userRoles.sort((a, b) => 
+          (ROLE_PRIORITY[b.role as AppRole] || 0) - (ROLE_PRIORITY[a.role as AppRole] || 0)
+        );
+        actualRole = sorted[0].role;
       }
       
       setUserActualRole(actualRole);
@@ -169,21 +164,20 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       setAvailableRoles(roles);
       setPermissionMatrix(matrix);
       
-      // Set default active role to the user's actual role (or admin in dev mode)
-      const defaultRole = (appMode === 'developer') ? 'admin' : actualRole;
+      // Set default active role to the user's actual role
       if (!activeRole) {
-        setActiveRoleState(defaultRole);
-        setIsImpersonating(true);
+        setActiveRoleState(actualRole);
+        setIsImpersonating(false);
       }
       
       // Build current role info
-      const effectiveRoleName = activeRole || defaultRole;
+      const effectiveRoleName = activeRole || actualRole;
       const effectiveRoleData = matrix[effectiveRoleName];
       
       setCurrentRoleInfo({
         user: {
-          id: user?.id,
-          email: user?.email || (appMode === 'developer' ? 'developer@local' : undefined),
+          id: user.id,
+          email: user.email,
           actualRole,
         },
         effectiveRole: effectiveRoleName,
@@ -199,15 +193,12 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, activeRole, appMode, isDeveloperAuthenticated]);
+  }, [user, activeRole]);
 
   useEffect(() => {
-    const shouldInitialize = (!authLoading && user && DEV_MODE) || 
-                            (!authLoading && isDeveloperAuthenticated && appMode === 'developer');
-    
-    if (shouldInitialize) {
+    if (!authLoading && user && DEV_MODE) {
       fetchDevData();
-    } else if (!authLoading && !user && !isDeveloperAuthenticated) {
+    } else if (!authLoading && !user) {
       setAvailableRoles([]);
       setActiveRoleState(null);
       setPermissions([]);
@@ -218,7 +209,7 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     } else if (!DEV_MODE) {
       setIsLoading(false);
     }
-  }, [user, authLoading, isDeveloperAuthenticated, appMode, fetchDevData]);
+  }, [user, authLoading, fetchDevData]);
 
   const setActiveRole = useCallback((role: string) => {
     setActiveRoleState(role);
@@ -229,7 +220,7 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
       setCurrentRoleInfo({
         user: {
           id: user?.id,
-          email: user?.email || (appMode === 'developer' ? 'developer@local' : undefined),
+          email: user?.email,
           actualRole: userActualRole || 'employee',
         },
         effectiveRole: role,
@@ -240,7 +231,7 @@ export function DevModeProvider({ children }: { children: ReactNode }) {
     }
     
     toast.success(`Role switched to: ${role}`);
-  }, [user, appMode, permissionMatrix, userActualRole]);
+  }, [user, permissionMatrix, userActualRole]);
 
   const updateRolePermissions = useCallback(async (_roleName: string, _newPermissions: string[]) => {
     toast.info('Permission editing is not supported in this mode');
