@@ -1,20 +1,12 @@
 /**
  * DevToolbar Component
  * 
- * Right-side developer toolbar for RBAC introspection and governance
- * 
- * Features:
- * - Role switcher dropdown
- * - Permission matrix debug panel
- * - Live role-permission governance
- * - SuperAdmin-only permission editing
- * - Collapsible/expandable
- * - Only renders when DEV_MODE=true
+ * Right-side developer toolbar for RBAC introspection and governance.
+ * Only renders when DEV_MODE=true and user is authenticated.
  */
 
 import { useState } from "react";
 import { useDevMode } from "@/contexts/DevModeContext";
-import { useAppMode } from "@/contexts/AppModeContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,12 +41,10 @@ export function DevToolbar() {
     allowPermissionEditing,
   } = useDevMode();
   
-  const { canShowDevTools } = useAppMode();
-  
   const [isOpen, setIsOpen] = useState(false);
   
-  // Don't render if not in dev mode OR if in production mode
-  if (!isDevMode || !canShowDevTools) {
+  // Don't render if not in dev mode
+  if (!isDevMode) {
     return null;
   }
   
@@ -120,7 +110,6 @@ export function DevToolbar() {
                   </Select>
                 </div>
                 
-                {/* Current Role Status */}
                 {currentRoleInfo && (
                   <div className="p-3 bg-muted rounded-lg space-y-2 text-sm">
                     <div className="flex items-center justify-between">
@@ -146,14 +135,12 @@ export function DevToolbar() {
               </CardContent>
             </Card>
             
-            {/* Tabs for different views */}
             <Tabs defaultValue="matrix" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="matrix">Permission Matrix</TabsTrigger>
                 <TabsTrigger value="current">Current Role</TabsTrigger>
               </TabsList>
               
-              {/* Permission Matrix Tab */}
               <TabsContent value="matrix" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -203,7 +190,6 @@ export function DevToolbar() {
                 </Card>
               </TabsContent>
               
-              {/* Current Role Tab */}
               <TabsContent value="current" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -250,7 +236,6 @@ export function DevToolbar() {
               </TabsContent>
             </Tabs>
             
-            {/* Permission Editing Warning */}
             {allowPermissionEditing && (
               <Card className="border-yellow-500/50 bg-yellow-500/5">
                 <CardHeader>
@@ -265,7 +250,6 @@ export function DevToolbar() {
               </Card>
             )}
             
-            {/* System Info */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">System Info</CardTitle>
