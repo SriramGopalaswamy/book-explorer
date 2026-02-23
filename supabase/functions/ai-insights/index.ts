@@ -23,11 +23,24 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader || "" } },
     });
 
+    // Get user's organization_id for explicit scoping
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+
+    const orgId = profile?.organization_id;
+    if (!orgId) throw new Error("No organization found for user");
+
     const { mode, module, messages } = await req.json();
 
     // === CHAT MODE: streaming conversational AI ===
     if (mode === "chat") {
-      const dataSnapshot = await gatherAllData(supabase);
+      const dataSnapshot = await gatherAllData(supabase, orgId);
       const systemPrompt = buildChatSystemPrompt(dataSnapshot);
 
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -66,7 +79,7 @@ serve(async (req) => {
     }
 
     // === INSIGHTS MODE: structured dashboard/module commentary ===
-    const dataSnapshot = await gatherAllData(supabase);
+    const dataSnapshot = await gatherAllData(supabase, orgId);
     const systemPrompt = buildInsightsSystemPrompt(module || "dashboard");
     const userPrompt = buildDataPrompt(dataSnapshot, module);
 
@@ -164,40 +177,99 @@ serve(async (req) => {
   }
 });
 
-// ============== DATA GATHERING ==============
+// ============== DATA GATHERING (GL-BASED, ORG-SCOPED) ==============
 
-async function gatherAllData(supabase: any) {
+async function gatherAllData(supabase: any, orgId: string) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
 
-  const [
-    revenueThis, revenueLast, expensesThis, expensesLast,
-    invoices, bills, employees, leaves, attendance,
-    goals, payroll, bankAccounts, reimbursements, memos,
-  ] = await Promise.all([
-    supabase.from("financial_records").select("amount, category, description").eq("type", "revenue").gte("record_date", monthStart),
-    supabase.from("financial_records").select("amount, category").eq("type", "revenue").gte("record_date", lastMonthStart).lte("record_date", lastMonthEnd),
-    supabase.from("financial_records").select("amount, category, description").eq("type", "expense").gte("record_date", monthStart),
-    supabase.from("financial_records").select("amount, category").eq("type", "expense").gte("record_date", lastMonthStart).lte("record_date", lastMonthEnd),
-    supabase.from("invoices").select("status, amount, total_amount, due_date, client_name, created_at").order("created_at", { ascending: false }).limit(50),
-    supabase.from("bills").select("status, total_amount, vendor_name, due_date, created_at").order("created_at", { ascending: false }).limit(50),
-    supabase.from("profiles").select("status, department, job_title, join_date"),
-    supabase.from("leave_requests").select("status, leave_type, days, from_date, to_date").gte("from_date", lastMonthStart),
-    supabase.from("attendance_records").select("status, date, check_in, check_out").gte("date", monthStart),
-    supabase.from("goals").select("title, status, progress, category, due_date"),
-    supabase.from("payroll_records").select("net_pay, basic_salary, status, pay_period").order("created_at", { ascending: false }).limit(50),
-    supabase.from("bank_accounts").select("name, balance, account_type, status"),
-    supabase.from("reimbursement_requests").select("status, amount, category, created_at").gte("created_at", lastMonthStart),
-    supabase.from("memos").select("status, priority, department, created_at").order("created_at", { ascending: false }).limit(20),
+  // 1. Get GL accounts for this org
+  const { data: glAccounts } = await supabase
+    .from("gl_accounts")
+    .select("id, code, name, account_type, normal_balance")
+    .eq("organization_id", orgId)
+    .eq("is_active", true);
+
+  const accounts = glAccounts || [];
+  const revenueIds = new Set(accounts.filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
+  const expenseIds = new Set(accounts.filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
+  const cashId = accounts.find((a: any) => a.code === "1100")?.id;
+  const arId = accounts.find((a: any) => a.code === "1200")?.id;
+  const apId = accounts.find((a: any) => a.code === "2100")?.id;
+
+  // 2. Get journal lines for current + last month (org-scoped via journal_entries)
+  const [currentLinesRes, lastLinesRes, allLinesRes] = await Promise.all([
+    supabase
+      .from("journal_lines")
+      .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, organization_id)")
+      .eq("journal_entries.organization_id", orgId)
+      .gte("journal_entries.entry_date", monthStart)
+      .lte("journal_entries.entry_date", monthEnd),
+    supabase
+      .from("journal_lines")
+      .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, organization_id)")
+      .eq("journal_entries.organization_id", orgId)
+      .gte("journal_entries.entry_date", lastMonthStart)
+      .lte("journal_entries.entry_date", lastMonthEnd),
+    supabase
+      .from("journal_lines")
+      .select("debit, credit, gl_account_id, journal_entries!inner(organization_id)")
+      .eq("journal_entries.organization_id", orgId),
   ]);
 
-  // Summarize
-  const totalRevenueThis = (revenueThis.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
-  const totalRevenueLast = (revenueLast.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
-  const totalExpensesThis = (expensesThis.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
-  const totalExpensesLast = (expensesLast.data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
+  const calcFinancials = (lines: any[]) => {
+    let revenue = 0, expenses = 0;
+    (lines || []).forEach((l: any) => {
+      if (revenueIds.has(l.gl_account_id)) revenue += Number(l.credit || 0);
+      if (expenseIds.has(l.gl_account_id)) expenses += Number(l.debit || 0);
+    });
+    return { revenue, expenses };
+  };
+
+  const currentMonth = calcFinancials(currentLinesRes.data || []);
+  const lastMonth = calcFinancials(lastLinesRes.data || []);
+
+  // GL balances (all-time for balance sheet accounts)
+  const balanceMap: Record<string, number> = {};
+  (allLinesRes.data || []).forEach((l: any) => {
+    balanceMap[l.gl_account_id] = (balanceMap[l.gl_account_id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
+  });
+
+  const cashBalance = cashId ? (balanceMap[cashId] || 0) : 0;
+  const arBalance = arId ? (balanceMap[arId] || 0) : 0;
+  const apBalance = apId ? Math.abs(balanceMap[apId] || 0) : 0;
+
+  // Category breakdowns from GL
+  const expensesByCategory: Record<string, number> = {};
+  const revenueByCategory: Record<string, number> = {};
+  (currentLinesRes.data || []).forEach((l: any) => {
+    const acc = accounts.find((a: any) => a.id === l.gl_account_id);
+    if (!acc) return;
+    if (acc.account_type === "revenue") {
+      revenueByCategory[acc.name] = (revenueByCategory[acc.name] || 0) + Number(l.credit || 0);
+    } else if (acc.account_type === "expense") {
+      expensesByCategory[acc.name] = (expensesByCategory[acc.name] || 0) + Number(l.debit || 0);
+    }
+  });
+
+  // 3. Operational data (all org-scoped)
+  const [
+    invoices, bills, employees, leaves, attendance,
+    goals, payroll, reimbursements, memos,
+  ] = await Promise.all([
+    supabase.from("invoices").select("status, amount, total_amount, due_date, client_name, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("bills").select("status, total_amount, vendor_name, due_date, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("profiles").select("status, department, job_title, join_date").eq("organization_id", orgId),
+    supabase.from("leave_requests").select("status, leave_type, days, from_date, to_date").eq("organization_id", orgId).gte("from_date", lastMonthStart),
+    supabase.from("attendance_records").select("status, date, check_in, check_out").eq("organization_id", orgId).gte("date", monthStart),
+    supabase.from("goals").select("title, status, progress, category, due_date").eq("organization_id", orgId),
+    supabase.from("payroll_records").select("net_pay, basic_salary, status, pay_period").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("reimbursement_requests").select("status, amount, category, created_at").eq("organization_id", orgId).gte("created_at", lastMonthStart),
+    supabase.from("memos").select("status, priority, department, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(20),
+  ]);
 
   const overdueInvoices = (invoices.data || []).filter((i: any) => i.status !== "paid" && new Date(i.due_date) < now);
   const overdueBills = (bills.data || []).filter((b: any) => b.status !== "paid" && b.due_date && new Date(b.due_date) < now);
@@ -206,24 +278,9 @@ async function gatherAllData(supabase: any) {
   const activeEmployees = (employees.data || []).filter((e: any) => e.status === "active");
   const pendingReimbursements = (reimbursements.data || []).filter((r: any) => r.status === "pending" || r.status === "submitted");
   const staleGoals = (goals.data || []).filter((g: any) => g.progress < 25 && g.status !== "completed");
-  const totalBankBalance = (bankAccounts.data || []).reduce((s: number, a: any) => s + Number(a.balance), 0);
-
-  // Payroll burn
   const processedPayroll = (payroll.data || []).filter((p: any) => p.status === "processed");
   const totalPayrollBurn = processedPayroll.reduce((s: number, p: any) => s + Number(p.net_pay), 0);
 
-  // Category breakdowns
-  const expensesByCategory: Record<string, number> = {};
-  (expensesThis.data || []).forEach((e: any) => {
-    expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + Number(e.amount);
-  });
-
-  const revenueByCategory: Record<string, number> = {};
-  (revenueThis.data || []).forEach((r: any) => {
-    revenueByCategory[r.category] = (revenueByCategory[r.category] || 0) + Number(r.amount);
-  });
-
-  // Dept distribution
   const deptCounts: Record<string, number> = {};
   activeEmployees.forEach((e: any) => {
     const dept = e.department || "Unassigned";
@@ -231,17 +288,25 @@ async function gatherAllData(supabase: any) {
   });
 
   return {
+    _source: "general_ledger",
+    _org_id: orgId,
+    _timestamp: now.toISOString(),
     financial: {
-      revenueThisMonth: totalRevenueThis,
-      revenueLastMonth: totalRevenueLast,
-      revenueChangePercent: totalRevenueLast > 0 ? ((totalRevenueThis - totalRevenueLast) / totalRevenueLast * 100).toFixed(1) : "N/A",
-      expensesThisMonth: totalExpensesThis,
-      expensesLastMonth: totalExpensesLast,
-      expenseChangePercent: totalExpensesLast > 0 ? ((totalExpensesThis - totalExpensesLast) / totalExpensesLast * 100).toFixed(1) : "N/A",
-      netIncomeThisMonth: totalRevenueThis - totalExpensesThis,
-      profitMarginPercent: totalRevenueThis > 0 ? ((totalRevenueThis - totalExpensesThis) / totalRevenueThis * 100).toFixed(1) : "N/A",
+      revenueThisMonth: currentMonth.revenue,
+      revenueLastMonth: lastMonth.revenue,
+      revenueChangePercent: lastMonth.revenue > 0 ? ((currentMonth.revenue - lastMonth.revenue) / lastMonth.revenue * 100).toFixed(1) : "N/A",
+      expensesThisMonth: currentMonth.expenses,
+      expensesLastMonth: lastMonth.expenses,
+      expenseChangePercent: lastMonth.expenses > 0 ? ((currentMonth.expenses - lastMonth.expenses) / lastMonth.expenses * 100).toFixed(1) : "N/A",
+      netIncomeThisMonth: currentMonth.revenue - currentMonth.expenses,
+      profitMarginPercent: currentMonth.revenue > 0 ? ((currentMonth.revenue - currentMonth.expenses) / currentMonth.revenue * 100).toFixed(1) : "N/A",
       expensesByCategory,
       revenueByCategory,
+    },
+    balanceSheet: {
+      cashBalance,
+      accountsReceivable: arBalance,
+      accountsPayable: apBalance,
     },
     receivables: {
       totalInvoices: (invoices.data || []).length,
@@ -265,7 +330,7 @@ async function gatherAllData(supabase: any) {
     payroll: {
       totalMonthlyBurn: totalPayrollBurn,
       processedCount: processedPayroll.length,
-      burnToRevenueRatio: totalRevenueThis > 0 ? (totalPayrollBurn / totalRevenueThis * 100).toFixed(1) : "N/A",
+      burnToRevenueRatio: currentMonth.revenue > 0 ? (totalPayrollBurn / currentMonth.revenue * 100).toFixed(1) : "N/A",
     },
     performance: {
       totalGoals: (goals.data || []).length,
@@ -274,10 +339,6 @@ async function gatherAllData(supabase: any) {
         ? ((goals.data || []).reduce((s: number, g: any) => s + g.progress, 0) / (goals.data || []).length).toFixed(0)
         : "0",
       completedGoals: (goals.data || []).filter((g: any) => g.status === "completed").length,
-    },
-    banking: {
-      totalBankBalance,
-      accountCount: (bankAccounts.data || []).length,
     },
     memos: {
       recentCount: (memos.data || []).length,
@@ -291,7 +352,15 @@ async function gatherAllData(supabase: any) {
 function buildInsightsSystemPrompt(module: string) {
   return `You are the CFO's brutal inner voice — think T.J. Rodgers at Cypress Semiconductor. You speak in numbers, not feelings. 
 
-RULES:
+CRITICAL DATA RULES:
+- ALL financial numbers come from the General Ledger (journal_lines + gl_accounts). This is the ONLY source of truth.
+- The _source field confirms the data origin. If it says "general_ledger", the numbers are deterministic.
+- Balance sheet figures (cash, AR, AP) are cumulative all-time GL balances.
+- Revenue and expense figures are period-specific from posted journal entries.
+- NEVER invent or estimate numbers not present in the data snapshot.
+- If a metric is zero or N/A, say so — do not speculate.
+
+ANALYSIS RULES:
 - Lead with the most alarming or impressive data point
 - Call out waste, inefficiency, and complacency by name
 - If something is going well, say so briefly then pivot to what's broken
@@ -310,26 +379,32 @@ You are analyzing: ${module === "dashboard" ? "the entire business" : `the ${mod
 function buildChatSystemPrompt(data: any) {
   return `You are the CFO's AI advisor for GRX10 Books — a combined financial and HR operating system. You speak like T.J. Rodgers: blunt, data-obsessed, zero tolerance for inefficiency.
 
-When users ask questions, you pull from the live data snapshot below. Be specific. Use actual numbers from the data. If asked about something not in the data, say so honestly.
+CRITICAL: All financial data below comes from the General Ledger (source: ${data._source}). These are deterministic, double-entry verified numbers — not estimates.
+Organization: ${data._org_id}
+Snapshot: ${data._timestamp}
 
-You can shift between "Blunt CFO" mode (default) and "Strategic Advisor" mode if the user says "be diplomatic" or asks for a stakeholder-ready version.
+When users ask questions, you pull from this live ledger data. Be specific. Use actual numbers. If asked about something not in the data, say so honestly — never fabricate.
 
-LIVE DATA SNAPSHOT:
+LIVE LEDGER DATA:
 ${JSON.stringify(data, null, 2)}
 
 RULES:
-- Always reference specific numbers from the snapshot
+- Always reference specific numbers from the ledger snapshot
 - Cross-reference domains: if payroll burn is high AND goals are stale, connect the dots
 - If revenue is flat but expenses are growing, say "you're funding your own decline"
 - Be concise. No filler. Every sentence must carry a data point or actionable insight.
 - If asked to compare periods, use the month-over-month data available
-- Format currency in Indian format (₹ with L for lakhs, Cr for crores)`;
+- Format currency in Indian format (₹ with L for lakhs, Cr for crores)
+- If a balance sheet account shows a negative cash position, flag it as critical`;
 }
 
 function buildDataPrompt(data: any, module?: string) {
-  return `Analyze this live business data and generate insights. Focus on ${module || "cross-domain analysis"}.
+  return `Analyze this live GENERAL LEDGER data (deterministic, double-entry verified) and generate insights. Focus on ${module || "cross-domain analysis"}.
 
-DATA SNAPSHOT:
+DATA SOURCE: ${data._source} (organization: ${data._org_id})
+SNAPSHOT TIME: ${data._timestamp}
+
+LEDGER DATA:
 ${JSON.stringify(data, null, 2)}
 
 Generate 3-5 of the most critical insights. At least one must be cross-domain (e.g. payroll vs revenue, attendance vs goals). Grade the overall operational health honestly.`;
