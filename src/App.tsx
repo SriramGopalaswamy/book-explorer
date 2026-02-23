@@ -59,6 +59,7 @@ import PlatformHealth from "./pages/platform/PlatformHealth";
 import PlatformActions from "./pages/platform/PlatformActions";
 import PlatformAudit from "./pages/platform/PlatformAudit";
 import PlatformSandbox from "./pages/platform/PlatformSandbox";
+import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
 
 // Profile
 import Profile from "./pages/Profile";
@@ -124,6 +125,7 @@ const App = () => (
 
               {/* Platform Admin (Super Admin only) */}
               <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformOrganizations /></PlatformRoute></ProtectedRoute>} />
+              <Route path="/platform/tenant/:orgId" element={<ProtectedRoute><PlatformRoute><PlatformTenantDetail /></PlatformRoute></ProtectedRoute>} />
               <Route path="/platform/integrity" element={<ProtectedRoute><PlatformRoute><PlatformIntegrity /></PlatformRoute></ProtectedRoute>} />
               <Route path="/platform/health" element={<ProtectedRoute><PlatformRoute><PlatformHealth /></PlatformRoute></ProtectedRoute>} />
               <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
