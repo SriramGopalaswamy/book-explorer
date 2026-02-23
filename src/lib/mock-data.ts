@@ -45,14 +45,14 @@ export const mockFinancialRecords: FinancialRecord[] = [
 ];
 
 export const mockInvoices: Invoice[] = [
-  { id: "inv1", user_id: MOCK_USER_ID, invoice_number: "INV-2026-001", client_name: "Tata Consultancy Services", client_email: "billing@tcs.com", amount: 250000, status: "paid", due_date: "2026-01-15", created_at: "2025-12-20", updated_at: "2026-01-15" },
-  { id: "inv2", user_id: MOCK_USER_ID, invoice_number: "INV-2026-002", client_name: "Infosys Ltd", client_email: "accounts@infosys.com", amount: 180000, status: "paid", due_date: "2026-01-25", created_at: "2025-12-28", updated_at: "2026-01-25" },
-  { id: "inv3", user_id: MOCK_USER_ID, invoice_number: "INV-2026-003", client_name: "Wipro Technologies", client_email: "finance@wipro.com", amount: 320000, status: "sent", due_date: "2026-02-20", created_at: "2026-01-10", updated_at: "2026-01-10" },
-  { id: "inv4", user_id: MOCK_USER_ID, invoice_number: "INV-2026-004", client_name: "HCL Technologies", client_email: "pay@hcl.com", amount: 145000, status: "sent", due_date: "2026-02-28", created_at: "2026-01-15", updated_at: "2026-01-15" },
-  { id: "inv5", user_id: MOCK_USER_ID, invoice_number: "INV-2026-005", client_name: "Reliance Industries", client_email: "vendor@ril.com", amount: 475000, status: "draft", due_date: "2026-03-10", created_at: "2026-02-01", updated_at: "2026-02-01" },
-  { id: "inv6", user_id: MOCK_USER_ID, invoice_number: "INV-2026-006", client_name: "Mahindra & Mahindra", client_email: "procurement@mahindra.com", amount: 92000, status: "overdue", due_date: "2026-01-05", created_at: "2025-12-10", updated_at: "2025-12-10" },
-  { id: "inv7", user_id: MOCK_USER_ID, invoice_number: "INV-2026-007", client_name: "Bajaj Auto", client_email: "finance@bajaj.com", amount: 210000, status: "paid", due_date: "2026-02-01", created_at: "2026-01-05", updated_at: "2026-02-01" },
-  { id: "inv8", user_id: MOCK_USER_ID, invoice_number: "INV-2026-008", client_name: "Larsen & Toubro", client_email: "ap@lt.com", amount: 560000, status: "sent", due_date: "2026-03-15", created_at: "2026-02-10", updated_at: "2026-02-10" },
+  { id: "inv1", user_id: MOCK_USER_ID, invoice_number: "INV-2026-001", client_name: "Tata Consultancy Services", client_email: "billing@tcs.com", amount: 250000, status: "paid", invoice_date: "2025-12-20", due_date: "2026-01-15", created_at: "2025-12-20", updated_at: "2026-01-15" },
+  { id: "inv2", user_id: MOCK_USER_ID, invoice_number: "INV-2026-002", client_name: "Infosys Ltd", client_email: "accounts@infosys.com", amount: 180000, status: "paid", invoice_date: "2025-12-28", due_date: "2026-01-25", created_at: "2025-12-28", updated_at: "2026-01-25" },
+  { id: "inv3", user_id: MOCK_USER_ID, invoice_number: "INV-2026-003", client_name: "Wipro Technologies", client_email: "finance@wipro.com", amount: 320000, status: "sent", invoice_date: "2026-01-10", due_date: "2026-02-20", created_at: "2026-01-10", updated_at: "2026-01-10" },
+  { id: "inv4", user_id: MOCK_USER_ID, invoice_number: "INV-2026-004", client_name: "HCL Technologies", client_email: "pay@hcl.com", amount: 145000, status: "sent", invoice_date: "2026-01-15", due_date: "2026-02-28", created_at: "2026-01-15", updated_at: "2026-01-15" },
+  { id: "inv5", user_id: MOCK_USER_ID, invoice_number: "INV-2026-005", client_name: "Reliance Industries", client_email: "vendor@ril.com", amount: 475000, status: "draft", invoice_date: "2026-02-01", due_date: "2026-03-10", created_at: "2026-02-01", updated_at: "2026-02-01" },
+  { id: "inv6", user_id: MOCK_USER_ID, invoice_number: "INV-2026-006", client_name: "Mahindra & Mahindra", client_email: "procurement@mahindra.com", amount: 92000, status: "overdue", invoice_date: "2025-12-10", due_date: "2026-01-05", created_at: "2025-12-10", updated_at: "2025-12-10" },
+  { id: "inv7", user_id: MOCK_USER_ID, invoice_number: "INV-2026-007", client_name: "Bajaj Auto", client_email: "finance@bajaj.com", amount: 210000, status: "paid", invoice_date: "2026-01-05", due_date: "2026-02-01", created_at: "2026-01-05", updated_at: "2026-02-01" },
+  { id: "inv8", user_id: MOCK_USER_ID, invoice_number: "INV-2026-008", client_name: "Larsen & Toubro", client_email: "ap@lt.com", amount: 560000, status: "sent", invoice_date: "2026-02-10", due_date: "2026-03-15", created_at: "2026-02-10", updated_at: "2026-02-10" },
 ];
 
 export const mockGoals: Goal[] = [
