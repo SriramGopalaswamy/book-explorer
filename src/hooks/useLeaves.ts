@@ -316,3 +316,116 @@ export function useDeleteLeaveRequest() {
     },
   });
 }
+
+// ─── Leave Types (HR-configurable) ───────────────────────────────────
+
+export interface LeaveType {
+  id: string;
+  organization_id: string;
+  key: string;
+  label: string;
+  icon: string;
+  color: string;
+  default_days: number;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export function useLeaveTypes() {
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+
+  return useQuery({
+    queryKey: ["leave-types"],
+    queryFn: async () => {
+      if (isDevMode) {
+        return [
+          { id: "1", organization_id: "", key: "casual", label: "Casual Leave", icon: "Palmtree", color: "text-green-600", default_days: 12, is_active: true, sort_order: 1 },
+          { id: "2", organization_id: "", key: "sick", label: "Sick Leave", icon: "Stethoscope", color: "text-red-600", default_days: 10, is_active: true, sort_order: 2 },
+          { id: "3", organization_id: "", key: "earned", label: "Earned Leave", icon: "Briefcase", color: "text-blue-600", default_days: 15, is_active: true, sort_order: 3 },
+          { id: "4", organization_id: "", key: "maternity", label: "Maternity Leave", icon: "Baby", color: "text-purple-600", default_days: 180, is_active: true, sort_order: 4 },
+          { id: "5", organization_id: "", key: "paternity", label: "Paternity Leave", icon: "Baby", color: "text-purple-600", default_days: 15, is_active: true, sort_order: 5 },
+          { id: "6", organization_id: "", key: "wfh", label: "Work From Home", icon: "Home", color: "text-orange-600", default_days: 30, is_active: true, sort_order: 6 },
+        ] as LeaveType[];
+      }
+      const { data, error } = await supabase
+        .from("leave_types")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as LeaveType[];
+    },
+    enabled: !!user || isDevMode,
+  });
+}
+
+export function useAllLeaveTypes() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["leave-types-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leave_types")
+        .select("*")
+        .order("sort_order", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as LeaveType[];
+    },
+    enabled: !!user,
+  });
+}
+
+export function useCreateLeaveType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
+      const { data, error } = await supabase
+        .from("leave_types")
+        .insert(leaveType as any)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-types-all"] });
+      toast.success("Leave type created");
+    },
+    onError: (error) => {
+      toast.error("Failed to create leave type: " + error.message);
+    },
+  });
+}
+
+export function useUpdateLeaveType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number }) => {
+      const { data, error } = await supabase
+        .from("leave_types")
+        .update({ ...updates, updated_at: new Date().toISOString() } as any)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-types-all"] });
+      toast.success("Leave type updated");
+    },
+    onError: (error) => {
+      toast.error("Failed to update leave type: " + error.message);
+    },
+  });
+}

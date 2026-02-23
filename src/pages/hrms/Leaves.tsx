@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -33,8 +33,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home } from "lucide-react";
+import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home, Settings, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { 
@@ -44,30 +45,46 @@ import {
   useCreateLeaveRequest,
   useApproveLeaveRequest,
   useRejectLeaveRequest,
+  useLeaveTypes,
+  useAllLeaveTypes,
+  useCreateLeaveType,
+  useUpdateLeaveType,
   type LeaveRequest,
+  type LeaveType,
 } from "@/hooks/useLeaves";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
 
-const leaveTypeConfig: Record<string, { icon: typeof Palmtree; color: string; label: string }> = {
-  casual: { icon: Palmtree, color: "text-green-600", label: "Casual Leave" },
-  sick: { icon: Stethoscope, color: "text-red-600", label: "Sick Leave" },
-  earned: { icon: Briefcase, color: "text-blue-600", label: "Earned Leave" },
-  maternity: { icon: Baby, color: "text-purple-600", label: "Maternity/Paternity" },
-  paternity: { icon: Baby, color: "text-purple-600", label: "Maternity/Paternity" },
-  wfh: { icon: Home, color: "text-orange-600", label: "Work From Home" },
+const iconMap: Record<string, typeof Palmtree> = {
+  Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
 };
+
+function getIcon(iconName: string) {
+  return iconMap[iconName] || Briefcase;
+}
 
 export default function Leaves() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isManageOpen, setIsManageOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingType, setEditingType] = useState<LeaveType | null>(null);
   const [activeTab, setActiveTab] = useState("all");
-  const [leaveType, setLeaveType] = useState<LeaveRequest["leave_type"]>("casual");
+  const [leaveType, setLeaveType] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [reason, setReason] = useState("");
 
+  // New leave type form
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newIcon, setNewIcon] = useState("Briefcase");
+  const [newColor, setNewColor] = useState("text-blue-600");
+  const [newDefaultDays, setNewDefaultDays] = useState(12);
+
   const { data: leaveRequests = [], isLoading: isLoadingRequests } = useLeaveRequests(activeTab);
   const { data: leaveBalances = [], isLoading: isLoadingBalances } = useLeaveBalances();
   const { data: holidaysRaw = [] } = useHolidays();
+  const { data: activeLeaveTypes = [] } = useLeaveTypes();
+  const { data: allLeaveTypes = [] } = useAllLeaveTypes();
   const today = new Date().toISOString().split("T")[0];
   const holidays = holidaysRaw.filter((h) => h.date >= today);
   const { data: isAdminOrHR } = useIsAdminOrHR();
@@ -75,11 +92,36 @@ export default function Leaves() {
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
   const rejectRequest = useRejectLeaveRequest();
+  const createLeaveType = useCreateLeaveType();
+  const updateLeaveType = useUpdateLeaveType();
 
   const pagination = usePagination(leaveRequests, 10);
 
+  // Build a lookup from active leave types
+  const leaveTypeConfig = useMemo(() => {
+    const config: Record<string, { icon: typeof Palmtree; color: string; label: string }> = {};
+    for (const lt of activeLeaveTypes) {
+      config[lt.key] = { icon: getIcon(lt.icon), color: lt.color, label: lt.label };
+    }
+    // Fallback defaults if DB hasn't loaded yet
+    if (Object.keys(config).length === 0) {
+      config.casual = { icon: Palmtree, color: "text-green-600", label: "Casual Leave" };
+      config.sick = { icon: Stethoscope, color: "text-red-600", label: "Sick Leave" };
+      config.earned = { icon: Briefcase, color: "text-blue-600", label: "Earned Leave" };
+      config.maternity = { icon: Baby, color: "text-purple-600", label: "Maternity Leave" };
+      config.paternity = { icon: Baby, color: "text-purple-600", label: "Paternity Leave" };
+      config.wfh = { icon: Home, color: "text-orange-600", label: "Work From Home" };
+    }
+    return config;
+  }, [activeLeaveTypes]);
+
+  // Set default leave type when types load
+  const defaultLeaveType = activeLeaveTypes.length > 0 ? activeLeaveTypes[0].key : "casual";
+
   const handleSubmitLeave = async () => {
     if (!fromDate || !toDate) return;
+
+    const selectedType = leaveType || defaultLeaveType;
 
     const [fy, fm, fd] = fromDate.split("-").map(Number);
     const [ty, tm, td] = toDate.split("-").map(Number);
@@ -97,7 +139,7 @@ export default function Leaves() {
     }
 
     await createLeaveRequest.mutateAsync({
-      leave_type: leaveType,
+      leave_type: selectedType as LeaveRequest["leave_type"],
       from_date: fromDate,
       to_date: toDate,
       reason,
@@ -107,6 +149,41 @@ export default function Leaves() {
     setFromDate("");
     setToDate("");
     setReason("");
+    setLeaveType("");
+  };
+
+  const handleCreateLeaveType = async () => {
+    if (!newKey || !newLabel) {
+      toast.error("Key and Label are required");
+      return;
+    }
+    await createLeaveType.mutateAsync({
+      key: newKey.toLowerCase().replace(/\s+/g, "_"),
+      label: newLabel,
+      icon: newIcon,
+      color: newColor,
+      default_days: newDefaultDays,
+      sort_order: allLeaveTypes.length + 1,
+    });
+    setNewKey("");
+    setNewLabel("");
+    setNewIcon("Briefcase");
+    setNewColor("text-blue-600");
+    setNewDefaultDays(12);
+  };
+
+  const handleUpdateLeaveType = async () => {
+    if (!editingType) return;
+    await updateLeaveType.mutateAsync({
+      id: editingType.id,
+      label: editingType.label,
+      icon: editingType.icon,
+      color: editingType.color,
+      default_days: editingType.default_days,
+      is_active: editingType.is_active,
+    });
+    setIsEditOpen(false);
+    setEditingType(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -121,14 +198,14 @@ export default function Leaves() {
   return (
     <MainLayout title="Leave Management" subtitle="Apply for leaves and track balances">
       {/* Leave Balance Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 mb-6">
         {isLoadingBalances ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))
         ) : (
-          leaveBalances.slice(0, 4).map((leave) => {
-            const config = leaveTypeConfig[leave.leave_type] || leaveTypeConfig.casual;
+          leaveBalances.map((leave) => {
+            const config = leaveTypeConfig[leave.leave_type] || { icon: Briefcase, color: "text-muted-foreground", label: leave.leave_type };
             const Icon = config.icon;
             const remaining = leave.total_days - leave.used_days;
             
@@ -167,75 +244,235 @@ export default function Leaves() {
               <CardTitle>Leave Requests</CardTitle>
               <CardDescription>View and manage leave applications</CardDescription>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Apply Leave
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Apply for Leave</DialogTitle>
-                  <DialogDescription>Submit a new leave request for approval</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>Leave Type</Label>
-                    <Select value={leaveType} onValueChange={(v) => setLeaveType(v as LeaveRequest["leave_type"])}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select leave type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="casual">Casual Leave</SelectItem>
-                        <SelectItem value="sick">Sick Leave</SelectItem>
-                        <SelectItem value="earned">Earned Leave</SelectItem>
-                        <SelectItem value="wfh">Work From Home</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label>From Date</Label>
-                      <Input 
-                        type="date" 
-                        value={fromDate}
-                        min="2020-01-01"
-                        max="2099-12-31"
-                        onChange={(e) => setFromDate(e.target.value)}
-                      />
+            <div className="flex gap-2">
+              {isAdminOrHR && (
+                <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Manage Types
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Manage Leave Types</DialogTitle>
+                      <DialogDescription>Create or modify leave types available to employees</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      {/* Existing types */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Existing Types</Label>
+                        {allLeaveTypes.map((lt) => {
+                          const Icon = getIcon(lt.icon);
+                          return (
+                            <div key={lt.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <Icon className={`h-4 w-4 ${lt.color}`} />
+                                <div>
+                                  <p className="text-sm font-medium">{lt.label}</p>
+                                  <p className="text-xs text-muted-foreground">Key: {lt.key} · {lt.default_days} days</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={lt.is_active ? "default" : "secondary"}>
+                                  {lt.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingType({ ...lt }); setIsEditOpen(true); }}>
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add new type */}
+                      <div className="border-t pt-4 space-y-3">
+                        <Label className="text-sm font-semibold">Add New Leave Type</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Key (unique)</Label>
+                            <Input placeholder="e.g. comp_off" value={newKey} onChange={(e) => setNewKey(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Display Label</Label>
+                            <Input placeholder="e.g. Compensatory Off" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Icon</Label>
+                            <Select value={newIcon} onValueChange={setNewIcon}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Palmtree">🌴 Palmtree</SelectItem>
+                                <SelectItem value="Stethoscope">🩺 Stethoscope</SelectItem>
+                                <SelectItem value="Baby">👶 Baby</SelectItem>
+                                <SelectItem value="Briefcase">💼 Briefcase</SelectItem>
+                                <SelectItem value="Home">🏠 Home</SelectItem>
+                                <SelectItem value="Calendar">📅 Calendar</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Color</Label>
+                            <Select value={newColor} onValueChange={setNewColor}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="text-green-600">Green</SelectItem>
+                                <SelectItem value="text-red-600">Red</SelectItem>
+                                <SelectItem value="text-blue-600">Blue</SelectItem>
+                                <SelectItem value="text-purple-600">Purple</SelectItem>
+                                <SelectItem value="text-orange-600">Orange</SelectItem>
+                                <SelectItem value="text-pink-600">Pink</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Default Days</Label>
+                            <Input type="number" min={0} value={newDefaultDays} onChange={(e) => setNewDefaultDays(Number(e.target.value))} />
+                          </div>
+                        </div>
+                        <Button onClick={handleCreateLeaveType} disabled={createLeaveType.isPending || !newKey || !newLabel} className="w-full">
+                          <Plus className="h-4 w-4 mr-2" />
+                          {createLeaveType.isPending ? "Creating..." : "Add Leave Type"}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="grid gap-2">
-                      <Label>To Date</Label>
-                      <Input 
-                        type="date" 
-                        value={toDate}
-                        min={fromDate || "2020-01-01"}
-                        max="2099-12-31"
-                        onChange={(e) => setToDate(e.target.value)}
-                      />
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {/* Edit Leave Type Dialog */}
+              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Leave Type</DialogTitle>
+                  </DialogHeader>
+                  {editingType && (
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-1">
+                        <Label>Label</Label>
+                        <Input value={editingType.label} onChange={(e) => setEditingType({ ...editingType, label: e.target.value })} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Icon</Label>
+                          <Select value={editingType.icon} onValueChange={(v) => setEditingType({ ...editingType, icon: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Palmtree">🌴 Palmtree</SelectItem>
+                              <SelectItem value="Stethoscope">🩺 Stethoscope</SelectItem>
+                              <SelectItem value="Baby">👶 Baby</SelectItem>
+                              <SelectItem value="Briefcase">💼 Briefcase</SelectItem>
+                              <SelectItem value="Home">🏠 Home</SelectItem>
+                              <SelectItem value="Calendar">📅 Calendar</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Color</Label>
+                          <Select value={editingType.color} onValueChange={(v) => setEditingType({ ...editingType, color: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="text-green-600">Green</SelectItem>
+                              <SelectItem value="text-red-600">Red</SelectItem>
+                              <SelectItem value="text-blue-600">Blue</SelectItem>
+                              <SelectItem value="text-purple-600">Purple</SelectItem>
+                              <SelectItem value="text-orange-600">Orange</SelectItem>
+                              <SelectItem value="text-pink-600">Pink</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Default Days</Label>
+                        <Input type="number" min={0} value={editingType.default_days} onChange={(e) => setEditingType({ ...editingType, default_days: Number(e.target.value) })} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label>Active</Label>
+                        <Switch checked={editingType.is_active} onCheckedChange={(v) => setEditingType({ ...editingType, is_active: v })} />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Reason</Label>
-                    <Textarea 
-                      placeholder="Please provide a reason for your leave request"
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                  <Button 
-                    onClick={handleSubmitLeave}
-                    disabled={createLeaveRequest.isPending || !fromDate || !toDate}
-                  >
-                    {createLeaveRequest.isPending ? "Submitting..." : "Submit Request"}
+                  )}
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                    <Button onClick={handleUpdateLeaveType} disabled={updateLeaveType.isPending}>
+                      {updateLeaveType.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Apply Leave
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Apply for Leave</DialogTitle>
+                    <DialogDescription>Submit a new leave request for approval</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label>Leave Type</Label>
+                      <Select value={leaveType || defaultLeaveType} onValueChange={(v) => setLeaveType(v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select leave type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activeLeaveTypes.map((lt) => (
+                            <SelectItem key={lt.key} value={lt.key}>{lt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>From Date</Label>
+                        <Input 
+                          type="date" 
+                          value={fromDate}
+                          min="2020-01-01"
+                          max="2099-12-31"
+                          onChange={(e) => setFromDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>To Date</Label>
+                        <Input 
+                          type="date" 
+                          value={toDate}
+                          min={fromDate || "2020-01-01"}
+                          max="2099-12-31"
+                          onChange={(e) => setToDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Reason</Label>
+                      <Textarea 
+                        placeholder="Please provide a reason for your leave request"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                    <Button 
+                      onClick={handleSubmitLeave}
+                      disabled={createLeaveRequest.isPending || !fromDate || !toDate}
+                    >
+                      {createLeaveRequest.isPending ? "Submitting..." : "Submit Request"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
@@ -258,7 +495,6 @@ export default function Leaves() {
                   </div>
                 ) : (
                   <>
-                  {/* Grid layout avoids HTML table first-column rendering quirks */}
                   <div className="w-full overflow-x-auto">
                     <div className="min-w-[580px]">
                       <div className={`grid border-b border-border/50 bg-muted/30 rounded-t-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 ${isAdminOrHR ? "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px_80px]" : "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_90px]"}`}>
