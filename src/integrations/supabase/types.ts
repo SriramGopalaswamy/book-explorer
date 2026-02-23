@@ -2149,6 +2149,56 @@ export type Database = {
           },
         ]
       }
+      leave_types: {
+        Row: {
+          color: string
+          created_at: string
+          default_days: number
+          icon: string
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          organization_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          default_days?: number
+          icon?: string
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          organization_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          default_days?: number
+          icon?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          organization_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_leave_types_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       master_coa_template: {
         Row: {
           account_code: string
