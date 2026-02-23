@@ -18,6 +18,11 @@ export interface DashboardStats {
   goalsChange: number;
 }
 
+/**
+ * Dashboard stats now read from journal_lines + gl_accounts (unified source).
+ * Revenue = credits to revenue GL accounts in current month.
+ * Expenses = debits to expense GL accounts in current month.
+ */
 export function useDashboardStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
@@ -25,152 +30,84 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard-stats", user?.id, isDevMode],
     queryFn: async (): Promise<DashboardStats> => {
-      if (!user && !isDevMode) {
-        return getEmptyStats();
-      }
-      if (isDevMode) {
-        return getEmptyStats();
-      }
+      if (!user && !isDevMode) return getEmptyStats();
+      if (isDevMode) return getEmptyStats();
 
       const now = new Date();
-      const lastMonthStart = startOfMonth(subMonths(now, 1));
-      const lastMonthEnd = endOfMonth(subMonths(now, 1));
+      const currentMonthStart = startOfMonth(now).toISOString().split("T")[0];
+      const currentMonthEnd = endOfMonth(now).toISOString().split("T")[0];
+      const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
+      const lastMonthEnd = endOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
 
-      // Check if user is admin/HR for company-wide view
-      const { data: adminRole } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .in("role", ["admin", "hr", "finance"])
-        .maybeSingle();
+      // Get GL accounts to identify revenue vs expense
+      const { data: glAccounts } = await supabase
+        .from("gl_accounts")
+        .select("id, account_type")
+        .in("account_type", ["revenue", "expense"]);
 
-      const isAdminOrFinance = !!adminRole;
+      const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
+      const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
 
-      const currentMonthStart = startOfMonth(now);
-      const currentMonthEnd = endOfMonth(now);
+      // Current month journal lines
+      const { data: currentLines } = await supabase
+        .from("journal_lines")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date)")
+        .gte("journal_entries.entry_date", currentMonthStart)
+        .lte("journal_entries.entry_date", currentMonthEnd);
 
-      // Build queries — admin/finance sees all, others see only their own
-      let revenueQuery = supabase
-        .from("financial_records")
-        .select("amount")
-        .eq("type", "revenue")
-        .gte("record_date", currentMonthStart.toISOString().split("T")[0])
-        .lte("record_date", currentMonthEnd.toISOString().split("T")[0]);
+      // Last month journal lines
+      const { data: lastMonthLines } = await supabase
+        .from("journal_lines")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date)")
+        .gte("journal_entries.entry_date", lastMonthStart)
+        .lte("journal_entries.entry_date", lastMonthEnd);
 
-      let expenseQuery = supabase
-        .from("financial_records")
-        .select("amount")
-        .eq("type", "expense")
-        .gte("record_date", currentMonthStart.toISOString().split("T")[0])
-        .lte("record_date", currentMonthEnd.toISOString().split("T")[0]);
+      const calcTotals = (lines: any[]) => {
+        let revenue = 0, expenses = 0;
+        (lines || []).forEach((l: any) => {
+          if (revenueIds.has(l.gl_account_id)) revenue += Number(l.credit || 0);
+          if (expenseIds.has(l.gl_account_id)) expenses += Number(l.debit || 0);
+        });
+        return { revenue, expenses };
+      };
 
-      let lastMonthRevenueQuery = supabase
-        .from("financial_records")
-        .select("amount")
-        .eq("type", "revenue")
-        .gte("record_date", lastMonthStart.toISOString().split("T")[0])
-        .lte("record_date", lastMonthEnd.toISOString().split("T")[0]);
+      const current = calcTotals(currentLines || []);
+      const lastMonth = calcTotals(lastMonthLines || []);
 
-      let lastMonthExpenseQuery = supabase
-        .from("financial_records")
-        .select("amount")
-        .eq("type", "expense")
-        .gte("record_date", lastMonthStart.toISOString().split("T")[0])
-        .lte("record_date", lastMonthEnd.toISOString().split("T")[0]);
+      const revenueChange = lastMonth.revenue > 0
+        ? ((current.revenue - lastMonth.revenue) / lastMonth.revenue) * 100
+        : 0;
+      const expenseChange = lastMonth.expenses > 0
+        ? ((current.expenses - lastMonth.expenses) / lastMonth.expenses) * 100
+        : 0;
 
-      let invoicesQuery = supabase
-        .from("invoices")
-        .select("id")
-        .in("status", ["draft", "sent"]);
-
-      let lastMonthInvoicesQuery = supabase
-        .from("invoices")
-        .select("id")
-        .in("status", ["draft", "sent"])
-        .gte("created_at", lastMonthStart.toISOString())
-        .lte("created_at", lastMonthEnd.toISOString());
-
-      let goalsQuery = supabase
-        .from("goals")
-        .select("progress, status");
-
-      if (!isAdminOrFinance) {
-        revenueQuery = revenueQuery.eq("user_id", user!.id);
-        expenseQuery = expenseQuery.eq("user_id", user!.id);
-        lastMonthRevenueQuery = lastMonthRevenueQuery.eq("user_id", user!.id);
-        lastMonthExpenseQuery = lastMonthExpenseQuery.eq("user_id", user!.id);
-        invoicesQuery = invoicesQuery.eq("user_id", user!.id);
-        lastMonthInvoicesQuery = lastMonthInvoicesQuery.eq("user_id", user!.id);
-        goalsQuery = goalsQuery.eq("user_id", user!.id);
-      }
-
-      const [
-        currentRevenueResult,
-        currentExpenseResult,
-        lastMonthRevenueResult,
-        lastMonthExpenseResult,
-        employeesResult,
-        pendingInvoicesResult,
-        lastMonthInvoicesResult,
-        goalsResult,
-      ] = await Promise.all([
-        revenueQuery,
-        expenseQuery,
-        lastMonthRevenueQuery,
-        lastMonthExpenseQuery,
-        supabase
-          .from("profiles")
-          .select("id")
-          .eq("status", "active"),
-        invoicesQuery,
-        lastMonthInvoicesQuery,
-        goalsQuery,
+      // Non-financial stats (unchanged)
+      const [employeesResult, pendingInvoicesResult, lastMonthInvoicesResult, goalsResult] = await Promise.all([
+        supabase.from("profiles").select("id").eq("status", "active"),
+        supabase.from("invoices").select("id").in("status", ["draft", "sent"]),
+        supabase.from("invoices").select("id").in("status", ["draft", "sent"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd),
+        supabase.from("goals").select("progress, status"),
       ]);
-
-      const totalRevenue = currentRevenueResult.data?.reduce(
-        (sum, record) => sum + Number(record.amount), 0
-      ) || 0;
-
-      const lastMonthRevenue = lastMonthRevenueResult.data?.reduce(
-        (sum, record) => sum + Number(record.amount), 0
-      ) || 0;
-
-      const revenueChange = lastMonthRevenue > 0
-        ? ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
-        : 0;
-
-      const totalExpenses = currentExpenseResult.data?.reduce(
-        (sum, record) => sum + Number(record.amount), 0
-      ) || 0;
-
-      const lastMonthExpenses = lastMonthExpenseResult.data?.reduce(
-        (sum, record) => sum + Number(record.amount), 0
-      ) || 0;
-
-      const expenseChange = lastMonthExpenses > 0
-        ? ((totalExpenses - lastMonthExpenses) / lastMonthExpenses) * 100
-        : 0;
 
       const activeEmployees = employeesResult.data?.length || 0;
       const pendingInvoices = pendingInvoicesResult.data?.length || 0;
       const lastMonthPendingInvoices = lastMonthInvoicesResult.data?.length || 0;
-      const invoiceChange = pendingInvoices - lastMonthPendingInvoices;
 
       const goals = goalsResult.data || [];
       const avgProgress = goals.length > 0
-        ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length)
+        ? Math.round(goals.reduce((sum: number, g: any) => sum + g.progress, 0) / goals.length)
         : 0;
 
       return {
-        totalRevenue,
+        totalRevenue: current.revenue,
         revenueChange: Math.round(revenueChange * 10) / 10,
-        totalExpenses,
+        totalExpenses: current.expenses,
         expenseChange: Math.round(expenseChange * 10) / 10,
-        netIncome: totalRevenue - totalExpenses,
+        netIncome: current.revenue - current.expenses,
         activeEmployees,
         employeeChange: 0,
         pendingInvoices,
-        invoiceChange,
+        invoiceChange: pendingInvoices - lastMonthPendingInvoices,
         goalsAchieved: avgProgress,
         goalsChange: 0,
       };
@@ -182,17 +119,9 @@ export function useDashboardStats() {
 
 function getEmptyStats(): DashboardStats {
   return {
-    totalRevenue: 0,
-    revenueChange: 0,
-    totalExpenses: 0,
-    expenseChange: 0,
-    netIncome: 0,
-    activeEmployees: 0,
-    employeeChange: 0,
-    pendingInvoices: 0,
-    invoiceChange: 0,
-    goalsAchieved: 0,
-    goalsChange: 0,
+    totalRevenue: 0, revenueChange: 0, totalExpenses: 0, expenseChange: 0,
+    netIncome: 0, activeEmployees: 0, employeeChange: 0, pendingInvoices: 0,
+    invoiceChange: 0, goalsAchieved: 0, goalsChange: 0,
   };
 }
 
