@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Send, Brain, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAIChat, ChatMessage } from "@/hooks/useAIInsights";
 import ReactMarkdown from "react-markdown";
 
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isExpanded, setIsExpanded] = useState(true);
   const { messages, isLoading, sendMessage, clearMessages } = useAIChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +22,13 @@ export function AIChatAssistant() {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
+  // Auto-collapse the label after 4 seconds
+  useEffect(() => {
+    if (isOpen || !isExpanded) return;
+    const timer = setTimeout(() => setIsExpanded(false), 4000);
+    return () => clearTimeout(timer);
+  }, [isOpen, isExpanded]);
+
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
@@ -29,7 +38,7 @@ export function AIChatAssistant() {
 
   return (
     <>
-      {/* FAB */}
+      {/* FAB — pill with label that collapses to icon */}
       <AnimatePresence>
         {!isOpen && (
           <motion.div
@@ -38,12 +47,34 @@ export function AIChatAssistant() {
             exit={{ scale: 0 }}
             className="fixed bottom-6 right-6 z-50"
           >
-            <Button
-              onClick={() => setIsOpen(true)}
-              className="h-14 w-14 rounded-full bg-primary shadow-lg shadow-primary/30 hover:bg-primary/90 p-0"
-            >
-              <Brain className="h-6 w-6" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setIsOpen(true)}
+                  className="rounded-full bg-primary shadow-lg shadow-primary/30 hover:bg-primary/90 h-12 gap-2 px-4 transition-all duration-300"
+                >
+                  <Brain className="h-5 w-5 shrink-0" />
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.span
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: "auto", opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden whitespace-nowrap text-sm font-medium"
+                      >
+                        Ask CFO AI
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Button>
+              </TooltipTrigger>
+              {!isExpanded && (
+                <TooltipContent side="left">
+                  <p>CFO AI Assistant</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </motion.div>
         )}
       </AnimatePresence>
