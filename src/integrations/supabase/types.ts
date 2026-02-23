@@ -2071,6 +2071,7 @@ export type Database = {
       }
       leave_requests: {
         Row: {
+          attachment_url: string | null
           created_at: string
           days: number
           from_date: string
@@ -2087,6 +2088,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attachment_url?: string | null
           created_at?: string
           days?: number
           from_date: string
@@ -2103,6 +2105,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attachment_url?: string | null
           created_at?: string
           days?: number
           from_date?: string
