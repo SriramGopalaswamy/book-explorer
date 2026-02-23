@@ -39,6 +39,7 @@ import {
   type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
+import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
@@ -287,19 +288,11 @@ export default function Payroll() {
   const salaryFormFields = (
     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
       {!editTarget && (
-        <div className="grid gap-2">
-          <Label>Employee *</Label>
-          <Select value={form.profile_id} onValueChange={(v) => setForm({ ...form, profile_id: v })}>
-            <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-            <SelectContent>
-              {employees.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.full_name || "Unnamed"} — {e.department || "No dept"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <EmployeeCombobox
+          employees={employees}
+          value={form.profile_id}
+          onSelect={(v) => setForm({ ...form, profile_id: v })}
+        />
       )}
       <div className="space-y-1">
         <p className="text-sm font-medium text-muted-foreground">Earnings</p>
