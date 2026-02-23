@@ -48,6 +48,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
+import { useProfitAndLoss } from "@/hooks/useCanonicalViews";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -140,9 +141,11 @@ export default function Accounting() {
 
   const pagination = usePagination(filteredRecords, 10);
 
-  const totalRevenue = records.filter(r => r.type === "revenue").reduce((s, r) => s + r.amount, 0);
-  const totalExpenses = records.filter(r => r.type === "expense").reduce((s, r) => s + r.amount, 0);
-  const netIncome = totalRevenue - totalExpenses;
+  // Use journal_lines (canonical source) for stat cards — matches integrity badge
+  const { data: pnl } = useProfitAndLoss();
+  const totalRevenue = pnl?.summary.revenue || 0;
+  const totalExpenses = pnl?.summary.expenses || 0;
+  const netIncome = pnl?.summary.netIncome || 0;
 
   // Show loading state while checking permissions
   if (isCheckingRole) {
@@ -281,20 +284,20 @@ export default function Accounting() {
         <OnboardingBanner />
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            All-time totals · Dashboard shows current month only
+            All-time ledger totals (from General Ledger) · Dashboard shows current month only
           </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Revenue (All-time)"
             value={formatAmount(totalRevenue)}
-            change={{ value: records.length > 0 ? `${records.filter(r => r.type === "revenue").length} entries` : "0", type: "increase" }}
+            change={{ value: pnl?.details.filter(d => d.section === "Revenue").length ? `${pnl.details.filter(d => d.section === "Revenue").length} accounts` : "0", type: "increase" }}
             icon={<Wallet className="h-4 w-4" />}
           />
           <StatCard
             title="Total Expenses (All-time)"
             value={formatAmount(totalExpenses)}
-            change={{ value: records.length > 0 ? `${records.filter(r => r.type === "expense").length} entries` : "0", type: "decrease" }}
+            change={{ value: pnl?.details.filter(d => d.section === "Expense").length ? `${pnl.details.filter(d => d.section === "Expense").length} accounts` : "0", type: "decrease" }}
             icon={<ArrowDownRight className="h-4 w-4" />}
           />
           <StatCard
