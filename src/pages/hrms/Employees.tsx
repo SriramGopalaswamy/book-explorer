@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -80,6 +80,7 @@ import {
   useIsAdminOrHR,
   Employee,
 } from "@/hooks/useEmployees";
+import { EmployeeDetailDialog } from "@/components/employees/EmployeeDetailDialog";
 
 const statusStyles = {
   active: "bg-success/10 text-success border-success/30",
@@ -165,6 +166,7 @@ export default function Employees() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [viewEmployee, setViewEmployee] = useState<Employee | null>(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -458,7 +460,8 @@ export default function Employees() {
                 {pagination.paginatedItems.map((employee) => (
                   <div
                     key={employee.id}
-                    className="group rounded-lg border bg-background p-4 transition-all hover:border-hrms hover:shadow-md"
+                    className="group rounded-lg border bg-background p-4 transition-all hover:border-hrms hover:shadow-md cursor-pointer"
+                    onClick={() => setViewEmployee(employee)}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="h-12 w-12">
@@ -476,7 +479,7 @@ export default function Employees() {
                           </h4>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -659,6 +662,16 @@ export default function Employees() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <EmployeeDetailDialog
+        employee={viewEmployee}
+        open={!!viewEmployee}
+        onOpenChange={(open) => !open && setViewEmployee(null)}
+        managerName={
+          viewEmployee?.manager_id
+            ? employees.find((e) => e.id === viewEmployee.manager_id)?.full_name || undefined
+            : undefined
+        }
+      />
     </MainLayout>
   );
 }
