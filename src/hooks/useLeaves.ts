@@ -172,6 +172,7 @@ export function useCreateLeaveRequest() {
       from_date: string;
       to_date: string;
       reason?: string;
+      attachment?: File | null;
     }) => {
       // Timezone-safe day calculation: parse date parts directly to avoid UTC offset shifts
       const [fy, fm, fd] = request.from_date.split("-").map(Number);
@@ -183,6 +184,18 @@ export function useCreateLeaveRequest() {
       // Sanity guard: reject obviously corrupt ranges (>365 days)
       if (days < 1 || days > 365) {
         throw new Error(`Invalid date range: ${days} days. Please check your from/to dates.`);
+      }
+
+      // Upload attachment if provided
+      let attachment_url: string | null = null;
+      if (request.attachment && user) {
+        const fileExt = request.attachment.name.split(".").pop();
+        const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("leave-attachments")
+          .upload(filePath, request.attachment);
+        if (uploadError) throw new Error("Failed to upload attachment: " + uploadError.message);
+        attachment_url = filePath;
       }
 
       // Fetch the user's profile_id so the join works in the table
@@ -202,7 +215,8 @@ export function useCreateLeaveRequest() {
           to_date: request.to_date,
           days,
           reason: request.reason,
-        })
+          attachment_url,
+        } as any)
         .select()
         .single();
 

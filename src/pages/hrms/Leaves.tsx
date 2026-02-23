@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home, Settings, Pencil } from "lucide-react";
+import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home, Settings, Pencil, Paperclip, FileText, Image } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { 
@@ -72,6 +72,7 @@ export default function Leaves() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [reason, setReason] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   // New leave type form
   const [newKey, setNewKey] = useState("");
@@ -143,6 +144,7 @@ export default function Leaves() {
       from_date: fromDate,
       to_date: toDate,
       reason,
+      attachment,
     });
     
     setIsDialogOpen(false);
@@ -150,6 +152,7 @@ export default function Leaves() {
     setToDate("");
     setReason("");
     setLeaveType("");
+    setAttachment(null);
   };
 
   const handleCreateLeaveType = async () => {
@@ -459,6 +462,41 @@ export default function Leaves() {
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                       />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="flex items-center gap-2">
+                        <Paperclip className="h-4 w-4" />
+                        Attach Document
+                        <span className="text-xs text-muted-foreground font-normal">(optional — PDF or image)</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {attachment && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                          {attachment.type.startsWith("image/") ? (
+                            <Image className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <FileText className="h-4 w-4 shrink-0" />
+                          )}
+                          <span className="truncate">{attachment.name}</span>
+                          <span className="text-xs">({(attachment.size / 1024).toFixed(0)} KB)</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 ml-auto shrink-0"
+                            onClick={() => setAttachment(null)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <DialogFooter>
