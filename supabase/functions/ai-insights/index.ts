@@ -7,8 +7,31 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Phase 1 Soft Decommission:
+ * AI_INSIGHTS_ENABLED env var controls whether this function processes requests.
+ * When disabled (default), it returns 410 Gone to signal permanent retirement.
+ * All data tables remain intact. No outbound LLM calls are made.
+ */
+const AI_INSIGHTS_ENABLED = Deno.env.get("AI_INSIGHTS_ENABLED") === "true";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Phase 1: Return 410 Gone when AI is soft-decommissioned
+  if (!AI_INSIGHTS_ENABLED) {
+    console.log("ai-insights: soft decommissioned (AI_INSIGHTS_ENABLED=false). Returning 410.");
+    return new Response(
+      JSON.stringify({
+        error: "AI insights have been retired. Structured Financial Control Center coming soon.",
+        status: "decommissioned",
+      }),
+      {
+        status: 410,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
 
   try {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -18,12 +41,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Create client with user's auth for RLS
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
 
-    // Get user's organization_id for explicit scoping
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -38,7 +59,7 @@ serve(async (req) => {
 
     const { mode, module, messages } = await req.json();
 
-    // === CHAT MODE: streaming conversational AI ===
+    // === CHAT MODE ===
     if (mode === "chat") {
       const dataSnapshot = await gatherAllData(supabase, orgId);
       const systemPrompt = buildChatSystemPrompt(dataSnapshot);
@@ -78,7 +99,7 @@ serve(async (req) => {
       });
     }
 
-    // === INSIGHTS MODE: structured dashboard/module commentary ===
+    // === INSIGHTS MODE ===
     const dataSnapshot = await gatherAllData(supabase, orgId);
     const systemPrompt = buildInsightsSystemPrompt(module || "dashboard");
     const userPrompt = buildDataPrompt(dataSnapshot, module);
@@ -104,10 +125,7 @@ serve(async (req) => {
               parameters: {
                 type: "object",
                 properties: {
-                  headline: {
-                    type: "string",
-                    description: "A punchy, blunt 1-line headline (max 12 words). No fluff.",
-                  },
+                  headline: { type: "string", description: "A punchy, blunt 1-line headline (max 12 words). No fluff." },
                   insights: {
                     type: "array",
                     items: {
@@ -115,22 +133,15 @@ serve(async (req) => {
                       properties: {
                         severity: { type: "string", enum: ["critical", "warning", "opportunity", "positive"] },
                         title: { type: "string", description: "Bold statement, max 8 words" },
-                        commentary: { type: "string", description: "Sharp, data-driven analysis. 2-3 sentences max. Include specific numbers." },
+                        commentary: { type: "string", description: "Sharp, data-driven analysis. 2-3 sentences max." },
                         metric: { type: "string", description: "The key number or ratio driving this insight" },
                       },
                       required: ["severity", "title", "commentary", "metric"],
                       additionalProperties: false,
                     },
                   },
-                  overall_grade: {
-                    type: "string",
-                    enum: ["A", "B", "C", "D", "F"],
-                    description: "Letter grade for operational health",
-                  },
-                  one_liner: {
-                    type: "string",
-                    description: "A devastatingly honest 1-sentence summary. No corporate speak.",
-                  },
+                  overall_grade: { type: "string", enum: ["A", "B", "C", "D", "F"] },
+                  one_liner: { type: "string", description: "A devastatingly honest 1-sentence summary." },
                 },
                 required: ["headline", "insights", "overall_grade", "one_liner"],
                 additionalProperties: false,
@@ -186,7 +197,6 @@ async function gatherAllData(supabase: any, orgId: string) {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
 
-  // 1. Get GL accounts for this org
   const { data: glAccounts } = await supabase
     .from("gl_accounts")
     .select("id, code, name, account_type, normal_balance")
@@ -200,7 +210,6 @@ async function gatherAllData(supabase: any, orgId: string) {
   const arId = accounts.find((a: any) => a.code === "1200")?.id;
   const apId = accounts.find((a: any) => a.code === "2100")?.id;
 
-  // 2. Get journal lines for current + last month (org-scoped via journal_entries)
   const [currentLinesRes, lastLinesRes, allLinesRes] = await Promise.all([
     supabase
       .from("journal_lines")
@@ -232,7 +241,6 @@ async function gatherAllData(supabase: any, orgId: string) {
   const currentMonth = calcFinancials(currentLinesRes.data || []);
   const lastMonth = calcFinancials(lastLinesRes.data || []);
 
-  // GL balances (all-time for balance sheet accounts)
   const balanceMap: Record<string, number> = {};
   (allLinesRes.data || []).forEach((l: any) => {
     balanceMap[l.gl_account_id] = (balanceMap[l.gl_account_id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
@@ -242,7 +250,6 @@ async function gatherAllData(supabase: any, orgId: string) {
   const arBalance = arId ? (balanceMap[arId] || 0) : 0;
   const apBalance = apId ? Math.abs(balanceMap[apId] || 0) : 0;
 
-  // Category breakdowns from GL
   const expensesByCategory: Record<string, number> = {};
   const revenueByCategory: Record<string, number> = {};
   (currentLinesRes.data || []).forEach((l: any) => {
@@ -255,7 +262,6 @@ async function gatherAllData(supabase: any, orgId: string) {
     }
   });
 
-  // 3. Operational data (all org-scoped)
   const [
     invoices, bills, employees, leaves, attendance,
     goals, payroll, reimbursements, memos,
@@ -379,33 +385,30 @@ You are analyzing: ${module === "dashboard" ? "the entire business" : `the ${mod
 function buildChatSystemPrompt(data: any) {
   return `You are the CFO's AI advisor for GRX10 Books — a combined financial and HR operating system. You speak like T.J. Rodgers: blunt, data-obsessed, zero tolerance for inefficiency.
 
-CRITICAL: All financial data below comes from the General Ledger (source: ${data._source}). These are deterministic, double-entry verified numbers — not estimates.
-Organization: ${data._org_id}
-Snapshot: ${data._timestamp}
+CRITICAL: All financial data below comes from the General Ledger (journal_lines + gl_accounts). This is the ONLY source of truth. The _source field confirms this.
 
-When users ask questions, you pull from this live ledger data. Be specific. Use actual numbers. If asked about something not in the data, say so honestly — never fabricate.
-
-LIVE LEDGER DATA:
+CURRENT BUSINESS SNAPSHOT:
 ${JSON.stringify(data, null, 2)}
 
 RULES:
-- Always reference specific numbers from the ledger snapshot
-- Cross-reference domains: if payroll burn is high AND goals are stale, connect the dots
-- If revenue is flat but expenses are growing, say "you're funding your own decline"
-- Be concise. No filler. Every sentence must carry a data point or actionable insight.
-- If asked to compare periods, use the month-over-month data available
-- Format currency in Indian format (₹ with L for lakhs, Cr for crores)
-- If a balance sheet account shows a negative cash position, flag it as critical`;
+- Answer questions using ONLY the data above. Never invent numbers.
+- If asked about something not in the data, say "I don't have that data."
+- Be direct. No corporate fluff. Lead with numbers.
+- If the user asks for advice, give it — but ground it in the data.
+- Keep responses concise. 2-4 sentences for simple questions, more for analysis.
+- Use ₹ for currency. Format large numbers with commas.`;
 }
 
 function buildDataPrompt(data: any, module?: string) {
-  return `Analyze this live GENERAL LEDGER data (deterministic, double-entry verified) and generate insights. Focus on ${module || "cross-domain analysis"}.
+  const focus = module && module !== "dashboard"
+    ? `Focus your analysis on the ${module} module data, but reference cross-module impacts where relevant.`
+    : "Analyze the entire business holistically.";
 
-DATA SOURCE: ${data._source} (organization: ${data._org_id})
-SNAPSHOT TIME: ${data._timestamp}
+  return `Here is the current business data snapshot from the General Ledger:
 
-LEDGER DATA:
 ${JSON.stringify(data, null, 2)}
 
-Generate 3-5 of the most critical insights. At least one must be cross-domain (e.g. payroll vs revenue, attendance vs goals). Grade the overall operational health honestly.`;
+${focus}
+
+Generate 3-5 sharp insights. Prioritize by severity. Be brutal.`;
 }
