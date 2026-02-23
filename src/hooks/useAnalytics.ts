@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGLBalances } from "@/hooks/useCanonicalViews";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 // ─── Re-export Chart of Accounts CRUD (used by AccountFormDialog, ChartOfAccountsTable) ───
 
@@ -30,6 +30,8 @@ export type ChartAccountInput = {
   is_active?: boolean;
   parent_id?: string | null;
 };
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function useChartOfAccounts() {
   const { user } = useAuth();
@@ -132,23 +134,45 @@ const EXPENSE_COLORS = [
   "hsl(120, 40%, 45%)",
 ];
 
-// ─── P&L from GL (journal_lines + gl_accounts) ───────────────
+const ALL_TIME_FROM = "2000-01-01";
+const getAllTimeTo = () => new Date().toISOString().split("T")[0];
+
+// ─── P&L from RPC ────────────────────────────────────────────
 
 export function useProfitLoss(): ProfitLossData {
-  const { data: balances = [] } = useGLBalances();
+  const { data: org } = useUserOrganization();
+  const { user } = useAuth();
+  const orgId = org?.organizationId;
 
-  const revenue = balances
-    .filter((b) => b.account_type === "revenue")
-    .map((b) => ({ name: b.name, amount: Math.abs(b.balance) }))
-    .filter((r) => r.amount > 0);
+  const { data } = useQuery({
+    queryKey: ["rpc-profit-loss", orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase.rpc("get_profit_loss", {
+        p_org_id: orgId,
+        p_from: ALL_TIME_FROM,
+        p_to: getAllTimeTo(),
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const expenses = balances
-    .filter((b) => b.account_type === "expense")
-    .map((b) => ({ name: b.name, amount: Math.abs(b.balance) }))
-    .filter((e) => e.amount > 0);
+  const rows = data || [];
+  const revenue = rows
+    .filter((r: any) => r.account_type === "revenue")
+    .map((r: any) => ({ name: r.account_name, amount: Number(r.amount) }))
+    .filter((r: any) => r.amount > 0);
 
-  const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0);
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const expenses = rows
+    .filter((r: any) => r.account_type === "expense")
+    .map((r: any) => ({ name: r.account_name, amount: Number(r.amount) }))
+    .filter((e: any) => e.amount > 0);
+
+  const totalRevenue = revenue.reduce((s: number, r: any) => s + r.amount, 0);
+  const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
   return {
     revenue, expenses, totalRevenue, totalExpenses,
@@ -157,19 +181,34 @@ export function useProfitLoss(): ProfitLossData {
   };
 }
 
-// ─── Balance Sheet from GL ───────────────────────────────────
+// ─── Balance Sheet from RPC ──────────────────────────────────
 
 export function useBalanceSheet(): BalanceSheetData {
-  const { data: balances = [] } = useGLBalances();
+  const { data: org } = useUserOrganization();
+  const { user } = useAuth();
+  const orgId = org?.organizationId;
+
+  const { data } = useQuery({
+    queryKey: ["rpc-balance-sheet", orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase.rpc("get_balance_sheet", {
+        p_org_id: orgId,
+        p_as_of: getAllTimeTo(),
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const rows = data || [];
 
   const mapType = (type: string) =>
-    balances
-      .filter((b) => b.account_type === type)
-      .map((b) => ({
-        name: b.name,
-        code: b.code,
-        balance: type === "liability" || type === "equity" ? Math.abs(b.balance) : b.balance,
-      }));
+    rows
+      .filter((r: any) => r.account_type === type)
+      .map((r: any) => ({ name: r.account_name, code: r.account_code, balance: Number(r.balance) }));
 
   const assets = mapType("asset");
   const liabilities = mapType("liability");
@@ -183,66 +222,56 @@ export function useBalanceSheet(): BalanceSheetData {
   };
 }
 
-// ─── Expense breakdown from GL ───────────────────────────────
+// ─── Expense breakdown from P&L ──────────────────────────────
 
 export function useExpenseByCategory(): ExpenseByCategoryData[] {
-  const { data: balances = [] } = useGLBalances();
-
-  const expenseAccounts = balances
-    .filter((b) => b.account_type === "expense" && b.balance > 0);
-
-  const total = expenseAccounts.reduce((s, e) => s + e.balance, 0);
-
-  return expenseAccounts.map((e, i) => ({
+  const pl = useProfitLoss();
+  const total = pl.totalExpenses;
+  return pl.expenses.map((e, i) => ({
     name: e.name,
-    value: e.balance,
-    percentage: total > 0 ? (e.balance / total) * 100 : 0,
+    value: e.amount,
+    percentage: total > 0 ? (e.amount / total) * 100 : 0,
     color: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
   }));
 }
 
-// ─── AR Aging from invoices ──────────────────────────────────
+// ─── AR Aging from RPC ───────────────────────────────────────
 
 export function useARAging() {
+  const { data: org } = useUserOrganization();
   const { user } = useAuth();
+  const orgId = org?.organizationId;
 
   return useQuery({
-    queryKey: ["ar-aging-gl", user?.id],
+    queryKey: ["rpc-ar-aging", orgId],
     queryFn: async (): Promise<ARAgingData> => {
-      if (!user) return { current: 0, thirtyDays: 0, sixtyDays: 0, ninetyDays: 0, overNinety: 0, total: 0 };
-
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("total_amount, amount, due_date, status")
-        .in("status", ["sent", "overdue"]);
-
+      if (!orgId) return { current: 0, thirtyDays: 0, sixtyDays: 0, ninetyDays: 0, overNinety: 0, total: 0 };
+      const { data, error } = await supabase.rpc("get_ar_aging", {
+        p_org_id: orgId,
+        p_as_of: getAllTimeTo(),
+      });
       if (error) throw error;
       if (!data || data.length === 0) return { current: 0, thirtyDays: 0, sixtyDays: 0, ninetyDays: 0, overNinety: 0, total: 0 };
 
-      const now = new Date();
       const aging: ARAgingData = { current: 0, thirtyDays: 0, sixtyDays: 0, ninetyDays: 0, overNinety: 0, total: 0 };
-
-      data.forEach((inv) => {
-        const due = new Date(inv.due_date);
-        const daysOverdue = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-        const amt = Number(inv.total_amount || inv.amount);
-
-        if (daysOverdue <= 0) aging.current += amt;
-        else if (daysOverdue <= 30) aging.thirtyDays += amt;
-        else if (daysOverdue <= 60) aging.sixtyDays += amt;
-        else if (daysOverdue <= 90) aging.ninetyDays += amt;
+      (data as any[]).forEach((row) => {
+        const amt = Number(row.total_amount);
+        const bucket = row.aging_bucket;
+        if (bucket === "Current") aging.current += amt;
+        else if (bucket === "1-30 days") aging.thirtyDays += amt;
+        else if (bucket === "31-60 days") aging.sixtyDays += amt;
+        else if (bucket === "61-90 days") aging.ninetyDays += amt;
         else aging.overNinety += amt;
-
         aging.total += amt;
       });
-
       return aging;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
-// ─── Monthly trend from journal_lines ────────────────────────
+// ─── Monthly trend from journal_lines (no monthly RPC exists) ─
 
 export function useMonthlyTrend() {
   const { user } = useAuth();
@@ -255,7 +284,6 @@ export function useMonthlyTrend() {
       const twelveMonthsAgo = new Date();
       twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
 
-      // Get GL accounts
       const { data: glAccounts } = await supabase
         .from("gl_accounts")
         .select("id, account_type")
@@ -305,78 +333,58 @@ export function useMonthlyTrend() {
   });
 }
 
-// ─── Revenue by source from GL ───────────────────────────────
+// ─── Revenue by source from P&L ─────────────────────────────
 
 export function useRevenueBySource() {
-  const { data: balances = [] } = useGLBalances();
-
-  return balances
-    .filter((b) => b.account_type === "revenue" && Math.abs(b.balance) > 0)
-    .map((b, i) => ({
-      name: b.name,
-      value: Math.abs(b.balance),
+  const pl = useProfitLoss();
+  return pl.revenue
+    .filter((r) => r.amount > 0)
+    .map((r, i) => ({
+      name: r.name,
+      value: r.amount,
       color: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
     }));
 }
 
-// ─── All-time P&L from GL ────────────────────────────────────
+// ─── All-time P&L wrapper ────────────────────────────────────
 
 export function useProfitLossAllTime() {
   const pl = useProfitLoss();
-  return {
-    data: pl,
-    isLoading: false,
-  };
+  return { data: pl, isLoading: false };
 }
 
-// ─── P&L by date range from journal_lines ────────────────────
+// ─── P&L by date range from RPC ─────────────────────────────
 
 export function useProfitLossForPeriod(from?: Date, to?: Date) {
+  const { data: org } = useUserOrganization();
   const { user } = useAuth();
+  const orgId = org?.organizationId;
 
   return useQuery({
-    queryKey: ["pl-period-gl", user?.id, from?.toISOString(), to?.toISOString()],
+    queryKey: ["rpc-pl-period", orgId, from?.toISOString(), to?.toISOString()],
     queryFn: async (): Promise<ProfitLossData> => {
-      if (!user) return { revenue: [], expenses: [], totalRevenue: 0, totalExpenses: 0, netIncome: 0, grossMargin: 0 };
+      if (!orgId) return { revenue: [], expenses: [], totalRevenue: 0, totalExpenses: 0, netIncome: 0, grossMargin: 0 };
 
-      const { data: glAccounts } = await supabase
-        .from("gl_accounts")
-        .select("id, name, account_type")
-        .in("account_type", ["revenue", "expense"]);
-
-      const accountMap = new Map((glAccounts || []).map((a: any) => [a.id, a]));
-
-      let query = supabase
-        .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date)");
-
-      if (from) query = query.gte("journal_entries.entry_date", from.toISOString().split("T")[0]);
-      if (to) query = query.lte("journal_entries.entry_date", to.toISOString().split("T")[0]);
-
-      const { data: lines, error } = await query;
+      const { data, error } = await supabase.rpc("get_profit_loss", {
+        p_org_id: orgId,
+        p_from: from ? from.toISOString().split("T")[0] : ALL_TIME_FROM,
+        p_to: to ? to.toISOString().split("T")[0] : getAllTimeTo(),
+      });
       if (error) throw error;
 
-      const aggregated = new Map<string, number>();
-      (lines || []).forEach((l: any) => {
-        const acc = accountMap.get(l.gl_account_id);
-        if (!acc) return;
-        const current = aggregated.get(l.gl_account_id) || 0;
-        if (acc.account_type === "revenue") aggregated.set(l.gl_account_id, current + Number(l.credit || 0));
-        else aggregated.set(l.gl_account_id, current + Number(l.debit || 0));
-      });
+      const rows = data || [];
+      const revenue = rows
+        .filter((r: any) => r.account_type === "revenue")
+        .map((r: any) => ({ name: r.account_name, amount: Number(r.amount) }))
+        .filter((r: any) => r.amount > 0);
 
-      const revenue = Array.from(aggregated.entries())
-        .filter(([id]) => accountMap.get(id)?.account_type === "revenue")
-        .map(([id, amount]) => ({ name: accountMap.get(id)!.name, amount }))
-        .filter((r) => r.amount > 0);
+      const expenses = rows
+        .filter((r: any) => r.account_type === "expense")
+        .map((r: any) => ({ name: r.account_name, amount: Number(r.amount) }))
+        .filter((e: any) => e.amount > 0);
 
-      const expenses = Array.from(aggregated.entries())
-        .filter(([id]) => accountMap.get(id)?.account_type === "expense")
-        .map(([id, amount]) => ({ name: accountMap.get(id)!.name, amount }))
-        .filter((e) => e.amount > 0);
-
-      const totalRevenue = revenue.reduce((s, r) => s + r.amount, 0);
-      const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+      const totalRevenue = revenue.reduce((s: number, r: any) => s + r.amount, 0);
+      const totalExpenses = expenses.reduce((s: number, e: any) => s + e.amount, 0);
 
       return {
         revenue, expenses, totalRevenue, totalExpenses,
@@ -384,6 +392,6 @@ export function useProfitLossForPeriod(from?: Date, to?: Date) {
         grossMargin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0,
       };
     },
-    enabled: !!user && (!!from || !!to),
+    enabled: !!user && !!orgId && (!!from || !!to),
   });
 }
