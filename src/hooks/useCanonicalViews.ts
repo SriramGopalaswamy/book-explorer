@@ -33,6 +33,7 @@ export const useProfitAndLoss = (
   return useQuery({
     queryKey: ["profit-and-loss"],
     queryFn: async () => {
+      // Org-scoped via RLS — no user_id filter needed
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
