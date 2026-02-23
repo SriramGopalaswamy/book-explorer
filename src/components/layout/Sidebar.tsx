@@ -186,7 +186,7 @@ function NavSection({
         )}
 
         <AnimatePresence initial={false}>
-          {sectionOpen && (
+          {(sectionOpen || collapsed) && (
             <motion.nav
               key={sectionId}
               initial={{ height: 0, opacity: 0 }}
