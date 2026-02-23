@@ -4,6 +4,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { toast } from "sonner";
 
+export interface FinancialOSCalibration {
+  monthly_revenue_range: string;
+  avg_ticket_size: number;
+  employee_count: number;
+  revenue_model: string;
+}
+
+export interface FinancialOSResult {
+  success: boolean;
+  org_id: string;
+  org_name: string;
+  new_state: string;
+  coa_seeded: number;
+  tax_ledgers: number;
+  financial_year_created: boolean;
+  approval_workflow_created: boolean;
+  snapshot_version: number;
+  integrity_audit: IntegrityAuditResult;
+}
+
 export interface IntegrityAuditResult {
   integrity_score: number;
   fk_ok: boolean;
@@ -150,6 +170,50 @@ export function useOrgStateOverride() {
       queryClient.invalidateQueries({ queryKey: ["platform-org-detail", params.orgId] });
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
       toast.success(`Lifecycle state updated to "${params.newState}"`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+/**
+ * Initialize Financial Operating System for an organization.
+ */
+export function useInitializeFinancialOS() {
+  const queryClient = useQueryClient();
+  const logAction = useLogPlatformAction();
+
+  return useMutation({
+    mutationFn: async (params: {
+      orgId: string;
+      orgName: string;
+      calibration: FinancialOSCalibration;
+    }) => {
+      const { data, error } = await supabase.rpc("initialize_financial_os", {
+        _org_id: params.orgId,
+        _calibration: params.calibration as any,
+      });
+      if (error) throw error;
+      return data as unknown as FinancialOSResult;
+    },
+    onSuccess: async (result, params) => {
+      await logAction.mutateAsync({
+        action: "financial_os_initialized",
+        target_type: "organization",
+        target_id: params.orgId,
+        target_name: params.orgName,
+        metadata: {
+          coa_seeded: result.coa_seeded,
+          tax_ledgers: result.tax_ledgers,
+          snapshot_version: result.snapshot_version,
+          new_state: result.new_state,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["integrity-audit", params.orgId] });
+      queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-org-detail", params.orgId] });
+      toast.success("Financial Operating System initialized successfully.");
     },
     onError: (err: Error) => {
       toast.error(err.message);
