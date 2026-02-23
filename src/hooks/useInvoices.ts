@@ -13,6 +13,7 @@ export interface Invoice {
   client_email: string;
   customer_id?: string | null;
   amount: number;
+  invoice_date: string;
   due_date: string;
   status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
   created_at: string;
@@ -51,6 +52,7 @@ export interface CreateInvoiceData {
   client_email: string;
   customer_id?: string;
   amount: number;
+  invoice_date?: string;
   due_date: string;
   status?: string;
   place_of_supply?: string;
@@ -144,6 +146,7 @@ export function useCreateInvoice() {
           client_email: data.client_email,
           customer_id: data.customer_id || null,
           amount: data.amount,
+          invoice_date: data.invoice_date || new Date().toISOString().split("T")[0],
           due_date: data.due_date,
           status: data.status || "draft",
           place_of_supply: data.place_of_supply || null,
@@ -155,7 +158,7 @@ export function useCreateInvoice() {
           total_amount: data.total_amount || data.amount,
           notes: data.notes || null,
           customer_gstin: data.customer_gstin || null,
-        })
+        } as any)
         .select()
         .single();
 
@@ -244,6 +247,7 @@ export function useUpdateInvoice() {
           client_email: data.client_email,
           customer_id: data.customer_id || null,
           amount: data.amount,
+          invoice_date: data.invoice_date || undefined,
           due_date: data.due_date,
           place_of_supply: data.place_of_supply || null,
           payment_terms: data.payment_terms || "Due on Receipt",
@@ -254,7 +258,7 @@ export function useUpdateInvoice() {
           total_amount: data.total_amount || data.amount,
           notes: data.notes || null,
           customer_gstin: data.customer_gstin || null,
-        })
+        } as any)
         .eq("id", data.id);
       if (invoiceError) throw invoiceError;
 

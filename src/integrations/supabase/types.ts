@@ -1817,6 +1817,7 @@ export type Database = {
           due_date: string
           id: string
           igst_total: number
+          invoice_date: string
           invoice_number: string
           notes: string | null
           organization_id: string
@@ -1840,6 +1841,7 @@ export type Database = {
           due_date: string
           id?: string
           igst_total?: number
+          invoice_date?: string
           invoice_number: string
           notes?: string | null
           organization_id?: string
@@ -1863,6 +1865,7 @@ export type Database = {
           due_date?: string
           id?: string
           igst_total?: number
+          invoice_date?: string
           invoice_number?: string
           notes?: string | null
           organization_id?: string
