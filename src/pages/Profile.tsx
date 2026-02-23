@@ -12,6 +12,7 @@ import { User, Mail, Lock, Save, AlertCircle, Building2, Briefcase, Phone } from
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const fadeUp = {
@@ -26,6 +27,7 @@ const DEPARTMENTS = [
 
 export default function Profile() {
   const { user, updatePassword } = useAuth();
+  const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -92,6 +94,9 @@ export default function Profile() {
 
       // Also update auth metadata for display name
       await supabase.auth.updateUser({ data: { full_name: fullName } });
+
+      // Invalidate employee directory cache so changes appear immediately
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
 
       toast.success("Profile updated successfully");
     } catch (err: any) {
