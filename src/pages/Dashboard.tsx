@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
 import { ManagerTeamSection } from "@/components/dashboard/ManagerTeamSection";
 import { FinancialIntegrityBadge } from "@/components/dashboard/FinancialIntegrityBadge";
-import { AIInsightsWidget } from "@/components/ai/AIInsightsWidget";
+import { FinancialControlCenter } from "@/components/financial/FinancialControlCenter";
 
 import {
   Wallet,
@@ -163,8 +163,8 @@ export default function Dashboard() {
         {/* Manager Team Section */}
         <ManagerTeamSection />
 
-        {/* AI Insights */}
-        <AIInsightsWidget module="dashboard" />
+        {/* Financial Risk Monitor */}
+        <FinancialControlCenter />
 
         {/* Quick Actions */}
         <QuickActionsEnhanced />
