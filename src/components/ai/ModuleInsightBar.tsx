@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
+import { AI_ANALYTICS_ENABLED } from "@/config/systemFlags";
 
 const severityIcons = {
   critical: AlertTriangle,
@@ -25,6 +26,9 @@ interface Props {
 
 export function ModuleInsightBar({ module }: Props) {
   const { data, isLoading, refetch, isFetching } = useAIInsights(module);
+
+  // Phase 1: Feature flag kill switch — render nothing when disabled
+  if (!AI_ANALYTICS_ENABLED) return null;
 
   if (isLoading) {
     return (
