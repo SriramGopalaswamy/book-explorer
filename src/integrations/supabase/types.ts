@@ -807,6 +807,41 @@ export type Database = {
           },
         ]
       }
+      attendance_parse_diagnostics: {
+        Row: {
+          created_at: string | null
+          file_name: string | null
+          id: string
+          metrics: Json | null
+          organization_id: string
+          raw_excerpt: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_name?: string | null
+          id?: string
+          metrics?: Json | null
+          organization_id: string
+          raw_excerpt?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string | null
+          id?: string
+          metrics?: Json | null
+          organization_id?: string
+          raw_excerpt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_parse_diagnostics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_punches: {
         Row: {
           card_no: string | null
