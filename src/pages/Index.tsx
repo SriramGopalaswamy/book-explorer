@@ -1,11 +1,21 @@
 import { Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import Dashboard from "./Dashboard";
 import { useCurrentRole } from "@/hooks/useRoles";
 
 const Index = () => {
   const { data: currentRole, isLoading } = useCurrentRole();
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (currentRole === "employee") return <Navigate to="/hrms/my-attendance" replace />;
   if (currentRole === "hr") return <Navigate to="/hrms/employees" replace />;
