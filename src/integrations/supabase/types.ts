@@ -5265,6 +5265,7 @@ export type Database = {
       }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       reverse_journal_entry: { Args: { p_eid: string }; Returns: string }
+      run_financial_verification: { Args: { _org_id?: string }; Returns: Json }
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
