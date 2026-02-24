@@ -455,9 +455,10 @@ export function useDeleteGoalPlan() {
       const { error } = await supabase.from("goal_plans").delete().eq("id", planId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goal-plans"] });
-      queryClient.invalidateQueries({ queryKey: ["goal-plan"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["goal-plans"] });
+      await queryClient.invalidateQueries({ queryKey: ["goal-plan"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-goal-plans"] });
       toast.success("Goal plan deleted");
     },
     onError: (e: any) => toast.error("Failed to delete: " + e.message),
