@@ -69,10 +69,9 @@ export default function Expenses() {
       let receiptUrl: string | null = null;
       if (receiptFile) {
         const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
-        const { error: upErr } = await supabase.storage.from("bill-attachments").upload(path, receiptFile);
+        const { error: upErr } = await supabase.storage.from("bill-attachments").upload(path, receiptFile, { contentType: receiptFile.type });
         if (!upErr) {
-          const { data: urlData } = supabase.storage.from("bill-attachments").getPublicUrl(path);
-          receiptUrl = urlData.publicUrl;
+          receiptUrl = path; // Store path only; generate signed URL on view
         }
       }
       const { error } = await supabase.from("expenses").insert({
@@ -180,7 +179,19 @@ export default function Expenses() {
                   <TableCell className="text-sm">{new Date(e.expense_date).toLocaleDateString("en-IN")}</TableCell>
                   <TableCell>
                     {e.receipt_url ? (
-                      <a href={e.receipt_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary text-xs hover:underline"><Paperclip className="h-3 w-3" />View</a>
+                      <button
+                        onClick={async () => {
+                          const storedPath = e.receipt_url!;
+                          // Handle legacy full URLs: extract path after /bill-attachments/
+                          const pathOnly = storedPath.includes("/bill-attachments/")
+                            ? storedPath.split("/bill-attachments/").pop()!
+                            : storedPath;
+                          const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
+                          if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                          else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
+                        }}
+                        className="flex items-center gap-1 text-primary text-xs hover:underline cursor-pointer"
+                      ><Paperclip className="h-3 w-3" />View</button>
                     ) : <span className="text-muted-foreground text-sm">—</span>}
                   </TableCell>
                   <TableCell><Badge variant="outline" className={statusColors[e.status] ?? ""}>{e.status}</Badge></TableCell>
