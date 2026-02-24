@@ -1,0 +1,1 @@
+ALTER TABLE public.memos ADD COLUMN reviewed_by uuid REFERENCES auth.users(id);
