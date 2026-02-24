@@ -71,7 +71,8 @@ function buildTree(profiles: RawProfile[]): ProfileNode[] {
   const roots: ProfileNode[] = [];
   profiles.forEach((p) => {
     const node = map.get(p.id)!;
-    if (p.manager_id && map.has(p.manager_id)) {
+    // Guard against self-referencing manager_id (cycle)
+    if (p.manager_id && p.manager_id !== p.id && map.has(p.manager_id)) {
       map.get(p.manager_id)!.children.push(node);
     } else {
       roots.push(node);
