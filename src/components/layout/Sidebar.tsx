@@ -112,6 +112,7 @@ const performanceNav: NavItem[] = [
 ];
 
 let persistedCollapsed = false;
+export function getSidebarCollapsed() { return persistedCollapsed; }
 
 // Mobile sidebar state managed via a global-ish export so Header can trigger it
 export let mobileMenuOpen = false;
@@ -281,6 +282,8 @@ export function Sidebar() {
   const handleToggle = () => {
     persistedCollapsed = !collapsed;
     setCollapsed(!collapsed);
+    // Dispatch a custom event so MainLayout can react
+    window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: { collapsed: !collapsed } }));
   };
 
   const closeMobile = () => setMobileOpen(false);
