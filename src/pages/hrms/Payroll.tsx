@@ -23,6 +23,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Wallet, Users, Calendar, TrendingUp, Download, Search, FileText,
   CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye,
@@ -45,6 +46,8 @@ import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
 import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
+import { InvestmentDeclarationPortal } from "@/components/payroll/InvestmentDeclarationPortal";
+import { useAuth } from "@/contexts/AuthContext";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -104,7 +107,8 @@ export default function Payroll() {
   const [deleteTarget, setDeleteTarget] = useState<PayrollRecord | null>(null);
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
   const [paySlipRecord, setPaySlipRecord] = useState<PayrollRecord | null>(null);
-
+  const [activeTab, setActiveTab] = useState("engine");
+  const { user } = useAuth();
   const { data: isAdminOrHR, isLoading: roleLoadingHR } = useIsAdminOrHR();
   const { data: isFinance, isLoading: roleLoadingFinance } = useIsFinance();
   const { data: currentRole } = useCurrentRole();
@@ -376,9 +380,28 @@ export default function Payroll() {
           ))}
         </motion.div>
 
-        {/* Payroll Engine */}
+        {/* Tabbed Sections */}
         <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.2 }}>
-          <PayrollEnginePanel />
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="engine">Payroll Engine</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              <TabsTrigger value="declarations">Tax Declarations</TabsTrigger>
+            </TabsList>
+            <TabsContent value="engine">
+              <PayrollEnginePanel />
+            </TabsContent>
+            <TabsContent value="analytics">
+              <PayrollAnalyticsDashboard />
+            </TabsContent>
+            <TabsContent value="declarations">
+              {user?.id ? (
+                <InvestmentDeclarationPortal profileId={user.id} isAdmin={!!isAdminOrHR} />
+              ) : (
+                <p className="text-muted-foreground text-center py-8">Loading...</p>
+              )}
+            </TabsContent>
+          </Tabs>
         </motion.div>
 
         {/* Payroll Table */}

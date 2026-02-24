@@ -1,12 +1,20 @@
-import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import type { PayrollEntry } from "@/hooks/usePayrollEngine";
 
 /**
  * PF ECR Export — generates EPFO-compliant CSV from locked payroll entries.
+ * Pulls UAN from employee_details.
  */
-export function exportPFECR(entries: PayrollEntry[]) {
+export async function exportPFECR(entries: PayrollEntry[]) {
+  // Fetch UAN data
+  const profileIds = entries.map((e) => e.profile_id);
+  const { data: empDetails } = await supabase
+    .from("employee_details")
+    .select("profile_id, uan_number")
+    .in("profile_id", profileIds);
+
+  const uanMap = new Map((empDetails ?? []).map((d: any) => [d.profile_id, d.uan_number || ""]));
+
   const headers = [
     "UAN", "Member Name", "Gross Wages", "EPF Wages", "EPS Wages",
     "EDLI Wages", "EPF Contribution (EE)", "EPS Contribution (ER)",
@@ -26,7 +34,7 @@ export function exportPFECR(entries: PayrollEntry[]) {
     const edli = Math.round(epsWages * 0.005);
 
     return [
-      "", // UAN - not stored
+      uanMap.get(e.profile_id) || "",
       e.profiles?.full_name || "",
       grossWages,
       epfWages,
@@ -47,22 +55,38 @@ export function exportPFECR(entries: PayrollEntry[]) {
 
 /**
  * Bank Transfer File — generates NEFT-format CSV from locked payroll entries.
+ * Pulls bank account details from employee_details.
  */
-export function exportBankTransferFile(
+export async function exportBankTransferFile(
   entries: PayrollEntry[],
   format: string = "generic_neft"
 ) {
+  // Fetch bank details
+  const profileIds = entries.map((e) => e.profile_id);
+  const { data: empDetails } = await supabase
+    .from("employee_details")
+    .select("profile_id, bank_account_number, bank_ifsc, bank_name")
+    .in("profile_id", profileIds);
+
+  const bankMap = new Map(
+    (empDetails ?? []).map((d: any) => [d.profile_id, d])
+  );
+
   const headers = [
-    "Beneficiary Name", "Account Number", "IFSC Code", "Amount", "Remarks",
+    "Beneficiary Name", "Account Number", "IFSC Code", "Bank Name", "Amount", "Remarks",
   ];
 
-  const rows = entries.map((e) => [
-    e.profiles?.full_name || "",
-    "", // Account number from employee_details
-    "", // IFSC from employee_details
-    e.net_pay,
-    `Salary ${e.payroll_run_id?.slice(0, 8) || ""}`,
-  ]);
+  const rows = entries.map((e) => {
+    const bank = bankMap.get(e.profile_id) || {};
+    return [
+      e.profiles?.full_name || "",
+      bank.bank_account_number || "",
+      bank.bank_ifsc || "",
+      bank.bank_name || "",
+      e.net_pay,
+      `Salary ${e.payroll_run_id?.slice(0, 8) || ""}`,
+    ];
+  });
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   downloadCSV(csv, `Bank_Transfer_${format}.csv`);
