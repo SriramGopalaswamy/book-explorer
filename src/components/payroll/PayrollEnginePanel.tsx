@@ -34,9 +34,11 @@ import {
   useLockApprovedPayroll,
 } from "@/hooks/usePayrollApproval";
 import { exportPFECR, exportBankTransferFile, exportPayrollMasterCSV } from "@/hooks/usePayrollExports";
+import { useGeneratePayslips } from "@/hooks/usePayslipGeneration";
 import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { FileText as FileTextIcon } from "lucide-react";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -78,6 +80,7 @@ export function PayrollEnginePanel() {
   const submitForReview = useSubmitForReview();
   const approvePayroll = useApprovePayroll();
   const lockPayroll = useLockApprovedPayroll();
+  const generatePayslips = useGeneratePayslips();
   const { data: isFinance } = useIsFinance();
   const { data: currentRole } = useCurrentRole();
 
@@ -229,6 +232,19 @@ export function PayrollEnginePanel() {
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
+                            )}
+
+                            {run.status === "locked" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    disabled={generatePayslips.isPending}
+                                    onClick={() => generatePayslips.mutate(run.id)}>
+                                    <FileTextIcon className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Generate Payslips</TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>
