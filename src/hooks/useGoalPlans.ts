@@ -18,6 +18,7 @@ export interface GoalItem {
 export type GoalPlanStatus =
   | "draft"
   | "pending_approval"
+  | "pending_hr_approval"
   | "approved"
   | "rejected"
   | "pending_edit_approval"
@@ -152,6 +153,43 @@ export function useDirectReportsPendingGoalPlans() {
   });
 }
 
+/**
+ * Hook for HR users to see goal plans pending HR approval (after manager approved)
+ */
+export function useHRPendingGoalPlans() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["hr-pending-goal-plans", user?.id],
+    queryFn: async () => {
+      if (!user) return [] as GoalPlanWithProfile[];
+
+      const { data, error } = await supabase
+        .from("goal_plans")
+        .select("*")
+        .eq("status", "pending_hr_approval")
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch profile info for each plan
+      const userIds = [...new Set((data || []).map((p) => p.user_id))];
+      if (userIds.length === 0) return [] as GoalPlanWithProfile[];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, user_id, full_name, department")
+        .in("user_id", userIds);
+
+      const profileMap = Object.fromEntries((profiles || []).map((r) => [r.user_id, r]));
+      return (data || []).map((plan) => ({
+        ...toGoalPlan(plan),
+        _profile: profileMap[plan.user_id] || null,
+      })) as GoalPlanWithProfile[];
+    },
+    enabled: !!user,
+  });
+}
+
 // ─── Mutation Hooks ───────────────────────────────────────────────────────────
 
 export function useCreateGoalPlan() {
@@ -167,11 +205,19 @@ export function useCreateGoalPlan() {
         .eq("user_id", user.id)
         .maybeSingle();
 
+      // Get user's organization_id explicitly to satisfy RLS
+      const { data: orgMember } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("goal_plans")
         .insert({
           user_id: user.id,
           profile_id: profile?.id ?? null,
+          organization_id: orgMember?.organization_id,
           month,
           items: items as unknown as any,
           status: "draft",
@@ -299,14 +345,29 @@ export function useApproveGoalPlan() {
       items,
       notes,
       isScoring,
+      isHRApproval,
     }: {
       planId: string;
       items?: GoalItem[];
       notes?: string;
       isScoring?: boolean;
+      isHRApproval?: boolean;
     }) => {
+      // Determine the new status:
+      // - If scoring approval → completed
+      // - If HR approval (pending_hr_approval → approved) → approved
+      // - If manager approval (pending_approval → pending_hr_approval) → pending_hr_approval
+      let newStatus: string;
+      if (isScoring) {
+        newStatus = "completed";
+      } else if (isHRApproval) {
+        newStatus = "approved";
+      } else {
+        newStatus = "pending_hr_approval";
+      }
+
       const update: Record<string, unknown> = {
-        status: isScoring ? "completed" : "approved",
+        status: newStatus,
         reviewed_by: user?.id,
         reviewed_at: new Date().toISOString(),
         reviewer_notes: notes || null,
@@ -320,13 +381,19 @@ export function useApproveGoalPlan() {
         .select()
         .single();
       if (error) throw error;
-      return { plan: toGoalPlan(data), isScoring };
+      return { plan: toGoalPlan(data), isScoring, isHRApproval };
     },
-    onSuccess: ({ plan, isScoring }) => {
+    onSuccess: ({ plan, isScoring, isHRApproval }) => {
       queryClient.invalidateQueries({ queryKey: ["goal-plans"] });
       queryClient.invalidateQueries({ queryKey: ["goal-plan"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-goal-plans"] });
-      toast.success(isScoring ? "Goal scoring approved" : "Goal plan approved");
+      queryClient.invalidateQueries({ queryKey: ["hr-pending-goal-plans"] });
+      const msg = isScoring
+        ? "Goal scoring approved"
+        : isHRApproval
+        ? "Goal plan approved (final)"
+        : "Goal plan forwarded to HR for approval";
+      toast.success(msg);
       const notifType = isScoring ? "goal_scoring_decided" : "goal_plan_decided";
       supabase.functions
         .invoke("send-notification-email", {

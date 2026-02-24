@@ -70,6 +70,7 @@ import {
   useRejectGoalPlan,
   useDeleteGoalPlan,
   useDirectReportsPendingGoalPlans,
+  useHRPendingGoalPlans,
 } from "@/hooks/useGoalPlans";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { useIsManager } from "@/hooks/useManagerTeam";
@@ -87,16 +88,22 @@ const STATUS_CONFIG: Record<
     description: "Plan not yet submitted",
   },
   pending_approval: {
-    label: "Pending Approval",
+    label: "Pending Manager Approval",
     color: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     icon: Clock,
     description: "Awaiting manager approval",
+  },
+  pending_hr_approval: {
+    label: "Pending HR Approval",
+    color: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    icon: Clock,
+    description: "Manager approved — awaiting HR final approval",
   },
   approved: {
     label: "Approved",
     color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
     icon: CheckCircle2,
-    description: "Plan approved — you can submit actuals",
+    description: "Plan approved by Manager & HR — you can submit actuals",
   },
   rejected: {
     label: "Rejected",
@@ -544,11 +551,13 @@ function ReviewDialog({
   onOpenChange,
   plan,
   employeeName,
+  isHRReview = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   plan: GoalPlanWithProfile;
   employeeName: string;
+  isHRReview?: boolean;
 }) {
   const [items, setItems] = useState<GoalItem[]>([]);
   const [notes, setNotes] = useState("");
@@ -565,7 +574,7 @@ function ReviewDialog({
   }, [open, plan]);
 
   const handleApprove = async () => {
-    await approve.mutateAsync({ planId: plan.id, items, notes, isScoring });
+    await approve.mutateAsync({ planId: plan.id, items, notes, isScoring, isHRApproval: isHRReview });
     onOpenChange(false);
   };
 
@@ -576,16 +585,24 @@ function ReviewDialog({
 
   const isPending = approve.isPending || reject.isPending;
 
+  const approveLabel = isScoring
+    ? "Approve Scoring"
+    : isHRReview
+    ? "Final Approve"
+    : "Approve & Forward to HR";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Review {isScoring ? "Scoring" : "Goal Plan"} — {employeeName},{" "}
+            {isHRReview ? "HR Review" : "Review"} {isScoring ? "Scoring" : "Goal Plan"} — {employeeName},{" "}
             {format(parseISO(plan.month), "MMMM yyyy")}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            You can edit any field before approving. Your edits will be saved as the final version.
+            {isHRReview
+              ? "Manager has approved this plan. Review and give final approval."
+              : "You can edit any field before approving. Your edits will be saved as the final version."}
           </p>
         </DialogHeader>
 
@@ -625,7 +642,7 @@ function ReviewDialog({
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <Check className="h-4 w-4 mr-1.5" />
-            {isScoring ? "Approve Scoring" : "Approve Plan"}
+            {approveLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -964,18 +981,106 @@ function MyGoalsTab() {
   );
 }
 
+// ─── HR Pending Approvals Tab ─────────────────────────────────────────────────
+
+function HRPendingApprovalsTab() {
+  const { data: hrPendingPlans = [], isLoading } = useHRPendingGoalPlans();
+  const [reviewing, setReviewing] = useState<GoalPlanWithProfile | null>(null);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Clock className="mr-2 h-4 w-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
+
+  if (hrPendingPlans.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+        <Target className="h-10 w-10 opacity-30" />
+        <p className="text-sm">No goal plans pending HR approval.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        {hrPendingPlans.map((plan, i) => {
+          const name = plan._profile?.full_name || "Unknown Employee";
+          const dept = plan._profile?.department;
+          const wt = totalWeightage(plan.items);
+          return (
+            <motion.div
+              key={plan.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+            >
+              <Card className="border-border/50 bg-card/60 hover:bg-card/80 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-medium text-sm">{name}</span>
+                        {dept && <span className="text-xs text-muted-foreground">· {dept}</span>}
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-orange-500/30 text-orange-400 bg-orange-500/10"
+                        >
+                          Pending HR Approval
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(plan.month), "MMMM yyyy")} ·{" "}
+                        {plan.items.length} line item{plan.items.length !== 1 ? "s" : ""} · Total weightage:{" "}
+                        <span className={wt > 100 ? "text-red-400 font-medium" : "font-medium"}>{wt}%</span>
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-primary/40 text-primary hover:bg-primary/10 shrink-0"
+                      onClick={() => setReviewing(plan)}
+                    >
+                      <Edit2 className="h-3.5 w-3.5 mr-1" /> Review
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {reviewing && (
+        <ReviewDialog
+          open={!!reviewing}
+          onOpenChange={(v) => { if (!v) setReviewing(null); }}
+          plan={reviewing}
+          employeeName={reviewing._profile?.full_name || "Employee"}
+          isHRReview
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Goals() {
   const { data: isManager } = useIsManager();
   const { data: isAdminOrHR } = useIsAdminOrHR();
   const { data: pendingPlans = [] } = useDirectReportsPendingGoalPlans();
+  const { data: hrPendingPlans = [] } = useHRPendingGoalPlans();
   const canReview = isManager || isAdminOrHR;
+  const canHRReview = isAdminOrHR;
 
   return (
     <MainLayout
       title="Goals"
-      subtitle="Monthly goal planning with manager approval workflow"
+      subtitle="Monthly goal planning with manager & HR approval workflow"
     >
       <div className="space-y-6">
         
@@ -988,10 +1093,21 @@ export default function Goals() {
             {canReview && (
               <TabsTrigger value="approvals" className="gap-2">
                 <CheckCircle2 className="h-4 w-4" />
-                Pending Approvals
+                Manager Approvals
                 {pendingPlans.length > 0 && (
                   <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                     {pendingPlans.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            {canHRReview && (
+              <TabsTrigger value="hr-approvals" className="gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                HR Approvals
+                {hrPendingPlans.length > 0 && (
+                  <span className="ml-1 rounded-full bg-orange-500/20 text-orange-400 text-xs px-1.5 py-0.5 font-semibold">
+                    {hrPendingPlans.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -1005,6 +1121,12 @@ export default function Goals() {
           {canReview && (
             <TabsContent value="approvals" className="mt-6">
               <PendingApprovalsTab />
+            </TabsContent>
+          )}
+
+          {canHRReview && (
+            <TabsContent value="hr-approvals" className="mt-6">
+              <HRPendingApprovalsTab />
             </TabsContent>
           )}
         </Tabs>
