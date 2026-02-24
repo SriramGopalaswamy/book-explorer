@@ -43,10 +43,13 @@ import {
   useCreateMemo,
   useDeleteMemo,
   useIncrementMemoViews,
+  useApproveMemo,
+  useRejectMemo,
   useProfileSearch,
   uploadMemoAttachment,
   type Memo,
 } from "@/hooks/useMemos";
+import { useCurrentRole } from "@/hooks/useRoles";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -167,6 +170,10 @@ export default function Memos() {
   const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [showRejectInput, setShowRejectInput] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -178,11 +185,15 @@ export default function Memos() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAuth();
+  const { data: currentRole } = useCurrentRole();
+  const isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "hr";
   const { data: memos = [], isLoading } = useMemos(activeTab);
   const { data: stats } = useMemoStats();
   const createMemo = useCreateMemo();
   const deleteMemo = useDeleteMemo();
   const incrementViews = useIncrementMemoViews();
+  const approveMemo = useApproveMemo();
+  const rejectMemo = useRejectMemo();
 
   const filteredMemos = memos.filter(
     (memo) =>
@@ -248,8 +259,41 @@ export default function Memos() {
   function handleViewMemo(memo: Memo) {
     setSelectedMemo(memo);
     setViewDialogOpen(true);
+    setReviewNotes("");
+    setShowRejectInput(false);
+    setIsApproving(false);
+    setIsRejecting(false);
     if (memo.status === "published") {
       incrementViews.mutate(memo.id);
+    }
+  }
+
+  async function handleApproveMemo() {
+    if (!selectedMemo) return;
+    setIsApproving(true);
+    try {
+      await approveMemo.mutateAsync({ id: selectedMemo.id, reviewerNotes: reviewNotes || undefined });
+      setViewDialogOpen(false);
+    } catch {
+      // error handled by hook
+    } finally {
+      setIsApproving(false);
+    }
+  }
+
+  async function handleRejectMemo() {
+    if (!selectedMemo || !reviewNotes.trim()) {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
+    setIsRejecting(true);
+    try {
+      await rejectMemo.mutateAsync({ id: selectedMemo.id, reviewerNotes: reviewNotes.trim() });
+      setViewDialogOpen(false);
+    } catch {
+      // error handled by hook
+    } finally {
+      setIsRejecting(false);
     }
   }
 
@@ -672,9 +716,66 @@ export default function Memos() {
           </div>
 
           <DialogFooter className="shrink-0 pt-2 border-t border-border/40">
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-              Close
-            </Button>
+            {isManager && selectedMemo?.status === "pending_approval" && (
+              <div className="flex flex-col w-full gap-3">
+                {showRejectInput ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Reason for rejection</Label>
+                    <Textarea
+                      placeholder="Provide feedback for the author…"
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => { setShowRejectInput(false); setReviewNotes(""); }}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleRejectMemo}
+                        disabled={isRejecting || !reviewNotes.trim()}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        {isRejecting ? "Rejecting…" : "Confirm Rejection"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Textarea
+                      placeholder="Optional reviewer notes…"
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      className="min-h-[60px]"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                        Close
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={() => setShowRejectInput(true)}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Reject
+                      </Button>
+                      <Button onClick={handleApproveMemo} disabled={isApproving}>
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        {isApproving ? "Approving…" : "Approve & Publish"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {!(isManager && selectedMemo?.status === "pending_approval") && (
+              <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                Close
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
