@@ -1293,6 +1293,123 @@ export type Database = {
           },
         ]
       }
+      compensation_components: {
+        Row: {
+          annual_amount: number
+          compensation_structure_id: string
+          component_name: string
+          component_type: string
+          created_at: string
+          display_order: number
+          id: string
+          is_taxable: boolean
+          monthly_amount: number | null
+          percentage_of_basic: number | null
+        }
+        Insert: {
+          annual_amount?: number
+          compensation_structure_id: string
+          component_name: string
+          component_type: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_taxable?: boolean
+          monthly_amount?: number | null
+          percentage_of_basic?: number | null
+        }
+        Update: {
+          annual_amount?: number
+          compensation_structure_id?: string
+          component_name?: string
+          component_type?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_taxable?: boolean
+          monthly_amount?: number | null
+          percentage_of_basic?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_components_compensation_structure_id_fkey"
+            columns: ["compensation_structure_id"]
+            isOneToOne: false
+            referencedRelation: "compensation_structures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compensation_structures: {
+        Row: {
+          annual_ctc: number
+          created_at: string
+          created_by: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          organization_id: string
+          profile_id: string
+          revision_number: number
+          revision_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          annual_ctc: number
+          created_at?: string
+          created_by: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id: string
+          profile_id: string
+          revision_number?: number
+          revision_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          annual_ctc?: number
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id?: string
+          profile_id?: string
+          revision_number?: number
+          revision_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_structures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_transactions: {
         Row: {
           ai_match_id: string | null
