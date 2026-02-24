@@ -43,6 +43,7 @@ import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
+import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -374,8 +375,13 @@ export default function Payroll() {
           ))}
         </motion.div>
 
+        {/* Payroll Engine */}
+        <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.2 }}>
+          <PayrollEnginePanel />
+        </motion.div>
+
         {/* Payroll Table */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}>
+        <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.4 }}>
         <Card className="glass-card">
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

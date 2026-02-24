@@ -17,7 +17,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import {
-  User, MapPin, Phone, Building2, Heart, Briefcase, CreditCard, Save, Shield, ChevronsUpDown, Check,
+  User, MapPin, Phone, Building2, Heart, Briefcase, CreditCard, Save, Shield, ChevronsUpDown, Check, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Employee } from "@/hooks/useEmployees";
@@ -27,6 +27,7 @@ import {
   type EmployeeDetailsInput,
 } from "@/hooks/useEmployeeDetails";
 import { CompensationTab } from "./CompensationTab";
+import { DocumentsTab } from "./DocumentsTab";
 
 const statusStyles: Record<string, string> = {
   active: "bg-success/10 text-success border-success/30",
@@ -199,12 +200,13 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
         ) : isEditing ? (
           /* ── Edit Mode ── */
           <Tabs defaultValue="personal" className="mt-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
               <TabsTrigger value="address" className="text-xs">Address</TabsTrigger>
               <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
               <TabsTrigger value="bank" className="text-xs">Bank & IDs</TabsTrigger>
               <TabsTrigger value="compensation" className="text-xs">Compensation</TabsTrigger>
+              <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>
             </TabsList>
 
             <TabsContent value="personal" className="space-y-3 pt-3">
@@ -312,16 +314,21 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
             <TabsContent value="compensation" className="pt-3">
               <CompensationTab profileId={employee.id} employeeName={employee.full_name || undefined} canEdit={canEditCompensation} />
             </TabsContent>
+
+            <TabsContent value="documents" className="pt-3">
+              <DocumentsTab profileId={employee.id} canEdit={canEditCompensation} />
+            </TabsContent>
           </Tabs>
         ) : (
           /* ── View Mode ── */
           <Tabs defaultValue="personal" className="mt-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
               <TabsTrigger value="address" className="text-xs">Address</TabsTrigger>
               <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
               <TabsTrigger value="bank" className="text-xs">Bank & IDs</TabsTrigger>
               <TabsTrigger value="compensation" className="text-xs">Compensation</TabsTrigger>
+              <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>
             </TabsList>
 
             <TabsContent value="personal" className="pt-3">
@@ -383,6 +390,10 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
 
             <TabsContent value="compensation" className="pt-3">
               <CompensationTab profileId={employee.id} employeeName={employee.full_name || undefined} canEdit={canEditCompensation} />
+            </TabsContent>
+
+            <TabsContent value="documents" className="pt-3">
+              <DocumentsTab profileId={employee.id} canEdit={canEditCompensation} />
             </TabsContent>
           </Tabs>
         )}

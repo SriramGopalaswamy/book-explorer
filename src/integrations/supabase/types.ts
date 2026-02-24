@@ -1851,6 +1851,73 @@ export type Database = {
           },
         ]
       }
+      employee_documents: {
+        Row: {
+          created_at: string
+          document_name: string
+          document_type: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          notes: string | null
+          organization_id: string
+          profile_id: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          document_name: string
+          document_type?: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          organization_id: string
+          profile_id: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          document_name?: string
+          document_type?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          organization_id?: string
+          profile_id?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -3267,6 +3334,105 @@ export type Database = {
         }
         Relationships: []
       }
+      payroll_entries: {
+        Row: {
+          annual_ctc: number
+          compensation_structure_id: string | null
+          created_at: string
+          deductions_breakdown: Json
+          earnings_breakdown: Json
+          gross_earnings: number
+          id: string
+          lwp_days: number
+          lwp_deduction: number
+          net_pay: number
+          organization_id: string
+          paid_days: number
+          payroll_run_id: string
+          profile_id: string
+          status: string
+          total_deductions: number
+          updated_at: string
+          working_days: number
+        }
+        Insert: {
+          annual_ctc?: number
+          compensation_structure_id?: string | null
+          created_at?: string
+          deductions_breakdown?: Json
+          earnings_breakdown?: Json
+          gross_earnings?: number
+          id?: string
+          lwp_days?: number
+          lwp_deduction?: number
+          net_pay?: number
+          organization_id: string
+          paid_days?: number
+          payroll_run_id: string
+          profile_id: string
+          status?: string
+          total_deductions?: number
+          updated_at?: string
+          working_days?: number
+        }
+        Update: {
+          annual_ctc?: number
+          compensation_structure_id?: string | null
+          created_at?: string
+          deductions_breakdown?: Json
+          earnings_breakdown?: Json
+          gross_earnings?: number
+          id?: string
+          lwp_days?: number
+          lwp_deduction?: number
+          net_pay?: number
+          organization_id?: string
+          paid_days?: number
+          payroll_run_id?: string
+          profile_id?: string
+          status?: string
+          total_deductions?: number
+          updated_at?: string
+          working_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_entries_compensation_structure_id_fkey"
+            columns: ["compensation_structure_id"]
+            isOneToOne: false
+            referencedRelation: "compensation_structures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_records: {
         Row: {
           basic_salary: number
@@ -3355,6 +3521,65 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_runs: {
+        Row: {
+          created_at: string
+          employee_count: number
+          generated_by: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          notes: string | null
+          organization_id: string
+          pay_period: string
+          status: string
+          total_deductions: number
+          total_gross: number
+          total_net: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_count?: number
+          generated_by: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          notes?: string | null
+          organization_id: string
+          pay_period: string
+          status?: string
+          total_deductions?: number
+          total_gross?: number
+          total_net?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_count?: number
+          generated_by?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          notes?: string | null
+          organization_id?: string
+          pay_period?: string
+          status?: string
+          total_deductions?: number
+          total_gross?: number
+          total_net?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
