@@ -783,7 +783,7 @@ function MyGoalsTab() {
     plan?.status === "pending_edit_approval";
 
   const canScore = plan?.status === "approved";
-  const canDelete = plan?.status === "draft";
+  const canDelete = plan?.status === "draft" || plan?.status === "rejected";
 
   return (
     <div className="space-y-6">
