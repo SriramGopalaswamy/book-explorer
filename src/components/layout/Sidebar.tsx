@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
+import grx10Icon from "@/assets/grx10-icon.png";
 import { useCurrentRole } from "@/hooks/useRoles";
 
 interface NavItem {
@@ -308,11 +309,19 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <div className="flex items-center gap-3 overflow-hidden">
-          <img
-            src={grx10Logo}
-            alt="GRX10"
-            className={cn("h-8 w-auto transition-all duration-300", collapsed && "h-6 mx-auto")}
-          />
+          {collapsed ? (
+            <img
+              src={grx10Icon}
+              alt="GRX10"
+              className="h-8 w-8 mx-auto transition-all duration-300 rounded"
+            />
+          ) : (
+            <img
+              src={grx10Logo}
+              alt="GRX10"
+              className="h-8 w-auto transition-all duration-300"
+            />
+          )}
         </div>
         {/* Close button on mobile */}
         <button
