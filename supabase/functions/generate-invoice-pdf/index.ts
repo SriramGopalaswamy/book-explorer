@@ -265,7 +265,9 @@ serve(async (req) => {
     ry -= 13;
     drawText(page, `Due Date: ${formatDate(invoice.due_date)}`, rightCol, ry, regular, 9, BRAND_COLORS.text);
 
-    y -= 10;
+    // Ensure y is below BOTH the left header and right metadata box
+    const rightBoxBottom = ry - 10;
+    y = Math.min(y, rightBoxBottom) - 10;
 
     // ========== TAX INVOICE TITLE ==========
     page.drawRectangle({
