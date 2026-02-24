@@ -318,13 +318,13 @@ serve(async (req) => {
     const headerY = y;
     let colX = leftMargin + 5;
     drawText(page, "#", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 18;
-    drawText(page, "Item & Description", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 130;
-    if (hasHSN) { drawText(page, "HSN/SAC", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 55; }
-    drawText(page, "Qty", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 35;
-    drawText(page, "Rate", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 60;
+    drawText(page, "Item & Description", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 115;
+    if (hasHSN) { drawText(page, "HSN/SAC", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 50; }
+    drawText(page, "Qty", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 28;
+    drawText(page, "Rate", colX, headerY, bold, 8, BRAND_COLORS.white); colX += 58;
     if (hasGST) {
-      drawText(page, "CGST", colX, headerY, bold, 7, BRAND_COLORS.white); colX += 45;
-      drawText(page, "SGST", colX, headerY, bold, 7, BRAND_COLORS.white); colX += 45;
+      drawText(page, "CGST", colX, headerY, bold, 7, BRAND_COLORS.white); colX += 68;
+      drawText(page, "SGST", colX, headerY, bold, 7, BRAND_COLORS.white); colX += 68;
     }
     drawText(page, "Amount", colX, headerY, bold, 8, BRAND_COLORS.white);
 
@@ -345,18 +345,18 @@ serve(async (req) => {
 
       colX = leftMargin + 5;
       drawText(page, String(rowIdx + 1), colX, y, regular, 8, BRAND_COLORS.text); colX += 18;
-      const desc = (item.description || "Services").substring(0, 35);
-      drawText(page, desc, colX, y, regular, 8, BRAND_COLORS.text); colX += 130;
-      if (hasHSN) { drawText(page, item.hsn_sac || "", colX, y, regular, 8, BRAND_COLORS.text); colX += 55; }
-      drawText(page, String(item.quantity || 1), colX, y, regular, 8, BRAND_COLORS.text); colX += 35;
-      drawText(page, formatCurrency(item.rate), colX, y, regular, 8, BRAND_COLORS.text); colX += 60;
+      const desc = (item.description || "Services").substring(0, 30);
+      drawText(page, desc, colX, y, regular, 8, BRAND_COLORS.text); colX += 115;
+      if (hasHSN) { drawText(page, item.hsn_sac || "", colX, y, regular, 8, BRAND_COLORS.text); colX += 50; }
+      drawText(page, String(item.quantity || 1), colX, y, regular, 8, BRAND_COLORS.text); colX += 28;
+      drawText(page, formatCurrency(item.rate), colX, y, regular, 8, BRAND_COLORS.text); colX += 58;
       if (hasGST) {
         const cgstRate = item.cgst_rate || 0;
         const sgstRate = item.sgst_rate || 0;
         const cgstAmt = item.cgst_amount || 0;
         const sgstAmt = item.sgst_amount || 0;
-        drawText(page, `${cgstRate}% / ${formatCurrency(cgstAmt)}`, colX, y, regular, 7, BRAND_COLORS.text); colX += 45;
-        drawText(page, `${sgstRate}% / ${formatCurrency(sgstAmt)}`, colX, y, regular, 7, BRAND_COLORS.text); colX += 45;
+        drawText(page, `${cgstRate}% / ${formatCurrency(cgstAmt)}`, colX, y, regular, 6, BRAND_COLORS.text); colX += 68;
+        drawText(page, `${sgstRate}% / ${formatCurrency(sgstAmt)}`, colX, y, regular, 6, BRAND_COLORS.text); colX += 68;
       }
       drawText(page, formatCurrency(item.amount), colX, y, bold, 8, BRAND_COLORS.text);
 
