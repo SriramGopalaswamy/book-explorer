@@ -46,6 +46,32 @@ const statusStyle: Record<string, string> = {
 const formatTime = (t: string | null) => t ? t.substring(0, 5) : "—";
 const formatMins = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
 
+// Convert a File to base64 string (for sending PDF binary to edge function)
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the data URL prefix (e.g., "data:application/pdf;base64,")
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Convert a Uint8Array to base64 string (for ZIP-extracted PDF entries)
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)));
+  }
+  return btoa(chunks.join(""));
+}
+
 // ─── Biometric Upload Dialog ───────────────────────
 function BiometricUploadDialog({
   open,
@@ -80,7 +106,13 @@ function BiometricUploadDialog({
 
     if (ext === "zip") {
       await handleZipUpload(file);
+    } else if (ext === "pdf") {
+      // PDF: send as base64 binary for proper server-side extraction
+      const base64 = await fileToBase64(file);
+      const data = await upload.mutateAsync({ fileData: base64, fileName: file.name });
+      setResult(data);
     } else {
+      // TXT/CSV: send as plain text
       const text = await file.text();
       const data = await upload.mutateAsync({ textContent: text, fileName: file.name });
       setResult(data);
@@ -133,22 +165,41 @@ function BiometricUploadDialog({
       setZipProgress({ current: i + 1, total: supportedFiles.length, fileName: entry.name.split("/").pop() || entry.name });
 
       try {
-        const text = await entry.file.async("string");
-        const data = await upload.mutateAsync({
-          textContent: text,
-          fileName: `${zipFile.name}/${entry.name}`,
-        });
+        const entryExt = entry.name.split(".").pop()?.toLowerCase();
+        if (entryExt === "pdf") {
+          // PDF in ZIP: extract as binary, send as base64
+          const pdfBytes = await entry.file.async("uint8array");
+          const base64 = uint8ArrayToBase64(pdfBytes);
+          const data = await upload.mutateAsync({
+            fileData: base64,
+            fileName: `${zipFile.name}/${entry.name}`,
+          });
 
-        if (data.success) {
-          agg.total_parsed += data.total_parsed || 0;
-          agg.inserted += data.inserted || 0;
-          agg.duplicates_skipped += data.duplicates_skipped || 0;
-          agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
-          data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+          if (data.success) {
+            agg.total_parsed += data.total_parsed || 0;
+            agg.inserted += data.inserted || 0;
+            agg.duplicates_skipped += data.duplicates_skipped || 0;
+            agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
+            data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+          } else {
+            agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
+          }
         } else {
-          agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
-          if (data.parse_errors) {
-            data.parse_errors.forEach((e: string) => agg.parse_errors.push(`${entry.name}: ${e}`));
+          // TXT/CSV in ZIP: extract as text
+          const text = await entry.file.async("string");
+          const data = await upload.mutateAsync({
+            textContent: text,
+            fileName: `${zipFile.name}/${entry.name}`,
+          });
+
+          if (data.success) {
+            agg.total_parsed += data.total_parsed || 0;
+            agg.inserted += data.inserted || 0;
+            agg.duplicates_skipped += data.duplicates_skipped || 0;
+            agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
+            data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+          } else {
+            agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
           }
         }
       } catch (err: any) {
@@ -655,20 +706,38 @@ function DiagnosticDialog({
         const s = supported[i];
         setZipProgress({ current: i + 1, total: supported.length, fileName: s.name.split("/").pop() || s.name });
         try {
-          const text = await s.entry.async("string");
-          const result = await diagnostic.mutateAsync({ textContent: text, fileName: `${file.name}/${s.name}` });
-          if (result.diagnostic) reports.push(result.diagnostic);
+          const entryExt = s.name.split(".").pop()?.toLowerCase();
+          if (entryExt === "pdf") {
+            const pdfBytes = await s.entry.async("uint8array");
+            const base64 = uint8ArrayToBase64(pdfBytes);
+            const result = await diagnostic.mutateAsync({ fileData: base64, fileName: `${file.name}/${s.name}` });
+            if (result.diagnostic) reports.push(result.diagnostic);
+          } else {
+            const text = await s.entry.async("string");
+            const result = await diagnostic.mutateAsync({ textContent: text, fileName: `${file.name}/${s.name}` });
+            if (result.diagnostic) reports.push(result.diagnostic);
+          }
         } catch { /* skip */ }
       }
       setZipProgress(null);
       setAllReports(reports);
       if (reports.length > 0) setReport(reports[0]);
     } else {
-      const text = await file.text();
-      const result = await diagnostic.mutateAsync({ textContent: text, fileName: file.name });
-      if (result.diagnostic) {
-        setReport(result.diagnostic);
-        setAllReports([result.diagnostic]);
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext === "pdf") {
+        const base64 = await fileToBase64(file);
+        const result = await diagnostic.mutateAsync({ fileData: base64, fileName: file.name });
+        if (result.diagnostic) {
+          setReport(result.diagnostic);
+          setAllReports([result.diagnostic]);
+        }
+      } else {
+        const text = await file.text();
+        const result = await diagnostic.mutateAsync({ textContent: text, fileName: file.name });
+        if (result.diagnostic) {
+          setReport(result.diagnostic);
+          setAllReports([result.diagnostic]);
+        }
       }
     }
   };
