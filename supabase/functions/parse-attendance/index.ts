@@ -20,10 +20,106 @@ interface ParseResult {
   format: "punch" | "summary" | "unknown";
 }
 
+// ─── PDF TEXT EXTRACTION ──────────────────────────
+async function extractTextFromPDF(data: Uint8Array): Promise<string> {
+  try {
+    // Use pdfjs-dist legacy build (no worker needed, Deno-compatible)
+    const pdfjsLib = await import("https://esm.sh/pdfjs-dist@4.0.379/build/pdf.mjs");
+
+    // Disable worker (not available in edge functions)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
+    const loadingTask = pdfjsLib.getDocument({
+      data,
+      useSystemFonts: true,
+      disableFontFace: true,
+      isEvalSupported: false,
+    });
+    const pdf = await loadingTask.promise;
+
+    console.log(`[PDF] Loaded PDF with ${pdf.numPages} page(s)`);
+
+    let fullText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+
+      // Reconstruct text with spatial awareness
+      // Sort items by y position (top to bottom), then x (left to right)
+      const items = content.items
+        .filter((item: any) => item.str && item.str.trim().length > 0)
+        .map((item: any) => ({
+          str: item.str,
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+          height: item.height,
+        }));
+
+      // Group items by approximate y position (same row)
+      const rows: Map<number, any[]> = new Map();
+      const ROW_TOLERANCE = 3; // pixels
+
+      for (const item of items) {
+        let foundRow = false;
+        for (const [rowY, rowItems] of rows) {
+          if (Math.abs(item.y - rowY) <= ROW_TOLERANCE) {
+            rowItems.push(item);
+            foundRow = true;
+            break;
+          }
+        }
+        if (!foundRow) {
+          rows.set(item.y, [item]);
+        }
+      }
+
+      // Sort rows top-to-bottom (higher y = higher on page in PDF coords)
+      const sortedRows = Array.from(rows.entries())
+        .sort((a, b) => b[0] - a[0]);
+
+      for (const [, rowItems] of sortedRows) {
+        // Sort items left to right within each row
+        rowItems.sort((a: any, b: any) => a.x - b.x);
+
+        // Join with appropriate spacing
+        let rowText = "";
+        for (let j = 0; j < rowItems.length; j++) {
+          const item = rowItems[j];
+          if (j > 0) {
+            const prev = rowItems[j - 1];
+            const gap = item.x - (prev.x + prev.width);
+            // Large gap = tab/column separator, use tab; small gap = space
+            rowText += gap > 15 ? "\t" : gap > 2 ? " " : "";
+          }
+          rowText += item.str;
+        }
+        fullText += rowText + "\n";
+      }
+    }
+
+    return fullText;
+  } catch (err: any) {
+    console.error(`[PDF] Extraction error:`, err);
+    throw new Error(`PDF text extraction failed: ${err.message}`);
+  }
+}
+
+// ─── BASE64 DECODING ─────────────────────────────
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // ─── DIAGNOSTIC ANALYSIS (Steps 1-4) ─────────────────
 interface DiagnosticReport {
   file_name: string;
-  // Step 1: Raw extraction snapshot
+  pages?: number;
   extraction: {
     total_characters: number;
     first_1000_chars: string;
@@ -31,7 +127,6 @@ interface DiagnosticReport {
     line_count: number;
     first_50_lines: string[];
   };
-  // Step 2: Pattern density
   patterns: {
     date_count: number;
     time_count: number;
@@ -40,7 +135,6 @@ interface DiagnosticReport {
     date_samples: string[];
     time_samples: string[];
   };
-  // Step 3: Column fragmentation
   fragmentation: {
     single_token_lines: number;
     numeric_only_lines: number;
@@ -50,18 +144,16 @@ interface DiagnosticReport {
     min_line_length: number;
     empty_line_count: number;
   };
-  // Step 4: Classification guess
   classification: {
     guess: "likely_summary" | "likely_punch" | "unknown";
     confidence_signals: string[];
   };
 }
 
-function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport {
+function runDiagnosticAnalysis(text: string, fileName: string, pages?: number): DiagnosticReport {
   const rawLines = text.split("\n");
   const nonEmptyLines = rawLines.filter(l => l.trim().length > 0);
 
-  // Step 1: Raw extraction snapshot
   const extraction = {
     total_characters: text.length,
     first_1000_chars: text.slice(0, 1000),
@@ -70,7 +162,6 @@ function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport
     first_50_lines: rawLines.slice(0, 50),
   };
 
-  // Step 2: Pattern density
   const dateMatches = text.match(/\d{2}\/\d{2}\/\d{4}/g) || [];
   const timeMatches = text.match(/\d{1,2}:\d{2}/g) || [];
   const employeeWordMatches = text.match(/Employee\s+Code/gi) || [];
@@ -85,7 +176,6 @@ function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport
     time_samples: timeMatches.slice(0, 10),
   };
 
-  // Step 3: Column fragmentation
   const lineLengths = nonEmptyLines.map(l => l.trim().length);
   const singleTokenLines = nonEmptyLines.filter(l => l.trim().split(/\s+/).length === 1).length;
   const numericOnlyLines = nonEmptyLines.filter(l => /^\d+$/.test(l.trim())).length;
@@ -101,7 +191,6 @@ function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport
     empty_line_count: rawLines.length - nonEmptyLines.length,
   };
 
-  // Step 4: Classification guess (non-blocking, probabilistic)
   const signals: string[] = [];
   let guess: "likely_summary" | "likely_punch" | "unknown" = "unknown";
 
@@ -131,11 +220,62 @@ function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport
 
   return {
     file_name: fileName,
+    pages,
     extraction,
     patterns,
     fragmentation,
     classification: { guess, confidence_signals: signals },
   };
+}
+
+// ─── TEXT NORMALIZATION ──────────────────────────
+function normalizeExtractedText(text: string): string {
+  return text
+    .replace(/\r/g, "\n")
+    .replace(/[ ]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// ─── RESOLVE TEXT CONTENT ────────────────────────
+// Handles: text_content (plain text), file_data (base64 PDF)
+async function resolveTextContent(body: any): Promise<{ text: string; pages?: number; extractionMethod: string }> {
+  // Case 1: Already have plain text (TXT/CSV uploads)
+  if (body.text_content && !body.text_content.startsWith("%PDF")) {
+    return { text: body.text_content, extractionMethod: "plain_text" };
+  }
+
+  // Case 2: base64-encoded PDF data
+  if (body.file_data) {
+    console.log(`[EXTRACT] Decoding base64 PDF data (${body.file_data.length} chars)`);
+    const pdfBytes = base64ToUint8Array(body.file_data);
+    console.log(`[EXTRACT] PDF binary size: ${pdfBytes.length} bytes`);
+
+    const rawText = await extractTextFromPDF(pdfBytes);
+    const normalized = normalizeExtractedText(rawText);
+
+    // Validate extraction produced real text
+    const dateCount = (normalized.match(/\d{2}\/\d{2}\/\d{4}/g) || []).length;
+    const timeCount = (normalized.match(/\d{1,2}:\d{2}/g) || []).length;
+
+    console.log(`[EXTRACT] Extracted ${normalized.length} chars, ${dateCount} dates, ${timeCount} times`);
+
+    if (normalized.length < 200 && dateCount === 0 && timeCount === 0) {
+      throw new Error("PDF contains no extractable text. Likely a scanned image — OCR required.");
+    }
+
+    return { text: normalized, extractionMethod: "pdfjs" };
+  }
+
+  // Case 3: text_content that starts with %PDF (was incorrectly read as text on frontend)
+  if (body.text_content && body.text_content.startsWith("%PDF")) {
+    throw new Error(
+      "PDF file was sent as raw text instead of binary. " +
+      "Please update your client to send PDF files as base64-encoded file_data."
+    );
+  }
+
+  throw new Error("No valid file content provided. Send text_content (for TXT/CSV) or file_data (for PDF base64).");
 }
 
 /**
@@ -315,17 +455,18 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { text_content, organization_id, file_name, diagnostic_mode } = body;
+    const { organization_id, file_name, diagnostic_mode } = body;
 
-    if (!text_content || !organization_id) {
+    if (!organization_id) {
       return new Response(
-        JSON.stringify({ error: "text_content and organization_id are required" }),
+        JSON.stringify({ error: "organization_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Safety: limit content size (10MB)
-    if (text_content.length > 10_000_000) {
+    // Safety: reject oversized payloads
+    const contentSize = (body.text_content?.length || 0) + (body.file_data?.length || 0);
+    if (contentSize > 15_000_000) { // ~10MB in base64
       return new Response(
         JSON.stringify({ error: "File content too large (max 10MB)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -333,20 +474,65 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════
+    // RESOLVE TEXT: Extract text from PDF or use plain text
+    // ═══════════════════════════════════════════════════════
+    let extractedText: string;
+    let extractionMethod: string;
+    let pdfPages: number | undefined;
+
+    try {
+      const resolved = await resolveTextContent(body);
+      extractedText = resolved.text;
+      extractionMethod = resolved.extractionMethod;
+      pdfPages = resolved.pages;
+      console.log(`[PARSE] Text resolved via ${extractionMethod}: ${extractedText.length} chars`);
+    } catch (extractErr: any) {
+      console.error(`[PARSE] Extraction failed:`, extractErr.message);
+
+      // For diagnostic mode, return the error with what we can
+      if (diagnostic_mode) {
+        const errorDiagnostic: DiagnosticReport = {
+          file_name: file_name || "unknown",
+          extraction: {
+            total_characters: 0,
+            first_1000_chars: "",
+            last_1000_chars: "",
+            line_count: 0,
+            first_50_lines: [],
+          },
+          patterns: { date_count: 0, time_count: 0, employee_code_count: 0, status_count: 0, date_samples: [], time_samples: [] },
+          fragmentation: { single_token_lines: 0, numeric_only_lines: 0, time_only_lines: 0, avg_line_length: 0, max_line_length: 0, min_line_length: 0, empty_line_count: 0 },
+          classification: { guess: "unknown", confidence_signals: [`EXTRACTION FAILED: ${extractErr.message}`] },
+        };
+
+        return new Response(
+          JSON.stringify({ success: false, diagnostic_mode: true, diagnostic: errorDiagnostic, error: extractErr.message }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: false, error: extractErr.message }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════
     // DIAGNOSTIC MODE — analysis only, no data mutation
     // ═══════════════════════════════════════════════════════
     if (diagnostic_mode) {
-      console.log(`[DIAGNOSTIC] Running analysis on: ${file_name}, ${text_content.length} chars`);
+      console.log(`[DIAGNOSTIC] Running analysis on: ${file_name}, ${extractedText.length} chars`);
 
-      const diagnostic = runDiagnosticAnalysis(text_content, file_name || "unknown");
+      const diagnostic = runDiagnosticAnalysis(extractedText, file_name || "unknown", pdfPages);
 
-      // Step 5: Save diagnostic snapshot (max 5000 chars excerpt)
-      const rawExcerpt = text_content.slice(0, 5000);
+      // Save diagnostic snapshot (max 5000 chars excerpt)
+      const rawExcerpt = extractedText.slice(0, 5000);
       await adminClient.from("attendance_parse_diagnostics").insert({
         organization_id,
         file_name: file_name || "unknown",
         raw_excerpt: rawExcerpt,
         metrics: {
+          extraction_method: extractionMethod,
           extraction: {
             total_characters: diagnostic.extraction.total_characters,
             line_count: diagnostic.extraction.line_count,
@@ -357,16 +543,11 @@ Deno.serve(async (req) => {
         },
       });
 
-      console.log(`[DIAGNOSTIC] Analysis complete. Classification: ${diagnostic.classification.guess}`);
-      console.log(`[DIAGNOSTIC] Patterns: dates=${diagnostic.patterns.date_count}, times=${diagnostic.patterns.time_count}, emp_codes=${diagnostic.patterns.employee_code_count}`);
-      console.log(`[DIAGNOSTIC] Fragmentation: single_token=${diagnostic.fragmentation.single_token_lines}, avg_len=${diagnostic.fragmentation.avg_line_length}`);
+      console.log(`[DIAGNOSTIC] Analysis complete. Method: ${extractionMethod}, Classification: ${diagnostic.classification.guess}`);
+      console.log(`[DIAGNOSTIC] Patterns: dates=${diagnostic.patterns.date_count}, times=${diagnostic.patterns.time_count}`);
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          diagnostic_mode: true,
-          diagnostic,
-        }),
+        JSON.stringify({ success: true, diagnostic_mode: true, diagnostic }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -374,7 +555,7 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════
     // NORMAL MODE — existing parsing logic (UNTOUCHED)
     // ═══════════════════════════════════════════════════════
-    const result = parseAttendanceText(text_content);
+    const result = parseAttendanceText(extractedText);
 
     if (result.punches.length === 0) {
       return new Response(
@@ -383,6 +564,7 @@ Deno.serve(async (req) => {
           error: "No attendance records could be parsed from the file",
           parse_errors: result.errors,
           format: result.format,
+          extraction_method: extractionMethod,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -508,6 +690,7 @@ Deno.serve(async (req) => {
         matched_employees: codeToProfileId.size,
         unmatched_codes: unmatchedCodes,
         parse_errors: result.errors,
+        extraction_method: extractionMethod,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
