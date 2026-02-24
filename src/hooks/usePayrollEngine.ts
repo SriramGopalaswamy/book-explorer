@@ -14,6 +14,10 @@ export interface PayrollRun {
   total_net: number;
   employee_count: number;
   generated_by: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
   locked_at: string | null;
   locked_by: string | null;
   notes: string | null;
@@ -38,6 +42,15 @@ export interface PayrollEntry {
   earnings_breakdown: any[];
   deductions_breakdown: any[];
   status: string;
+  per_day_salary?: number;
+  annual_ctc_snapshot?: number;
+  tds_amount?: number;
+  pf_employee?: number;
+  pf_employer?: number;
+  esi_employee?: number;
+  esi_employer?: number;
+  payslip_url?: string | null;
+  payslip_generated_at?: string | null;
   created_at: string;
   updated_at: string;
   profiles?: {

@@ -17,17 +17,26 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Zap, Lock, Download, Trash2, Calendar, Eye, ChevronRight,
+  Zap, Lock, Download, Trash2, Calendar, Eye, Send, CheckCircle2,
+  ShieldCheck, FileSpreadsheet, Landmark,
 } from "lucide-react";
 import {
   usePayrollRuns,
   usePayrollRunEntries,
   useGeneratePayroll,
-  useLockPayrollRun,
   useDeletePayrollRun,
   exportPayrollCSV,
   type PayrollRun,
 } from "@/hooks/usePayrollEngine";
+import {
+  useSubmitForReview,
+  useApprovePayroll,
+  useLockApprovedPayroll,
+} from "@/hooks/usePayrollApproval";
+import { exportPFECR, exportBankTransferFile, exportPayrollMasterCSV } from "@/hooks/usePayrollExports";
+import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -53,25 +62,44 @@ const currentPeriod = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const statusStyles: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground border-border",
-  processing: "bg-amber-500/10 text-amber-600 border-amber-500/30",
-  completed: "bg-green-500/10 text-green-600 border-green-500/30",
-  locked: "bg-primary/10 text-primary border-primary/30",
+const statusConfig: Record<string, { label: string; class: string; icon: any }> = {
+  draft: { label: "Draft", class: "bg-muted text-muted-foreground border-border", icon: Zap },
+  processing: { label: "Processing", class: "bg-amber-500/10 text-amber-600 border-amber-500/30", icon: Zap },
+  completed: { label: "Completed", class: "bg-blue-500/10 text-blue-600 border-blue-500/30", icon: CheckCircle2 },
+  under_review: { label: "Under Review", class: "bg-purple-500/10 text-purple-600 border-purple-500/30", icon: Send },
+  approved: { label: "Approved", class: "bg-green-500/10 text-green-600 border-green-500/30", icon: ShieldCheck },
+  locked: { label: "Locked", class: "bg-primary/10 text-primary border-primary/30", icon: Lock },
 };
 
 export function PayrollEnginePanel() {
   const { data: runs = [], isLoading } = usePayrollRuns();
   const generate = useGeneratePayroll();
-  const lockRun = useLockPayrollRun();
   const deleteRun = useDeletePayrollRun();
+  const submitForReview = useSubmitForReview();
+  const approvePayroll = useApprovePayroll();
+  const lockPayroll = useLockApprovedPayroll();
+  const { data: isFinance } = useIsFinance();
+  const { data: currentRole } = useCurrentRole();
 
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const [viewRun, setViewRun] = useState<PayrollRun | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
-  const [lockTarget, setLockTarget] = useState<PayrollRun | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ run: PayrollRun; action: string } | null>(null);
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
+
+  const canSubmitReview = (run: PayrollRun) => run.status === "completed";
+  const canApprove = (run: PayrollRun) => run.status === "under_review" && (isFinance || currentRole === "admin");
+  const canLock = (run: PayrollRun) => run.status === "approved" && (isFinance || currentRole === "admin");
+
+  const handleConfirmAction = () => {
+    if (!confirmAction) return;
+    const { run, action } = confirmAction;
+    if (action === "review") submitForReview.mutate(run.id);
+    if (action === "approve") approvePayroll.mutate(run.id);
+    if (action === "lock") lockPayroll.mutate(run.id);
+    setConfirmAction(null);
+  };
 
   return (
     <>
@@ -81,7 +109,7 @@ export function PayrollEnginePanel() {
             <CardTitle className="text-gradient-primary flex items-center gap-2">
               <Zap className="h-5 w-5" /> Payroll Engine
             </CardTitle>
-            <CardDescription>Generate payroll from compensation structures</CardDescription>
+            <CardDescription>Generate, review, approve & lock payroll</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
@@ -118,7 +146,7 @@ export function PayrollEnginePanel() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className="min-w-[600px]">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Period</TableHead>
@@ -127,46 +155,86 @@ export function PayrollEnginePanel() {
                     <TableHead className="text-right">Deductions</TableHead>
                     <TableHead className="text-right">Net Pay</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
+                    <TableHead className="w-48">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell className="font-medium">{periodLabel(run.pay_period)}</TableCell>
-                      <TableCell className="text-right">{run.employee_count}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(run.total_gross)}</TableCell>
-                      <TableCell className="text-right text-destructive">-{formatCurrency(run.total_deductions)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(run.total_net)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusStyles[run.status] || statusStyles.draft}>
-                          {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRun(run)}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          {run.status === "completed" && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setLockTarget(run)}>
-                              <Lock className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {run.status !== "locked" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setDeleteTarget(run)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {runs.map((run) => {
+                    const sc = statusConfig[run.status] || statusConfig.draft;
+                    return (
+                      <TableRow key={run.id}>
+                        <TableCell className="font-medium">{periodLabel(run.pay_period)}</TableCell>
+                        <TableCell className="text-right">{run.employee_count}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(run.total_gross)}</TableCell>
+                        <TableCell className="text-right text-destructive">-{formatCurrency(run.total_deductions)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(run.total_net)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={sc.class}>
+                            <sc.icon className="h-3 w-3 mr-1" />
+                            {sc.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRun(run)}>
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View entries</TooltipContent>
+                            </Tooltip>
+
+                            {canSubmitReview(run) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600"
+                                    onClick={() => setConfirmAction({ run, action: "review" })}>
+                                    <Send className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Submit for Review</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {canApprove(run) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600"
+                                    onClick={() => setConfirmAction({ run, action: "approve" })}>
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Approve</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {canLock(run) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => setConfirmAction({ run, action: "lock" })}>
+                                    <Lock className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Lock (Immutable)</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {run.status !== "locked" && run.status !== "approved" && (
+                              <Button
+                                variant="ghost" size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteTarget(run)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -179,19 +247,25 @@ export function PayrollEnginePanel() {
         <PayrollEntriesDialog run={viewRun} open={!!viewRun} onOpenChange={(o) => !o && setViewRun(null)} />
       )}
 
-      {/* Lock Confirmation */}
-      <AlertDialog open={!!lockTarget} onOpenChange={(o) => !o && setLockTarget(null)}>
+      {/* Confirm Action Dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lock Payroll Run</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirmAction?.action === "review" && "Submit for Review"}
+              {confirmAction?.action === "approve" && "Approve Payroll"}
+              {confirmAction?.action === "lock" && "Lock Payroll"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Lock payroll for {lockTarget ? periodLabel(lockTarget.pay_period) : ""}? This prevents any further modifications.
+              {confirmAction?.action === "review" && `Submit ${confirmAction?.run ? periodLabel(confirmAction.run.pay_period) : ""} payroll for finance review?`}
+              {confirmAction?.action === "approve" && `Approve ${confirmAction?.run ? periodLabel(confirmAction.run.pay_period) : ""} payroll? This allows locking.`}
+              {confirmAction?.action === "lock" && `Lock ${confirmAction?.run ? periodLabel(confirmAction.run.pay_period) : ""} payroll? This is IRREVERSIBLE — no further modifications allowed.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => lockTarget && lockRun.mutate(lockTarget.id, { onSuccess: () => setLockTarget(null) })}>
-              Lock Payroll
+            <AlertDialogAction onClick={handleConfirmAction}>
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -203,7 +277,7 @@ export function PayrollEnginePanel() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Payroll Run</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete payroll run for {deleteTarget ? periodLabel(deleteTarget.pay_period) : ""}? All entries will be removed.
+              Delete payroll run for {deleteTarget ? periodLabel(deleteTarget.pay_period) : ""}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -223,26 +297,51 @@ export function PayrollEnginePanel() {
 
 function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: entries = [], isLoading } = usePayrollRunEntries(run.id);
+  const isLocked = run.status === "locked";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Payroll — {periodLabel(run.pay_period)}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Payroll — {periodLabel(run.pay_period)}
+            <Badge variant="outline" className={statusConfig[run.status]?.class || ""}>
+              {statusConfig[run.status]?.label || run.status}
+            </Badge>
+          </DialogTitle>
           <DialogDescription>
-            {run.employee_count} employees · {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
+            {run.employee_count} employees
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-end mb-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportPayrollCSV(entries, run.pay_period)}
-            disabled={entries.length === 0}
-          >
-            <Download className="h-4 w-4 mr-1" /> Export CSV
+        {/* Approval Timeline */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+          <span>Generated: {new Date(run.created_at).toLocaleDateString("en-IN")}</span>
+          {run.reviewed_at && <span>• Reviewed: {new Date(run.reviewed_at).toLocaleDateString("en-IN")}</span>}
+          {run.approved_at && <span>• Approved: {new Date(run.approved_at).toLocaleDateString("en-IN")}</span>}
+          {run.locked_at && <span>• Locked: {new Date(run.locked_at).toLocaleDateString("en-IN")}</span>}
+        </div>
+
+        <Separator />
+
+        {/* Export buttons */}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <Download className="h-4 w-4 mr-1" /> Payroll CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
+          </Button>
+          {isLocked && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
+                <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
+                <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
+              </Button>
+            </>
+          )}
         </div>
 
         {isLoading ? (
@@ -251,13 +350,15 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table className="min-w-[700px]">
+            <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead className="text-right">Annual CTC</TableHead>
                   <TableHead className="text-right">Gross</TableHead>
+                  <TableHead className="text-right">PF</TableHead>
+                  <TableHead className="text-right">TDS</TableHead>
                   <TableHead className="text-right">Deductions</TableHead>
                   <TableHead className="text-right">LWP</TableHead>
                   <TableHead className="text-right">Net Pay</TableHead>
@@ -275,13 +376,11 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                     <TableCell className="text-muted-foreground">{e.profiles?.department || "—"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(e.annual_ctc)}</TableCell>
                     <TableCell className="text-right text-green-600">{formatCurrency(e.gross_earnings)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(e.pf_employee ?? 0)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(e.tds_amount ?? 0)}</TableCell>
                     <TableCell className="text-right text-destructive">-{formatCurrency(e.total_deductions)}</TableCell>
                     <TableCell className="text-right">
-                      {e.lwp_days > 0 ? (
-                        <span className="text-amber-600">{e.lwp_days}d</span>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
+                      {e.lwp_days > 0 ? <span className="text-amber-600">{e.lwp_days}d</span> : <span className="text-muted-foreground">0</span>}
                     </TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(e.net_pay)}</TableCell>
                   </TableRow>
@@ -291,7 +390,6 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
           </div>
         )}
 
-        {/* Totals */}
         {entries.length > 0 && (
           <div className="mt-4 rounded-xl border bg-muted/50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
