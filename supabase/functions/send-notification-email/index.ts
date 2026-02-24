@@ -753,6 +753,113 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ─── MEMO SUBMITTED FOR APPROVAL ─────────────────────────────────────────
+    if (type === "memo_submitted_for_approval") {
+      const { memo_id } = payload;
+      try {
+        const { data: memo, error: memoErr } = await supabase.from("memos").select("*").eq("id", memo_id).single();
+        if (memoErr || !memo) throw new Error(`Memo not found: ${memoErr?.message}`);
+
+        // Get author profile to find manager
+        const { data: authorProfile } = await supabase.from("profiles").select("manager_id, full_name, email, user_id").eq("user_id", memo.user_id).single();
+        const authorName = authorProfile?.full_name || memo.author_name || "An employee";
+
+        // Notify author (confirmation)
+        if (authorProfile?.user_id) {
+          await insertNotification(supabase, authorProfile.user_id, "Memo Submitted", `Your memo "${memo.title}" has been submitted and is pending approval.`, "memo", "/performance/memos");
+        }
+        if (authorProfile?.email) {
+          const rows = [tableRow("Title", memo.title, true), tableRow("Subject", memo.subject || "—"), tableRow("Status", "Pending Approval", true)].join("");
+          const htmlBody = emailTemplate("#3498db", "📋", "Memo Submitted", `Hi ${authorName}, your memo has been submitted for approval.`, rows, "Your manager will review it shortly.");
+          await sendEmail([{ email: authorProfile.email, name: authorName }], `📋 Memo Submitted — Awaiting Approval`, htmlBody);
+        }
+
+        // Notify manager
+        if (authorProfile?.manager_id) {
+          const { data: mgr } = await supabase.from("profiles").select("email, full_name, user_id").eq("id", authorProfile.manager_id).single();
+          if (mgr?.user_id) {
+            await insertNotification(supabase, mgr.user_id, `Memo Pending Approval`, `"${memo.title}" by ${authorName} needs your review.`, "memo", "/hrms/inbox");
+          }
+          if (mgr?.email) {
+            const rows = [tableRow("Title", memo.title, true), tableRow("Subject", memo.subject || "—"), tableRow("Author", authorName), tableRow("Content Preview", memo.excerpt || memo.content?.substring(0, 150) || "—")].join("");
+            const htmlBody = emailTemplate("#f5a623", "📝", `Memo Pending Approval`, `${authorName} submitted a memo for your review`, rows, "Please log in to <strong>GRX10</strong> to approve or reject this memo.");
+            await sendEmail([{ email: mgr.email, name: mgr.full_name || undefined }], `📝 Memo from ${authorName} — Approval Required`, htmlBody);
+          }
+        }
+      } catch (err) {
+        console.error("memo_submitted_for_approval error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── MEMO APPROVED ────────────────────────────────────────────────────────
+    if (type === "memo_approved") {
+      const { memo_id } = payload;
+      try {
+        const { data: memo, error: memoErr } = await supabase.from("memos").select("*").eq("id", memo_id).single();
+        if (memoErr || !memo) throw new Error(`Memo not found: ${memoErr?.message}`);
+
+        const { data: authorProfile } = await supabase.from("profiles").select("full_name, email, user_id").eq("user_id", memo.user_id).single();
+        const authorName = authorProfile?.full_name || memo.author_name || "Employee";
+
+        // Get reviewer name
+        let reviewerName = "Manager";
+        if (memo.reviewed_by) {
+          const { data: reviewer } = await supabase.from("profiles").select("full_name").eq("user_id", memo.reviewed_by).maybeSingle();
+          if (reviewer?.full_name) reviewerName = reviewer.full_name;
+        }
+
+        // In-app notification for author
+        if (authorProfile?.user_id) {
+          await insertNotification(supabase, authorProfile.user_id, "Memo Approved ✅", `Your memo "${memo.title}" has been approved and published by ${reviewerName}.${memo.reviewer_notes ? ` Note: ${memo.reviewer_notes}` : ""}`, "memo", "/performance/memos");
+        }
+
+        // Email to author
+        if (authorProfile?.email) {
+          const rows = [tableRow("Title", memo.title, true), tableRow("Status", "Approved & Published", true), tableRow("Reviewed by", reviewerName), ...(memo.reviewer_notes ? [tableRow("Reviewer Notes", memo.reviewer_notes)] : [])].join("");
+          const htmlBody = emailTemplate("#27ae60", "✅", "Memo Approved & Published", `Hi ${authorName}, your memo has been approved.`, rows, "Your memo is now published and visible to recipients.");
+          await sendEmail([{ email: authorProfile.email, name: authorName }], `✅ Memo Approved — "${memo.title}"`, htmlBody);
+        }
+      } catch (err) {
+        console.error("memo_approved error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── MEMO REJECTED ────────────────────────────────────────────────────────
+    if (type === "memo_rejected") {
+      const { memo_id } = payload;
+      try {
+        const { data: memo, error: memoErr } = await supabase.from("memos").select("*").eq("id", memo_id).single();
+        if (memoErr || !memo) throw new Error(`Memo not found: ${memoErr?.message}`);
+
+        const { data: authorProfile } = await supabase.from("profiles").select("full_name, email, user_id").eq("user_id", memo.user_id).single();
+        const authorName = authorProfile?.full_name || memo.author_name || "Employee";
+
+        let reviewerName = "Manager";
+        if (memo.reviewed_by) {
+          const { data: reviewer } = await supabase.from("profiles").select("full_name").eq("user_id", memo.reviewed_by).maybeSingle();
+          if (reviewer?.full_name) reviewerName = reviewer.full_name;
+        }
+
+        // In-app notification for author
+        if (authorProfile?.user_id) {
+          await insertNotification(supabase, authorProfile.user_id, "Memo Rejected ❌", `Your memo "${memo.title}" was rejected by ${reviewerName}.${memo.reviewer_notes ? ` Reason: ${memo.reviewer_notes}` : ""}`, "memo", "/performance/memos");
+        }
+
+        // Email to author
+        if (authorProfile?.email) {
+          const rows = [tableRow("Title", memo.title, true), tableRow("Status", "Rejected", true), tableRow("Reviewed by", reviewerName), ...(memo.reviewer_notes ? [tableRow("Reason", memo.reviewer_notes)] : [])].join("");
+          const extraBlock = memo.reviewer_notes ? `<div style="margin-top: 16px; padding: 12px; background: #fef2f2; border-left: 4px solid #e74c3c; border-radius: 4px;"><strong>Reviewer Feedback:</strong> ${memo.reviewer_notes}</div>` : "";
+          const htmlBody = emailTemplate("#e74c3c", "❌", "Memo Rejected", `Hi ${authorName}, your memo was not approved.`, rows, "You may revise and resubmit the memo.", extraBlock);
+          await sendEmail([{ email: authorProfile.email, name: authorName }], `❌ Memo Rejected — "${memo.title}"`, htmlBody);
+        }
+      } catch (err) {
+        console.error("memo_rejected error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown notification type: ${type}` }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
