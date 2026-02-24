@@ -56,28 +56,108 @@ function BiometricUploadDialog({
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [result, setResult] = useState<UploadParseResult | null>(null);
+  const [zipProgress, setZipProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
+  const [aggregatedResult, setAggregatedResult] = useState<UploadParseResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setFile(null);
     setResult(null);
+    setZipProgress(null);
+    setAggregatedResult(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
   const processFile = useCallback(async (f: File) => {
-    const ext = f.name.split(".").pop()?.toLowerCase();
-    if (!["pdf", "txt", "csv"].includes(ext || "")) {
-      // For now we accept text-based files; PDF binary parsing would need more work
-      // We'll read as text which works for text-based PDFs
-    }
     setFile(f);
   }, []);
 
   const handleUpload = async () => {
     if (!file) return;
-    const text = await file.text();
-    const data = await upload.mutateAsync({ textContent: text, fileName: file.name });
-    setResult(data);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "zip") {
+      await handleZipUpload(file);
+    } else {
+      const text = await file.text();
+      const data = await upload.mutateAsync({ textContent: text, fileName: file.name });
+      setResult(data);
+    }
+  };
+
+  const handleZipUpload = async (zipFile: File) => {
+    const JSZip = (await import("jszip")).default;
+    const zip = await JSZip.loadAsync(zipFile);
+
+    // Collect supported files from the ZIP
+    const supportedFiles: { name: string; file: any }[] = [];
+    zip.forEach((relativePath, zipEntry) => {
+      if (zipEntry.dir) return;
+      const fileExt = relativePath.split(".").pop()?.toLowerCase();
+      if (["pdf", "txt", "csv"].includes(fileExt || "")) {
+        supportedFiles.push({ name: relativePath, file: zipEntry });
+      }
+    });
+
+    if (supportedFiles.length === 0) {
+      setResult({
+        success: false,
+        error: "No supported files (PDF/TXT/CSV) found in ZIP archive",
+        parse_errors: ["ZIP contained no parseable attendance files"],
+        total_parsed: 0,
+        inserted: 0,
+        duplicates_skipped: 0,
+        matched_employees: 0,
+        unmatched_codes: [],
+      } as UploadParseResult);
+      return;
+    }
+
+    // Process each file and aggregate results
+    const agg: UploadParseResult = {
+      success: true,
+      total_parsed: 0,
+      inserted: 0,
+      duplicates_skipped: 0,
+      matched_employees: 0,
+      unmatched_codes: [],
+      parse_errors: [],
+    } as any;
+
+    let allUnmatched = new Set<string>();
+
+    for (let i = 0; i < supportedFiles.length; i++) {
+      const entry = supportedFiles[i];
+      setZipProgress({ current: i + 1, total: supportedFiles.length, fileName: entry.name.split("/").pop() || entry.name });
+
+      try {
+        const text = await entry.file.async("string");
+        const data = await upload.mutateAsync({
+          textContent: text,
+          fileName: `${zipFile.name}/${entry.name}`,
+        });
+
+        if (data.success) {
+          agg.total_parsed += data.total_parsed || 0;
+          agg.inserted += data.inserted || 0;
+          agg.duplicates_skipped += data.duplicates_skipped || 0;
+          agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
+          data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+        } else {
+          agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
+          if (data.parse_errors) {
+            data.parse_errors.forEach((e: string) => agg.parse_errors.push(`${entry.name}: ${e}`));
+          }
+        }
+      } catch (err: any) {
+        agg.parse_errors.push(`${entry.name}: ${err.message}`);
+      }
+    }
+
+    agg.unmatched_codes = Array.from(allUnmatched);
+    agg.success = agg.inserted > 0 || agg.total_parsed > 0;
+    setZipProgress(null);
+    setResult(agg);
   };
 
   const handleDrop = useCallback(
@@ -90,10 +170,13 @@ function BiometricUploadDialog({
     [processFile]
   );
 
+  const isProcessing = upload.isPending || zipProgress !== null;
+
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
+        if (isProcessing) return; // prevent closing during processing
         onOpenChange(v);
         if (!v) reset();
       }}
@@ -105,7 +188,7 @@ function BiometricUploadDialog({
             Upload Biometric Attendance
           </DialogTitle>
           <DialogDescription>
-            Upload a biometric attendance file (PDF/TXT/CSV). Punches will be parsed and stored.
+            Upload a biometric attendance file (PDF/TXT/CSV) or a ZIP containing multiple files. Punches will be parsed and stored.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +278,7 @@ function BiometricUploadDialog({
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf,.txt,.csv"
+                accept=".pdf,.txt,.csv,.zip"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) processFile(f);
@@ -207,7 +290,7 @@ function BiometricUploadDialog({
                 {isDragging ? "Drop your file here" : "Drag & drop or choose a file"}
               </p>
               <p className="text-xs text-muted-foreground mb-3">
-                Supports PDF, TXT, CSV biometric reports
+                Supports PDF, TXT, CSV, or ZIP (containing multiple PDF/TXT/CSV files)
               </p>
               <div className="flex items-center justify-center gap-3">
                 <Button
@@ -225,6 +308,15 @@ function BiometricUploadDialog({
                 )}
               </div>
             </div>
+
+            {zipProgress && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-center">
+                <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                <span className="text-xs">
+                  Processing file {zipProgress.current} of {zipProgress.total}: <strong>{zipProgress.fileName}</strong>
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -240,17 +332,17 @@ function BiometricUploadDialog({
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
                 Cancel
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={!file || upload.isPending}
+                disabled={!file || isProcessing}
               >
-                {upload.isPending ? (
+                {isProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Parsing...
+                    {zipProgress ? "Processing ZIP..." : "Parsing..."}
                   </>
                 ) : (
                   <>
