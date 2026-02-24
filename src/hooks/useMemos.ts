@@ -181,35 +181,7 @@ export function useCreateMemo() {
           body: { type: "memo_submitted_for_approval", payload: { memo_id: data.id } },
         }).catch((err) => console.warn("Failed to send memo notification:", err));
 
-        // Create in-app notification for the manager
-        (async () => {
-          try {
-            const { data: authorProfile } = await supabase
-              .from("profiles")
-              .select("manager_id")
-              .eq("user_id", user!.id)
-              .single();
-            if (authorProfile?.manager_id) {
-              const { data: mgrProfile } = await supabase
-                .from("profiles")
-                .select("user_id")
-                .eq("id", authorProfile.manager_id)
-                .single();
-              if (mgrProfile?.user_id) {
-                await supabase.from("notifications").insert({
-                  user_id: mgrProfile.user_id,
-                  title: "Memo Pending Approval",
-                  message: `"${data.title}" by ${(data as any).author_name} needs your review.`,
-                  type: "memo",
-                  link: "/hrms/inbox",
-                  metadata: { memo_id: data.id },
-                } as any);
-              }
-            }
-          } catch (e) {
-            console.warn("Failed to create in-app memo notification:", e);
-          }
-        })();
+        // In-app notification handled by edge function
       } else {
         toast.success("Memo saved as draft");
       }
@@ -301,17 +273,7 @@ export function useApproveMemo() {
         body: { type: "memo_approved", payload: { memo_id: data.id } },
       }).catch((err) => console.warn("Failed to send memo notification:", err));
 
-      // In-app notification for the memo author
-      supabase.from("notifications").insert({
-        user_id: (data as any).user_id,
-        title: "Memo Approved",
-        message: `Your memo "${data.title}" has been approved and published.`,
-        type: "memo",
-        link: "/performance/memos",
-        metadata: { memo_id: data.id },
-      } as any).then(({ error }) => {
-        if (error) console.warn("Failed to create approval notification:", error);
-      });
+      // In-app notification handled by edge function
     },
     onError: (error: Error) => {
       toast.error("Failed to approve memo: " + error.message);
@@ -348,17 +310,7 @@ export function useRejectMemo() {
         body: { type: "memo_rejected", payload: { memo_id: data.id } },
       }).catch((err) => console.warn("Failed to send memo notification:", err));
 
-      // In-app notification for the memo author
-      supabase.from("notifications").insert({
-        user_id: (data as any).user_id,
-        title: "Memo Rejected",
-        message: `Your memo "${data.title}" was rejected.`,
-        type: "memo",
-        link: "/performance/memos",
-        metadata: { memo_id: data.id },
-      } as any).then(({ error }) => {
-        if (error) console.warn("Failed to create rejection notification:", error);
-      });
+      // In-app notification handled by edge function
     },
     onError: (error: Error) => {
       toast.error("Failed to reject memo: " + error.message);
