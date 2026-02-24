@@ -28,6 +28,9 @@ export function useIsAdminOrHR() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -56,6 +59,9 @@ export function useIsFinance() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -84,6 +90,9 @@ export function useIsManager() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -116,5 +125,8 @@ export function useCurrentRole() {
       return "employee";
     },
     enabled: !!user,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
