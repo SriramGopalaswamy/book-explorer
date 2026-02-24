@@ -305,7 +305,7 @@ export default function Reimbursements() {
     }
   };
 
-  const pendingCount = requests.filter((r: any) => r.status === "pending_manager").length;
+  const pendingCount = requests.filter((r: any) => ["pending_manager", "manager_approved", "pending_finance"].includes(r.status)).length;
   const paidCount = requests.filter((r: any) => r.status === "paid").length;
   const totalPaid = requests
     .filter((r: any) => r.status === "paid")
