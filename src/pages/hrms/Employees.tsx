@@ -676,6 +676,7 @@ export default function Employees() {
         onUpdateEmployee={(data) => {
           updateEmployee.mutate(data);
         }}
+        canEditCompensation={!!isAdmin}
       />
     </MainLayout>
   );
