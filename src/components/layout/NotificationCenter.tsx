@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, CheckCheck, Trash2, Calendar, FileText, Info, AlertTriangle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,13 +25,20 @@ function NotificationItem({
   notification,
   onRead,
   onDelete,
+  onNavigate,
 }: {
   notification: Notification;
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
+  onNavigate: (link: string) => void;
 }) {
   const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.info;
   const Icon = config.icon;
+
+  const handleClick = () => {
+    if (!notification.read) onRead(notification.id);
+    if (notification.link) onNavigate(notification.link);
+  };
 
   return (
     <motion.div
@@ -42,7 +50,7 @@ function NotificationItem({
           ? "bg-transparent border-transparent hover:bg-muted/40"
           : "bg-primary/5 border-primary/10 hover:bg-primary/10"
       }`}
-      onClick={() => !notification.read && onRead(notification.id)}
+      onClick={handleClick}
     >
       <div className={`mt-0.5 shrink-0 ${config.color}`}>
         <Icon className="h-4 w-4" />
@@ -74,6 +82,7 @@ function NotificationItem({
 }
 
 export function NotificationCenter() {
+  const navigate = useNavigate();
   const {
     notifications,
     unreadCount,
@@ -169,6 +178,7 @@ export function NotificationCenter() {
                     notification={n}
                     onRead={markAsRead}
                     onDelete={deleteNotification}
+                    onNavigate={(link) => navigate(link)}
                   />
                 ))}
               </AnimatePresence>
