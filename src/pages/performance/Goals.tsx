@@ -610,7 +610,7 @@ function ReviewDialog({
           <GoalItemsEditor
             items={items}
             onChange={setItems}
-            mode={isScoring ? "manager-review" : "manager-review"}
+            mode={isScoring ? "manager-review" : "full"}
           />
         </div>
 
