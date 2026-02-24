@@ -1744,7 +1744,11 @@ export type Database = {
           id: string
           notes: string | null
           organization_id: string
+          profile_id: string | null
           receipt_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
           status: string
           updated_at: string
           user_id: string
@@ -1758,7 +1762,11 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id?: string
+          profile_id?: string | null
           receipt_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -1772,7 +1780,11 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id?: string
+          profile_id?: string | null
           receipt_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -1783,6 +1795,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
           {
