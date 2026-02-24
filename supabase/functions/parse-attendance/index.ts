@@ -20,6 +20,124 @@ interface ParseResult {
   format: "punch" | "summary" | "unknown";
 }
 
+// ─── DIAGNOSTIC ANALYSIS (Steps 1-4) ─────────────────
+interface DiagnosticReport {
+  file_name: string;
+  // Step 1: Raw extraction snapshot
+  extraction: {
+    total_characters: number;
+    first_1000_chars: string;
+    last_1000_chars: string;
+    line_count: number;
+    first_50_lines: string[];
+  };
+  // Step 2: Pattern density
+  patterns: {
+    date_count: number;
+    time_count: number;
+    employee_code_count: number;
+    status_count: number;
+    date_samples: string[];
+    time_samples: string[];
+  };
+  // Step 3: Column fragmentation
+  fragmentation: {
+    single_token_lines: number;
+    numeric_only_lines: number;
+    time_only_lines: number;
+    avg_line_length: number;
+    max_line_length: number;
+    min_line_length: number;
+    empty_line_count: number;
+  };
+  // Step 4: Classification guess
+  classification: {
+    guess: "likely_summary" | "likely_punch" | "unknown";
+    confidence_signals: string[];
+  };
+}
+
+function runDiagnosticAnalysis(text: string, fileName: string): DiagnosticReport {
+  const rawLines = text.split("\n");
+  const nonEmptyLines = rawLines.filter(l => l.trim().length > 0);
+
+  // Step 1: Raw extraction snapshot
+  const extraction = {
+    total_characters: text.length,
+    first_1000_chars: text.slice(0, 1000),
+    last_1000_chars: text.slice(-1000),
+    line_count: rawLines.length,
+    first_50_lines: rawLines.slice(0, 50),
+  };
+
+  // Step 2: Pattern density
+  const dateMatches = text.match(/\d{2}\/\d{2}\/\d{4}/g) || [];
+  const timeMatches = text.match(/\d{1,2}:\d{2}/g) || [];
+  const employeeWordMatches = text.match(/Employee\s+Code/gi) || [];
+  const statusMatches = text.match(/\b(P|A|NA|MIS|HD)\b/g) || [];
+
+  const patterns = {
+    date_count: dateMatches.length,
+    time_count: timeMatches.length,
+    employee_code_count: employeeWordMatches.length,
+    status_count: statusMatches.length,
+    date_samples: dateMatches.slice(0, 10),
+    time_samples: timeMatches.slice(0, 10),
+  };
+
+  // Step 3: Column fragmentation
+  const lineLengths = nonEmptyLines.map(l => l.trim().length);
+  const singleTokenLines = nonEmptyLines.filter(l => l.trim().split(/\s+/).length === 1).length;
+  const numericOnlyLines = nonEmptyLines.filter(l => /^\d+$/.test(l.trim())).length;
+  const timeOnlyLines = nonEmptyLines.filter(l => /^\d{1,2}:\d{2}(:\d{2})?$/.test(l.trim())).length;
+
+  const fragmentation = {
+    single_token_lines: singleTokenLines,
+    numeric_only_lines: numericOnlyLines,
+    time_only_lines: timeOnlyLines,
+    avg_line_length: lineLengths.length > 0 ? Math.round(lineLengths.reduce((a, b) => a + b, 0) / lineLengths.length) : 0,
+    max_line_length: lineLengths.length > 0 ? Math.max(...lineLengths) : 0,
+    min_line_length: lineLengths.length > 0 ? Math.min(...lineLengths) : 0,
+    empty_line_count: rawLines.length - nonEmptyLines.length,
+  };
+
+  // Step 4: Classification guess (non-blocking, probabilistic)
+  const signals: string[] = [];
+  let guess: "likely_summary" | "likely_punch" | "unknown" = "unknown";
+
+  if (dateMatches.length > 20 && timeMatches.length > 40) {
+    guess = "likely_summary";
+    signals.push(`High date density (${dateMatches.length}) + time density (${timeMatches.length})`);
+  }
+  if (employeeWordMatches.length > 5 && timeMatches.length > 20) {
+    guess = "likely_punch";
+    signals.push(`Employee Code headers (${employeeWordMatches.length}) + times (${timeMatches.length})`);
+  }
+  if (statusMatches.length > 10) {
+    signals.push(`Status tokens found (${statusMatches.length}): P/A/NA/MIS/HD`);
+  }
+  if (singleTokenLines > nonEmptyLines.length * 0.5) {
+    signals.push(`HIGH FRAGMENTATION: ${singleTokenLines}/${nonEmptyLines.length} lines are single-token`);
+  }
+  if (timeOnlyLines > 5) {
+    signals.push(`Isolated time values detected: ${timeOnlyLines} lines`);
+  }
+  if (numericOnlyLines > 10) {
+    signals.push(`Numeric-only lines: ${numericOnlyLines}`);
+  }
+  if (fragmentation.avg_line_length < 10) {
+    signals.push(`Very short avg line length (${fragmentation.avg_line_length}) - likely column-fragmented PDF`);
+  }
+
+  return {
+    file_name: fileName,
+    extraction,
+    patterns,
+    fragmentation,
+    classification: { guess, confidence_signals: signals },
+  };
+}
+
 /**
  * Parse biometric attendance text content.
  * Detects format (punch-based vs summary) and extracts records.
@@ -67,7 +185,6 @@ function parsePunchFormat(lines: string[]): ParseResult {
   let currentCardNo = "";
 
   for (const line of lines) {
-    // Match employee header: "Employee Code: 123  Name: John Doe  Card No: 456"
     const empMatch = line.match(
       /Employee\s*Code\s*[:\-]\s*(\w+).*?Name\s*[:\-]\s*(.+?)(?:\s+Card\s*No\s*[:\-]\s*(\w+))?$/i
     );
@@ -78,7 +195,6 @@ function parsePunchFormat(lines: string[]): ParseResult {
       continue;
     }
 
-    // Simpler header: just "Employee Code: 123"
     const simpleEmpMatch = line.match(/Employee\s*Code\s*[:\-]\s*(\w+)/i);
     if (simpleEmpMatch && !empMatch) {
       currentEmpCode = simpleEmpMatch[1].trim();
@@ -89,19 +205,14 @@ function parsePunchFormat(lines: string[]): ParseResult {
 
     if (!currentEmpCode) continue;
 
-    // Match punch rows: "DD/MM/YYYY  HH:MM" or "DD-MM-YYYY HH:MM:SS"
     const punchMatch = line.match(
       /(\d{2}[\/-]\d{2}[\/-]\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)/
     );
     if (punchMatch) {
       const dateStr = punchMatch[1].replace(/-/g, "/");
       const timeStr = punchMatch[2];
-
-      // Parse DD/MM/YYYY
       const [dd, mm, yyyy] = dateStr.split("/");
       const isoDate = `${yyyy}-${mm}-${dd}`;
-
-      // Pad time
       const timeParts = timeStr.split(":");
       const paddedTime = `${timeParts[0].padStart(2, "0")}:${timeParts[1]}${timeParts[2] ? ":" + timeParts[2] : ":00"}`;
 
@@ -122,7 +233,6 @@ function parseSummaryFormat(lines: string[]): ParseResult {
   const errors: string[] = [];
 
   for (const line of lines) {
-    // Summary row: DD/MM/YYYY  EmpCode  Name  CardNo  InTime  OutTime  WorkHrs  OTHrs  Shift  ShiftTime  Status
     const summaryMatch = line.match(
       /^(\d{2}\/\d{2}\/\d{4})\s+(\w+)\s+(.+?)\s+(\d+)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\w+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(P|A|NA|MIS|HD)/
     );
@@ -132,7 +242,6 @@ function parseSummaryFormat(lines: string[]): ParseResult {
       const [dd, mm, yyyy] = dateStr.split("/");
       const isoDate = `${yyyy}-${mm}-${dd}`;
 
-      // Create in/out punches from summary
       punches.push({
         employee_code: empCode,
         card_no: cardNo,
@@ -153,7 +262,6 @@ function parseSummaryFormat(lines: string[]): ParseResult {
       continue;
     }
 
-    // Simpler summary: DD/MM/YYYY EmpCode InTime OutTime Status
     const simpleMatch = line.match(
       /^(\d{2}\/\d{2}\/\d{4})\s+(\w+)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(P|A|NA|MIS|HD)/
     );
@@ -190,10 +298,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Create admin client for service operations
     const adminClient = createClient(supabaseUrl, supabaseKey);
-
-    // Create user client for auth validation
     const userClient = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -210,7 +315,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { text_content, organization_id, file_name } = body;
+    const { text_content, organization_id, file_name, diagnostic_mode } = body;
 
     if (!text_content || !organization_id) {
       return new Response(
@@ -219,7 +324,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Safety: limit content size (10MB text)
+    // Safety: limit content size (10MB)
     if (text_content.length > 10_000_000) {
       return new Response(
         JSON.stringify({ error: "File content too large (max 10MB)" }),
@@ -227,7 +332,48 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse the text
+    // ═══════════════════════════════════════════════════════
+    // DIAGNOSTIC MODE — analysis only, no data mutation
+    // ═══════════════════════════════════════════════════════
+    if (diagnostic_mode) {
+      console.log(`[DIAGNOSTIC] Running analysis on: ${file_name}, ${text_content.length} chars`);
+
+      const diagnostic = runDiagnosticAnalysis(text_content, file_name || "unknown");
+
+      // Step 5: Save diagnostic snapshot (max 5000 chars excerpt)
+      const rawExcerpt = text_content.slice(0, 5000);
+      await adminClient.from("attendance_parse_diagnostics").insert({
+        organization_id,
+        file_name: file_name || "unknown",
+        raw_excerpt: rawExcerpt,
+        metrics: {
+          extraction: {
+            total_characters: diagnostic.extraction.total_characters,
+            line_count: diagnostic.extraction.line_count,
+          },
+          patterns: diagnostic.patterns,
+          fragmentation: diagnostic.fragmentation,
+          classification: diagnostic.classification,
+        },
+      });
+
+      console.log(`[DIAGNOSTIC] Analysis complete. Classification: ${diagnostic.classification.guess}`);
+      console.log(`[DIAGNOSTIC] Patterns: dates=${diagnostic.patterns.date_count}, times=${diagnostic.patterns.time_count}, emp_codes=${diagnostic.patterns.employee_code_count}`);
+      console.log(`[DIAGNOSTIC] Fragmentation: single_token=${diagnostic.fragmentation.single_token_lines}, avg_len=${diagnostic.fragmentation.avg_line_length}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          diagnostic_mode: true,
+          diagnostic,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // NORMAL MODE — existing parsing logic (UNTOUCHED)
+    // ═══════════════════════════════════════════════════════
     const result = parseAttendanceText(text_content);
 
     if (result.punches.length === 0) {
@@ -251,7 +397,6 @@ Deno.serve(async (req) => {
       .eq("organization_id", organization_id)
       .in("employee_id_number", uniqueCodes);
 
-    // Also try matching by profile full_name or email prefix
     const { data: profiles } = await adminClient
       .from("profiles")
       .select("id, full_name, email")
@@ -261,16 +406,12 @@ Deno.serve(async (req) => {
     const unmatchedCodes: string[] = [];
 
     for (const code of uniqueCodes) {
-      // First try employee_id_number
-      const match = empDetails?.find(
-        (e: any) => e.employee_id_number === code
-      );
+      const match = empDetails?.find((e: any) => e.employee_id_number === code);
       if (match) {
         codeToProfileId.set(code, match.profile_id);
         continue;
       }
 
-      // Fallback: match by name from parsed data
       const punchName = result.punches.find((p) => p.employee_code === code)?.name;
       if (punchName) {
         const profileMatch = profiles?.find(
@@ -284,7 +425,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Try code as email prefix
       const emailMatch = profiles?.find((p: any) =>
         p.email?.toLowerCase().startsWith(code.toLowerCase())
       );
@@ -315,7 +455,6 @@ Deno.serve(async (req) => {
     let duplicateCount = 0;
 
     if (insertRows.length > 0) {
-      // Batch insert, skip duplicates (same org, profile, exact datetime)
       for (const row of insertRows) {
         const { data: existing } = await adminClient
           .from("attendance_punches")
