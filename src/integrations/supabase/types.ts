@@ -2884,6 +2884,7 @@ export type Database = {
           priority: string
           published_at: string | null
           recipients: string[] | null
+          reviewed_by: string | null
           reviewer_notes: string | null
           status: string
           subject: string | null
@@ -2904,6 +2905,7 @@ export type Database = {
           priority?: string
           published_at?: string | null
           recipients?: string[] | null
+          reviewed_by?: string | null
           reviewer_notes?: string | null
           status?: string
           subject?: string | null
@@ -2924,6 +2926,7 @@ export type Database = {
           priority?: string
           published_at?: string | null
           recipients?: string[] | null
+          reviewed_by?: string | null
           reviewer_notes?: string | null
           status?: string
           subject?: string | null
