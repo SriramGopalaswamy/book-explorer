@@ -1347,13 +1347,16 @@ export default function ManagerInbox() {
                   <tbody>
                     {goalItems.map((item) => (
                       <tr key={item.id} className="border-b border-border/30 last:border-0">
-                        {(["client","bucket","line_item","target"] as const).map((f) => (
+                        {(["client","bucket","line_item"] as const).map((f) => (
                           <td key={f} className="px-2 py-1.5">
                             <Input value={item[f] as string} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, [f]: e.target.value } : i))} className="h-8 text-sm" />
                           </td>
                         ))}
                         <td className="px-2 py-1.5 w-24">
                           <Input type="number" value={item.weightage} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, weightage: Number(e.target.value) } : i))} className="h-8 text-sm text-right" />
+                        </td>
+                        <td className="px-2 py-1.5 w-24">
+                          <Input type="number" value={item.target} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, target: e.target.value } : i))} className="h-8 text-sm text-right" />
                         </td>
                         <td className="px-2 py-1.5">
                           <Input value={item.actual ?? ""} onChange={(e) => setGoalItems(goalItems.map(i => i.id === item.id ? { ...i, actual: e.target.value || null } : i))} className="h-8 text-sm" placeholder="Actual" />
