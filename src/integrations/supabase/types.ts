@@ -721,6 +721,153 @@ export type Database = {
           },
         ]
       }
+      attendance_daily: {
+        Row: {
+          attendance_date: string
+          calculated_from: string | null
+          created_at: string
+          early_exit_minutes: number
+          first_in_time: string | null
+          id: string
+          last_out_time: string | null
+          late_minutes: number
+          locked: boolean
+          organization_id: string
+          ot_minutes: number
+          profile_id: string
+          shift_id: string | null
+          status: string
+          total_work_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          attendance_date: string
+          calculated_from?: string | null
+          created_at?: string
+          early_exit_minutes?: number
+          first_in_time?: string | null
+          id?: string
+          last_out_time?: string | null
+          late_minutes?: number
+          locked?: boolean
+          organization_id: string
+          ot_minutes?: number
+          profile_id: string
+          shift_id?: string | null
+          status?: string
+          total_work_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          attendance_date?: string
+          calculated_from?: string | null
+          created_at?: string
+          early_exit_minutes?: number
+          first_in_time?: string | null
+          id?: string
+          last_out_time?: string | null
+          late_minutes?: number
+          locked?: boolean
+          organization_id?: string
+          ot_minutes?: number
+          profile_id?: string
+          shift_id?: string | null
+          status?: string
+          total_work_minutes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_daily_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_punches: {
+        Row: {
+          card_no: string | null
+          created_at: string
+          employee_code: string
+          id: string
+          organization_id: string
+          profile_id: string
+          punch_datetime: string
+          punch_source: string
+          raw_status: string | null
+          upload_batch_id: string | null
+        }
+        Insert: {
+          card_no?: string | null
+          created_at?: string
+          employee_code: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          punch_datetime: string
+          punch_source?: string
+          raw_status?: string | null
+          upload_batch_id?: string | null
+        }
+        Update: {
+          card_no?: string | null
+          created_at?: string
+          employee_code?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          punch_datetime?: string
+          punch_source?: string
+          raw_status?: string | null
+          upload_batch_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_punches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_punches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_punches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           check_in: string | null
@@ -785,6 +932,109 @@ export type Database = {
           },
           {
             foreignKeyName: "fk_attendance_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_shifts: {
+        Row: {
+          created_at: string
+          end_time: string
+          full_day_minutes: number
+          grace_minutes: number
+          id: string
+          is_default: boolean
+          min_half_day_minutes: number
+          name: string
+          organization_id: string
+          ot_after_minutes: number
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          full_day_minutes?: number
+          grace_minutes?: number
+          id?: string
+          is_default?: boolean
+          min_half_day_minutes?: number
+          name: string
+          organization_id: string
+          ot_after_minutes?: number
+          start_time: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          full_day_minutes?: number
+          grace_minutes?: number
+          id?: string
+          is_default?: boolean
+          min_half_day_minutes?: number
+          name?: string
+          organization_id?: string
+          ot_after_minutes?: number
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_upload_logs: {
+        Row: {
+          created_at: string
+          duplicate_punches: number
+          file_name: string
+          file_type: string
+          id: string
+          matched_employees: number
+          organization_id: string
+          parse_errors: string[] | null
+          status: string
+          total_punches: number
+          unmatched_codes: string[] | null
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          duplicate_punches?: number
+          file_name: string
+          file_type?: string
+          id?: string
+          matched_employees?: number
+          organization_id: string
+          parse_errors?: string[] | null
+          status?: string
+          total_punches?: number
+          unmatched_codes?: string[] | null
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          duplicate_punches?: number
+          file_name?: string
+          file_type?: string
+          id?: string
+          matched_employees?: number
+          organization_id?: string
+          parse_errors?: string[] | null
+          status?: string
+          total_punches?: number
+          unmatched_codes?: string[] | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_upload_logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4348,6 +4598,43 @@ export type Database = {
           },
         ]
       }
+      payroll_attendance_summary: {
+        Row: {
+          absent_days: number | null
+          half_days: number | null
+          missing_days: number | null
+          month: string | null
+          organization_id: string | null
+          present_days: number | null
+          profile_id: string | null
+          total_late_minutes: number | null
+          total_ot_minutes: number | null
+          total_work_minutes: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_daily_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles_safe: {
         Row: {
           avatar_url: string | null
@@ -4599,6 +4886,10 @@ export type Database = {
           p_org_id: string
         }
         Returns: string
+      }
+      recalculate_attendance: {
+        Args: { _end_date: string; _org_id: string; _start_date: string }
+        Returns: Json
       }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       reverse_journal_entry: { Args: { p_eid: string }; Returns: string }

@@ -33,6 +33,7 @@ import { format, addDays, subDays } from "date-fns";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useAttendanceBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
+import { AttendanceEnginePanel } from "@/components/attendance/AttendanceEnginePanel";
 
 export default function Attendance() {
   const bulkUploadConfig = useAttendanceBulkUpload();
@@ -291,6 +292,9 @@ export default function Attendance() {
           )}
         </CardContent>
       </Card>
+
+      {/* Attendance Engine */}
+      <AttendanceEnginePanel />
 
       {/* Bulk Upload History */}
       <BulkUploadHistory module="attendance" />
