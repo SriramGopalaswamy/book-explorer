@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Trash2, Search, Receipt } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Search, Receipt, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +93,15 @@ export default function VendorCredits() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("vendor_credits").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Vendor Credit Deleted" }); },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("vendor_credits").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Status Updated" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -184,6 +193,11 @@ export default function VendorCredits() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {["draft", "issued", "applied", "void"].filter((s) => s !== vc.status).map((s) => (
+                          <DropdownMenuItem key={s} onClick={() => updateStatusMutation.mutate({ id: vc.id, status: s })}>
+                            <RefreshCw className="h-4 w-4 mr-2" />Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </DropdownMenuItem>
+                        ))}
                         <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(vc.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
