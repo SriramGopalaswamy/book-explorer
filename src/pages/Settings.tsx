@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Users, AlertCircle, Trash2, UserPlus, Search } from "lucide-react";
+import { Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
@@ -49,6 +50,195 @@ const ROLE_COLORS: Record<string, string> = {
   finance: "bg-chart-2/10 text-chart-2 border-chart-2/20",
   employee: "bg-muted text-muted-foreground border-border",
 };
+
+// ─── Branding Section ─────────────────────────────────────────────────────────
+function BrandingSection() {
+  const { user } = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return;
+      setOrgId(profile.organization_id);
+
+      const { data: settings } = await supabase
+        .from("organization_settings" as any)
+        .select("logo_url, favicon_url")
+        .eq("organization_id", profile.organization_id)
+        .maybeSingle();
+      if (settings) {
+        setLogoUrl((settings as any).logo_url);
+        setFaviconUrl((settings as any).favicon_url);
+      }
+    })();
+  }, [user]);
+
+  async function handleUpload(type: "logo" | "favicon", file: File) {
+    if (!orgId || !user) return;
+    setUploading(type);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${orgId}/${type}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("tenant-branding")
+        .upload(path, file, { contentType: file.type, upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage
+        .from("tenant-branding")
+        .getPublicUrl(path);
+
+      const url = publicData.publicUrl + "?v=" + Date.now();
+
+      // Upsert organization_settings
+      const { error: dbError } = await supabase
+        .from("organization_settings" as any)
+        .upsert(
+          {
+            organization_id: orgId,
+            [type === "logo" ? "logo_url" : "favicon_url"]: url,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          } as any,
+          { onConflict: "organization_id" }
+        );
+      if (dbError) throw dbError;
+
+      if (type === "logo") setLogoUrl(url);
+      else setFaviconUrl(url);
+      toast.success(`${type === "logo" ? "Logo" : "Favicon"} updated successfully`);
+    } catch (err: any) {
+      toast.error(`Failed to upload: ${err.message}`);
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function handleRemove(type: "logo" | "favicon") {
+    if (!orgId) return;
+    await supabase
+      .from("organization_settings" as any)
+      .update({ [type === "logo" ? "logo_url" : "favicon_url"]: null, updated_at: new Date().toISOString() } as any)
+      .eq("organization_id", orgId);
+
+    if (type === "logo") setLogoUrl(null);
+    else setFaviconUrl(null);
+    toast.success(`${type === "logo" ? "Logo" : "Favicon"} removed`);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Image className="h-5 w-5" />
+          Organization Branding
+        </CardTitle>
+        <CardDescription>
+          Upload your company logo and favicon. These will appear on invoices, documents, and the browser tab.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {/* Regular Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Company Logo</Label>
+            <p className="text-xs text-muted-foreground">Used on invoices, quotes, payslips, and the sidebar. Recommended: 400×100px PNG/SVG.</p>
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-40 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading === "logo"}
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  {uploading === "logo" ? "Uploading…" : "Upload"}
+                </Button>
+                {logoUrl && (
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleRemove("logo")}>
+                    <X className="h-4 w-4 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload("logo", f);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
+          {/* Favicon / Short Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Short Logo / Favicon</Label>
+            <p className="text-xs text-muted-foreground">Used as browser favicon and in compact UI areas. Recommended: 512×512px square PNG.</p>
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden">
+                {faviconUrl ? (
+                  <img src={faviconUrl} alt="Favicon" className="max-h-full max-w-full object-contain" />
+                ) : (
+                  <span className="text-xs text-muted-foreground text-center">No icon</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading === "favicon"}
+                  onClick={() => faviconInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  {uploading === "favicon" ? "Uploading…" : "Upload"}
+                </Button>
+                {faviconUrl && (
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleRemove("favicon")}>
+                    <X className="h-4 w-4 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+            <input
+              ref={faviconInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload("favicon", f);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const { user } = useAuth();
@@ -179,8 +369,11 @@ export default function Settings() {
             <Shield className="h-6 w-6 text-primary" />
             Settings
           </h1>
-          <p className="text-muted-foreground mt-1">Manage user roles and access permissions</p>
+          <p className="text-muted-foreground mt-1">Manage organization branding, user roles and access permissions</p>
         </div>
+
+        {/* Organization Branding */}
+        <BrandingSection />
 
         {/* Bulk Add Users & Roles */}
 

@@ -3067,6 +3067,41 @@ export type Database = {
           },
         ]
       }
+      organization_settings: {
+        Row: {
+          favicon_url: string | null
+          id: string
+          logo_url: string | null
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          favicon_url?: string | null
+          id?: string
+          logo_url?: string | null
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          favicon_url?: string | null
+          id?: string
+          logo_url?: string | null
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           auto_reset_enabled: boolean
