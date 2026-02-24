@@ -132,23 +132,31 @@ export function useUploadBiometricAttendance() {
   return useMutation({
     mutationFn: async ({
       textContent,
+      fileData,
       fileName,
     }: {
-      textContent: string;
+      textContent?: string;
+      fileData?: string; // base64-encoded PDF binary
       fileName: string;
     }): Promise<UploadParseResult> => {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
 
+      const body: Record<string, any> = {
+        organization_id: orgId,
+        file_name: fileName,
+      };
+      if (fileData) {
+        body.file_data = fileData;
+      } else if (textContent) {
+        body.text_content = textContent;
+      } else {
+        throw new Error("No file content provided");
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "parse-attendance",
-        {
-          body: {
-            text_content: textContent,
-            organization_id: orgId,
-            file_name: fileName,
-          },
-        }
+        { body }
       );
 
       if (error) throw error;
