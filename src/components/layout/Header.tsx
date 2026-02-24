@@ -97,7 +97,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         >
           <button
             onClick={() => commandSearch.setOpen(true)}
-            className="flex items-center gap-2 w-64 h-10 px-3 rounded-xl bg-secondary/50 border border-transparent text-sm text-muted-foreground hover:border-primary hover:bg-background transition-all duration-300 cursor-pointer"
+            className={`flex items-center gap-2 w-64 h-10 px-3 rounded-xl bg-secondary/50 border border-transparent text-sm text-muted-foreground hover:border-primary hover:bg-background transition-all duration-300 cursor-pointer ${commandSearch.open ? 'invisible' : ''}`}
           >
             <Search className="h-4 w-4" />
             <span className="flex-1 text-left">Search…</span>
