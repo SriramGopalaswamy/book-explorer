@@ -215,10 +215,17 @@ export function useUpdateMemo() {
       if (error) throw error;
       return data as unknown as Memo;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
-      toast.success("Memo updated successfully");
+      if (data.status === "pending_approval") {
+        toast.success("Memo submitted for manager approval");
+        supabase.functions.invoke("send-notification-email", {
+          body: { type: "memo_submitted_for_approval", payload: { memo_id: data.id } },
+        }).catch((err) => console.warn("Failed to send memo notification:", err));
+      } else {
+        toast.success("Memo updated successfully");
+      }
     },
     onError: (error: Error) => {
       toast.error("Failed to update memo: " + error.message);
