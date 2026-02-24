@@ -171,7 +171,7 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
   return (
     <div
       ref={containerRef}
-      className="absolute top-full right-0 mt-2 w-80 z-50 rounded-xl border bg-popover shadow-lg overflow-hidden"
+      className="absolute top-0 right-0 w-80 z-50 rounded-xl border bg-popover shadow-lg overflow-hidden"
     >
       <Command className="rounded-xl">
         <CommandInput placeholder="Search menus…" autoFocus />
