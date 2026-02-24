@@ -134,7 +134,7 @@ export default function ReimbursementsFinance() {
       const { data: expense, error: expErr } = await supabase
         .from("expenses")
         .insert({
-          user_id: user.id,
+          user_id: approveDialog.user_id,
           organization_id: orgId,
           amount: approveDialog.amount,
           category,
@@ -152,7 +152,7 @@ export default function ReimbursementsFinance() {
       const { error: frErr } = await supabase
         .from("financial_records")
         .insert({
-          user_id: user.id,
+          user_id: approveDialog.user_id,
           organization_id: orgId,
           type: "expense",
           category,
