@@ -817,10 +817,10 @@ export default function Memos() {
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   Close
                 </Button>
-                {selectedMemo?.status === "draft" && selectedMemo?.user_id === user?.id && (
+                {(selectedMemo?.status === "draft" || selectedMemo?.status === "rejected") && selectedMemo?.user_id === user?.id && (
                   <Button onClick={() => handleEditDraft(selectedMemo)}>
                     <Edit className="h-4 w-4 mr-1" />
-                    Edit & Submit
+                    {selectedMemo.status === "rejected" ? "Edit & Resubmit" : "Edit & Submit"}
                   </Button>
                 )}
               </div>
