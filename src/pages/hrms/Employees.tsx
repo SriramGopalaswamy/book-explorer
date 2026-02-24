@@ -671,6 +671,10 @@ export default function Employees() {
             ? employees.find((e) => e.id === viewEmployee.manager_id)?.full_name || undefined
             : undefined
         }
+        allEmployees={employees}
+        onUpdateEmployee={(data) => {
+          updateEmployee.mutate(data);
+        }}
       />
     </MainLayout>
   );

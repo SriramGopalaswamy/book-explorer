@@ -11,7 +11,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  User, MapPin, Phone, Building2, Heart, Briefcase, CreditCard, Save, Shield,
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import {
+  User, MapPin, Phone, Building2, Heart, Briefcase, CreditCard, Save, Shield, ChevronsUpDown, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Employee } from "@/hooks/useEmployees";
@@ -31,18 +37,61 @@ const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 const MARITAL_STATUSES = ["Single", "Married", "Divorced", "Widowed"];
 
+function ManagerComboboxInline({ value, onChange, employees, excludeId }: { value: string; onChange: (v: string) => void; employees: Employee[]; excludeId?: string }) {
+  const [open, setOpen] = useState(false);
+  const options = employees.filter((e) => e.id !== excludeId);
+  const selected = options.find((e) => e.id === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal h-9 text-xs">
+          <span className="truncate">{selected ? (selected.full_name || selected.email || "Unnamed") : "Select manager"}</span>
+          <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0 z-50" align="start">
+        <Command>
+          <CommandInput placeholder="Search by name..." />
+          <CommandList>
+            <CommandEmpty>No manager found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value="none" onSelect={() => { onChange(""); setOpen(false); }}>
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                No Manager
+              </CommandItem>
+              {options.map((emp) => (
+                <CommandItem key={emp.id} value={emp.full_name || emp.email || emp.id} onSelect={() => { onChange(emp.id); setOpen(false); }}>
+                  <Check className={cn("mr-2 h-4 w-4", value === emp.id ? "opacity-100" : "opacity-0")} />
+                  <div className="flex flex-col">
+                    <span>{emp.full_name || "Unnamed"}</span>
+                    {emp.job_title && <span className="text-xs text-muted-foreground">{emp.job_title}</span>}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface Props {
   employee: Employee | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   managerName?: string;
+  allEmployees?: Employee[];
+  onUpdateEmployee?: (data: { id: string; phone?: string; manager_id?: string | null }) => void;
 }
 
-export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName }: Props) {
+export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName, allEmployees = [], onUpdateEmployee }: Props) {
   const { data: details, isLoading } = useEmployeeDetails(employee?.id ?? null);
   const upsert = useUpsertEmployeeDetails();
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<Partial<EmployeeDetailsInput>>({});
+  const [phone, setPhone] = useState("");
+  const [managerId, setManagerId] = useState("");
 
   useEffect(() => {
     if (details) {
@@ -50,6 +99,8 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     } else if (employee) {
       setForm({ profile_id: employee.id });
     }
+    setPhone(employee?.phone || "");
+    setManagerId(employee?.manager_id || "");
     setIsEditing(false);
   }, [details, employee]);
 
@@ -69,7 +120,15 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     if (!employee) return;
     upsert.mutate(
       { ...form, profile_id: employee.id } as EmployeeDetailsInput,
-      { onSuccess: () => setIsEditing(false) }
+      {
+        onSuccess: () => {
+          // Also save phone & manager if changed
+          if (onUpdateEmployee && (phone !== (employee.phone || "") || managerId !== (employee.manager_id || ""))) {
+            onUpdateEmployee({ id: employee.id, phone: phone || undefined, manager_id: managerId || null });
+          }
+          setIsEditing(false);
+        },
+      }
     );
   };
 
@@ -178,6 +237,26 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                   </Select>
                 </div>
                 <EditField label="Nationality" fieldKey="nationality" placeholder="Indian" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <Label className="text-xs">Phone</Label>
+                  <Input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="h-9"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs">Manager</Label>
+                  <ManagerComboboxInline
+                    value={managerId}
+                    onChange={setManagerId}
+                    employees={allEmployees}
+                    excludeId={employee?.id}
+                  />
+                </div>
               </div>
             </TabsContent>
 
