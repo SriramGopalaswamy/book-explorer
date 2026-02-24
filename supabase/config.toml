@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.financial-engine]
 verify_jwt = false
+
+[functions.parse-attendance]
+verify_jwt = false
