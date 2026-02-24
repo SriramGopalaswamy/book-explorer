@@ -66,8 +66,16 @@ export function totalWeightage(items: GoalItem[]): number {
 }
 
 // Cast database row (JSONB items typed as Json by supabase) to GoalPlan
+// Ensure weightage is always a number since JSONB may store it as string
 function toGoalPlan(row: unknown): GoalPlan {
-  return row as GoalPlan;
+  const plan = row as GoalPlan;
+  if (Array.isArray(plan.items)) {
+    plan.items = plan.items.map((item) => ({
+      ...item,
+      weightage: Number(item.weightage) || 0,
+    }));
+  }
+  return plan;
 }
 
 function toGoalPlanArr(rows: unknown): GoalPlan[] {
