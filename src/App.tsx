@@ -90,7 +90,7 @@ const App = () => (
               <Route path="/financial/invoicing" element={<ProtectedRoute><FinanceRoute><Invoicing /></FinanceRoute></ProtectedRoute>} />
               <Route path="/financial/invoice-settings" element={<ProtectedRoute><FinanceRoute><InvoiceSettings /></FinanceRoute></ProtectedRoute>} />
               <Route path="/financial/quotes" element={<ProtectedRoute><FinanceRoute><Quotes /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/expenses" element={<ProtectedRoute><FinanceRoute><Expenses /></FinanceRoute></ProtectedRoute>} />
+              <Route path="/financial/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
               <Route path="/financial/bills" element={<ProtectedRoute><FinanceRoute><Bills /></FinanceRoute></ProtectedRoute>} />
               <Route path="/financial/credit-notes" element={<ProtectedRoute><FinanceRoute><CreditNotes /></FinanceRoute></ProtectedRoute>} />
               <Route path="/financial/vendor-credits" element={<ProtectedRoute><FinanceRoute><VendorCredits /></FinanceRoute></ProtectedRoute>} />
