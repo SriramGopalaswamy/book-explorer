@@ -3,144 +3,180 @@ import { PlatformLayout } from "@/components/platform/PlatformLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Play, Loader2, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Shield, Play, Loader2, CheckCircle2, AlertTriangle, XCircle,
+  Clock, ChevronDown, ChevronRight, Lock, Database, FileCheck, Server,
+  ShieldAlert, Wrench, Info
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
-interface IntegrityCheck {
-  name: string;
-  status: "pass" | "fail" | "warn";
+interface VerificationCheck {
+  id: string;
+  category: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  status: "PASS" | "FAIL" | "WARNING";
   detail: string;
-  count?: number;
+  auto_fix_possible: boolean;
 }
 
+interface VerificationResult {
+  engine_status: "OPERATIONAL" | "DEGRADED" | "BLOCKED";
+  timestamp: string;
+  org_filter: string | null;
+  total_checks: number;
+  checks: VerificationCheck[];
+}
+
+interface RunLogEntry {
+  timestamp: Date;
+  status: string;
+  totalChecks: number;
+  passed: number;
+  failed: number;
+  warnings: number;
+}
+
+const CATEGORY_META: Record<string, { icon: React.ElementType; order: number }> = {
+  "Tenant & Access Integrity": { icon: Lock, order: 0 },
+  "Financial Integrity": { icon: Database, order: 1 },
+  "Compliance & Audit": { icon: FileCheck, order: 2 },
+  "Operational & API Safety": { icon: Server, order: 3 },
+};
+
+const SEVERITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+const severityColor = (s: string) => {
+  switch (s) {
+    case "CRITICAL": return "bg-destructive/10 text-destructive border-destructive/30";
+    case "HIGH": return "bg-orange-500/10 text-orange-600 border-orange-500/30";
+    case "MEDIUM": return "bg-yellow-500/10 text-yellow-600 border-yellow-500/30";
+    case "LOW": return "bg-blue-500/10 text-blue-600 border-blue-500/30";
+    default: return "bg-muted text-muted-foreground";
+  }
+};
+
+const statusIcon = (s: string) => {
+  switch (s) {
+    case "PASS": return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    case "FAIL": return <XCircle className="h-4 w-4 text-destructive" />;
+    case "WARNING": return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+    default: return <Info className="h-4 w-4 text-muted-foreground" />;
+  }
+};
+
+const engineStatusConfig = (s: string) => {
+  switch (s) {
+    case "OPERATIONAL": return { label: "OPERATIONAL", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30", icon: CheckCircle2 };
+    case "DEGRADED": return { label: "DEGRADED", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30", icon: AlertTriangle };
+    case "BLOCKED": return { label: "BLOCKED", color: "bg-destructive/10 text-destructive border-destructive/30", icon: ShieldAlert };
+    default: return { label: "UNKNOWN", color: "bg-muted text-muted-foreground", icon: Info };
+  }
+};
+
 export default function PlatformIntegrity() {
-  const [checks, setChecks] = useState<IntegrityCheck[]>([]);
+  const [result, setResult] = useState<VerificationResult | null>(null);
   const [running, setRunning] = useState(false);
-  const [lastRun, setLastRun] = useState<Date | null>(null);
+  const [runLog, setRunLog] = useState<RunLogEntry[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedChecks, setExpandedChecks] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  };
+
+  const toggleCheck = (id: string) => {
+    setExpandedChecks(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const runVerification = async () => {
     setRunning(true);
-    const results: IntegrityCheck[] = [];
-
     try {
-      // Check 1: NOT NULL org_id columns
-      const { data: cols } = await supabase.rpc("check_ledger_balance") as any;
-      // We'll run manual checks instead since we can't execute arbitrary SQL from client
+      const { data, error } = await supabase.rpc("run_financial_verification" as any);
+      if (error) throw error;
 
-      // Check 1: RLS enabled count
-      const { count: rlsCount } = await supabase
-        .from("organization_members")
-        .select("*", { count: "exact", head: true });
+      const parsed = data as unknown as VerificationResult;
+      setResult(parsed);
 
-      results.push({
-        name: "Organization Scoping",
-        status: "pass",
-        detail: "All business tables include organization_id with NOT NULL constraint",
-      });
+      // Expand all categories by default
+      const cats = new Set(parsed.checks.map(c => c.category));
+      setExpandedCategories(cats);
 
-      // Check 2: Platform roles table secured
-      const { data: platformRoles, error: prError } = await supabase
-        .from("platform_roles")
-        .select("id")
-        .limit(1);
+      const passed = parsed.checks.filter(c => c.status === "PASS").length;
+      const failed = parsed.checks.filter(c => c.status === "FAIL").length;
+      const warnings = parsed.checks.filter(c => c.status === "WARNING").length;
 
-      results.push({
-        name: "Platform Roles RLS",
-        status: prError ? "warn" : "pass",
-        detail: prError
-          ? "Could not verify platform_roles access — may be correctly restricted"
-          : "platform_roles table accessible and secured",
-      });
+      setRunLog(prev => [{
+        timestamp: new Date(),
+        status: parsed.engine_status,
+        totalChecks: parsed.total_checks,
+        passed, failed, warnings
+      }, ...prev.slice(0, 9)]);
 
-      // Check 3: Audit logs secured
-      const { count: auditCount } = await supabase
-        .from("audit_logs")
-        .select("*", { count: "exact", head: true });
-
-      results.push({
-        name: "Audit Log Integrity",
-        status: "pass",
-        detail: `Audit log accessible with ${auditCount ?? 0} entries`,
-        count: auditCount ?? 0,
-      });
-
-      // Check 4: Organizations accessible
-      const { data: orgs } = await supabase
-        .from("organizations")
-        .select("id");
-
-      results.push({
-        name: "Organization Visibility",
-        status: "pass",
-        detail: `${orgs?.length ?? 0} organizations visible to super_admin`,
-        count: orgs?.length ?? 0,
-      });
-
-      // Check 5: User roles org-scoped
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("id, organization_id")
-        .limit(5);
-
-      const allHaveOrg = roles?.every((r) => r.organization_id) ?? true;
-      results.push({
-        name: "User Roles Org-Scoped",
-        status: allHaveOrg ? "pass" : "fail",
-        detail: allHaveOrg
-          ? "All user_roles entries have organization_id"
-          : "Some user_roles entries missing organization_id",
-      });
-
-      // Check 6: Platform admin logs writable
-      results.push({
-        name: "Platform Admin Logs",
-        status: "pass",
-        detail: "Superadmin action logging active and RLS-protected",
-      });
-
-      // Check 7: FK constraints
-      results.push({
-        name: "Foreign Key Enforcement",
-        status: "pass",
-        detail: "organization_id FK constraints validated on all tenant tables",
-      });
-
-      // Check 8: Session isolation
-      results.push({
-        name: "Session-Based Isolation",
-        status: "pass",
-        detail: "app.current_org session variable required for super_admin data access",
-      });
+      if (parsed.engine_status === "OPERATIONAL") {
+        toast.success("Verification complete — system operational");
+      } else if (parsed.engine_status === "DEGRADED") {
+        toast.warning("Verification complete — system degraded");
+      } else {
+        toast.error("Verification complete — system BLOCKED");
+      }
     } catch (err) {
-      results.push({
-        name: "Verification Error",
-        status: "fail",
-        detail: `Error during verification: ${(err as Error).message}`,
-      });
+      toast.error(`Verification failed: ${(err as Error).message}`);
     }
-
-    setChecks(results);
-    setLastRun(new Date());
     setRunning(false);
   };
 
-  const passCount = checks.filter((c) => c.status === "pass").length;
-  const failCount = checks.filter((c) => c.status === "fail").length;
-  const warnCount = checks.filter((c) => c.status === "warn").length;
-  const score = checks.length > 0 ? Math.round((passCount / checks.length) * 100) : 0;
+  const checks = result?.checks ?? [];
+  const passCount = checks.filter(c => c.status === "PASS").length;
+  const failCount = checks.filter(c => c.status === "FAIL").length;
+  const warnCount = checks.filter(c => c.status === "WARNING").length;
+  const critFails = checks.filter(c => c.severity === "CRITICAL" && c.status === "FAIL").length;
+
+  // Group by category
+  const grouped = checks.reduce<Record<string, VerificationCheck[]>>((acc, c) => {
+    (acc[c.category] ??= []).push(c);
+    return acc;
+  }, {});
+
+  const sortedCategories = Object.keys(grouped).sort(
+    (a, b) => (CATEGORY_META[a]?.order ?? 99) - (CATEGORY_META[b]?.order ?? 99)
+  );
+
+  const esConfig = result ? engineStatusConfig(result.engine_status) : null;
 
   return (
-    <PlatformLayout title="Structural Integrity" subtitle="Architecture verification scorecard">
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
+    <PlatformLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
+      {/* Status Cards */}
+      <div className="grid gap-4 md:grid-cols-5 mb-6">
+        <Card className="md:col-span-2">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className={`text-4xl font-bold ${score >= 90 ? "text-emerald-500" : score >= 70 ? "text-warning" : "text-destructive"}`}>
-                {checks.length > 0 ? `${score}%` : "—"}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Integrity Score</p>
+              {esConfig ? (
+                <>
+                  <div className="flex justify-center mb-2">
+                    <Badge className={`text-lg px-4 py-1.5 ${esConfig.color}`}>
+                      <esConfig.icon className="h-5 w-5 mr-2" />
+                      {esConfig.label}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Deployment Readiness</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-4xl font-bold text-muted-foreground">—</div>
+                  <p className="text-sm text-muted-foreground mt-1">Not yet verified</p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -154,6 +190,9 @@ export default function PlatformIntegrity() {
           <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-destructive">{failCount}</div>
             <p className="text-sm text-muted-foreground mt-1">Failed</p>
+            {critFails > 0 && (
+              <p className="text-xs text-destructive mt-0.5">{critFails} critical</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -164,17 +203,18 @@ export default function PlatformIntegrity() {
         </Card>
       </div>
 
-      <Card>
+      {/* Main Engine Card */}
+      <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Verification Engine
+            Verification Engine v2
           </CardTitle>
           <div className="flex items-center gap-3">
-            {lastRun && (
+            {result && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                Last run: {format(lastRun, "HH:mm:ss")}
+                {format(new Date(result.timestamp), "yyyy-MM-dd HH:mm:ss")}
               </div>
             )}
             <Button onClick={runVerification} disabled={running} size="sm">
@@ -188,52 +228,136 @@ export default function PlatformIntegrity() {
           </div>
         </CardHeader>
         <CardContent>
-          {checks.length === 0 ? (
+          {!result ? (
             <div className="text-center py-12 text-muted-foreground">
               <Shield className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>Click "Run Verification" to execute the integrity engine</p>
+              <p>Click "Run Verification" to execute the financial system integrity engine</p>
+              <p className="text-xs mt-1">4 categories · 20+ deterministic checks · read-only</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Check</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Detail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {checks.map((check, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium text-foreground">{check.name}</TableCell>
-                    <TableCell>
-                      {check.status === "pass" && (
-                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Pass
-                        </Badge>
-                      )}
-                      {check.status === "fail" && (
-                        <Badge variant="destructive">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Fail
-                        </Badge>
-                      )}
-                      {check.status === "warn" && (
-                        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Warning
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{check.detail}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-4">
+              {sortedCategories.map(cat => {
+                const catChecks = grouped[cat].sort(
+                  (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
+                );
+                const catPassed = catChecks.filter(c => c.status === "PASS").length;
+                const catFailed = catChecks.filter(c => c.status === "FAIL").length;
+                const CatIcon = CATEGORY_META[cat]?.icon ?? Shield;
+                const isExpanded = expandedCategories.has(cat);
+
+                return (
+                  <Collapsible key={cat} open={isExpanded} onOpenChange={() => toggleCategory(cat)}>
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors">
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          <CatIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-foreground">{cat}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {catFailed > 0 && (
+                            <Badge variant="destructive" className="text-xs">{catFailed} fail</Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {catPassed}/{catChecks.length} passed
+                          </span>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="mt-1 space-y-1 pl-4">
+                        {catChecks.map(check => (
+                          <Collapsible
+                            key={check.id}
+                            open={expandedChecks.has(check.id)}
+                            onOpenChange={() => toggleCheck(check.id)}
+                          >
+                            <CollapsibleTrigger asChild>
+                              <div className="flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/30 cursor-pointer transition-colors">
+                                {expandedChecks.has(check.id) ? <ChevronDown className="h-3 w-3 flex-shrink-0" /> : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
+                                {statusIcon(check.status)}
+                                <span className="text-sm font-mono text-muted-foreground flex-shrink-0">{check.id}</span>
+                                <Badge className={`text-[10px] px-1.5 py-0 ${severityColor(check.severity)}`}>
+                                  {check.severity}
+                                </Badge>
+                                <span className="text-sm text-foreground truncate flex-1">{check.detail.split(' | ')[0]}</span>
+                                {check.auto_fix_possible && (
+                                  <Wrench className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                )}
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="ml-10 mr-4 mb-2 p-3 rounded-md bg-muted/20 border border-border/50 text-sm space-y-1.5">
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground font-medium min-w-[80px]">Check ID:</span>
+                                  <span className="font-mono text-foreground">{check.id}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground font-medium min-w-[80px]">Status:</span>
+                                  <div className="flex items-center gap-1">{statusIcon(check.status)} <span className="text-foreground">{check.status}</span></div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground font-medium min-w-[80px]">Severity:</span>
+                                  <Badge className={`text-xs ${severityColor(check.severity)}`}>{check.severity}</Badge>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground font-medium min-w-[80px]">Detail:</span>
+                                  <span className="text-foreground">{check.detail}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground font-medium min-w-[80px]">Auto-fix:</span>
+                                  <span className={check.auto_fix_possible ? "text-emerald-500" : "text-muted-foreground"}>
+                                    {check.auto_fix_possible ? "Available" : "Manual review required"}
+                                  </span>
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Run Log */}
+      {runLog.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Verification Run Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {runLog.map((entry, i) => {
+                const ec = engineStatusConfig(entry.status);
+                return (
+                  <div key={i} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/30">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {format(entry.timestamp, "yyyy-MM-dd HH:mm:ss")}
+                      </span>
+                      <Badge className={`text-xs ${ec.color}`}>{ec.label}</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="text-emerald-500">{entry.passed}P</span>
+                      <span className="text-destructive">{entry.failed}F</span>
+                      <span className="text-yellow-500">{entry.warnings}W</span>
+                      <span>/ {entry.totalChecks}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </PlatformLayout>
   );
 }
