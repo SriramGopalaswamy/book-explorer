@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
+import { HRAdminRoute } from "@/components/auth/HRAdminRoute";
+import { ManagerRoute } from "@/components/auth/ManagerRoute";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -101,14 +103,14 @@ const App = () => (
               <Route path="/financial/statutory" element={<ProtectedRoute><FinanceRoute><StatutoryFilings /></FinanceRoute></ProtectedRoute>} />
 
               {/* HRMS */}
-              <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-              <Route path="/hrms/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+              <Route path="/hrms/employees" element={<ProtectedRoute><HRAdminRoute><Employees /></HRAdminRoute></ProtectedRoute>} />
+              <Route path="/hrms/attendance" element={<ProtectedRoute><HRAdminRoute><Attendance /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
               <Route path="/hrms/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
-              <Route path="/hrms/holidays" element={<ProtectedRoute><Holidays /></ProtectedRoute>} />
+              <Route path="/hrms/holidays" element={<ProtectedRoute><HRAdminRoute><Holidays /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
               <Route path="/hrms/my-attendance" element={<ProtectedRoute><MyAttendance /></ProtectedRoute>} />
-              <Route path="/hrms/inbox" element={<ProtectedRoute><ManagerInbox /></ProtectedRoute>} />
+              <Route path="/hrms/inbox" element={<ProtectedRoute><ManagerRoute><ManagerInbox /></ManagerRoute></ProtectedRoute>} />
               <Route path="/hrms/reimbursements" element={<ProtectedRoute><Reimbursements /></ProtectedRoute>} />
               <Route path="/financial/reimbursements" element={<ProtectedRoute><FinanceRoute><ReimbursementsFinance /></FinanceRoute></ProtectedRoute>} />
 
@@ -117,7 +119,7 @@ const App = () => (
               <Route path="/performance/memos" element={<ProtectedRoute><Memos /></ProtectedRoute>} />
 
               {/* Admin */}
-              <Route path="/admin/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+              <Route path="/admin/audit-log" element={<ProtectedRoute><HRAdminRoute><AuditLog /></HRAdminRoute></ProtectedRoute>} />
 
               {/* Profile & Settings */}
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
