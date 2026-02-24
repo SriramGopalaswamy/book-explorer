@@ -135,16 +135,39 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     const isManager = currentRole === "manager";
     const isFinance = currentRole === "finance";
     const isHR = currentRole === "hr";
+    const isAdmin = currentRole === "admin";
+
+    // Paths accessible per role
+    const employeePaths = new Set([
+      "/profile", "/settings",
+      "/hrms/my-attendance", "/hrms/leaves", "/hrms/payroll",
+      "/hrms/reimbursements", "/financial/expenses",
+      "/performance/goals", "/performance/memos",
+    ]);
+
+    const managerPaths = new Set([
+      ...employeePaths,
+      "/hrms/inbox",
+    ]);
+
+    // Finance: financial suite + limited HRMS
+    const financePaths = new Set([
+      "/profile", "/settings",
+      "/hrms/payroll", "/hrms/org-chart",
+      "/performance/goals", "/performance/memos",
+    ]);
 
     return ALL_ITEMS.filter((item) => {
-      if (item.section === "Financial" && (isEmployee || isManager || isHR)) return false;
-      if (item.section === "Admin" && !["admin", "hr"].includes(currentRole ?? "")) return false;
-      if (item.path === "/hrms/inbox" && !isManager) return false;
-      if (item.path === "/hrms/attendance" && (isEmployee || isManager)) return false;
-      if (item.path === "/hrms/my-attendance" && !isEmployee && !isManager) return false;
-      if (item.path === "/hrms/employees" && (isEmployee || isManager || isFinance)) return false;
-      if (item.path === "/hrms/holidays" && (isFinance)) return false;
-      if (item.path === "/" && (isEmployee || isManager || isFinance || isHR)) return false;
+      // Employees: strict whitelist
+      if (isEmployee) return employeePaths.has(item.path);
+      // Managers: employee paths + inbox
+      if (isManager) return managerPaths.has(item.path);
+      // Finance: financial suite + limited HRMS
+      if (isFinance) return item.section === "Financial" || financePaths.has(item.path);
+      // HR: HRMS + performance + admin, no financial
+      if (isHR) return item.section !== "Financial" && item.path !== "/";
+      // Admin: everything except self-service duplicates
+      if (isAdmin) return item.path !== "/hrms/my-attendance";
       return true;
     });
   }, [currentRole]);
