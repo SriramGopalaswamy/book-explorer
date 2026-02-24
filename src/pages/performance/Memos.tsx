@@ -41,6 +41,7 @@ import {
   useMemos,
   useMemoStats,
   useCreateMemo,
+  useUpdateMemo,
   useDeleteMemo,
   useIncrementMemoViews,
   useApproveMemo,
@@ -182,6 +183,8 @@ export default function Memos() {
   const [recipients, setRecipients] = useState<string[]>([]);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAuth();
@@ -191,6 +194,7 @@ export default function Memos() {
   const { data: stats } = useMemoStats();
   const createMemo = useCreateMemo();
   const deleteMemo = useDeleteMemo();
+  const updateMemo = useUpdateMemo();
   const incrementViews = useIncrementMemoViews();
   const approveMemo = useApproveMemo();
   const rejectMemo = useRejectMemo();
@@ -209,48 +213,75 @@ export default function Memos() {
     setSummary("");
     setRecipients([]);
     setAttachmentFile(null);
+    setEditingDraftId(null);
+    setExistingAttachmentUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const isFormValid = title.trim() && subject.trim() && attachmentFile;
+  const isFormValid = title.trim() && subject.trim() && (attachmentFile || existingAttachmentUrl);
+
+  function handleEditDraft(memo: Memo) {
+    setEditingDraftId(memo.id);
+    setTitle(memo.title);
+    setSubject(memo.subject || "");
+    setSummary(memo.content || "");
+    setRecipients(memo.recipients || []);
+    setExistingAttachmentUrl(memo.attachment_url);
+    setAttachmentFile(null);
+    setViewDialogOpen(false);
+    setIsDialogOpen(true);
+  }
 
   async function handleSubmit(status: "draft" | "pending_approval") {
     if (!title.trim() || !subject.trim()) {
       toast.error("Title and Memo Subject are required");
       return;
     }
-    if (status === "pending_approval" && !attachmentFile) {
+    if (status === "pending_approval" && !attachmentFile && !existingAttachmentUrl) {
       toast.error("An attachment is required to submit for approval");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      let attachment_url: string | null = null;
+      let attachment_url: string | null = existingAttachmentUrl;
       if (attachmentFile && user) {
         attachment_url = await uploadMemoAttachment(attachmentFile, user.id);
       }
 
-      const authorName =
-        user?.user_metadata?.full_name ||
-        user?.email?.split("@")[0] ||
-        "Unknown";
+      if (editingDraftId) {
+        // Update existing draft
+        await updateMemo.mutateAsync({
+          id: editingDraftId,
+          title: title.trim(),
+          subject: subject.trim(),
+          content: summary.trim() || null,
+          status,
+          recipients,
+          attachment_url,
+        });
+      } else {
+        const authorName =
+          user?.user_metadata?.full_name ||
+          user?.email?.split("@")[0] ||
+          "Unknown";
 
-      await createMemo.mutateAsync({
-        title: title.trim(),
-        subject: subject.trim(),
-        content: summary.trim() || undefined,
-        status,
-        author_name: authorName,
-        recipients,
-        attachment_url,
-      });
+        await createMemo.mutateAsync({
+          title: title.trim(),
+          subject: subject.trim(),
+          content: summary.trim() || undefined,
+          status,
+          author_name: authorName,
+          recipients,
+          attachment_url,
+        });
+      }
 
       setIsDialogOpen(false);
       resetForm();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      toast.error("Failed to create memo: " + message);
+      toast.error("Failed to save memo: " + message);
     } finally {
       setIsSubmitting(false);
     }
@@ -405,9 +436,11 @@ export default function Memos() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Create New Memo</DialogTitle>
+                  <DialogTitle>{editingDraftId ? "Edit Draft Memo" : "Create New Memo"}</DialogTitle>
                   <DialogDescription>
-                    Fill in all details. The memo will be sent to your manager for approval before being distributed.
+                    {editingDraftId
+                      ? "Update your draft and submit for approval, or save changes."
+                      : "Fill in all details. The memo will be sent to your manager for approval before being distributed."}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -489,6 +522,14 @@ export default function Memos() {
                           >
                             <X className="h-4 w-4" />
                           </button>
+                        </div>
+                      ) : existingAttachmentUrl ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Paperclip className="h-5 w-5 text-primary" />
+                          <span className="text-sm font-medium text-foreground">
+                            {existingAttachmentUrl.split("/").pop() || "Existing attachment"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">(click to replace)</span>
                         </div>
                       ) : (
                         <div className="text-muted-foreground">
@@ -772,9 +813,17 @@ export default function Memos() {
               </div>
             )}
             {!(isManager && selectedMemo?.status === "pending_approval") && (
-              <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-                Close
-              </Button>
+              <div className="flex gap-2 justify-end w-full">
+                <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                  Close
+                </Button>
+                {selectedMemo?.status === "draft" && selectedMemo?.user_id === user?.id && (
+                  <Button onClick={() => handleEditDraft(selectedMemo)}>
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit & Submit
+                  </Button>
+                )}
+              </div>
             )}
           </DialogFooter>
         </DialogContent>
