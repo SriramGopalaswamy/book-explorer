@@ -617,8 +617,8 @@ export default function Memos() {
                             </div>
                           )}
                           {memo.status === "rejected" && memo.reviewer_notes && (
-                            <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-sm text-red-700">
-                              <strong>Rejection reason:</strong> {memo.reviewer_notes}
+                            <div className="mt-2 p-2 rounded border border-border bg-muted/50 text-sm text-muted-foreground">
+                              <span className="font-medium text-foreground">Rejection reason:</span> {memo.reviewer_notes}
                             </div>
                           )}
                           <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
