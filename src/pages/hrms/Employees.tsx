@@ -484,13 +484,14 @@ export default function Employees() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(employee)}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(employee); }}>
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedEmployee(employee);
                                   setDeleteDialogOpen(true);
                                 }}
