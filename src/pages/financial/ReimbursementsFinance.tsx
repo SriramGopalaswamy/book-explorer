@@ -128,12 +128,14 @@ export default function ReimbursementsFinance() {
     setSubmitting(true);
     try {
       const category = classifyCategory || approveDialog.category || "Other";
+      const orgId = approveDialog.organization_id;
 
       // 1. Create expense record in HRMS expenses table
       const { data: expense, error: expErr } = await supabase
         .from("expenses")
         .insert({
           user_id: user.id,
+          organization_id: orgId,
           amount: approveDialog.amount,
           category,
           description: `[Reimbursement] ${approveDialog.vendor_name} — ${approveDialog.description || ""}`,
@@ -151,6 +153,7 @@ export default function ReimbursementsFinance() {
         .from("financial_records")
         .insert({
           user_id: user.id,
+          organization_id: orgId,
           type: "expense",
           category,
           amount: approveDialog.amount,
