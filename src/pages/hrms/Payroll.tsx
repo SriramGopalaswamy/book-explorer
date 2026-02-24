@@ -44,6 +44,7 @@ import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
+import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
 
 const staggerContainer = {
   hidden: { opacity: 0 },

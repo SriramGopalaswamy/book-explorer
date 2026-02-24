@@ -1244,6 +1244,54 @@ export type Database = {
           },
         ]
       }
+      bank_transfer_batches: {
+        Row: {
+          bank_format_type: string
+          created_at: string | null
+          file_url: string | null
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          organization_id: string
+          payroll_run_id: string
+        }
+        Insert: {
+          bank_format_type?: string
+          created_at?: string | null
+          file_url?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          organization_id: string
+          payroll_run_id: string
+        }
+        Update: {
+          bank_format_type?: string
+          created_at?: string | null
+          file_url?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          organization_id?: string
+          payroll_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transfer_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transfer_batches_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_items: {
         Row: {
           amount: number
@@ -2168,6 +2216,86 @@ export type Database = {
           },
         ]
       }
+      employee_tax_settings: {
+        Row: {
+          created_at: string | null
+          declared_80c: number | null
+          declared_80d: number | null
+          financial_year: string
+          hra_exemption: number | null
+          id: string
+          organization_id: string
+          other_deductions: number | null
+          previous_employer_income: number | null
+          previous_employer_tds: number | null
+          profile_id: string
+          regime_id: string | null
+          standard_deduction: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          declared_80c?: number | null
+          declared_80d?: number | null
+          financial_year?: string
+          hra_exemption?: number | null
+          id?: string
+          organization_id: string
+          other_deductions?: number | null
+          previous_employer_income?: number | null
+          previous_employer_tds?: number | null
+          profile_id: string
+          regime_id?: string | null
+          standard_deduction?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          declared_80c?: number | null
+          declared_80d?: number | null
+          financial_year?: string
+          hra_exemption?: number | null
+          id?: string
+          organization_id?: string
+          other_deductions?: number | null
+          previous_employer_income?: number | null
+          previous_employer_tds?: number | null
+          profile_id?: string
+          regime_id?: string | null
+          standard_deduction?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_tax_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_regime_id_fkey"
+            columns: ["regime_id"]
+            isOneToOne: false
+            referencedRelation: "tax_regimes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -2430,6 +2558,73 @@ export type Database = {
           },
         ]
       }
+      form16_records: {
+        Row: {
+          created_at: string | null
+          exemptions_json: Json | null
+          financial_year: string
+          form16_pdf_url: string | null
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          organization_id: string
+          profile_id: string
+          total_pf: number | null
+          total_salary: number | null
+          total_tds: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          exemptions_json?: Json | null
+          financial_year: string
+          form16_pdf_url?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          organization_id: string
+          profile_id: string
+          total_pf?: number | null
+          total_salary?: number | null
+          total_tds?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          exemptions_json?: Json | null
+          financial_year?: string
+          form16_pdf_url?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          total_pf?: number | null
+          total_salary?: number | null
+          total_tds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form16_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form16_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form16_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gl_accounts: {
         Row: {
           account_type: string
@@ -2665,6 +2860,79 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investment_declarations: {
+        Row: {
+          approved_amount: number | null
+          created_at: string | null
+          declared_amount: number | null
+          financial_year: string
+          id: string
+          notes: string | null
+          organization_id: string
+          profile_id: string
+          proof_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          section_type: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_amount?: number | null
+          created_at?: string | null
+          declared_amount?: number | null
+          financial_year: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          profile_id: string
+          proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_type: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_amount?: number | null
+          created_at?: string | null
+          declared_amount?: number | null
+          financial_year?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          profile_id?: string
+          proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_type?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investment_declarations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_declarations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_declarations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -3587,10 +3855,13 @@ export type Database = {
       payroll_entries: {
         Row: {
           annual_ctc: number
+          annual_ctc_snapshot: number | null
           compensation_structure_id: string | null
           created_at: string
           deductions_breakdown: Json
           earnings_breakdown: Json
+          esi_employee: number | null
+          esi_employer: number | null
           gross_earnings: number
           id: string
           lwp_days: number
@@ -3599,18 +3870,27 @@ export type Database = {
           organization_id: string
           paid_days: number
           payroll_run_id: string
+          payslip_generated_at: string | null
+          payslip_url: string | null
+          per_day_salary: number | null
+          pf_employee: number | null
+          pf_employer: number | null
           profile_id: string
           status: string
+          tds_amount: number | null
           total_deductions: number
           updated_at: string
           working_days: number
         }
         Insert: {
           annual_ctc?: number
+          annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
+          esi_employee?: number | null
+          esi_employer?: number | null
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -3619,18 +3899,27 @@ export type Database = {
           organization_id: string
           paid_days?: number
           payroll_run_id: string
+          payslip_generated_at?: string | null
+          payslip_url?: string | null
+          per_day_salary?: number | null
+          pf_employee?: number | null
+          pf_employer?: number | null
           profile_id: string
           status?: string
+          tds_amount?: number | null
           total_deductions?: number
           updated_at?: string
           working_days?: number
         }
         Update: {
           annual_ctc?: number
+          annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
+          esi_employee?: number | null
+          esi_employer?: number | null
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -3639,8 +3928,14 @@ export type Database = {
           organization_id?: string
           paid_days?: number
           payroll_run_id?: string
+          payslip_generated_at?: string | null
+          payslip_url?: string | null
+          per_day_salary?: number | null
+          pf_employee?: number | null
+          pf_employer?: number | null
           profile_id?: string
           status?: string
+          tds_amount?: number | null
           total_deductions?: number
           updated_at?: string
           working_days?: number
@@ -3777,6 +4072,8 @@ export type Database = {
       }
       payroll_runs: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           employee_count: number
           generated_by: string
@@ -3786,6 +4083,8 @@ export type Database = {
           notes: string | null
           organization_id: string
           pay_period: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
           total_deductions: number
           total_gross: number
@@ -3793,6 +4092,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           employee_count?: number
           generated_by: string
@@ -3802,6 +4103,8 @@ export type Database = {
           notes?: string | null
           organization_id: string
           pay_period: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           total_deductions?: number
           total_gross?: number
@@ -3809,6 +4112,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           employee_count?: number
           generated_by?: string
@@ -3818,6 +4123,8 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           pay_period?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           total_deductions?: number
           total_gross?: number
@@ -4348,6 +4655,71 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_regimes: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          financial_year: string
+          id: string
+          is_default: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          financial_year?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          financial_year?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      tax_slabs: {
+        Row: {
+          cess_percentage: number
+          created_at: string | null
+          id: string
+          income_from: number
+          income_to: number
+          regime_id: string
+          tax_percentage: number
+        }
+        Insert: {
+          cess_percentage?: number
+          created_at?: string | null
+          id?: string
+          income_from?: number
+          income_to?: number
+          regime_id: string
+          tax_percentage?: number
+        }
+        Update: {
+          cess_percentage?: number
+          created_at?: string | null
+          id?: string
+          income_from?: number
+          income_to?: number
+          regime_id?: string
+          tax_percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_slabs_regime_id_fkey"
+            columns: ["regime_id"]
+            isOneToOne: false
+            referencedRelation: "tax_regimes"
             referencedColumns: ["id"]
           },
         ]
