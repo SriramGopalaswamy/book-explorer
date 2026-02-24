@@ -26,6 +26,7 @@ import {
   useUpsertEmployeeDetails,
   type EmployeeDetailsInput,
 } from "@/hooks/useEmployeeDetails";
+import { CompensationTab } from "./CompensationTab";
 
 const statusStyles: Record<string, string> = {
   active: "bg-success/10 text-success border-success/30",
@@ -83,9 +84,10 @@ interface Props {
   managerName?: string;
   allEmployees?: Employee[];
   onUpdateEmployee?: (data: { id: string; phone?: string; manager_id?: string | null }) => void;
+  canEditCompensation?: boolean;
 }
 
-export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName, allEmployees = [], onUpdateEmployee }: Props) {
+export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName, allEmployees = [], onUpdateEmployee, canEditCompensation = false }: Props) {
   const { data: details, isLoading } = useEmployeeDetails(employee?.id ?? null);
   const upsert = useUpsertEmployeeDetails();
   const [isEditing, setIsEditing] = useState(false);
@@ -197,11 +199,12 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
         ) : isEditing ? (
           /* ── Edit Mode ── */
           <Tabs defaultValue="personal" className="mt-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
               <TabsTrigger value="address" className="text-xs">Address</TabsTrigger>
               <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
               <TabsTrigger value="bank" className="text-xs">Bank & IDs</TabsTrigger>
+              <TabsTrigger value="compensation" className="text-xs">Compensation</TabsTrigger>
             </TabsList>
 
             <TabsContent value="personal" className="space-y-3 pt-3">
@@ -305,15 +308,20 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                 </div>
               </div>
             </TabsContent>
+
+            <TabsContent value="compensation" className="pt-3">
+              <CompensationTab profileId={employee.id} employeeName={employee.full_name || undefined} canEdit={canEditCompensation} />
+            </TabsContent>
           </Tabs>
         ) : (
           /* ── View Mode ── */
           <Tabs defaultValue="personal" className="mt-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
               <TabsTrigger value="address" className="text-xs">Address</TabsTrigger>
               <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
               <TabsTrigger value="bank" className="text-xs">Bank & IDs</TabsTrigger>
+              <TabsTrigger value="compensation" className="text-xs">Compensation</TabsTrigger>
             </TabsList>
 
             <TabsContent value="personal" className="pt-3">
@@ -371,6 +379,10 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                   <Field label="ESI Number" value={details?.esi_number} />
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="compensation" className="pt-3">
+              <CompensationTab profileId={employee.id} employeeName={employee.full_name || undefined} canEdit={canEditCompensation} />
             </TabsContent>
           </Tabs>
         )}
