@@ -117,7 +117,6 @@ export function useInvoices() {
       const { data, error } = await supabase
         .from("invoices")
         .select(`*, invoice_items (*)`)
-        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
