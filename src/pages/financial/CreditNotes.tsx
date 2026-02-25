@@ -54,7 +54,7 @@ export default function CreditNotes() {
     queryKey: ["credit-notes", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("credit_notes").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("credit_notes").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data as CreditNote[];
     },
@@ -65,7 +65,7 @@ export default function CreditNotes() {
     queryKey: ["customers", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("customers").select("id,name").eq("user_id", user.id).eq("status", "active");
+      const { data, error } = await supabase.from("customers").select("id,name").eq("status", "active");
       if (error) throw error;
       return data as Customer[];
     },

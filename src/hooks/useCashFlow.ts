@@ -43,7 +43,6 @@ export function useScheduledPayments() {
       const { data, error } = await supabase
         .from("scheduled_payments")
         .select("*")
-        .eq("user_id", user.id)
         .in("status", ["scheduled", "pending"])
         .order("due_date", { ascending: true });
       if (error) throw error;
@@ -152,7 +151,6 @@ export function useCashFlowSummary() {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
-        .eq("user_id", user.id)
         .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -184,8 +182,7 @@ export function useCashFlowSummary() {
       // Get current balance
       const { data: accounts } = await supabase
         .from("bank_accounts")
-        .select("balance")
-        .eq("user_id", user.id);
+        .select("balance");
 
       const totalBalance = (accounts || []).reduce((sum, acc) => sum + Number(acc.balance), 0);
       const runway = monthlyBurn > 0 ? totalBalance / monthlyBurn : 0;
