@@ -70,7 +70,6 @@ export function useBankAccounts() {
       const { data, error } = await supabase
         .from("bank_accounts")
         .select("*")
-        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as BankAccount[];
@@ -143,7 +142,6 @@ export function useBankTransactions(limit = 20) {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("*, bank_accounts(name)")
-        .eq("user_id", user.id)
         .order("transaction_date", { ascending: false })
         .limit(limit);
       if (error) throw error;
@@ -225,7 +223,6 @@ export function useMonthlyTransactionStats() {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
-        .eq("user_id", user.id)
         .gte("transaction_date", firstDay.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -263,7 +260,6 @@ export function useCashFlowData(months = 6) {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount, transaction_date")
-        .eq("user_id", user.id)
         .gte("transaction_date", startDate.toISOString().split("T")[0]);
 
       if (error) throw error;

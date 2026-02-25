@@ -50,7 +50,7 @@ export default function VendorCredits() {
     queryKey: ["vendor-credits", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("vendor_credits").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("vendor_credits").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data as VendorCredit[];
     },
@@ -61,7 +61,7 @@ export default function VendorCredits() {
     queryKey: ["vendors", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("vendors").select("id,name").eq("user_id", user.id).eq("status", "active");
+      const { data, error } = await supabase.from("vendors").select("id,name").eq("status", "active");
       if (error) throw error;
       return data as Vendor[];
     },

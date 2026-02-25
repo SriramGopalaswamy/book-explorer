@@ -143,7 +143,7 @@ export default function Quotes() {
     queryKey: ["quotes", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("quotes").select("*, quote_items(*)").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("quotes").select("*, quote_items(*)").order("created_at", { ascending: false });
       if (error) throw error;
       return data as Quote[];
     },
@@ -154,7 +154,7 @@ export default function Quotes() {
     queryKey: ["customers", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("customers").select("id,name,email").eq("user_id", user.id).eq("status", "active").order("name");
+      const { data, error } = await supabase.from("customers").select("id,name,email").eq("status", "active").order("name");
       if (error) throw error;
       return data as Customer[];
     },
