@@ -48,7 +48,7 @@ export default function Vendors() {
     queryKey: ["vendors", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase.from("vendors").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("vendors").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data as Vendor[];
     },
