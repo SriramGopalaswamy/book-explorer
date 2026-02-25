@@ -96,8 +96,10 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
                 boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                color: "hsl(var(--foreground))",
               }}
               labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+              itemStyle={{ color: "hsl(var(--foreground))" }}
             />
             <Legend
               layout="vertical"
