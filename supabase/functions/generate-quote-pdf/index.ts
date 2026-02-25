@@ -171,15 +171,21 @@ serve(async (req) => {
       if (logoResponse.ok) {
         const logoBytes = new Uint8Array(await logoResponse.arrayBuffer());
         const contentType = logoResponse.headers.get("content-type") || "";
-        logoImage = (contentType.includes("png") || contentType.includes("webp"))
-          ? await pdfDoc.embedPng(logoBytes)
-          : await pdfDoc.embedJpg(logoBytes);
+        if (contentType.includes("png")) {
+          logoImage = await pdfDoc.embedPng(logoBytes);
+        } else if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+          logoImage = await pdfDoc.embedJpg(logoBytes);
+        } else {
+          // Try PNG first, then JPG as fallback
+          try { logoImage = await pdfDoc.embedPng(logoBytes); }
+          catch { logoImage = await pdfDoc.embedJpg(logoBytes); }
+        }
       }
     } catch (e) {
       console.log("Could not embed logo:", e);
     }
 
-    // Company header
+    // Company header (left side)
     if (logoImage) {
       const logoScale = 40 / logoImage.height;
       page.drawImage(logoImage, { x: leftMargin, y: y - 35, width: logoImage.width * logoScale, height: 40 });
@@ -224,9 +230,10 @@ serve(async (req) => {
     }
     drawText(page, `Quote Date: ${formatDate(quote.created_at)}`, rightCol, ry, regular, 9, BRAND_COLORS.text); ry -= 13;
     drawText(page, `Terms: ${quote.payment_terms || 'Due on Receipt'}`, rightCol, ry, regular, 9, BRAND_COLORS.text); ry -= 13;
-    drawText(page, `Valid Until: ${formatDate(quote.due_date)}`, rightCol, ry, regular, 9, BRAND_COLORS.text);
+    drawText(page, `Valid Until: ${formatDate(quote.due_date)}`, rightCol, ry, regular, 9, BRAND_COLORS.text); ry -= 13;
 
-    y -= 10;
+    // Use the lower of left/right columns to avoid overlap
+    y = Math.min(y, ry) - 5;
 
     // QUOTATION title
     page.drawRectangle({ x: leftMargin, y: y - 5, width: rightEdge - leftMargin, height: 22, color: BRAND_COLORS.primary });
