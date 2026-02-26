@@ -91,91 +91,141 @@ interface DiagnosticReport {
 // 1️⃣  EXTRACTION LAYER — Two-stage pipeline
 // ═══════════════════════════════════════════════════════════════
 
-/** Stage A: Primary PDF text extraction via pdfjs-dist with spatial reconstruction */
+/**
+ * Stage A: Pure PDF text extraction — zero external dependencies.
+ * Parses the raw PDF binary stream to extract text content objects.
+ * Works in any Deno/edge runtime without workers, Canvas, or Node APIs.
+ */
 async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pages: number }> {
-  const pdfjsLib = await import("https://esm.sh/pdfjs-dist@4.0.379/build/pdf.mjs");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  // Decode PDF bytes to a raw string for regex-based stream parsing
+  const raw = new TextDecoder("latin1").decode(data);
 
-  const loadingTask = pdfjsLib.getDocument({
-    data,
-    useSystemFonts: true,
-    disableFontFace: true,
-    isEvalSupported: false,
-  });
-  const pdf = await loadingTask.promise;
-  const pageCount = pdf.numPages;
-  console.log(`[PDF] Loaded ${pageCount} page(s)`);
+  // Count pages via /Type /Page (not /Pages which is the tree root)
+  const pageMatches = raw.match(/\/Type\s*\/Page(?!\s*s)/g);
+  const pages = pageMatches ? pageMatches.length : 0;
+  console.log(`[PDF] Detected ${pages} page(s) in ${data.length} bytes`);
 
-  let fullText = "";
+  // ─── Extract all content streams ────────────────────
+  const streams: string[] = [];
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let match: RegExpExecArray | null;
+  while ((match = streamRegex.exec(raw)) !== null) {
+    streams.push(match[1]);
+  }
+  console.log(`[PDF] Found ${streams.length} content stream(s)`);
 
-  for (let i = 1; i <= pageCount; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
+  // ─── Decompress FlateDecode streams ─────────────────
+  const decodedStreams: string[] = [];
+  for (const stream of streams) {
+    try {
+      const compressed = Uint8Array.from(stream, (c) => c.charCodeAt(0));
+      const ds = new DecompressionStream("deflate");
+      const writer = ds.writable.getWriter();
+      const reader = ds.readable.getReader();
+      writer.write(compressed).catch(() => {});
+      writer.close().catch(() => {});
 
-    // Extract items with position data
-    const items = content.items
-      .filter((item: any) => item.str !== undefined)
-      .map((item: any) => ({
-        str: item.str,
-        x: Math.round(item.transform[4]),
-        y: Math.round(item.transform[5]),
-        width: item.width || 0,
-        height: item.height || 0,
-      }));
-
-    // Group items into rows by Y-coordinate proximity
-    const ROW_TOLERANCE = 3;
-    const rows: Map<number, typeof items> = new Map();
-
-    for (const item of items) {
-      let matched = false;
-      for (const [rowY, rowItems] of rows) {
-        if (Math.abs(item.y - rowY) <= ROW_TOLERANCE) {
-          rowItems.push(item);
-          matched = true;
-          break;
-        }
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
       }
-      if (!matched) {
-        rows.set(item.y, [item]);
+      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+      const merged = new Uint8Array(totalLen);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
       }
-    }
-
-    // Sort rows top-to-bottom (PDF Y is bottom-up)
-    const sortedRows = Array.from(rows.entries()).sort((a, b) => b[0] - a[0]);
-
-    for (const [, rowItems] of sortedRows) {
-      // Sort items left-to-right
-      rowItems.sort((a, b) => a.x - b.x);
-
-      let rowText = "";
-      for (let j = 0; j < rowItems.length; j++) {
-        const item = rowItems[j];
-        if (j > 0) {
-          const prev = rowItems[j - 1];
-          const gap = item.x - (prev.x + prev.width);
-          // Large gap → tab separator (column boundary)
-          // Medium gap → space
-          // Tiny/negative gap → concatenate
-          if (gap > 20) rowText += "\t";
-          else if (gap > 3) rowText += " ";
-        }
-        rowText += item.str;
-      }
-
-      // Only add non-empty rows
-      if (rowText.trim().length > 0) {
-        fullText += rowText + "\n";
-      }
-    }
-
-    // Page separator for multi-page PDFs
-    if (i < pageCount) {
-      fullText += "\n";
+      decodedStreams.push(new TextDecoder("latin1").decode(merged));
+    } catch {
+      decodedStreams.push(stream);
     }
   }
 
-  return { text: fullText, pages: pageCount };
+  // ─── Parse BT...ET text blocks ──────────────────────
+  const allText: string[] = [];
+  for (const stream of decodedStreams) {
+    const btBlocks = stream.match(/BT[\s\S]*?ET/g);
+    if (!btBlocks) continue;
+
+    for (const block of btBlocks) {
+      // Tj: (text) Tj
+      const tjMatches = block.match(/\(([^)]*)\)\s*Tj/g);
+      if (tjMatches) {
+        for (const tj of tjMatches) {
+          const m = tj.match(/\(([^)]*)\)/);
+          if (m) allText.push(decodePDFString(m[1]));
+        }
+      }
+      // TJ: [(text) num (text)] TJ
+      const tjArrays = block.match(/\[(.*?)\]\s*TJ/gs);
+      if (tjArrays) {
+        for (const arr of tjArrays) {
+          const inner = arr.match(/\(([^)]*)\)/g);
+          if (inner) {
+            allText.push(inner.map((s) => decodePDFString(s.slice(1, -1))).join(""));
+          }
+        }
+      }
+      // ' operator: (text) '
+      const quoteMatches = block.match(/\(([^)]*)\)\s*'/g);
+      if (quoteMatches) {
+        for (const qm of quoteMatches) {
+          const m = qm.match(/\(([^)]*)\)/);
+          if (m) { allText.push("\n"); allText.push(decodePDFString(m[1])); }
+        }
+      }
+      // Td/TD/T* for line breaks
+      const ops = block.split(/\n/);
+      for (const op of ops) {
+        const tdMatch = op.match(/([-\d.]+)\s+([-\d.]+)\s+Td/i);
+        if (tdMatch && Math.abs(parseFloat(tdMatch[2])) > 1) {
+          allText.push("\n");
+        } else if (/T\*/.test(op) && !/\(/.test(op)) {
+          allText.push("\n");
+        }
+      }
+    }
+  }
+
+  let fullText = allText.join(" ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  // Fallback: raw uncompressed Tj extraction
+  if (fullText.length < 100) {
+    console.log(`[PDF] Low yield (${fullText.length} chars), trying raw fallback`);
+    const rawParts: string[] = [];
+    const rawTj = raw.match(/\(([^)]{2,})\)\s*Tj/g);
+    if (rawTj) {
+      for (const m of rawTj) {
+        const t = m.match(/\(([^)]*)\)/);
+        if (t) rawParts.push(decodePDFString(t[1]));
+      }
+    }
+    if (rawParts.join(" ").length > fullText.length) {
+      fullText = rawParts.join(" ").replace(/\s{2,}/g, " ").trim();
+    }
+  }
+
+  console.log(`[PDF] Final text: ${fullText.length} chars`);
+  return { text: fullText, pages };
+}
+
+/** Decode PDF escape sequences in parenthesized strings */
+function decodePDFString(s: string): string {
+  return s
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\(/g, "(")
+    .replace(/\\\)/g, ")")
+    .replace(/\\\\/g, "\\")
+    .replace(/\\(\d{3})/g, (_, oct: string) => String.fromCharCode(parseInt(oct, 8)));
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
