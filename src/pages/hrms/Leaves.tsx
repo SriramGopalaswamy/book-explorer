@@ -140,7 +140,7 @@ export default function Leaves() {
     }
 
     await createLeaveRequest.mutateAsync({
-      leave_type: selectedType as LeaveRequest["leave_type"],
+      leave_type: selectedType,
       from_date: fromDate,
       to_date: toDate,
       reason,

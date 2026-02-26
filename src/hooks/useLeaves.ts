@@ -30,7 +30,7 @@ export interface LeaveRequest {
   id: string;
   user_id: string;
   profile_id: string | null;
-  leave_type: "casual" | "sick" | "earned" | "maternity" | "paternity" | "wfh";
+  leave_type: string;
   from_date: string;
   to_date: string;
   days: number;
@@ -50,7 +50,7 @@ export interface LeaveBalance {
   id: string;
   user_id: string;
   profile_id: string | null;
-  leave_type: "casual" | "sick" | "earned" | "maternity" | "paternity" | "wfh";
+  leave_type: string;
   total_days: number;
   used_days: number;
   year: number;
@@ -168,7 +168,7 @@ export function useCreateLeaveRequest() {
 
   return useMutation({
     mutationFn: async (request: {
-      leave_type: LeaveRequest["leave_type"];
+      leave_type: string;
       from_date: string;
       to_date: string;
       reason?: string;
