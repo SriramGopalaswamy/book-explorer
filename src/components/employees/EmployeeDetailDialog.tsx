@@ -168,7 +168,7 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     );
   };
 
-  const Field = ({ label, value, icon: Icon }: { label: string; value: string | null | undefined; icon?: any }) => (
+  const renderField = (label: string, value: string | null | undefined, Icon?: any) => (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
         {Icon && <Icon className="h-3 w-3" />}
@@ -178,8 +178,8 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     </div>
   );
 
-  const EditField = ({ label, fieldKey, placeholder, type = "text" }: { label: string; fieldKey: string; placeholder?: string; type?: string }) => (
-    <div className="grid gap-1">
+  const renderEditField = (label: string, fieldKey: string, placeholder?: string, type = "text") => (
+    <div className="grid gap-1" key={fieldKey}>
       <Label className="text-xs">{label}</Label>
       <Input
         type={type}
@@ -191,8 +191,8 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     </div>
   );
 
-  const ProfileEditField = ({ label, fieldKey, placeholder, type = "text" }: { label: string; fieldKey: string; placeholder?: string; type?: string }) => (
-    <div className="grid gap-1">
+  const renderProfileEditField = (label: string, fieldKey: string, placeholder?: string, type = "text") => (
+    <div className="grid gap-1" key={fieldKey}>
       <Label className="text-xs">{label}</Label>
       <Input
         type={type}
@@ -259,11 +259,11 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
             {/* Profile tab — core fields (name, email, department, etc.) */}
             <TabsContent value="profile" className="space-y-3 pt-3">
               <div className="grid grid-cols-2 gap-3">
-                <ProfileEditField label="Full Name *" fieldKey="full_name" placeholder="John Doe" />
-                <ProfileEditField label="Email *" fieldKey="email" placeholder="john@company.com" type="email" />
+                {renderProfileEditField("Full Name *", "full_name", "John Doe")}
+                {renderProfileEditField("Email *", "email", "john@company.com", "email")}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <ProfileEditField label="Job Title" fieldKey="job_title" placeholder="Software Engineer" />
+                {renderProfileEditField("Job Title", "job_title", "Software Engineer")}
                 <div className="grid gap-1">
                   <Label className="text-xs">Department</Label>
                   <Select value={profileForm.department} onValueChange={(v) => setProfileForm((prev) => ({ ...prev, department: v }))}>
@@ -288,10 +288,10 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                     </SelectContent>
                   </Select>
                 </div>
-                <ProfileEditField label="Join Date" fieldKey="join_date" type="date" />
+                {renderProfileEditField("Join Date", "join_date", undefined, "date")}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <ProfileEditField label="Phone" fieldKey="phone" placeholder="+91 98765 43210" />
+                {renderProfileEditField("Phone", "phone", "+91 98765 43210")}
                 <div className="grid gap-1">
                   <Label className="text-xs">Manager</Label>
                   <ManagerComboboxInline
@@ -306,7 +306,7 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
 
             <TabsContent value="personal" className="space-y-3 pt-3">
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="Date of Birth" fieldKey="date_of_birth" type="date" />
+                {renderEditField("Date of Birth", "date_of_birth", undefined, "date")}
                 <div className="grid gap-1">
                   <Label className="text-xs">Gender</Label>
                   <Select value={form.gender || ""} onValueChange={(v) => setField("gender", v)}>
@@ -336,52 +336,52 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                     </SelectContent>
                   </Select>
                 </div>
-                <EditField label="Nationality" fieldKey="nationality" placeholder="Indian" />
+                {renderEditField("Nationality", "nationality", "Indian")}
               </div>
             </TabsContent>
 
             <TabsContent value="address" className="space-y-3 pt-3">
-              <EditField label="Address Line 1" fieldKey="address_line1" placeholder="House/Flat No, Street" />
-              <EditField label="Address Line 2" fieldKey="address_line2" placeholder="Landmark, Area" />
+              {renderEditField("Address Line 1", "address_line1", "House/Flat No, Street")}
+              {renderEditField("Address Line 2", "address_line2", "Landmark, Area")}
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="City" fieldKey="city" placeholder="Mumbai" />
-                <EditField label="State" fieldKey="state" placeholder="Maharashtra" />
+                {renderEditField("City", "city", "Mumbai")}
+                {renderEditField("State", "state", "Maharashtra")}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="Pincode" fieldKey="pincode" placeholder="400001" />
-                <EditField label="Country" fieldKey="country" placeholder="India" />
+                {renderEditField("Pincode", "pincode", "400001")}
+                {renderEditField("Country", "country", "India")}
               </div>
             </TabsContent>
 
             <TabsContent value="emergency" className="space-y-3 pt-3">
-              <EditField label="Contact Name" fieldKey="emergency_contact_name" placeholder="Full name" />
+              {renderEditField("Contact Name", "emergency_contact_name", "Full name")}
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="Relationship" fieldKey="emergency_contact_relation" placeholder="e.g. Spouse, Parent" />
-                <EditField label="Phone Number" fieldKey="emergency_contact_phone" placeholder="+91 98765 43210" />
+                {renderEditField("Relationship", "emergency_contact_relation", "e.g. Spouse, Parent")}
+                {renderEditField("Phone Number", "emergency_contact_phone", "+91 98765 43210")}
               </div>
             </TabsContent>
 
             <TabsContent value="bank" className="space-y-3 pt-3">
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="Bank Name" fieldKey="bank_name" placeholder="State Bank of India" />
-                <EditField label="Account Number" fieldKey="bank_account_number" placeholder="Account No." />
+                {renderEditField("Bank Name", "bank_name", "State Bank of India")}
+                {renderEditField("Account Number", "bank_account_number", "Account No.")}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <EditField label="IFSC Code" fieldKey="bank_ifsc" placeholder="SBIN0001234" />
-                <EditField label="Branch" fieldKey="bank_branch" placeholder="Branch name" />
+                {renderEditField("IFSC Code", "bank_ifsc", "SBIN0001234")}
+                {renderEditField("Branch", "bank_branch", "Branch name")}
               </div>
               <div className="border-t pt-3 mt-2">
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                   <Shield className="h-3 w-3" /> Statutory IDs
                 </p>
                 <div className="grid grid-cols-2 gap-3">
-                  <EditField label="Employee ID" fieldKey="employee_id_number" placeholder="EMP-001" />
-                  <EditField label="PAN Number" fieldKey="pan_number" placeholder="ABCDE1234F" />
+                  {renderEditField("Employee ID", "employee_id_number", "EMP-001")}
+                  {renderEditField("PAN Number", "pan_number", "ABCDE1234F")}
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-3">
-                  <EditField label="Aadhaar (Last 4)" fieldKey="aadhaar_last_four" placeholder="1234" />
-                  <EditField label="UAN" fieldKey="uan_number" placeholder="UAN Number" />
-                  <EditField label="ESI Number" fieldKey="esi_number" placeholder="ESI Number" />
+                  {renderEditField("Aadhaar (Last 4)", "aadhaar_last_four", "1234")}
+                  {renderEditField("UAN", "uan_number", "UAN Number")}
+                  {renderEditField("ESI Number", "esi_number", "ESI Number")}
                 </div>
               </div>
             </TabsContent>
@@ -408,57 +408,57 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
 
             <TabsContent value="personal" className="pt-3">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Email" value={employee.email} icon={User} />
-                <Field label="Phone" value={employee.phone} icon={Phone} />
-                <Field label="Date of Birth" value={details?.date_of_birth ? new Date(details.date_of_birth).toLocaleDateString("en-IN") : null} />
-                <Field label="Gender" value={details?.gender} />
-                <Field label="Blood Group" value={details?.blood_group} icon={Heart} />
-                <Field label="Marital Status" value={details?.marital_status} />
-                <Field label="Nationality" value={details?.nationality} />
-                <Field label="Manager" value={managerName || "—"} icon={Briefcase} />
+                {renderField("Email", employee.email, User)}
+                {renderField("Phone", employee.phone, Phone)}
+                {renderField("Date of Birth", details?.date_of_birth ? new Date(details.date_of_birth).toLocaleDateString("en-IN") : null)}
+                {renderField("Gender", details?.gender)}
+                {renderField("Blood Group", details?.blood_group, Heart)}
+                {renderField("Marital Status", details?.marital_status)}
+                {renderField("Nationality", details?.nationality)}
+                {renderField("Manager", managerName || "—", Briefcase)}
               </div>
             </TabsContent>
 
             <TabsContent value="address" className="pt-3">
               <div className="grid grid-cols-1 gap-4">
-                <Field label="Address Line 1" value={details?.address_line1} icon={MapPin} />
-                <Field label="Address Line 2" value={details?.address_line2} />
+                {renderField("Address Line 1", details?.address_line1, MapPin)}
+                {renderField("Address Line 2", details?.address_line2)}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="City" value={details?.city} />
-                  <Field label="State" value={details?.state} />
-                  <Field label="Pincode" value={details?.pincode} />
-                  <Field label="Country" value={details?.country} />
+                  {renderField("City", details?.city)}
+                  {renderField("State", details?.state)}
+                  {renderField("Pincode", details?.pincode)}
+                  {renderField("Country", details?.country)}
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="emergency" className="pt-3">
               <div className="grid grid-cols-1 gap-4">
-                <Field label="Contact Name" value={details?.emergency_contact_name} icon={Phone} />
+                {renderField("Contact Name", details?.emergency_contact_name, Phone)}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Relationship" value={details?.emergency_contact_relation} />
-                  <Field label="Phone Number" value={details?.emergency_contact_phone} />
+                  {renderField("Relationship", details?.emergency_contact_relation)}
+                  {renderField("Phone Number", details?.emergency_contact_phone)}
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="bank" className="pt-3">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Bank Name" value={details?.bank_name} icon={Building2} />
-                <Field label="Account Number" value={details?.bank_account_number} icon={CreditCard} />
-                <Field label="IFSC Code" value={details?.bank_ifsc} />
-                <Field label="Branch" value={details?.bank_branch} />
+                {renderField("Bank Name", details?.bank_name, Building2)}
+                {renderField("Account Number", details?.bank_account_number, CreditCard)}
+                {renderField("IFSC Code", details?.bank_ifsc)}
+                {renderField("Branch", details?.bank_branch)}
               </div>
               <div className="border-t pt-3 mt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1">
                   <Shield className="h-3 w-3" /> Statutory IDs
                 </p>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Employee ID" value={details?.employee_id_number} />
-                  <Field label="PAN Number" value={details?.pan_number} />
-                  <Field label="Aadhaar (Last 4)" value={details?.aadhaar_last_four} />
-                  <Field label="UAN" value={details?.uan_number} />
-                  <Field label="ESI Number" value={details?.esi_number} />
+                  {renderField("Employee ID", details?.employee_id_number)}
+                  {renderField("PAN Number", details?.pan_number)}
+                  {renderField("Aadhaar (Last 4)", details?.aadhaar_last_four)}
+                  {renderField("UAN", details?.uan_number)}
+                  {renderField("ESI Number", details?.esi_number)}
                 </div>
               </div>
             </TabsContent>
