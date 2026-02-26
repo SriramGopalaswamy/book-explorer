@@ -104,7 +104,7 @@ const App = () => (
               <Route path="/financial/statutory" element={<ProtectedRoute><FinanceRoute><StatutoryFilings /></FinanceRoute></ProtectedRoute>} />
 
               {/* HRMS */}
-              <Route path="/hrms/employees" element={<ProtectedRoute><HRAdminRoute><Employees /></HRAdminRoute></ProtectedRoute>} />
+              <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
               <Route path="/hrms/attendance" element={<ProtectedRoute><HRAdminRoute><Attendance /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
               <Route path="/hrms/payroll" element={<ProtectedRoute><FinanceRoute><Payroll /></FinanceRoute></ProtectedRoute>} />
