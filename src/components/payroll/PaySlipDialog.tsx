@@ -30,6 +30,11 @@ interface PaySlipDialogProps {
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
   if (!record) return null;
 
+  const lopDays = Number((record as any).lop_days) || 0;
+  const lopDeduction = Number((record as any).lop_deduction) || 0;
+  const workingDays = Number((record as any).working_days) || 0;
+  const paidDays = Number((record as any).paid_days) || 0;
+
   const earnings = [
     { label: "Basic Salary", amount: Number(record.basic_salary) },
     { label: "House Rent Allowance (HRA)", amount: Number(record.hra) },
@@ -42,6 +47,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     { label: "Provident Fund (PF)", amount: Number(record.pf_deduction) },
     { label: "Tax Deduction (TDS)", amount: Number(record.tax_deduction) },
     { label: "Other Deductions", amount: Number(record.other_deductions) },
+    ...(lopDeduction > 0 ? [{ label: `Loss of Pay (${lopDays} days)`, amount: lopDeduction }] : []),
   ];
   const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
   const netPay = Number(record.net_pay);
@@ -109,11 +115,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     <span class="status s-${record.status}">${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
   </div>
 
-  <div class="emp-grid">
+   <div class="emp-grid">
     <div class="emp-field"><label>Employee Name</label><span>${employeeName}</span></div>
     <div class="emp-field"><label>Department</label><span>${department}</span></div>
     <div class="emp-field"><label>Designation</label><span>${jobTitle}</span></div>
     <div class="emp-field"><label>Pay Period</label><span>${period}</span></div>
+    ${workingDays > 0 ? `<div class="emp-field"><label>Working Days</label><span>${workingDays}</span></div>` : ""}
+    ${paidDays > 0 ? `<div class="emp-field"><label>Paid Days</label><span>${paidDays}${lopDays > 0 ? ` (LOP: ${lopDays})` : ""}</span></div>` : ""}
   </div>
 
   <div class="tables">
@@ -247,6 +255,21 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Pay Period</p>
               <p className="font-medium">{period}</p>
             </div>
+            {workingDays > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Working Days</p>
+                <p className="font-medium">{workingDays}</p>
+              </div>
+            )}
+            {paidDays > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Paid Days</p>
+                <p className="font-medium">
+                  {paidDays}
+                  {lopDays > 0 && <span className="text-amber-600 ml-1">(LOP: {lopDays})</span>}
+                </p>
+              </div>
+            )}
           </div>
 
           <Separator />

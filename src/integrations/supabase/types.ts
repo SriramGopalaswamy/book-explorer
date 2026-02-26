@@ -4020,12 +4020,15 @@ export type Database = {
           hra: number
           id: string
           is_superseded: boolean
+          lop_days: number
+          lop_deduction: number
           net_pay: number
           notes: string | null
           organization_id: string
           original_record_id: string | null
           other_allowances: number
           other_deductions: number
+          paid_days: number
           pay_period: string
           pf_deduction: number
           processed_at: string | null
@@ -4037,6 +4040,7 @@ export type Database = {
           updated_at: string
           user_id: string
           version: number
+          working_days: number
         }
         Insert: {
           basic_salary?: number
@@ -4044,12 +4048,15 @@ export type Database = {
           hra?: number
           id?: string
           is_superseded?: boolean
+          lop_days?: number
+          lop_deduction?: number
           net_pay?: number
           notes?: string | null
           organization_id?: string
           original_record_id?: string | null
           other_allowances?: number
           other_deductions?: number
+          paid_days?: number
           pay_period: string
           pf_deduction?: number
           processed_at?: string | null
@@ -4061,6 +4068,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           version?: number
+          working_days?: number
         }
         Update: {
           basic_salary?: number
@@ -4068,12 +4076,15 @@ export type Database = {
           hra?: number
           id?: string
           is_superseded?: boolean
+          lop_days?: number
+          lop_deduction?: number
           net_pay?: number
           notes?: string | null
           organization_id?: string
           original_record_id?: string | null
           other_allowances?: number
           other_deductions?: number
+          paid_days?: number
           pay_period?: string
           pf_deduction?: number
           processed_at?: string | null
@@ -4085,6 +4096,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           version?: number
+          working_days?: number
         }
         Relationships: [
           {
