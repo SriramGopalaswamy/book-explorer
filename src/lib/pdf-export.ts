@@ -96,6 +96,17 @@ export function exportReportAsPDF(options: PDFOptions) {
   printWindow.document.write(html);
   printWindow.document.close();
   printWindow.onload = () => {
+    printWindow.focus();
     printWindow.print();
+    // Close the print window after printing (or cancelling)
+    printWindow.onafterprint = () => {
+      printWindow.close();
+    };
+    // Fallback: close after a short delay for browsers that don't support onafterprint
+    setTimeout(() => {
+      if (!printWindow.closed) {
+        printWindow.close();
+      }
+    }, 1000);
   };
 }
