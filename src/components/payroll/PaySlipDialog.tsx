@@ -155,8 +155,16 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   };
 
   const handleDownload = () => {
-    // Open a print window so the user can "Save as PDF" via the browser print dialog
-    openPrintWindow();
+    const html = buildHTML();
+    const blob = new Blob([html], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
