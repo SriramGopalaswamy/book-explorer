@@ -147,24 +147,44 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 </html>`;
 
   const openPrintWindow = () => {
-    const win = window.open("", "_blank");
+    const win = window.open("", "_blank", "width=800,height=900");
     if (!win) return;
     win.document.write(buildHTML());
     win.document.close();
-    win.onload = () => win.print();
+    // Wait for content to render, then trigger print
+    win.onload = () => {
+      setTimeout(() => {
+        win.print();
+      }, 300);
+    };
+    // Auto-close popup after print dialog is dismissed
+    win.onafterprint = () => win.close();
+    // Fallback: poll for window closure to restore focus
+    const poll = setInterval(() => {
+      if (win.closed) {
+        clearInterval(poll);
+        window.focus();
+      }
+    }, 500);
   };
 
   const handleDownload = () => {
     const html = buildHTML();
-    const blob = new Blob([html], { type: "application/octet-stream" });
+    // Create a standalone HTML file with inline styles for offline viewing
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.html`;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    // Use click() directly — no window.open, no print dialog
+    link.click();
+    // Cleanup after a short delay to ensure download starts
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
   };
 
   return (
@@ -179,7 +199,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
             </Button>
             <Button size="sm" onClick={handleDownload} className="bg-gradient-financial text-white hover:opacity-90">
               <Download className="h-4 w-4 mr-1" />
-              Download PDF
+              Download
             </Button>
           </div>
         </DialogHeader>
