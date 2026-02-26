@@ -123,6 +123,8 @@ export default function Payroll() {
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
+  // Get the current user's profile_id for declarations
+  const myProfile = employees.find(e => e.user_id === user?.id);
   const createPayroll = useCreatePayroll();
   const updatePayroll = useUpdatePayroll();
   const deletePayroll = useDeletePayroll();
@@ -582,10 +584,10 @@ export default function Payroll() {
               <PayrollAnalyticsDashboard />
             </TabsContent>
             <TabsContent value="declarations">
-              {user?.id ? (
-                <InvestmentDeclarationPortal profileId={user.id} isAdmin={!!isAdminOrHR} />
+              {myProfile?.id ? (
+                <InvestmentDeclarationPortal profileId={myProfile.id} isAdmin={!!isAdmin} />
               ) : (
-                <p className="text-muted-foreground text-center py-8">Loading...</p>
+                <p className="text-muted-foreground text-center py-8">Loading profile...</p>
               )}
             </TabsContent>
           </Tabs>

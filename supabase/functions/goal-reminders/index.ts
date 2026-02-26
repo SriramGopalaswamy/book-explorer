@@ -68,12 +68,12 @@ async function insertNotification(
   }
 }
 
-function emailTemplate(heading: string, body: string) {
+function emailTemplate(icon: string, heading: string, body: string) {
   return `
     <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 24px; border-radius: 12px 12px 0 0; color: #fff;">
-        <h1 style="margin: 0 0 8px; font-size: 20px; color: #f5a623;">🎯 ${heading}</h1>
-        <p style="margin: 0; font-size: 13px; color: #aaa;">Goal Management Reminder</p>
+        <h1 style="margin: 0 0 8px; font-size: 20px; color: #f5a623;">${icon} ${heading}</h1>
+        <p style="margin: 0; font-size: 13px; color: #aaa;">GRX10 Automated Reminder</p>
       </div>
       <div style="padding: 20px; background: #fff; border: 1px solid #eee; border-top: none; border-radius: 0 0 12px 12px;">
         <p style="font-size: 14px; color: #333; line-height: 1.6;">${body}</p>
@@ -107,10 +107,15 @@ Deno.serve(async (req) => {
   const lastDay = new Date(year, month + 1, 0).getDate();
   const isLastDay = dayOfMonth === lastDay;
   const isFirstWeek = dayOfMonth >= 1 && dayOfMonth <= 7;
+  const isApril = month === 3; // 0-indexed, April = 3
 
-  if (!isFirstWeek && !isLastDay) {
+  // Check if any reminder window is active
+  const hasGoalWindow = isFirstWeek || isLastDay;
+  const hasDeclarationWindow = isApril && dayOfMonth >= 1 && dayOfMonth <= 30;
+
+  if (!hasGoalWindow && !hasDeclarationWindow) {
     return new Response(
-      JSON.stringify({ skipped: true, reason: "Not in reminder window (day 1-7 or last day)" }),
+      JSON.stringify({ skipped: true, reason: "Not in any reminder window" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -129,96 +134,131 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Get all goal_plans for current month
-  const { data: existingPlans } = await supabase
-    .from("goal_plans")
-    .select("user_id, status, items")
-    .eq("month", currentMonthStr);
-
-  const plansByUser = new Map<string, any>();
-  for (const plan of existingPlans || []) {
-    plansByUser.set(plan.user_id, plan);
-  }
-
   let notified = 0;
   let emailed = 0;
 
-  // ─── FIRST WEEK: Remind employees who haven't created a goal plan ──────────
-  if (isFirstWeek) {
-    const delinquents = activeProfiles.filter(
-      (p) => p.user_id && !plansByUser.has(p.user_id)
-    );
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GOAL REMINDERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (hasGoalWindow) {
+    const { data: existingPlans } = await supabase
+      .from("goal_plans")
+      .select("user_id, status, items")
+      .eq("month", currentMonthStr);
 
-    for (const emp of delinquents) {
-      // In-app notification
-      await insertNotification(
-        supabase,
-        emp.user_id,
-        "🎯 Create Your Monthly Goals",
-        `You haven't created your goal plan for ${currentMonthStr} yet. Please submit your targets by the 7th.`,
-        "goal_reminder",
-        "/performance/goals"
+    const plansByUser = new Map<string, any>();
+    for (const plan of existingPlans || []) {
+      plansByUser.set(plan.user_id, plan);
+    }
+
+    // FIRST WEEK: Remind employees who haven't created a goal plan
+    if (isFirstWeek) {
+      const delinquents = activeProfiles.filter(
+        (p) => p.user_id && !plansByUser.has(p.user_id)
       );
-      notified++;
 
-      // Email
-      if (emp.email) {
-        const html = emailTemplate(
-          "Monthly Goal Plan Required",
-          `Hi ${emp.full_name || "there"},<br><br>
-          You haven't submitted your <strong>monthly goal plan</strong> for <strong>${currentMonthStr}</strong> yet.<br><br>
-          Please log in to GRX10 and create your goal plan with targets and weightages by <strong>the 7th of this month</strong>.<br><br>
-          <a href="https://swift-link-story.lovable.app/performance/goals" style="display: inline-block; padding: 10px 20px; background: #f5a623; color: #1a1a2e; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Goal Plan →</a>`
+      for (const emp of delinquents) {
+        await insertNotification(supabase, emp.user_id,
+          "🎯 Create Your Monthly Goals",
+          `You haven't created your goal plan for ${currentMonthStr} yet. Please submit your targets by the 7th.`,
+          "goal_reminder", "/performance/goals"
         );
-        const sent = await sendEmail(
-          [{ email: emp.email, name: emp.full_name || undefined }],
-          `🎯 Action Required: Submit Your Goal Plan for ${currentMonthStr}`,
-          html
+        notified++;
+
+        if (emp.email) {
+          const html = emailTemplate("🎯", "Monthly Goal Plan Required",
+            `Hi ${emp.full_name || "there"},<br><br>
+            You haven't submitted your <strong>monthly goal plan</strong> for <strong>${currentMonthStr}</strong> yet.<br><br>
+            Please log in to GRX10 and create your goal plan with targets and weightages by <strong>the 7th of this month</strong>.<br><br>
+            <a href="https://swift-link-story.lovable.app/performance/goals" style="display: inline-block; padding: 10px 20px; background: #f5a623; color: #1a1a2e; text-decoration: none; border-radius: 6px; font-weight: 600;">Create Goal Plan →</a>`
+          );
+          const sent = await sendEmail([{ email: emp.email, name: emp.full_name || undefined }],
+            `🎯 Action Required: Submit Your Goal Plan for ${currentMonthStr}`, html);
+          if (sent) emailed++;
+        }
+      }
+    }
+
+    // LAST DAY: Remind employees who haven't submitted actuals
+    if (isLastDay) {
+      const needActuals = activeProfiles.filter((p) => {
+        if (!p.user_id) return false;
+        const plan = plansByUser.get(p.user_id);
+        if (!plan) return false;
+        if (plan.status !== "approved") return false;
+        const items = Array.isArray(plan.items) ? plan.items : [];
+        return items.some((item: any) => !item.actual || item.actual === "");
+      });
+
+      for (const emp of needActuals) {
+        await insertNotification(supabase, emp.user_id,
+          "📊 Submit Your Goal Actuals",
+          `Today is the last day of the month. Please submit your actual numbers for ${currentMonthStr} before end of day.`,
+          "goal_reminder", "/performance/goals"
         );
-        if (sent) emailed++;
+        notified++;
+
+        if (emp.email) {
+          const html = emailTemplate("📊", "Submit Your Goal Actuals — Deadline Today",
+            `Hi ${emp.full_name || "there"},<br><br>
+            Today is the <strong>last day</strong> to submit your <strong>actual numbers</strong> for your ${currentMonthStr} goal plan.<br><br>
+            Please log in to GRX10, fill in the Actual column for all your goals, and submit for scoring approval.<br><br>
+            <a href="https://swift-link-story.lovable.app/performance/goals" style="display: inline-block; padding: 10px 20px; background: #e74c3c; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600;">Submit Actuals Now →</a>`
+          );
+          const sent = await sendEmail([{ email: emp.email, name: emp.full_name || undefined }],
+            `⚠️ Deadline Today: Submit Goal Actuals for ${currentMonthStr}`, html);
+          if (sent) emailed++;
+        }
       }
     }
   }
 
-  // ─── LAST DAY: Remind employees who haven't submitted actuals ──────────────
-  if (isLastDay) {
-    // Employees with approved plans but items missing actuals
-    const needActuals = activeProfiles.filter((p) => {
-      if (!p.user_id) return false;
-      const plan = plansByUser.get(p.user_id);
-      if (!plan) return false;
-      // Only remind if plan is approved (targets set) but not yet completed/pending_score_approval
-      if (plan.status !== "approved") return false;
-      // Check if any item is missing actuals
-      const items = Array.isArray(plan.items) ? plan.items : [];
-      return items.some((item: any) => !item.actual || item.actual === "");
-    });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVESTMENT DECLARATION REMINDERS (April 1-30)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (hasDeclarationWindow) {
+    const declarationFY = `${year}-${year + 1}`;
+    const daysRemaining = 30 - dayOfMonth;
 
-    for (const emp of needActuals) {
-      await insertNotification(
-        supabase,
-        emp.user_id,
-        "📊 Submit Your Goal Actuals",
-        `Today is the last day of the month. Please submit your actual numbers for ${currentMonthStr} before end of day.`,
-        "goal_reminder",
-        "/performance/goals"
+    // Send reminders on specific days: 1, 5, 10, 15, 20, 25, 28, 29, 30
+    const reminderDays = [1, 5, 10, 15, 20, 25, 28, 29, 30];
+    if (reminderDays.includes(dayOfMonth)) {
+      // Get employees who haven't submitted any declarations for this FY
+      const { data: existingDeclarations } = await supabase
+        .from("investment_declarations")
+        .select("profile_id")
+        .eq("financial_year", declarationFY);
+
+      const declaredProfileIds = new Set((existingDeclarations || []).map((d: any) => d.profile_id));
+
+      const delinquents = activeProfiles.filter(
+        (p) => p.id && p.user_id && !declaredProfileIds.has(p.id)
       );
-      notified++;
 
-      if (emp.email) {
-        const html = emailTemplate(
-          "Submit Your Goal Actuals — Deadline Today",
-          `Hi ${emp.full_name || "there"},<br><br>
-          Today is the <strong>last day</strong> to submit your <strong>actual numbers</strong> for your ${currentMonthStr} goal plan.<br><br>
-          Please log in to GRX10, fill in the Actual column for all your goals, and submit for scoring approval.<br><br>
-          <a href="https://swift-link-story.lovable.app/performance/goals" style="display: inline-block; padding: 10px 20px; background: #e74c3c; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600;">Submit Actuals Now →</a>`
+      const urgency = daysRemaining <= 5 ? "urgent" : daysRemaining <= 10 ? "warning" : "info";
+      const urgencyIcon = urgency === "urgent" ? "🚨" : urgency === "warning" ? "⚠️" : "📋";
+      const urgencyColor = urgency === "urgent" ? "#e74c3c" : urgency === "warning" ? "#f5a623" : "#3498db";
+
+      for (const emp of delinquents) {
+        await insertNotification(supabase, emp.user_id,
+          `${urgencyIcon} Investment Declaration Required`,
+          `Submit your investment declarations for FY ${declarationFY} before April 30th. ${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining.`,
+          "declaration_reminder", "/hrms/payroll"
         );
-        const sent = await sendEmail(
-          [{ email: emp.email, name: emp.full_name || undefined }],
-          `⚠️ Deadline Today: Submit Goal Actuals for ${currentMonthStr}`,
-          html
-        );
-        if (sent) emailed++;
+        notified++;
+
+        if (emp.email) {
+          const html = emailTemplate(urgencyIcon, `Investment Declaration — ${daysRemaining} Days Left`,
+            `Hi ${emp.full_name || "there"},<br><br>
+            The investment declaration window for <strong>FY ${declarationFY}</strong> is open until <strong>April 30th</strong>.<br><br>
+            You haven't submitted your tax-saving investment declarations yet. These declarations (80C, 80D, HRA, NPS, etc.) are used to calculate your monthly TDS deductions throughout the year.<br><br>
+            <strong style="color: ${urgencyColor};">${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining</strong><br><br>
+            <a href="https://swift-link-story.lovable.app/hrms/payroll" style="display: inline-block; padding: 10px 20px; background: ${urgencyColor}; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600;">Submit Declarations →</a>`
+          );
+          const sent = await sendEmail([{ email: emp.email, name: emp.full_name || undefined }],
+            `${urgencyIcon} Investment Declaration Required — FY ${declarationFY} (${daysRemaining} days left)`, html);
+          if (sent) emailed++;
+        }
       }
     }
   }
@@ -228,8 +268,8 @@ Deno.serve(async (req) => {
       success: true,
       date: today.toISOString().split("T")[0],
       month: currentMonthStr,
-      is_first_week: isFirstWeek,
-      is_last_day: isLastDay,
+      goal_window_active: hasGoalWindow,
+      declaration_window_active: hasDeclarationWindow,
       notifications_sent: notified,
       emails_sent: emailed,
     }),
