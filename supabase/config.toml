@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.generate-payslip]
 verify_jwt = false
+
+[functions.goal-reminders]
+verify_jwt = false
