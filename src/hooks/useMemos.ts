@@ -275,6 +275,7 @@ export function useApproveMemo() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-memos-for-manager"] });
       toast.success("Memo approved and published");
       supabase.functions.invoke("send-notification-email", {
         body: { type: "memo_approved", payload: { memo_id: data.id } },
@@ -310,6 +311,7 @@ export function useRejectMemo() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-memos-for-manager"] });
       toast.success("Memo rejected");
       supabase.functions.invoke("send-notification-email", {
         body: { type: "memo_rejected", payload: { memo_id: data.id } },
