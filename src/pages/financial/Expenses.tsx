@@ -101,7 +101,7 @@ export default function Expenses() {
         }
       }
       const { error } = await supabase.from("expenses").insert({
-        user_id: user.id, category: form.category, amount: Number(form.amount),
+        user_id: user.id, profile_id: user.id, category: form.category, amount: Number(form.amount),
         description: form.description || null, expense_date: form.expense_date,
         notes: form.notes || null, receipt_url: receiptUrl,
       });
