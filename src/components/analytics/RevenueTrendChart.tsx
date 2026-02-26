@@ -29,12 +29,12 @@ export function RevenueTrendChart() {
                   <stop offset="95%" stopColor="hsl(346, 87%, 43%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 50% / 0.1)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" />
-              <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
+              <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
               <Tooltip
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(0 0% 50% / 0.2)", background: "hsl(0 0% 98%)" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
               />
               <Legend />
               <Area type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(142, 76%, 36%)" fill="url(#revenueGrad)" strokeWidth={2} />
@@ -60,12 +60,12 @@ export function ProfitBarChart() {
         <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 50% / 0.1)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" />
-              <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
+              <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
               <Tooltip
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(0 0% 50% / 0.2)", background: "hsl(0 0% 98%)" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
               />
               <Bar dataKey="revenue" name="Revenue" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} opacity={0.8} />
               <Bar dataKey="expenses" name="Expenses" fill="hsl(346, 87%, 43%)" radius={[4, 4, 0, 0]} opacity={0.8} />
