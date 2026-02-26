@@ -229,7 +229,7 @@ export default function Expenses() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="My Expenses" value={String(myExpenses.length)} icon={<Wallet className="h-4 w-4" />} />
           <StatCard title="My Total" value={formatCurrency(myTotal)} icon={<Wallet className="h-4 w-4" />} />
-          <StatCard title="Pending Approval" value={formatCurrency(myPending)} icon={<Clock className="h-4 w-4" />} />
+          <StatCard title={isFinanceOrAdmin ? "Org Pending Approval" : "My Pending Approval"} value={formatCurrency(isFinanceOrAdmin ? allExpenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0) : myPending)} icon={<Clock className="h-4 w-4" />} />
           <StatCard title="My Approved" value={String(myExpenses.filter((e) => e.status === "approved" || e.status === "paid").length)} icon={<Check className="h-4 w-4" />} />
         </div>
 
