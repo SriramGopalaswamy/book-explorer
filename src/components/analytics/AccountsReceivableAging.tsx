@@ -45,7 +45,9 @@ export function AccountsReceivableAging() {
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" width={80} />
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), "Outstanding"]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
               />
               <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>
                 {chartData.map((entry, i) => (

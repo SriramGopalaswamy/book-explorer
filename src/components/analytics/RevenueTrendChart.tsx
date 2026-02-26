@@ -34,7 +34,9 @@ export function RevenueTrendChart() {
               <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
               <Tooltip
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
               />
               <Legend />
               <Area type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(142, 76%, 36%)" fill="url(#revenueGrad)" strokeWidth={2} />
@@ -65,7 +67,9 @@ export function ProfitBarChart() {
               <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
               <Tooltip
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
+                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
               />
               <Bar dataKey="revenue" name="Revenue" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} opacity={0.8} />
               <Bar dataKey="expenses" name="Expenses" fill="hsl(346, 87%, 43%)" radius={[4, 4, 0, 0]} opacity={0.8} />
