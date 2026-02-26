@@ -98,15 +98,19 @@ export function exportReportAsPDF(options: PDFOptions) {
   printWindow.onload = () => {
     printWindow.focus();
     printWindow.print();
-    // Close the print window after printing (or cancelling)
+    // Close the print window after printing or cancelling
     printWindow.onafterprint = () => {
       printWindow.close();
+      window.focus();
     };
-    // Fallback: close after a short delay for browsers that don't support onafterprint
-    setTimeout(() => {
-      if (!printWindow.closed) {
-        printWindow.close();
+    // Fallback: poll for when the print dialog closes (for browsers without onafterprint)
+    const pollInterval = setInterval(() => {
+      if (printWindow.closed) {
+        clearInterval(pollInterval);
+        window.focus();
       }
-    }, 1000);
+    }, 500);
+    // Safety cleanup after 5 minutes
+    setTimeout(() => clearInterval(pollInterval), 300000);
   };
 }
