@@ -26,7 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Wallet, Users, Calendar, TrendingUp, Download, Search, FileText,
-  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye,
+  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye, AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -48,6 +48,8 @@ import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
 import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
 import { InvestmentDeclarationPortal } from "@/components/payroll/InvestmentDeclarationPortal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
+import { toast } from "sonner";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -159,6 +161,21 @@ export default function Payroll() {
 
   const handleAdd = () => {
     if (!form.profile_id) return;
+    // Check for existing payslip for same employee & period
+    const existing = records.find(
+      (r) => r.profile_id === form.profile_id && !((r as any).is_superseded)
+    );
+    if (existing) {
+      // Check if there's an approved dispute allowing a revision
+      const hasDispute = (existing as any)._hasApprovedDispute;
+      toast.error(
+        `A payslip already exists for this employee for ${periodLabel(selectedPeriod)}.` +
+        (existing.status === "processed"
+          ? " The employee must raise a dispute and get it approved before a revised payslip can be generated."
+          : " Edit the existing record instead.")
+      );
+      return;
+    }
     createPayroll.mutate(
       { ...form, pay_period: selectedPeriod, status: "draft" } as CreatePayrollData,
       { onSuccess: () => { setIsAddOpen(false); setForm({ profile_id: "", ...defaultForm }); } }
