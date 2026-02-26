@@ -56,13 +56,18 @@ export function useMemos(status?: string) {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["memos", status, isDevMode],
+    queryKey: ["memos", status, user?.id, isDevMode],
     queryFn: async () => {
       if (isDevMode) return [] as Memo[];
-      let query = supabase
-        .from("memos")
-        .select("*")
-        .order("created_at", { ascending: false });
+      if (!user) return [] as Memo[];
+
+      // Check if user is admin/hr/manager
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      const userRoles = roles?.map(r => r.role) ?? [];
+      const isPrivileged = userRoles.some(r => ["admin", "hr", "manager"].includes(r));
 
       if (status && status !== "all") {
         const statusMap: Record<string, string> = {
@@ -71,12 +76,60 @@ export function useMemos(status?: string) {
           draft: "draft",
           rejected: "rejected",
         };
-        query = query.eq("status", statusMap[status] || status);
+        const dbStatus = statusMap[status] || status;
+
+        if (dbStatus === "published" || isPrivileged) {
+          // Published memos visible to all; privileged users see all of any status
+          const { data, error } = await supabase
+            .from("memos")
+            .select("*")
+            .eq("status", dbStatus)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          return data as unknown as Memo[];
+        } else {
+          // Non-privileged: only own memos for non-published statuses
+          const { data, error } = await supabase
+            .from("memos")
+            .select("*")
+            .eq("status", dbStatus)
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          return data as unknown as Memo[];
+        }
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as Memo[];
+      // "all" tab
+      if (isPrivileged) {
+        const { data, error } = await supabase
+          .from("memos")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data as unknown as Memo[];
+      } else {
+        // Non-privileged: own memos + published memos
+        const { data: ownMemos, error: e1 } = await supabase
+          .from("memos")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (e1) throw e1;
+
+        const { data: publishedMemos, error: e2 } = await supabase
+          .from("memos")
+          .select("*")
+          .eq("status", "published")
+          .neq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (e2) throw e2;
+
+        // Merge and sort
+        const all = [...(ownMemos || []), ...(publishedMemos || [])];
+        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return all as unknown as Memo[];
+      }
     },
     enabled: !!user || isDevMode,
   });
@@ -87,11 +140,42 @@ export function useMemoStats() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["memo-stats", isDevMode],
+    queryKey: ["memo-stats", user?.id, isDevMode],
     queryFn: async () => {
       if (isDevMode) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
-      const { data, error } = await supabase.from("memos").select("status");
-      if (error) throw error;
+      if (!user) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
+
+      // Check privilege
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      const userRoles = roles?.map(r => r.role) ?? [];
+      const isPrivileged = userRoles.some(r => ["admin", "hr", "manager"].includes(r));
+
+      let data: { status: string }[];
+
+      if (isPrivileged) {
+        const { data: d, error } = await supabase.from("memos").select("status");
+        if (error) throw error;
+        data = d;
+      } else {
+        // Own memos + published
+        const { data: own, error: e1 } = await supabase
+          .from("memos")
+          .select("status")
+          .eq("user_id", user.id);
+        if (e1) throw e1;
+
+        const { data: pub, error: e2 } = await supabase
+          .from("memos")
+          .select("status")
+          .eq("status", "published")
+          .neq("user_id", user.id);
+        if (e2) throw e2;
+
+        data = [...(own || []), ...(pub || [])];
+      }
 
       return {
         total: data.length,
