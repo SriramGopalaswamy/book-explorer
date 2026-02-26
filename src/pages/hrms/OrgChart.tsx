@@ -326,10 +326,12 @@ function OrgChartCanvas({
   roots,
   searchQuery,
   activeDept,
+  expandAllTrigger,
 }: {
   roots: ProfileNode[];
   searchQuery: string;
   activeDept: string | null;
+  expandAllTrigger: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
@@ -530,6 +532,11 @@ function OrgChartCanvas({
     setCollapsedIds(new Set());
   }, []);
 
+  // Respond to external expand-all trigger
+  useEffect(() => {
+    if (expandAllTrigger > 0) expandAll();
+  }, [expandAllTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const collapseAll = useCallback(() => {
     const ids = new Set<string>();
     function walk(nodes: ProfileNode[], depth: number) {
@@ -616,6 +623,7 @@ export default function OrgChart() {
   const { data: isFinance, isLoading: financeLoading } = useIsFinance();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDept, setActiveDept] = useState<string | null>(null);
+  const [expandAllTrigger, setExpandAllTrigger] = useState(0);
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["org-chart-profiles", isDevMode],
@@ -737,6 +745,16 @@ export default function OrgChart() {
             )}
           </div>
 
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 text-xs"
+            onClick={() => setExpandAllTrigger((v) => v + 1)}
+          >
+            <Expand className="h-3.5 w-3.5" />
+            Expand All
+          </Button>
+
           {/* Dept chips */}
           <div className="flex flex-wrap gap-1.5">
             {deptCounts.map(([dept, count]) => {
@@ -748,23 +766,35 @@ export default function OrgChart() {
                   onClick={() => setActiveDept(active ? null : dept)}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
-                    active ? "shadow-sm" : "opacity-70 hover:opacity-100"
+                    active
+                      ? "ring-2 ring-offset-1 ring-offset-background shadow-md scale-105"
+                      : "opacity-60 hover:opacity-100"
                   )}
                   style={{
-                    borderColor: `${color}60`,
-                    background: active ? `${color}25` : `${color}10`,
+                    borderColor: active ? color : `${color}40`,
+                    background: active ? `${color}30` : `${color}08`,
                     color,
+                    ...(active ? { ringColor: color } as any : {}),
                   }}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                  <span
+                    className={cn("rounded-full transition-all", active ? "h-2 w-2" : "h-1.5 w-1.5")}
+                    style={{ background: color }}
+                  />
                   {dept}
                   <Badge
                     variant="outline"
-                    className="h-4 px-1 text-[9px] border-0 ml-0.5"
-                    style={{ background: `${color}30`, color }}
+                    className={cn(
+                      "h-4 px-1 text-[9px] border-0 ml-0.5",
+                      active && "font-bold"
+                    )}
+                    style={{ background: active ? `${color}40` : `${color}20`, color }}
                   >
                     {count}
                   </Badge>
+                  {active && (
+                    <X className="h-3 w-3 ml-0.5 opacity-70 hover:opacity-100" />
+                  )}
                 </button>
               );
             })}
@@ -807,6 +837,7 @@ export default function OrgChart() {
                   roots={tree}
                   searchQuery={searchQuery}
                   activeDept={activeDept}
+                  expandAllTrigger={expandAllTrigger}
                 />
               </div>
             )}
