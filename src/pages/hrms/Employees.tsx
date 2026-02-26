@@ -78,6 +78,7 @@ import {
   useUpdateEmployee,
   useDeleteEmployee,
   useIsAdminOrHR,
+  useIsAdminHROrFinance,
   Employee,
 } from "@/hooks/useEmployees";
 import { EmployeeDetailDialog } from "@/components/employees/EmployeeDetailDialog";
@@ -155,6 +156,8 @@ function ManagerCombobox({ value, onChange, employees, excludeId }: ManagerCombo
 export default function Employees() {
   const { data: employees = [], isLoading } = useEmployees();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+  const { data: hasViewAccess, isLoading: viewRoleLoading } = useIsAdminHROrFinance();
+  const isReadOnly = hasViewAccess && !isAdmin; // Finance can view but not edit
   const stats = useEmployeeStats();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
@@ -254,8 +257,8 @@ export default function Employees() {
     setIsEditDialogOpen(true);
   };
 
-  // Show access denied if not admin/HR
-  if (!roleLoading && !isAdmin) {
+  // Show access denied if not admin/HR/finance
+  if (!roleLoading && !viewRoleLoading && !hasViewAccess) {
     return (
       <MainLayout title="Employees" subtitle="Manage your workforce and employee information">
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
@@ -264,7 +267,7 @@ export default function Employees() {
           </div>
           <h2 className="text-xl font-semibold">Access Denied</h2>
           <p className="text-muted-foreground text-center max-w-md">
-            You need Admin or HR role to access the employee management system.
+            You need Admin, HR, or Finance role to access the employee directory.
             Contact your administrator for access.
           </p>
         </div>
@@ -332,6 +335,7 @@ export default function Employees() {
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
+              {!isReadOnly && (
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-gradient-hrms text-white hover:opacity-90">
@@ -435,11 +439,12 @@ export default function Employees() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
             </div>
           </div>
 
           <div className="p-6">
-            {isLoading || roleLoading ? (
+            {isLoading || roleLoading || viewRoleLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <Skeleton key={i} className="h-40 rounded-lg" />
@@ -477,6 +482,7 @@ export default function Employees() {
                           <h4 className="truncate font-medium text-foreground">
                             {employee.full_name || "Unnamed"}
                           </h4>
+                          {!isReadOnly && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
@@ -501,6 +507,7 @@ export default function Employees() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          )}
                         </div>
                         <p className="truncate text-sm text-muted-foreground">
                           {employee.job_title || "No title"}
