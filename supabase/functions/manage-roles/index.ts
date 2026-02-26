@@ -13,7 +13,6 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -23,71 +22,72 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(
-    authHeader.replace("Bearer ", "")
-  );
+  // Verify JWT and get user ID using getUser (faster than getClaims)
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
 
-  if (claimsError || !claimsData?.claims) {
+  if (userError || !userData?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const requestingUserId = claimsData.claims.sub as string;
+  const requestingUserId = userData.user.id;
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  // Combined: verify admin role AND get org in parallel
+  const [membershipResult, adminRoleResult] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", requestingUserId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", requestingUserId)
+      .eq("role", "admin")
+      .maybeSingle(),
+  ]);
 
-  // Verify requesting user is admin AND resolve their org
-  const { data: adminMembership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", requestingUserId)
-    .limit(1)
-    .maybeSingle();
+  const requestingOrgId = membershipResult.data?.organization_id;
 
-  const requestingOrgId = adminMembership?.organization_id;
-
-  const { data: adminRole } = await supabase
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", requestingUserId)
-    .eq("role", "admin")
-    .maybeSingle();
-
-    if (!adminRole || !requestingOrgId) {
-      return new Response(JSON.stringify({ error: "Admin access required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  if (!adminRoleResult.data || !requestingOrgId) {
+    return new Response(JSON.stringify({ error: "Admin access required" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const body = await req.json();
     const { action } = body;
 
     if (action === "list_users") {
-      // Scope to requesting admin's organization
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email, department, job_title")
-        .eq("organization_id", requestingOrgId);
-
-      const { data: roles } = await supabase.from("user_roles").select("user_id, role").eq("organization_id", requestingOrgId);
+      // Fetch profiles and roles in parallel
+      const [profilesResult, rolesResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, email, department, job_title")
+          .eq("organization_id", requestingOrgId),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("organization_id", requestingOrgId),
+      ]);
 
       const roleMap = new Map<string, string[]>();
-      for (const r of roles || []) {
+      for (const r of rolesResult.data || []) {
         if (!roleMap.has(r.user_id)) roleMap.set(r.user_id, []);
         roleMap.get(r.user_id)!.push(r.role);
       }
 
-      const users = (profiles || []).map((p) => ({
+      const users = (profilesResult.data || []).map((p) => ({
         user_id: p.user_id,
         full_name: p.full_name,
         email: p.email,

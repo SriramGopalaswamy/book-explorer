@@ -270,32 +270,26 @@ export default function Settings() {
   const checkAdminAndLoad = async () => {
     if (!user) return;
 
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
+    // Check admin role and load users in parallel
+    const [roleResult, usersResult] = await Promise.all([
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle(),
+      supabase.functions.invoke("manage-roles", {
+        body: { action: "list_users" },
+      }),
+    ]);
 
-    setIsAdmin(!!roleData);
+    const admin = !!roleResult.data;
+    setIsAdmin(admin);
 
-    if (roleData) {
-      await loadUsers();
+    if (admin && usersResult.data?.users) {
+      setUsers(usersResult.data.users);
     }
     setLoading(false);
-  };
-
-  const loadUsers = async () => {
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "list_users" },
-    });
-
-    if (error || data?.error) {
-      toast.error(data?.error || "Failed to load users");
-      return;
-    }
-
-    setUsers(data.users || []);
   };
 
   const handleRoleChange = async (userId: string, newRole: string) => {
