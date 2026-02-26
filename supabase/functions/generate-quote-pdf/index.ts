@@ -139,7 +139,6 @@ serve(async (req) => {
       .from("quotes")
       .select(`*, quote_items(*)`)
       .eq("id", quoteId)
-      .eq("user_id", user.id)
       .single();
 
     if (quoteError || !quote) throw new Error("Quote not found");

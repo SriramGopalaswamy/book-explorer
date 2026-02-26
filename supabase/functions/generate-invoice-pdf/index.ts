@@ -145,7 +145,6 @@ serve(async (req) => {
       .from("invoices")
       .select(`*, invoice_items(*)`)
       .eq("id", invoiceId)
-      .eq("user_id", user.id)
       .single();
 
     if (invoiceError || !invoice) throw new Error("Invoice not found");
