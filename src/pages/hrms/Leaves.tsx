@@ -52,7 +52,7 @@ import {
   type LeaveRequest,
   type LeaveType,
 } from "@/hooks/useLeaves";
-import { useIsAdminOrHR } from "@/hooks/useEmployees";
+import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 
 const iconMap: Record<string, typeof Palmtree> = {
   Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
@@ -89,6 +89,7 @@ export default function Leaves() {
   const today = new Date().toISOString().split("T")[0];
   const holidays = holidaysRaw.filter((h) => h.date >= today);
   const { data: isAdminOrHR } = useIsAdminOrHR();
+  const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
   
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
@@ -248,7 +249,7 @@ export default function Leaves() {
               <CardDescription>View and manage leave applications</CardDescription>
             </div>
             <div className="flex gap-2">
-              {isAdminOrHR && (
+              {isAdminHROrFinance && (
                 <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm">
