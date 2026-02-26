@@ -103,8 +103,9 @@ const managerHrmsNav: NavItem[] = [
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 
-// Finance HRMS items (Payroll + Org Chart only)
+// Finance HRMS items (Employees read-only + Payroll + Org Chart)
 const financeHrmsNav: NavItem[] = [
+  { name: "Employees", path: "/hrms/employees", icon: Users, module: "hrms" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
 ];
