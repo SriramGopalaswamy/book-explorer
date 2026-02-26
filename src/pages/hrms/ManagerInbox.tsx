@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Sparkles,
   Wallet,
+  AlertTriangle,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -55,6 +56,12 @@ import {
   totalWeightage,
 } from "@/hooks/useGoalPlans";
 import { Input } from "@/components/ui/input";
+import {
+  usePendingPayslipDisputes,
+  useManagerReviewDispute,
+  DISPUTE_CATEGORIES,
+  type PayslipDispute,
+} from "@/hooks/usePayslipDisputes";
 import {
   useDirectReportsPendingMemos,
   useApproveMemo,
@@ -689,7 +696,105 @@ function PendingMemos() {
   );
 }
 
+// ─── Pending Payslip Disputes ─────────────────────────────────────────────────
+
+function PendingPayslipDisputes() {
+  const { data: reports = [] } = useDirectReports();
+  const { data: disputes = [], isLoading } = usePendingPayslipDisputes("manager");
+  const reviewDispute = useManagerReviewDispute();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<PayslipDispute | null>(null);
+  const [notes, setNotes] = useState("");
+  const [pendingAction, setPendingAction] = useState<"forward" | "reject" | null>(null);
+
+  const openDialog = (dispute: PayslipDispute, action: "forward" | "reject") => {
+    setSelected(dispute);
+    setPendingAction(action);
+    setNotes("");
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!selected || !pendingAction) return;
+    reviewDispute.mutate(
+      { disputeId: selected.id, action: pendingAction, notes: notes || undefined },
+      { onSuccess: () => setDialogOpen(false) }
+    );
+  };
+
+  const periodLabel = (p: string) => {
+    const [y, m] = p.split("-");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[parseInt(m) - 1]} ${y}`;
+  };
+
+  if (isLoading) return <div className="flex items-center justify-center py-16 text-muted-foreground"><Clock className="mr-2 h-4 w-4 animate-spin" /> Loading…</div>;
+  if (disputes.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+      <AlertTriangle className="h-10 w-10 opacity-40" />
+      <p className="text-sm">No pending payslip disputes from your team.</p>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="space-y-3">
+        {disputes.map((d, i) => (
+          <motion.div key={d.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <Card className="border-border/50 bg-card/60">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-sm">{d.profiles?.full_name || "Unknown"}</span>
+                      <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-500 bg-amber-500/10">
+                        Payslip Dispute
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium">{periodLabel(d.pay_period)}</span> · {DISPUTE_CATEGORIES.find(c => c.value === d.dispute_category)?.label || d.dispute_category}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" className="border-green-500/40 text-green-400 hover:bg-green-500/10" onClick={() => openDialog(d, "forward")}>
+                      <Check className="h-3.5 w-3.5 mr-1" /> Forward to HR
+                    </Button>
+                    <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10" onClick={() => openDialog(d, "reject")}>
+                      <X className="h-3.5 w-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{pendingAction === "forward" ? "Forward to HR" : "Reject Dispute"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="dispute-notes">Notes {pendingAction === "reject" ? "(recommended)" : "(optional)"}</Label>
+            <Textarea id="dispute-notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={reviewDispute.isPending} className={pendingAction === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}>
+              {reviewDispute.isPending ? "Saving…" : pendingAction === "forward" ? "Forward" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Pending Reimbursements Component ─────────────────────────────────────────
+
 
 function PendingReimbursements() {
   const { user } = useAuth();
@@ -1055,6 +1160,7 @@ export default function ManagerInbox() {
   const { data: pendingReimbursements = [] } = useDirectReportsPendingReimbursements();
   const { data: pendingExpenses = [] } = useDirectReportsPendingExpenses();
   const { data: pendingMemos = [] } = useDirectReportsPendingMemos();
+  const { data: pendingDisputes = [] } = usePendingPayslipDisputes("manager");
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -1063,7 +1169,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length;
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length;
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -1153,6 +1259,15 @@ export default function ManagerInbox() {
               {pendingGoals.length > 0 && (
                 <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                   {pendingGoals.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="disputes" className="gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Payslip Disputes
+              {pendingDisputes.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingDisputes.length}
                 </span>
               )}
             </TabsTrigger>
@@ -1255,6 +1370,26 @@ export default function ManagerInbox() {
               </CardHeader>
               <CardContent className="pt-0">
                 <PendingExpenses />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Payslip Disputes ── */}
+          <TabsContent value="disputes">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Pending Payslip Disputes
+                  {pendingDisputes.length > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {pendingDisputes.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PendingPayslipDisputes />
               </CardContent>
             </Card>
           </TabsContent>
