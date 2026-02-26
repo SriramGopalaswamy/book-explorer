@@ -63,6 +63,16 @@ export default function CashFlow() {
   const updateStatus = useUpdatePaymentStatus();
   const deletePayment = useDeleteScheduledPayment();
 
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    amount: "",
+    due_date: "",
+    payment_type: "outflow" as "inflow" | "outflow",
+    category: "",
+    recurring: false,
+  });
+
   // Show loading state while checking permissions
   if (isCheckingRole) {
     return (
@@ -86,16 +96,6 @@ export default function CashFlow() {
       />
     );
   }
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    amount: "",
-    due_date: "",
-    payment_type: "outflow" as "inflow" | "outflow",
-    category: "",
-    recurring: false,
-  });
 
   const handleCreatePayment = () => {
     if (!formData.name || !formData.amount || !formData.due_date) {
