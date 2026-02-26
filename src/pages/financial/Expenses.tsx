@@ -134,18 +134,15 @@ export default function Expenses() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  if (isCheckingRole) {
-    return (
-      <MainLayout title="Expenses">
-        <div className="flex items-center justify-center py-24">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-muted-foreground text-sm">Loading...</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
+  const myTotal = myExpenses.reduce((s, e) => s + e.amount, 0);
+  const myPending = myExpenses.filter((e) => e.status === "pending").reduce((s, e) => s + e.amount, 0);
+  const myFiltered = myExpenses.filter((e) => e.category.toLowerCase().includes(search.toLowerCase()) || (e.description ?? "").toLowerCase().includes(search.toLowerCase()));
+  const myPagination = usePagination(myFiltered, 10);
+
+  const approvedExpenses = allExpenses.filter((e) => e.status === "approved");
+  const allFiltered = allExpenses.filter((e) => e.category.toLowerCase().includes(search.toLowerCase()) || (e.description ?? "").toLowerCase().includes(search.toLowerCase()));
+  const allPagination = usePagination(allFiltered, 10);
+  const approvedPagination = usePagination(approvedExpenses, 10);
 
   const renderReceiptButton = (receiptUrl: string | null) => {
     if (!receiptUrl) return <span className="text-muted-foreground text-sm">—</span>;
@@ -161,17 +158,18 @@ export default function Expenses() {
       ><Paperclip className="h-3 w-3" />View</button>
     );
   };
-
-  const myTotal = myExpenses.reduce((s, e) => s + e.amount, 0);
-  const myPending = myExpenses.filter((e) => e.status === "pending").reduce((s, e) => s + e.amount, 0);
-  const myFiltered = myExpenses.filter((e) => e.category.toLowerCase().includes(search.toLowerCase()) || (e.description ?? "").toLowerCase().includes(search.toLowerCase()));
-  const myPagination = usePagination(myFiltered, 10);
-
-  // Finance view data
-  const approvedExpenses = allExpenses.filter((e) => e.status === "approved");
-  const allFiltered = allExpenses.filter((e) => e.category.toLowerCase().includes(search.toLowerCase()) || (e.description ?? "").toLowerCase().includes(search.toLowerCase()));
-  const allPagination = usePagination(allFiltered, 10);
-  const approvedPagination = usePagination(approvedExpenses, 10);
+  if (isCheckingRole) {
+    return (
+      <MainLayout title="Expenses">
+        <div className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-muted-foreground text-sm">Loading...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   const renderExpenseTable = (items: Expense[], pagination: ReturnType<typeof usePagination<Expense>>, isLoading: boolean, showEmployee: boolean, showActions: boolean) => (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
