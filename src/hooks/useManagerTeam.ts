@@ -133,6 +133,7 @@ export function useLeaveApproval() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves-history"] });
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "leave_request_decided",
