@@ -26,7 +26,7 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border bg-card p-6 shadow-card">
+      <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 shadow-lg">
         <Skeleton className="h-6 w-40 mb-4" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -34,7 +34,7 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-card">
+    <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 shadow-lg">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Revenue Trend</h3>
         <div className="flex gap-4 text-sm">
