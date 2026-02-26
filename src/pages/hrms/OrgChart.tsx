@@ -354,20 +354,82 @@ function OrgChartCanvas({
     return { w: maxX + 80, h: maxY + 80 };
   }, [layout]);
 
-  // Highlighted / dimmed sets
+  // Collect ALL nodes (including collapsed/hidden) for search
+  const allNodes = useMemo(() => {
+    const result: ProfileNode[] = [];
+    function walk(nodes: ProfileNode[]) {
+      for (const n of nodes) {
+        result.push(n);
+        walk(n.children);
+      }
+    }
+    walk(roots);
+    return result;
+  }, [roots]);
+
+  // Build ancestor map: nodeId -> set of ancestor ids
+  const ancestorMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    function walk(nodes: ProfileNode[], ancestors: string[]) {
+      for (const n of nodes) {
+        m.set(n.id, new Set(ancestors));
+        walk(n.children, [...ancestors, n.id]);
+      }
+    }
+    walk(roots, []);
+    return m;
+  }, [roots]);
+
+  // Auto-expand ancestors of matched nodes so they become visible
+  useEffect(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const dept = activeDept;
+    if (!q && !dept) return;
+
+    const matchedIds = new Set<string>();
+    for (const n of allNodes) {
+      const nameMatch = q && (n.full_name?.toLowerCase().includes(q) || n.job_title?.toLowerCase().includes(q));
+      const deptMatch = dept && n.department === dept;
+      if (nameMatch || deptMatch) matchedIds.add(n.id);
+    }
+
+    if (matchedIds.size === 0) return;
+
+    // Collect all ancestors that need to be expanded
+    const toExpand = new Set<string>();
+    for (const id of matchedIds) {
+      const ancestors = ancestorMap.get(id);
+      if (ancestors) {
+        for (const a of ancestors) toExpand.add(a);
+      }
+    }
+
+    if (toExpand.size === 0) return;
+
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of toExpand) {
+        if (next.has(id)) { next.delete(id); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [searchQuery, activeDept, allNodes, ancestorMap]);
+
+  // Highlighted / dimmed sets — now searches ALL nodes but highlights only visible ones
   const { highlightedIds, hasDim } = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     const dept = activeDept;
     if (!q && !dept) return { highlightedIds: new Set<string>(), hasDim: false };
 
     const matched = new Set<string>();
-    for (const l of layout) {
-      const nameMatch = q && (l.node.full_name?.toLowerCase().includes(q) || l.node.job_title?.toLowerCase().includes(q));
-      const deptMatch = dept && l.node.department === dept;
-      if (nameMatch || deptMatch) matched.add(l.node.id);
+    for (const n of allNodes) {
+      const nameMatch = q && (n.full_name?.toLowerCase().includes(q) || n.job_title?.toLowerCase().includes(q));
+      const deptMatch = dept && n.department === dept;
+      if (nameMatch || deptMatch) matched.add(n.id);
     }
     return { highlightedIds: matched, hasDim: matched.size > 0 };
-  }, [layout, searchQuery, activeDept]);
+  }, [allNodes, searchQuery, activeDept]);
 
   // Build parent map for edge drawing
   const parentMap = useMemo(() => {
