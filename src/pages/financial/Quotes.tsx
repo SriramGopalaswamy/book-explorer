@@ -561,10 +561,12 @@ export default function Quotes() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setViewingQuote(q)}><Eye className="h-4 w-4 mr-2" /> View Quote</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openEditDialog(q)}><Pencil className="h-4 w-4 mr-2" /> Edit Quote</DropdownMenuItem>
-                              <DropdownMenuItem onClick={async () => {
-                                try { toast({ title: "Generating PDF", description: "Please wait..." }); await downloadQuotePdf(q.id); toast({ title: "Download Complete" }); }
-                                catch (error) { toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed", variant: "destructive" }); }
-                              }}><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
+                              {(q.status === "sent" || q.status === "accepted") && (
+                                <DropdownMenuItem onClick={async () => {
+                                  try { toast({ title: "Generating PDF", description: "Please wait..." }); await downloadQuotePdf(q.id); toast({ title: "Download Complete" }); }
+                                  catch (error) { toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed", variant: "destructive" }); }
+                                }}><Download className="h-4 w-4 mr-2" /> Download PDF</DropdownMenuItem>
+                              )}
                               {q.status === "draft" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "sent" })}><Send className="h-4 w-4 mr-2" /> Mark as Sent</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "accepted" })}><CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Accepted</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "rejected" })}><XCircle className="h-4 w-4 mr-2" /> Mark as Rejected</DropdownMenuItem>}
@@ -679,16 +681,18 @@ export default function Quotes() {
                   </div>
                 )}
 
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={async () => {
-                    try { toast({ title: "Generating PDF..." }); await downloadQuotePdf(viewingQuote.id); toast({ title: "Downloaded!" }); }
-                    catch (error) { toast({ title: "Failed", description: error instanceof Error ? error.message : "Error", variant: "destructive" }); }
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" /> Download PDF
-                </Button>
+                {(viewingQuote.status === "sent" || viewingQuote.status === "accepted") && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={async () => {
+                      try { toast({ title: "Generating PDF..." }); await downloadQuotePdf(viewingQuote.id); toast({ title: "Downloaded!" }); }
+                      catch (error) { toast({ title: "Failed", description: error instanceof Error ? error.message : "Error", variant: "destructive" }); }
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Download PDF
+                  </Button>
+                )}
               </div>
             )}
           </DialogContent>
