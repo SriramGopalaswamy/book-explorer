@@ -94,18 +94,36 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       if (error) throw error;
 
-      const monthlyMap = new Map<string, { revenue: number; expenses: number }>();
+      const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-      data.forEach((record) => {
-        const date = new Date(record.record_date);
-        const monthKey = `${months[date.getMonth()]} ${date.getFullYear()}`;
-        
-        if (!monthlyMap.has(monthKey)) {
-          monthlyMap.set(monthKey, { revenue: 0, expenses: 0 });
+      // Choose granularity based on range span
+      const granularity: "daily" | "weekly" | "monthly" = diffDays <= 31 ? "daily" : diffDays <= 90 ? "weekly" : "monthly";
+
+      const getBucketKey = (dateStr: string): string => {
+        const d = new Date(dateStr);
+        if (granularity === "daily") {
+          return `${d.getDate()} ${months[d.getMonth()]}`;
         }
-        
-        const current = monthlyMap.get(monthKey)!;
+        if (granularity === "weekly") {
+          // Week start (Monday)
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          const weekStart = new Date(d);
+          weekStart.setDate(diff);
+          return `${weekStart.getDate()} ${months[weekStart.getMonth()]}`;
+        }
+        return `${months[d.getMonth()]} ${d.getFullYear()}`;
+      };
+
+      const bucketMap = new Map<string, { revenue: number; expenses: number }>();
+
+      data.forEach((record) => {
+        const key = getBucketKey(record.record_date);
+        if (!bucketMap.has(key)) {
+          bucketMap.set(key, { revenue: 0, expenses: 0 });
+        }
+        const current = bucketMap.get(key)!;
         if (record.type === "revenue") {
           current.revenue += Number(record.amount);
         } else {
@@ -113,14 +131,35 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
         }
       });
 
+      // Generate ordered buckets
       const result: MonthlyData[] = [];
       const currentDate = new Date(fromDate);
-      
-      while (currentDate <= toDate) {
-        const monthKey = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-        const data = monthlyMap.get(monthKey) || { revenue: 0, expenses: 0 };
-        result.push({ month: months[currentDate.getMonth()], ...data });
-        currentDate.setMonth(currentDate.getMonth() + 1);
+
+      if (granularity === "daily") {
+        while (currentDate <= toDate) {
+          const key = `${currentDate.getDate()} ${months[currentDate.getMonth()]}`;
+          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
+          result.push({ month: key, ...d });
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else if (granularity === "weekly") {
+        // Align to Monday
+        const day = currentDate.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        currentDate.setDate(currentDate.getDate() + diff);
+        while (currentDate <= toDate) {
+          const key = `${currentDate.getDate()} ${months[currentDate.getMonth()]}`;
+          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
+          result.push({ month: key, ...d });
+          currentDate.setDate(currentDate.getDate() + 7);
+        }
+      } else {
+        while (currentDate <= toDate) {
+          const key = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
+          result.push({ month: months[currentDate.getMonth()], ...d });
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
       }
 
       return result;
