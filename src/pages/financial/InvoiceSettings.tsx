@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { Save, Upload, Building2, CreditCard, FileSignature, Settings2 } from "lucide-react";
+import { Save, Upload, Building2, CreditCard, FileSignature, Settings2, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface InvoiceSettingsData {
   company_name: string;
@@ -68,6 +69,7 @@ const defaultSettings: InvoiceSettingsData = {
 
 export default function InvoiceSettings() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const [form, setForm] = useState<InvoiceSettingsData>(defaultSettings);
@@ -212,6 +214,9 @@ export default function InvoiceSettings() {
       subtitle="Configure company details, logos, and bank information for your invoices"
     >
       <div className="space-y-6 animate-fade-in">
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => navigate("/financial/invoicing")}>
+          <ArrowLeft className="h-4 w-4" /> Back to Invoicing
+        </Button>
         {/* Company Information + Logo & Signature side by side */}
         <div className="grid lg:grid-cols-[1fr_auto] gap-6">
         {/* Company Information */}
