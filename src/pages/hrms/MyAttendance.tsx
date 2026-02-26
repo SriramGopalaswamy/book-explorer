@@ -17,13 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -41,18 +34,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Palmtree,
-  Stethoscope,
-  Briefcase,
-  Baby,
-  Home,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyTodayAttendance } from "@/hooks/useAttendance";
-import { useLeaveBalances, useCreateLeaveRequest } from "@/hooks/useLeaves";
 import { toast } from "sonner";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -70,14 +57,6 @@ const CORRECTION_STATUS_BADGE: Record<string, { label: string; icon: React.Eleme
   rejected: { label: "Rejected", icon: XCircle, class: "bg-red-100 text-red-700 border-red-200" },
 };
 
-const LEAVE_TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string }> = {
-  casual: { icon: Palmtree, label: "Casual Leave" },
-  sick: { icon: Stethoscope, label: "Sick Leave" },
-  earned: { icon: Briefcase, label: "Earned Leave" },
-  maternity: { icon: Baby, label: "Maternity/Paternity" },
-  paternity: { icon: Baby, label: "Paternity Leave" },
-  wfh: { icon: Home, label: "Work From Home" },
-};
 
 // ─── Hooks ────────────────────────────────────────────────────────────
 function useMyAttendanceHistory() {
@@ -175,12 +154,7 @@ export default function MyAttendance() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Leave dialog state
-  const [leaveOpen, setLeaveOpen] = useState(false);
-  const [leaveType, setLeaveType] = useState("casual");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [leaveReason, setLeaveReason] = useState("");
+  // Leave-related state removed — employees use the dedicated Leaves screen
 
   // Correction dialog state
   const [correctionOpen, setCorrectionOpen] = useState(false);
@@ -191,25 +165,8 @@ export default function MyAttendance() {
 
   const { data: todayAttendance, isLoading: isLoadingToday } = useMyTodayAttendance();
   const { data: history = [], isLoading: isLoadingHistory } = useMyAttendanceHistory();
-  const { data: leaveBalances = [], isLoading: isLoadingBalances } = useLeaveBalances();
   const { data: corrections = [], isLoading: isLoadingCorrections } = useMyCorrectionRequests();
-
-  const submitLeave = useCreateLeaveRequest();
   const submitCorrection = useSubmitCorrectionRequest();
-
-  const handleLeaveSubmit = async () => {
-    if (!fromDate || !toDate) return;
-    await submitLeave.mutateAsync({
-      leave_type: leaveType as any,
-      from_date: fromDate,
-      to_date: toDate,
-      reason: leaveReason,
-    });
-    setLeaveOpen(false);
-    setFromDate("");
-    setToDate("");
-    setLeaveReason("");
-  };
 
   const handleCorrectionSubmit = async () => {
     if (!corrDate || !corrReason) return;
@@ -285,15 +242,6 @@ export default function MyAttendance() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setLeaveOpen(true)}
-                  className="gap-2"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Apply Leave
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => setCorrectionOpen(true)}
                   className="gap-2"
                 >
@@ -307,9 +255,8 @@ export default function MyAttendance() {
 
         {/* ── Tabs ─────────────────────────────────────────── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-2 w-full max-w-xs">
             <TabsTrigger value="overview">Attendance Log</TabsTrigger>
-            <TabsTrigger value="leaves">Leave Balance</TabsTrigger>
             <TabsTrigger value="corrections">Corrections</TabsTrigger>
           </TabsList>
 
@@ -381,45 +328,8 @@ export default function MyAttendance() {
             </Card>
           </TabsContent>
 
-          {/* ── Leave Balance ── */}
-          <TabsContent value="leaves" className="mt-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {isLoadingBalances
-                ? [1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)
-                : leaveBalances.map((bal: any) => {
-                    const cfg = LEAVE_TYPE_CONFIG[bal.leave_type] ?? { icon: Calendar, label: bal.leave_type };
-                    const Icon = cfg.icon;
-                    const remaining = bal.total_days - bal.used_days;
-                    const pct = bal.total_days > 0 ? (bal.used_days / bal.total_days) * 100 : 0;
-                    return (
-                      <Card key={bal.id}>
-                        <CardContent className="p-5">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{cfg.label}</p>
-                              <p className="text-xs text-muted-foreground">{bal.year}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-end justify-between mb-2">
-                            <span className="text-2xl font-bold">{remaining}</span>
-                            <span className="text-sm text-muted-foreground">/ {bal.total_days} days</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-primary transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1.5">{bal.used_days} used</p>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-            </div>
-          </TabsContent>
+
+
 
           {/* ── Correction Requests ── */}
           <TabsContent value="corrections" className="mt-4">
@@ -482,58 +392,8 @@ export default function MyAttendance() {
         </Tabs>
       </div>
 
-      {/* ── Apply Leave Dialog ─────────────────────────────── */}
-      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Apply for Leave</DialogTitle>
-            <DialogDescription>Submit a leave request for your manager's approval.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Leave Type</Label>
-              <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(LEAVE_TYPE_CONFIG).map(([val, cfg]) => (
-                    <SelectItem key={val} value={val}>{cfg.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>From Date</Label>
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>To Date</Label>
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} min={fromDate} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Reason</Label>
-              <Textarea
-                placeholder="Brief reason for leave…"
-                value={leaveReason}
-                onChange={(e) => setLeaveReason(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLeaveOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleLeaveSubmit}
-              disabled={!fromDate || !toDate || submitLeave.isPending}
-            >
-              {submitLeave.isPending ? "Submitting…" : "Submit Request"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+
 
       {/* ── Correction Request Dialog ──────────────────────── */}
       <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
