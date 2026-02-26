@@ -776,7 +776,7 @@ export default function OrgChart() {
                     borderColor: active ? color : `${color}40`,
                     background: active ? `${color}30` : `${color}08`,
                     color,
-                    ...(active ? { ringColor: color } as any : {}),
+                    ...(active ? { '--tw-ring-color': color } as React.CSSProperties : {}),
                   }}
                 >
                   <span
