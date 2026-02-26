@@ -62,19 +62,45 @@ export function useIsAdminOrHR() {
   });
 }
 
-// Fetch all employees (profiles) - managers get limited view, admins/HR get full view
+// Check if user has admin, HR, or finance role
+export function useIsAdminHROrFinance() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["user-role", user?.id, "admin-hr-finance"],
+    queryFn: async () => {
+      if (!user) return false;
+      
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["admin", "hr", "finance"]);
+
+      if (error) {
+        console.error("Error checking role:", error);
+        return false;
+      }
+
+      return data && data.length > 0;
+    },
+    enabled: !!user,
+  });
+}
+
+// Fetch all employees (profiles) - admin/HR/finance get full view, others get limited view
 export function useEmployees() {
   const { user } = useAuth();
-  const { data: isAdmin, isLoading: isRoleLoading } = useIsAdminOrHR();
+  const { data: hasAccess, isLoading: isRoleLoading } = useIsAdminHROrFinance();
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["employees", user?.id, isAdmin, isDevMode],
+    queryKey: ["employees", user?.id, hasAccess, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockEmployees;
       if (!user) return [];
 
-      if (isAdmin) {
+      if (hasAccess) {
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
