@@ -82,6 +82,10 @@ const hrmsNav: NavItem[] = [
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "Holidays", path: "/hrms/holidays", icon: PartyPopper, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+  { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
+  { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
+  { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
 ];
 
 // Employee-only HRMS items
@@ -103,11 +107,16 @@ const managerHrmsNav: NavItem[] = [
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 
-// Finance HRMS items (Employees read-only + Payroll + Org Chart)
+// Finance HRMS items (admin views + employee self-service)
 const financeHrmsNav: NavItem[] = [
   { name: "Employees", path: "/hrms/employees", icon: Users, module: "hrms" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+  { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
+  { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
+  { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
+  { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
 ];
 
 const performanceNav: NavItem[] = [
