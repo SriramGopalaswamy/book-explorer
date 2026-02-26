@@ -411,7 +411,8 @@ function OrgChartCanvas({
     const matchedIds = new Set<string>();
     for (const n of allNodes) {
       const nameMatch = q && (n.full_name?.toLowerCase().includes(q) || n.job_title?.toLowerCase().includes(q));
-      const deptMatch = dept && n.department === dept;
+      const nodeDept = n.department || "Unassigned";
+      const deptMatch = dept && nodeDept === dept;
       if (nameMatch || deptMatch) matchedIds.add(n.id);
     }
 
@@ -447,7 +448,8 @@ function OrgChartCanvas({
     const matched = new Set<string>();
     for (const n of allNodes) {
       const nameMatch = q && (n.full_name?.toLowerCase().includes(q) || n.job_title?.toLowerCase().includes(q));
-      const deptMatch = dept && n.department === dept;
+      const nodeDept = n.department || "Unassigned";
+      const deptMatch = dept && nodeDept === dept;
       if (nameMatch || deptMatch) matched.add(n.id);
     }
     return { highlightedIds: matched, hasDim: matched.size > 0 };
