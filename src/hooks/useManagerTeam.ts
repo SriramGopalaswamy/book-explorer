@@ -119,21 +119,75 @@ export function useLeaveApproval() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const { error } = await supabase
+      const { data: leaveData, error } = await supabase
         .from("leave_requests")
         .update({
           status: action,
           reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
         })
-        .eq("id", leaveId);
+        .eq("id", leaveId)
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Sync to attendance records & profile status when approved
+      if (action === "approved" && leaveData) {
+        try {
+          const fromDate = new Date(leaveData.from_date);
+          const toDate = new Date(leaveData.to_date);
+          const today = new Date().toISOString().split("T")[0];
+
+          const { data: empProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("user_id", leaveData.user_id)
+            .maybeSingle();
+
+          const leaveRecords: Array<{
+            user_id: string;
+            profile_id: string | null;
+            date: string;
+            status: string;
+            notes: string;
+          }> = [];
+
+          for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split("T")[0];
+            leaveRecords.push({
+              user_id: leaveData.user_id,
+              profile_id: empProfile?.id || null,
+              date: dateStr,
+              status: "leave",
+              notes: `Approved ${leaveData.leave_type} leave`,
+            });
+          }
+
+          if (leaveRecords.length > 0) {
+            await supabase
+              .from("attendance_records")
+              .upsert(leaveRecords, { onConflict: "profile_id,date" });
+          }
+
+          if (empProfile?.id && leaveData.from_date <= today && leaveData.to_date >= today) {
+            await supabase
+              .from("profiles")
+              .update({ status: "on_leave" })
+              .eq("id", empProfile.id);
+          }
+        } catch (syncErr) {
+          console.warn("Failed to sync leave to attendance/profile:", syncErr);
+        }
+      }
+
       return { leaveId, action, reviewerName: reviewerProfile?.full_name || user.email || undefined };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-leaves-history"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "leave_request_decided",
