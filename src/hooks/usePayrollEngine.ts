@@ -133,13 +133,14 @@ export function useGeneratePayroll() {
         return { run, entriesCount: 0 };
       }
 
-      // 3. Fetch LWP for the period
+      // 3. Fetch LWP for the period from leave_requests AND attendance_daily
       const [year, month] = payPeriod.split("-").map(Number);
       const periodStart = `${payPeriod}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const periodEnd = `${payPeriod}-${lastDay}`;
       const workingDays = getWorkingDays(year, month);
 
+      // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
         .from("leave_requests")
         .select("profile_id, start_date, end_date")
@@ -155,6 +156,32 @@ export function useGeneratePayroll() {
         const end = new Date(Math.min(new Date(l.end_date).getTime(), new Date(periodEnd).getTime()));
         const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
         lwpMap.set(l.profile_id, (lwpMap.get(l.profile_id) || 0) + days);
+      });
+
+      // Source 2: Attendance absences (status = 'A') from attendance_daily
+      const { data: absences } = await supabase
+        .from("attendance_daily")
+        .select("profile_id, attendance_date")
+        .eq("organization_id", orgId)
+        .eq("status", "A")
+        .gte("attendance_date", periodStart)
+        .lte("attendance_date", periodEnd);
+
+      // Merge absence days (avoid double-counting with leave days)
+      const leaveProfileDates = new Set<string>();
+      (leaves ?? []).forEach((l: any) => {
+        const start = new Date(Math.max(new Date(l.start_date).getTime(), new Date(periodStart).getTime()));
+        const end = new Date(Math.min(new Date(l.end_date).getTime(), new Date(periodEnd).getTime()));
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          leaveProfileDates.add(`${l.profile_id}:${d.toISOString().slice(0, 10)}`);
+        }
+      });
+
+      (absences ?? []).forEach((a: any) => {
+        const key = `${a.profile_id}:${a.attendance_date}`;
+        if (!leaveProfileDates.has(key)) {
+          lwpMap.set(a.profile_id, (lwpMap.get(a.profile_id) || 0) + 1);
+        }
       });
 
       // 4. Generate entries
@@ -282,6 +309,95 @@ export function useDeletePayrollRun() {
     },
     onError: (err: any) => {
       toast.error("Delete failed: " + err.message);
+    },
+  });
+}
+
+export function useUpdateEntryLWP() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ entryId, lwpDays, runId }: { entryId: string; lwpDays: number; runId: string }) => {
+      // Fetch the current entry to recalculate
+      const { data: entry, error: fetchErr } = await supabase
+        .from("payroll_entries")
+        .select("*, profiles!profile_id(full_name)")
+        .eq("id", entryId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const workingDays = entry.working_days;
+      const paidDays = Math.max(0, workingDays - lwpDays);
+      const payRatio = workingDays > 0 ? paidDays / workingDays : 1;
+
+      // Recalculate earnings from breakdown
+      const earningsBreakdown = ((entry.earnings_breakdown as any[]) || []).map((c: any) => ({
+        ...c,
+        monthly: Math.round((Number(c.annual) / 12) * payRatio),
+      }));
+      const deductionsBreakdown = ((entry.deductions_breakdown as any[]) || []).map((c: any) => ({
+        ...c,
+        monthly: Math.round((Number(c.annual) / 12) * payRatio),
+      }));
+
+      const grossEarnings = earningsBreakdown.reduce((s: number, c: any) => s + c.monthly, 0);
+      const totalDeductions = deductionsBreakdown.reduce((s: number, c: any) => s + c.monthly, 0);
+      const perDaySalary = workingDays > 0 ? Math.round((Number(entry.annual_ctc) / 12) / workingDays) : 0;
+      const lwpDeduction = lwpDays * perDaySalary;
+      const netPay = grossEarnings - totalDeductions;
+
+      const { error: updateErr } = await supabase
+        .from("payroll_entries")
+        .update({
+          lwp_days: lwpDays,
+          lwp_deduction: lwpDeduction,
+          paid_days: paidDays,
+          gross_earnings: grossEarnings,
+          total_deductions: totalDeductions,
+          net_pay: netPay,
+          per_day_salary: perDaySalary,
+          earnings_breakdown: earningsBreakdown,
+          deductions_breakdown: deductionsBreakdown,
+        })
+        .eq("id", entryId);
+      if (updateErr) throw updateErr;
+
+      // Update run totals
+      const { data: allEntries } = await supabase
+        .from("payroll_entries")
+        .select("gross_earnings, total_deductions, net_pay")
+        .eq("payroll_run_id", runId);
+
+      if (allEntries) {
+        // Apply the current update to the entry we just changed
+        const totals = allEntries.reduce(
+          (acc, e) => {
+            const isUpdated = false; // already committed above
+            return {
+              gross: acc.gross + Number(e.gross_earnings),
+              ded: acc.ded + Number(e.total_deductions),
+              net: acc.net + Number(e.net_pay),
+            };
+          },
+          { gross: 0, ded: 0, net: 0 }
+        );
+
+        await supabase.from("payroll_runs").update({
+          total_gross: totals.gross,
+          total_deductions: totals.ded,
+          total_net: totals.net,
+        }).eq("id", runId);
+      }
+
+      return { entryId, lwpDays };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["payroll-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      toast.success(`Leave adjustment updated: ${data.lwpDays} LWP days`);
+    },
+    onError: (err: any) => {
+      toast.error("Failed to update LWP: " + err.message);
     },
   });
 }
