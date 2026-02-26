@@ -156,7 +156,7 @@ export default function CreditNotes() {
   const filtered = creditNotes.filter((cn) => cn.client_name.toLowerCase().includes(search.toLowerCase()) || cn.credit_note_number.toLowerCase().includes(search.toLowerCase()));
   const pagination = usePagination(filtered, 10);
 
-  if (isCheckingRole) return null;
+  if (isCheckingRole) return <MainLayout title="Credit Notes"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
   if (!hasFinanceAccess) return <AccessDenied />;
 
   return (
