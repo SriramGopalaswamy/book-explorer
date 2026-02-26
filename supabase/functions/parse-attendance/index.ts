@@ -569,7 +569,8 @@ function parseDetailedFormat(text: string): { employees: ParsedEmployee[]; error
 
   console.log(`[DETAILED] Found ${blocks.length} employee block(s)`);
 
-  const employees: ParsedEmployee[] = [];
+  // Use a Map to merge employees with the same code (multi-page PDFs)
+  const empMap = new Map<string, ParsedEmployee>();
 
   for (const block of blocks) {
     const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
@@ -640,18 +641,37 @@ function parseDetailedFormat(text: string): { employees: ParsedEmployee[]; error
       });
     }
 
-    employees.push({
-      employee_code: empCode,
-      employee_name: empName,
-      card_no: cardNo || undefined,
-      shift_name: shift.name,
-      shift_start: shift.start,
-      shift_end: shift.end,
-      records,
-    });
+    // Merge with existing employee entry if same code (multi-page PDF)
+    if (empMap.has(empCode)) {
+      const existing = empMap.get(empCode)!;
+      // Merge records, avoiding duplicate dates
+      const existingDates = new Set(existing.records.map(r => r.date));
+      for (const rec of records) {
+        if (!existingDates.has(rec.date)) {
+          existing.records.push(rec);
+        }
+      }
+      // Fill in missing metadata
+      if (!existing.employee_name && empName) existing.employee_name = empName;
+      if (!existing.card_no && cardNo) existing.card_no = cardNo;
+      if (!existing.shift_name && shift.name) existing.shift_name = shift.name;
+      if (!existing.shift_start && shift.start) existing.shift_start = shift.start;
+      if (!existing.shift_end && shift.end) existing.shift_end = shift.end;
+      console.log(`[DETAILED] Merged duplicate employee code ${empCode} (now ${existing.records.length} records)`);
+    } else {
+      empMap.set(empCode, {
+        employee_code: empCode,
+        employee_name: empName,
+        card_no: cardNo || undefined,
+        shift_name: shift.name,
+        shift_start: shift.start,
+        shift_end: shift.end,
+        records,
+      });
+    }
   }
 
-  return { employees, errors };
+  return { employees: Array.from(empMap.values()), errors };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -817,16 +837,34 @@ function validateParsedData(employees: ParsedEmployee[], format: AttendanceForma
     };
   }
 
-  // Check for duplicate employee codes
+  // Check for duplicate employee codes — merge them instead of failing
   const codes = employees.map(e => e.employee_code);
   const uniqueCodes = new Set(codes);
   if (uniqueCodes.size !== codes.length) {
     const dupes = codes.filter((c, i) => codes.indexOf(c) !== i);
-    return {
-      valid: false,
-      error: "ATTENDANCE_VALIDATION_FAILED",
-      reason: `Duplicate employee codes detected: ${[...new Set(dupes)].join(", ")}`,
-    };
+    console.log(`[VALIDATE] Merging ${dupes.length} duplicate employee code(s): ${[...new Set(dupes)].join(", ")}`);
+    
+    // Merge duplicates in-place
+    const mergedMap = new Map<string, ParsedEmployee>();
+    for (const emp of employees) {
+      if (mergedMap.has(emp.employee_code)) {
+        const existing = mergedMap.get(emp.employee_code)!;
+        const existingDates = new Set(existing.records.map(r => r.date));
+        for (const rec of emp.records) {
+          if (!existingDates.has(rec.date)) {
+            existing.records.push(rec);
+          }
+        }
+        if (!existing.employee_name && emp.employee_name) existing.employee_name = emp.employee_name;
+        if (!existing.card_no && emp.card_no) existing.card_no = emp.card_no;
+      } else {
+        mergedMap.set(emp.employee_code, { ...emp, records: [...emp.records] });
+      }
+    }
+    // Replace the employees array in-place
+    employees.length = 0;
+    employees.push(...mergedMap.values());
+    console.log(`[VALIDATE] After merge: ${employees.length} unique employees`);
   }
 
   // Validate each employee
