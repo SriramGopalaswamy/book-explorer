@@ -373,26 +373,28 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
-        <NavLink
-          to="/settings"
-          onClick={closeMobile}
-          className={cn(
-            "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-all duration-200",
-            location.pathname === "/settings" && "text-sidebar-accent-foreground"
-          )}
-        >
-          {location.pathname === "/settings" && (
-            <motion.div
-              layoutId="settingsActive"
-              className="absolute inset-0 rounded-xl bg-sidebar-accent"
-              initial={false}
-            />
-          )}
-          <div className="relative z-10 transition-transform duration-300 group-hover:rotate-90">
-            <Settings className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
-          </div>
-          {!collapsed && <span className="relative z-10">Settings</span>}
-        </NavLink>
+        {currentRole === "admin" && (
+          <NavLink
+            to="/settings"
+            onClick={closeMobile}
+            className={cn(
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-all duration-200",
+              location.pathname === "/settings" && "text-sidebar-accent-foreground"
+            )}
+          >
+            {location.pathname === "/settings" && (
+              <motion.div
+                layoutId="settingsActive"
+                className="absolute inset-0 rounded-xl bg-sidebar-accent"
+                initial={false}
+              />
+            )}
+            <div className="relative z-10 transition-transform duration-300 group-hover:rotate-90">
+              <Settings className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+            </div>
+            {!collapsed && <span className="relative z-10">Settings</span>}
+          </NavLink>
+        )}
 
         {/* Desktop collapse toggle */}
         <button
