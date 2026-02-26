@@ -166,10 +166,10 @@ export default function Employees() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null);
+  const [openInEditMode, setOpenInEditMode] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -217,21 +217,6 @@ export default function Employees() {
     });
   };
 
-  const handleEditEmployee = () => {
-    if (!selectedEmployee || !formData.full_name || !formData.email) return;
-    const { manager_id, ...rest } = formData;
-    updateEmployee.mutate(
-      { id: selectedEmployee.id, ...rest, manager_id: manager_id || null },
-      {
-        onSuccess: () => {
-          resetForm();
-          setIsEditDialogOpen(false);
-          setSelectedEmployee(null);
-        },
-      }
-    );
-  };
-
   const handleDeleteEmployee = () => {
     if (!selectedEmployee) return;
     deleteEmployee.mutate(selectedEmployee.id, {
@@ -242,19 +227,9 @@ export default function Employees() {
     });
   };
 
-  const openEditDialog = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setFormData({
-      full_name: employee.full_name || "",
-      email: employee.email || "",
-      job_title: employee.job_title || "",
-      department: employee.department || "",
-      status: employee.status || "active",
-      join_date: employee.join_date || new Date().toISOString().split("T")[0],
-      phone: employee.phone || "",
-      manager_id: employee.manager_id || "",
-    });
-    setIsEditDialogOpen(true);
+  const openEditViaDetailDialog = (employee: Employee) => {
+    setViewEmployee(employee);
+    setOpenInEditMode(true);
   };
 
   // Show access denied if not admin/HR/finance
@@ -466,7 +441,7 @@ export default function Employees() {
                   <div
                     key={employee.id}
                     className="group rounded-lg border bg-background p-4 transition-all hover:border-hrms hover:shadow-md cursor-pointer"
-                    onClick={() => setViewEmployee(employee)}
+                    onClick={() => { setOpenInEditMode(false); setViewEmployee(employee); }}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="h-12 w-12">
@@ -490,7 +465,7 @@ export default function Employees() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(employee); }}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditViaDetailDialog(employee); }}>
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
@@ -554,102 +529,6 @@ export default function Employees() {
         </div>
       </div>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Employee</DialogTitle>
-            <DialogDescription>Update the employee details</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Full Name *</Label>
-              <Input
-                value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Email *</Label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Job Title</Label>
-                <Input
-                  value={formData.job_title}
-                  onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Department</Label>
-                <Select
-                  value={formData.department}
-                  onValueChange={(v) => setFormData({ ...formData, department: v })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(v) => setFormData({ ...formData, status: v as Employee["status"] })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="on_leave">On Leave</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Join Date</Label>
-                <Input
-                  type="date"
-                  value={formData.join_date}
-                  onChange={(e) => setFormData({ ...formData, join_date: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>Phone</Label>
-              <Input
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Manager</Label>
-              <ManagerCombobox
-                value={formData.manager_id}
-                onChange={(v) => setFormData({ ...formData, manager_id: v })}
-                employees={employees}
-                excludeId={selectedEmployee?.id}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditEmployee} disabled={updateEmployee.isPending}>
-              {updateEmployee.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -673,7 +552,8 @@ export default function Employees() {
       <EmployeeDetailDialog
         employee={viewEmployee}
         open={!!viewEmployee}
-        onOpenChange={(open) => !open && setViewEmployee(null)}
+        onOpenChange={(open) => { if (!open) { setViewEmployee(null); setOpenInEditMode(false); } }}
+        initialEditMode={openInEditMode}
         managerName={
           viewEmployee?.manager_id
             ? employees.find((e) => e.id === viewEmployee.manager_id)?.full_name || undefined
@@ -681,7 +561,7 @@ export default function Employees() {
         }
         allEmployees={employees}
         onUpdateEmployee={(data) => {
-          updateEmployee.mutate(data);
+          updateEmployee.mutate(data as any);
         }}
         canEditCompensation={!!isAdmin}
       />
