@@ -51,7 +51,7 @@ export function ExpenseBreakdownDonut() {
               </Pie>
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), "Amount"]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(0 0% 50% / 0.2)" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
               />
               <Legend
                 layout="vertical"
@@ -98,7 +98,7 @@ export function RevenueSourceDonut() {
               </Pie>
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), "Amount"]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(0 0% 50% / 0.2)" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
               />
               <Legend
                 layout="vertical"
