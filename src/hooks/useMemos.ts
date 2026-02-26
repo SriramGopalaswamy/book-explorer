@@ -295,19 +295,17 @@ export function useRejectMemo() {
 
   return useMutation({
     mutationFn: async ({ id, reviewerNotes }: { id: string; reviewerNotes: string }) => {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("memos")
         .update({
           status: "rejected",
           reviewed_by: user?.id,
           reviewer_notes: reviewerNotes,
         } as any)
-        .eq("id", id)
-        .select()
-        .single();
+        .eq("id", id);
 
       if (error) throw error;
-      return data as unknown as Memo;
+      return { id } as unknown as Memo;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["memos"] });
