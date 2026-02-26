@@ -665,19 +665,21 @@ export default function Invoicing() {
                               <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={async () => {
-                                  try {
-                                    toast({ title: "Generating PDF", description: "Please wait..." });
-                                    await downloadInvoicePdf(invoice.id);
-                                    toast({ title: "Download Complete", description: `Invoice ${invoice.invoice_number} downloaded.` });
-                                  } catch (error) {
-                                    toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed to download PDF", variant: "destructive" });
-                                  }
-                                }}
-                              >
-                                <Download className="mr-2 h-4 w-4" /> Download PDF
-                              </DropdownMenuItem>
+                              {(invoice.status === "sent" || invoice.status === "overdue" || invoice.status === "paid") && (
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    try {
+                                      toast({ title: "Generating PDF", description: "Please wait..." });
+                                      await downloadInvoicePdf(invoice.id);
+                                      toast({ title: "Download Complete", description: `Invoice ${invoice.invoice_number} downloaded.` });
+                                    } catch (error) {
+                                      toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed to download PDF", variant: "destructive" });
+                                    }
+                                  }}
+                                >
+                                  <Download className="mr-2 h-4 w-4" /> Download PDF
+                                </DropdownMenuItem>
+                              )}
                               {invoice.status === "draft" && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(invoice.id, "sent")}>
                                   <Send className="mr-2 h-4 w-4" /> Send Invoice
@@ -820,21 +822,22 @@ export default function Invoicing() {
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewingInvoice(null)}>Close</Button>
-              <Button
-                onClick={async () => {
-                  if (!viewingInvoice) return;
-                  try {
-                    toast({ title: "Generating PDF", description: "Please wait..." });
-                    await downloadInvoicePdf(viewingInvoice.id);
-                    toast({ title: "Download Complete" });
-                  } catch (error) {
-                    toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed", variant: "destructive" });
-                  }
-                }}
-                className="bg-gradient-financial text-white hover:opacity-90"
-              >
-                <Download className="mr-2 h-4 w-4" /> Download PDF
-              </Button>
+              {viewingInvoice && (viewingInvoice.status === "sent" || viewingInvoice.status === "overdue" || viewingInvoice.status === "paid") && (
+                <Button
+                  onClick={async () => {
+                    try {
+                      toast({ title: "Generating PDF", description: "Please wait..." });
+                      await downloadInvoicePdf(viewingInvoice.id);
+                      toast({ title: "Download Complete" });
+                    } catch (error) {
+                      toast({ title: "Download Failed", description: error instanceof Error ? error.message : "Failed", variant: "destructive" });
+                    }
+                  }}
+                  className="bg-gradient-financial text-white hover:opacity-90"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Download PDF
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
