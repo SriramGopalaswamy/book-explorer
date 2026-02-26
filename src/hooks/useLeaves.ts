@@ -256,11 +256,64 @@ export function useApproveLeaveRequest() {
         .single();
 
       if (error) throw error;
+
+      // Create attendance_records with status='leave' for each day in the leave range
+      try {
+        const fromDate = new Date(data.from_date);
+        const toDate = new Date(data.to_date);
+        const today = new Date().toISOString().split("T")[0];
+        const leaveRecords: Array<{
+          user_id: string;
+          profile_id: string | null;
+          date: string;
+          status: string;
+          notes: string;
+        }> = [];
+
+        // Get the employee's profile_id
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", data.user_id)
+          .maybeSingle();
+
+        for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split("T")[0];
+          leaveRecords.push({
+            user_id: data.user_id,
+            profile_id: profile?.id || null,
+            date: dateStr,
+            status: "leave",
+            notes: `Approved ${data.leave_type} leave`,
+          });
+        }
+
+        if (leaveRecords.length > 0) {
+          await supabase
+            .from("attendance_records")
+            .upsert(leaveRecords, { onConflict: "profile_id,date" });
+        }
+
+        // Update profile status to 'on_leave' if the leave covers today
+        if (profile?.id && data.from_date <= today && data.to_date >= today) {
+          await supabase
+            .from("profiles")
+            .update({ status: "on_leave" })
+            .eq("id", profile.id);
+        }
+      } catch (syncErr) {
+        console.warn("Failed to sync leave to attendance/profile:", syncErr);
+      }
+
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-attendance-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Leave request approved");
       if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_approved", entity_type: "leave_request", entity_id: data.id, target_user_id: data.user_id, metadata: { leave_type: data.leave_type, from_date: data.from_date, to_date: data.to_date, days: data.days } });
       supabase.functions.invoke("send-notification-email", {
