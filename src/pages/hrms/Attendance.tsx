@@ -184,7 +184,7 @@ export default function Attendance() {
       </Card>
 
       {/* Attendance Table */}
-      <Card>
+      <Card className="mb-6">
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
