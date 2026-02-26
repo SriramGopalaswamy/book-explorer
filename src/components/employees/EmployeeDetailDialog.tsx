@@ -206,7 +206,7 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] min-h-[70vh] overflow-y-auto flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
