@@ -41,8 +41,8 @@ import {
   ScheduledPayment,
 } from "@/hooks/useCashFlow";
 import { useExpenseBreakdown } from "@/hooks/useFinancialData";
-import { useIsFinance } from "@/hooks/useRoles";
-import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useCurrentRole } from "@/hooks/useRoles";
+
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -52,8 +52,7 @@ const formatCurrency = (value: number) => {
 };
 
 export default function CashFlow() {
-  // Role-based access control
-  const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  const { data: currentRole, isLoading: isCheckingRole } = useCurrentRole();
   
   const { data: cashFlowData = [], isLoading: cashFlowLoading } = useCashFlowData(6);
   const { data: summary, isLoading: summaryLoading } = useCashFlowSummary();
@@ -80,20 +79,10 @@ export default function CashFlow() {
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground">Checking permissions...</p>
+            <p className="text-muted-foreground">Loading...</p>
           </div>
         </div>
       </MainLayout>
-    );
-  }
-  
-  // Deny access if user doesn't have finance role
-  if (!hasFinanceAccess) {
-    return (
-      <AccessDenied 
-        message="Finance Access Required"
-        description="You need finance or admin role to access the Cash Flow module. Contact your administrator for access."
-      />
     );
   }
 
