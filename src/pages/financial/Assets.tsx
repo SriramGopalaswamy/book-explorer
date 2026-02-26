@@ -290,12 +290,33 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
 
   const handleSubmit = () => {
     if (!form.asset_tag || !form.name) return;
+    // Convert empty date strings to null to avoid "invalid input for type date"
+    const sanitized = {
+      ...form,
+      warranty_expiry: form.warranty_expiry || null,
+      insurance_expiry: form.insurance_expiry || null,
+      description: form.description || null,
+      sub_category: form.sub_category || null,
+      serial_number: form.serial_number || null,
+      model_number: form.model_number || null,
+      manufacturer: form.manufacturer || null,
+      barcode: form.barcode || null,
+      po_number: form.po_number || null,
+      location: form.location || null,
+      department: form.department || null,
+      custodian: form.custodian || null,
+      warranty_provider: form.warranty_provider || null,
+      insurance_policy: form.insurance_policy || null,
+      notes: form.notes || null,
+      vendor_id: form.vendor_id || null,
+      bill_id: form.bill_id || null,
+    };
     if (editMode && selectedAsset) {
-      updateAsset.mutate({ id: selectedAsset.id, ...form } as any, {
+      updateAsset.mutate({ id: selectedAsset.id, ...sanitized } as any, {
         onSuccess: () => setFormOpen(false),
       });
     } else {
-      createAsset.mutate(form as any, {
+      createAsset.mutate(sanitized as any, {
         onSuccess: () => setFormOpen(false),
       });
     }
