@@ -4,6 +4,7 @@ import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
   Eye, ExternalLink, CheckCircle2, Clock, AlertCircle, FileText, X,
   AlertTriangle, Building2, Calendar, ChevronDown, FileCheck, Receipt,
+  ChevronsUpDown, Check as CheckIcon,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -383,10 +386,13 @@ export default function Bills() {
   const { data: vendors = [] } = useQuery({
     queryKey: ["vendors"],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms").order("name");
+      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city").order("name");
       return data ?? [];
     },
   });
+
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [vendorPopoverOpen, setVendorPopoverOpen] = useState(false);
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
@@ -400,10 +406,13 @@ export default function Bills() {
       const total = subtotal + tax;
       const billNum = form.bill_number || `BILL-${Date.now().toString().slice(-6)}`;
 
+      const matchedVendor = vendors.find((v: any) => v.name === form.vendor_name.trim());
+
       const { data: bill, error } = await supabase
         .from("bills")
         .insert({
           vendor_name: form.vendor_name.trim(),
+          vendor_id: matchedVendor?.id || null,
           bill_number: billNum,
           bill_date: form.bill_date,
           due_date: form.due_date || null,
@@ -811,29 +820,65 @@ export default function Bills() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label>Vendor Name *</Label>
-                <Select
-                  value={vendors.find((v: any) => v.name === form.vendor_name)?.id || ""}
-                  onValueChange={(vendorId) => {
-                    const vendor = vendors.find((v: any) => v.id === vendorId);
-                    if (vendor) {
-                      setForm((p) => ({
-                        ...p,
-                        vendor_name: vendor.name,
-                        vendor_tax_number: vendor.tax_number || p.vendor_tax_number,
-                        payment_terms: vendor.payment_terms || p.payment_terms,
-                      }));
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendors.map((v: any) => (
-                      <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={vendorPopoverOpen} onOpenChange={setVendorPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={vendorPopoverOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {form.vendor_name || "Select a vendor…"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-50 bg-popover border border-border shadow-lg" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search vendors…"
+                        value={vendorSearch}
+                        onValueChange={setVendorSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No vendors found.</CommandEmpty>
+                        <CommandGroup>
+                          {vendors
+                            .filter((v: any) =>
+                              v.name.toLowerCase().includes(vendorSearch.toLowerCase())
+                            )
+                            .map((vendor: any) => (
+                              <CommandItem
+                                key={vendor.id}
+                                value={vendor.name}
+                                onSelect={() => {
+                                  setForm((p) => ({
+                                    ...p,
+                                    vendor_name: vendor.name,
+                                    vendor_tax_number: vendor.tax_number || p.vendor_tax_number,
+                                    payment_terms: vendor.payment_terms || p.payment_terms,
+                                  }));
+                                  setVendorPopoverOpen(false);
+                                  setVendorSearch("");
+                                }}
+                              >
+                                <CheckIcon
+                                  className={`mr-2 h-4 w-4 ${
+                                    form.vendor_name === vendor.name ? "opacity-100" : "opacity-0"
+                                  }`}
+                                />
+                                <div className="flex flex-col">
+                                  <span>{vendor.name}</span>
+                                  {vendor.contact_person && (
+                                    <span className="text-xs text-muted-foreground">{vendor.contact_person}</span>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="space-y-1.5">
