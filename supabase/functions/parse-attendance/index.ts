@@ -151,7 +151,7 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
     if (!btBlocks) continue;
 
     for (const block of btBlocks) {
-      // Tj: (text) Tj
+      // Tj: (text) Tj — parenthesized strings
       const tjMatches = block.match(/\(([^)]*)\)\s*Tj/g);
       if (tjMatches) {
         for (const tj of tjMatches) {
@@ -159,14 +159,30 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
           if (m) allText.push(decodePDFString(m[1]));
         }
       }
-      // TJ: [(text) num (text)] TJ
+      // Tj: <hex> Tj — hex-encoded strings (CIDFont / Unicode)
+      const hexTjMatches = block.match(/<([0-9A-Fa-f]+)>\s*Tj/g);
+      if (hexTjMatches) {
+        for (const htj of hexTjMatches) {
+          const m = htj.match(/<([0-9A-Fa-f]+)>/);
+          if (m) allText.push(decodeHexPDFString(m[1]));
+        }
+      }
+      // TJ: [(text) num (text)] TJ — mixed arrays
       const tjArrays = block.match(/\[(.*?)\]\s*TJ/gs);
       if (tjArrays) {
         for (const arr of tjArrays) {
-          const inner = arr.match(/\(([^)]*)\)/g);
-          if (inner) {
-            allText.push(inner.map((s) => decodePDFString(s.slice(1, -1))).join(""));
+          const parts: string[] = [];
+          // Match both parenthesized and hex strings inside the array
+          const tokenRegex = /\(([^)]*)\)|<([0-9A-Fa-f]+)>/g;
+          let tokenMatch: RegExpExecArray | null;
+          while ((tokenMatch = tokenRegex.exec(arr)) !== null) {
+            if (tokenMatch[1] !== undefined) {
+              parts.push(decodePDFString(tokenMatch[1]));
+            } else if (tokenMatch[2] !== undefined) {
+              parts.push(decodeHexPDFString(tokenMatch[2]));
+            }
           }
+          if (parts.length > 0) allText.push(parts.join(""));
         }
       }
       // ' operator: (text) '
@@ -196,7 +212,7 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // Fallback: raw uncompressed Tj extraction
+  // Fallback: raw uncompressed Tj extraction (both paren and hex)
   if (fullText.length < 100) {
     console.log(`[PDF] Low yield (${fullText.length} chars), trying raw fallback`);
     const rawParts: string[] = [];
@@ -205,6 +221,13 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
       for (const m of rawTj) {
         const t = m.match(/\(([^)]*)\)/);
         if (t) rawParts.push(decodePDFString(t[1]));
+      }
+    }
+    const rawHexTj = raw.match(/<([0-9A-Fa-f]{4,})>\s*Tj/g);
+    if (rawHexTj) {
+      for (const m of rawHexTj) {
+        const t = m.match(/<([0-9A-Fa-f]+)>/);
+        if (t) rawParts.push(decodeHexPDFString(t[1]));
       }
     }
     if (rawParts.join(" ").length > fullText.length) {
@@ -226,6 +249,40 @@ function decodePDFString(s: string): string {
     .replace(/\\\)/g, ")")
     .replace(/\\\\/g, "\\")
     .replace(/\\(\d{3})/g, (_, oct: string) => String.fromCharCode(parseInt(oct, 8)));
+}
+
+/** Decode hex-encoded PDF strings — handles both single-byte and double-byte (UTF-16BE) */
+function decodeHexPDFString(hex: string): string {
+  // Pad odd-length hex
+  if (hex.length % 2 !== 0) hex += "0";
+
+  // Detect UTF-16BE: if length divisible by 4 and high bytes are 00 for ASCII range
+  const bytes: number[] = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substring(i, i + 2), 16));
+  }
+
+  // Check for BOM (FEFF) or if it looks like UTF-16BE (alternating 00 XX pattern)
+  const isUtf16 = (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) ||
+    (bytes.length >= 4 && bytes.length % 2 === 0 && bytes.every((b, i) => i % 2 === 0 ? b < 0x01 : true) &&
+     bytes.filter((_, i) => i % 2 === 0).every(b => b === 0));
+
+  if (isUtf16) {
+    const startIdx = (bytes[0] === 0xFE && bytes[1] === 0xFF) ? 2 : 0;
+    let result = "";
+    for (let i = startIdx; i < bytes.length - 1; i += 2) {
+      const code = (bytes[i] << 8) | bytes[i + 1];
+      if (code === 0) continue; // skip null chars
+      result += String.fromCharCode(code);
+    }
+    return result;
+  }
+
+  // Single-byte encoding
+  return bytes
+    .filter(b => b >= 32 || b === 10 || b === 13 || b === 9)
+    .map(b => String.fromCharCode(b))
+    .join("");
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
