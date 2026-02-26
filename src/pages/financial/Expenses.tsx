@@ -134,7 +134,18 @@ export default function Expenses() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  if (isCheckingRole) return null;
+  if (isCheckingRole) {
+    return (
+      <MainLayout title="Expenses">
+        <div className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-muted-foreground text-sm">Loading...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   const renderReceiptButton = (receiptUrl: string | null) => {
     if (!receiptUrl) return <span className="text-muted-foreground text-sm">—</span>;
