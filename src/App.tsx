@@ -39,6 +39,7 @@ import Employees from "./pages/hrms/Employees";
 import Attendance from "./pages/hrms/Attendance";
 import Leaves from "./pages/hrms/Leaves";
 import Payroll from "./pages/hrms/Payroll";
+import MyPayslips from "./pages/hrms/MyPayslips";
 import Holidays from "./pages/hrms/Holidays";
 import OrgChart from "./pages/hrms/OrgChart";
 import MyAttendance from "./pages/hrms/MyAttendance";
@@ -106,7 +107,8 @@ const App = () => (
               <Route path="/hrms/employees" element={<ProtectedRoute><HRAdminRoute><Employees /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/attendance" element={<ProtectedRoute><HRAdminRoute><Attendance /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
-              <Route path="/hrms/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+              <Route path="/hrms/payroll" element={<ProtectedRoute><FinanceRoute><Payroll /></FinanceRoute></ProtectedRoute>} />
+              <Route path="/hrms/my-payslips" element={<ProtectedRoute><MyPayslips /></ProtectedRoute>} />
               <Route path="/hrms/holidays" element={<ProtectedRoute><HRAdminRoute><Holidays /></HRAdminRoute></ProtectedRoute>} />
               <Route path="/hrms/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
               <Route path="/hrms/my-attendance" element={<ProtectedRoute><MyAttendance /></ProtectedRoute>} />
