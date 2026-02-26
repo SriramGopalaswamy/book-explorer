@@ -13,6 +13,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
+import { useIsFinance } from "@/hooks/useRoles";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { mockEmployees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -511,6 +512,7 @@ function OrgChartCanvas({
 export default function OrgChart() {
   const isDevMode = useIsDevModeWithoutAuth();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+  const { data: isFinance, isLoading: financeLoading } = useIsFinance();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDept, setActiveDept] = useState<string | null>(null);
 
@@ -557,7 +559,7 @@ export default function OrgChart() {
     [profiles]
   );
 
-  if (!roleLoading && !isAdmin && !isDevMode) {
+  if (!roleLoading && !financeLoading && !isAdmin && !isFinance && !isDevMode) {
     return (
       <MainLayout title="Organization Chart" subtitle="Company hierarchy">
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
@@ -566,7 +568,7 @@ export default function OrgChart() {
           </div>
           <h2 className="text-xl font-semibold">Access Denied</h2>
           <p className="text-muted-foreground text-center max-w-md">
-            You need Admin or HR role to view the organization chart.
+            You need Admin, HR, or Finance role to view the organization chart.
           </p>
         </div>
       </MainLayout>
