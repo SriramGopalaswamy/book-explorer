@@ -54,6 +54,20 @@ interface ParseResult {
   };
 }
 
+interface DelimiterAnalysis {
+  primary_delimiter: string;
+  status: "STABLE" | "INCONSISTENT" | "DRIFT_DETECTED" | "NONE";
+  candidates: Record<string, { frequency: number; avg_per_line: number; variance: number }>;
+}
+
+interface ColumnAnalysis {
+  avg_columns: number;
+  variance: number;
+  consistency: "STABLE" | "UNSTABLE";
+  outlier_rows: number;
+  total_table_rows: number;
+}
+
 interface DiagnosticReport {
   file_name: string;
   pages?: number;
@@ -85,6 +99,10 @@ interface DiagnosticReport {
     guess: "likely_summary" | "likely_punch" | "unknown";
     confidence_signals: string[];
   };
+  delimiter_analysis: DelimiterAnalysis;
+  column_analysis: ColumnAnalysis;
+  encoding_anomalies: string[];
+  structural_confidence: number;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1023,6 +1041,237 @@ function buildResult(
 // 8️⃣  DIAGNOSTIC ANALYSIS (non-mutating debug tool)
 // ═══════════════════════════════════════════════════════════════
 
+// ─── 8A: Delimiter Detection ─────────────────────────────────
+
+function delimiterDetection(lines: string[]): DelimiterAnalysis {
+  const candidateDelimiters: Record<string, string> = {
+    pipe: "|",
+    comma: ",",
+    tab: "\t",
+    semicolon: ";",
+    multi_space: "  ", // 2+ consecutive spaces
+  };
+
+  const nonEmptyLines = lines.filter(l => l.trim().length > 0);
+  if (nonEmptyLines.length === 0) {
+    return { primary_delimiter: "none", status: "NONE", candidates: {} };
+  }
+
+  // Count occurrences per line for each candidate
+  const counts: Record<string, number[]> = {};
+  for (const key of Object.keys(candidateDelimiters)) {
+    counts[key] = [];
+  }
+
+  for (const line of nonEmptyLines) {
+    counts.pipe.push((line.match(/\|/g) || []).length);
+    counts.comma.push((line.match(/,/g) || []).length);
+    counts.tab.push((line.match(/\t/g) || []).length);
+    counts.semicolon.push((line.match(/;/g) || []).length);
+    counts.multi_space.push((line.match(/ {2,}/g) || []).length);
+  }
+
+  const stats: Record<string, { frequency: number; avg_per_line: number; variance: number }> = {};
+  let bestKey = "none";
+  let bestScore = -1;
+
+  for (const [key, arr] of Object.entries(counts)) {
+    const linesWithDelim = arr.filter(c => c > 0).length;
+    const frequency = linesWithDelim / nonEmptyLines.length;
+    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const variance = arr.length > 1
+      ? arr.reduce((s, v) => s + (v - avg) ** 2, 0) / arr.length
+      : 0;
+
+    stats[key] = {
+      frequency: Math.round(frequency * 1000) / 1000,
+      avg_per_line: Math.round(avg * 100) / 100,
+      variance: Math.round(variance * 100) / 100,
+    };
+
+    // Score: high frequency, high avg, low variance
+    if (frequency > 0.6 && avg > 0.5) {
+      const score = frequency * 100 + avg * 10 - variance;
+      if (score > bestScore) {
+        bestScore = score;
+        bestKey = key;
+      }
+    }
+  }
+
+  // Determine status
+  let status: DelimiterAnalysis["status"] = "STABLE";
+
+  if (bestKey === "none") {
+    status = "INCONSISTENT";
+  } else {
+    // Check for drift: split lines into halves and compare dominant delimiter
+    const half = Math.floor(nonEmptyLines.length / 2);
+    if (half > 10) {
+      const firstHalfAvg = counts[bestKey].slice(0, half).reduce((a, b) => a + b, 0) / half;
+      const secondHalfAvg = counts[bestKey].slice(half).reduce((a, b) => a + b, 0) / (nonEmptyLines.length - half);
+      // If the average count changes by more than 50%, it's drift
+      if (firstHalfAvg > 0 && secondHalfAvg > 0) {
+        const ratio = Math.max(firstHalfAvg, secondHalfAvg) / Math.min(firstHalfAvg, secondHalfAvg);
+        if (ratio > 1.5) {
+          status = "DRIFT_DETECTED";
+        }
+      } else if ((firstHalfAvg === 0) !== (secondHalfAvg === 0)) {
+        status = "DRIFT_DETECTED";
+      }
+    }
+
+    // Check variance threshold for inconsistency
+    if (stats[bestKey].variance > stats[bestKey].avg_per_line * 2 && status === "STABLE") {
+      status = "INCONSISTENT";
+    }
+  }
+
+  return {
+    primary_delimiter: bestKey === "none" ? "none" : candidateDelimiters[bestKey] || bestKey,
+    status,
+    candidates: stats,
+  };
+}
+
+// ─── 8B: Column Analysis ────────────────────────────────────
+
+function columnAnalysis(lines: string[], delimiter: string): ColumnAnalysis {
+  const nonEmptyLines = lines.filter(l => l.trim().length > 0);
+
+  // Identify table rows: lines containing the delimiter
+  const tableRows = delimiter === "none"
+    ? nonEmptyLines.filter(l => / {2,}/.test(l)) // fallback to multi-space
+    : nonEmptyLines.filter(l => l.includes(delimiter));
+
+  if (tableRows.length === 0) {
+    return { avg_columns: 0, variance: 0, consistency: "STABLE", outlier_rows: 0, total_table_rows: 0 };
+  }
+
+  const splitRegex = delimiter === "  "
+    ? / {2,}/
+    : delimiter === "none"
+      ? / {2,}/
+      : new RegExp(delimiter.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&"));
+
+  const columnCounts = tableRows.map(l => l.split(splitRegex).filter(c => c.trim().length > 0).length);
+  const avg = columnCounts.reduce((a, b) => a + b, 0) / columnCounts.length;
+  const variance = columnCounts.length > 1
+    ? columnCounts.reduce((s, v) => s + (v - avg) ** 2, 0) / columnCounts.length
+    : 0;
+
+  // Outlier: differs from average by more than 1 column
+  const outlierRows = columnCounts.filter(c => Math.abs(c - avg) > 1).length;
+  const outlierRatio = outlierRows / columnCounts.length;
+
+  return {
+    avg_columns: Math.round(avg * 10) / 10,
+    variance: Math.round(variance * 100) / 100,
+    consistency: outlierRatio > 0.1 ? "UNSTABLE" : "STABLE",
+    outlier_rows: outlierRows,
+    total_table_rows: tableRows.length,
+  };
+}
+
+// ─── 8C: Encoding & Token Drift Analysis ────────────────────
+
+function encodingAnalysis(lines: string[]): string[] {
+  const anomalies: string[] = [];
+
+  // Greek character lookalikes
+  const greekMap: Record<string, string> = {
+    "\u03A4\u03BF": "Greek 'Το' instead of 'To'",          // Τo
+    "\u0391": "Greek 'Α' instead of 'A'",
+    "\u0395": "Greek 'Ε' instead of 'E'",
+    "\u039F": "Greek 'Ο' instead of 'O'",
+    "\u0392": "Greek 'Β' instead of 'B'",
+  };
+
+  // Unicode colon variants
+  const colonVariants = ["\uFF1A", "\u02D0", "\uFE55"]; // ：ˑ﹕
+
+  const headerLines = lines.slice(0, Math.min(lines.length, 20));
+  const allLines = lines;
+
+  // Check for Greek lookalikes
+  for (const [pattern, desc] of Object.entries(greekMap)) {
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].includes(pattern)) {
+        anomalies.push(`${desc} (line ${i + 1})`);
+        break; // report once per pattern
+      }
+    }
+  }
+
+  // Check for unicode colon variants
+  for (const variant of colonVariants) {
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].includes(variant)) {
+        anomalies.push(`Unicode colon variant U+${variant.charCodeAt(0).toString(16).toUpperCase()} detected (line ${i + 1})`);
+        break;
+      }
+    }
+  }
+
+  // Non-breaking spaces (U+00A0)
+  const nbspLines = allLines.filter(l => l.includes("\u00A0"));
+  if (nbspLines.length > 0) {
+    anomalies.push(`Non-breaking spaces detected in ${nbspLines.length} line(s)`);
+  }
+
+  // Non-ASCII in header rows
+  for (let i = 0; i < headerLines.length; i++) {
+    const line = headerLines[i];
+    // eslint-disable-next-line no-control-regex
+    const nonAscii = line.match(/[^\x00-\x7F]/g);
+    if (nonAscii && nonAscii.length > 0) {
+      const unique = [...new Set(nonAscii)];
+      anomalies.push(`Non-ASCII characters in header line ${i + 1}: ${unique.map(c => `U+${c.charCodeAt(0).toString(16).toUpperCase()}`).join(", ")}`);
+      break; // report once
+    }
+  }
+
+  return anomalies;
+}
+
+// ─── 8D: Structural Confidence Score ────────────────────────
+
+function structuralScoring(
+  delimAnalysis: DelimiterAnalysis,
+  colAnalysis: ColumnAnalysis,
+  encAnomalies: string[],
+  totalRecords: number,
+  employeeHeaderCount: number,
+  format: string,
+): number {
+  let score = 100;
+
+  // Delimiter penalties
+  if (delimAnalysis.status === "INCONSISTENT") score -= 20;
+  else if (delimAnalysis.status === "DRIFT_DETECTED") score -= 15;
+  else if (delimAnalysis.status === "NONE") score -= 10;
+
+  // Column variance penalty
+  if (colAnalysis.consistency === "UNSTABLE") score -= 15;
+  else if (colAnalysis.variance > 1.0) score -= 5;
+
+  // Encoding anomalies
+  if (encAnomalies.length > 0) score -= Math.min(encAnomalies.length * 5, 10);
+
+  // Zero records
+  if (totalRecords === 0) score -= 25;
+
+  // Employee header inconsistency (for detailed format)
+  if (format === "detailed" && employeeHeaderCount === 0) score -= 10;
+
+  // Unknown format
+  if (format === "unknown") score -= 10;
+
+  return Math.max(score, 0);
+}
+
+// ─── 8E: Main Diagnostic Runner ─────────────────────────────
+
 function runDiagnosticAnalysis(text: string, fileName: string, pages?: number): DiagnosticReport {
   const rawLines = text.split("\n");
   const nonEmptyLines = rawLines.filter(l => l.trim().length > 0);
@@ -1055,13 +1304,28 @@ function runDiagnosticAnalysis(text: string, fileName: string, pages?: number): 
   const format = detectFormat(text);
   signals.push(`Detected format: ${format}`);
 
+  let totalRecords = 0;
   if (format !== "unknown") {
     const result = format === "detailed" ? parseDetailedFormat(text) : parseSummaryFormat(text);
     signals.push(`Parsed ${result.employees.length} employees`);
-    const totalRecords = result.employees.reduce((s, e) => s + e.records.length, 0);
+    totalRecords = result.employees.reduce((s, e) => s + e.records.length, 0);
     signals.push(`Total records: ${totalRecords}`);
     if (result.errors.length > 0) signals.push(`Parse errors: ${result.errors.length}`);
   }
+
+  // ─── New: Structural diagnostics ───────────────────────
+  const delimAnalysis = delimiterDetection(rawLines);
+  const colAnalysis = columnAnalysis(rawLines, delimAnalysis.primary_delimiter);
+  const encAnomalies = encodingAnalysis(rawLines);
+  const confidence = structuralScoring(
+    delimAnalysis, colAnalysis, encAnomalies,
+    totalRecords, employeeWordMatches.length, format,
+  );
+
+  signals.push(`Structural confidence: ${confidence}/100`);
+  if (delimAnalysis.status !== "STABLE") signals.push(`Delimiter: ${delimAnalysis.status}`);
+  if (colAnalysis.consistency !== "STABLE") signals.push(`Columns: ${colAnalysis.consistency}`);
+  if (encAnomalies.length > 0) signals.push(`Encoding anomalies: ${encAnomalies.length}`);
 
   return {
     file_name: fileName,
@@ -1091,6 +1355,10 @@ function runDiagnosticAnalysis(text: string, fileName: string, pages?: number): 
       empty_line_count: rawLines.length - nonEmptyLines.length,
     },
     classification: { guess, confidence_signals: signals },
+    delimiter_analysis: delimAnalysis,
+    column_analysis: colAnalysis,
+    encoding_anomalies: encAnomalies,
+    structural_confidence: confidence,
   };
 }
 
@@ -1189,6 +1457,10 @@ Deno.serve(async (req) => {
           patterns: diagnostic.patterns,
           fragmentation: diagnostic.fragmentation,
           classification: diagnostic.classification,
+          delimiter_analysis: diagnostic.delimiter_analysis,
+          column_analysis: diagnostic.column_analysis,
+          encoding_anomalies: diagnostic.encoding_anomalies,
+          structural_confidence: diagnostic.structural_confidence,
         },
       });
 
