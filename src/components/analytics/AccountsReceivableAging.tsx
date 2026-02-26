@@ -40,12 +40,12 @@ export function AccountsReceivableAging() {
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 50% / 0.1)" horizontal={false} />
-              <XAxis type="number" tickFormatter={formatCurrency} tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(0 0% 50% / 0.5)" width={80} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis type="number" tickFormatter={formatCurrency} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} stroke="hsl(var(--border))" width={80} />
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), "Outstanding"]}
-                contentStyle={{ borderRadius: 12, border: "1px solid hsl(0 0% 50% / 0.2)" }}
+                contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
               />
               <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>
                 {chartData.map((entry, i) => (
