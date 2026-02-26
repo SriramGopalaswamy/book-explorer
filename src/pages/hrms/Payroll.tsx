@@ -385,11 +385,228 @@ export default function Payroll() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="engine">Payroll Engine</TabsTrigger>
+              <TabsTrigger value="register">Payroll Register</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="declarations">Tax Declarations</TabsTrigger>
             </TabsList>
             <TabsContent value="engine">
               <PayrollEnginePanel />
+            </TabsContent>
+            <TabsContent value="register">
+              <Card className="glass-card">
+                <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="text-gradient-primary">Payroll Register</CardTitle>
+                    <CardDescription>Salary breakdown for {periodLabel(selectedPeriod)}</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                      <SelectTrigger className="w-40">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {periods().map((p) => (
+                          <SelectItem key={p} value={p}>{periodLabel(p)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search..."
+                        className="pl-9 w-40"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="processed">Processed</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {selectedIds.length > 0 && (
+                      <Button
+                        onClick={handleBulkProcess}
+                        disabled={processPayroll.isPending}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Zap className="h-4 w-4 mr-1" />
+                        Process ({selectedIds.length})
+                      </Button>
+                    )}
+
+                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Record
+                        </Button>
+                      </DialogTrigger>
+
+                      <BulkUploadDialog config={bulkUploadConfig} />
+                      <DialogContent className="max-w-md glass-morphism">
+                        <DialogHeader>
+                          <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
+                          <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
+                        </DialogHeader>
+                        {salaryFormFields}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                          <Button onClick={handleAdd} disabled={createPayroll.isPending}>
+                            {createPayroll.isPending ? "Adding..." : "Add Record"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoading || roleLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                      <p className="mt-3 text-muted-foreground">
+                        {searchQuery || statusFilter !== "all"
+                          ? "No records match your filter"
+                          : `No payroll records for ${periodLabel(selectedPeriod)}`}
+                      </p>
+                      <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>
+                        <Plus className="h-4 w-4 mr-1" /> Add First Record
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-[600px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-10">
+                              <Checkbox
+                                checked={selectedIds.length === filtered.length && filtered.length > 0}
+                                onCheckedChange={toggleAll}
+                              />
+                            </TableHead>
+                            <TableHead>Employee</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead className="text-right">Basic</TableHead>
+                            <TableHead className="text-right">Allowances</TableHead>
+                            <TableHead className="text-right">Deductions</TableHead>
+                            <TableHead className="text-right">Net Pay</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pagination.paginatedItems.map((r) => {
+                            const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
+                            const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
+                            return (
+                              <TableRow
+                                key={r.id}
+                                className="cursor-pointer hover:bg-primary/5 transition-colors"
+                                onClick={() => setPaySlipRecord(r)}
+                              >
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedIds.includes(r.id)}
+                                    onCheckedChange={() => toggleSelect(r.id)}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{r.profiles?.full_name || "Unknown"}</p>
+                                    <p className="text-sm text-muted-foreground">{r.profiles?.job_title || ""}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
+                                <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
+                                <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                                <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
+                                    {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => setPaySlipRecord(r)}>
+                                        <Eye className="mr-2 h-4 w-4" /> View Pay Slip
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openEdit(r)}>
+                                        <Pencil className="mr-2 h-4 w-4" /> Edit
+                                      </DropdownMenuItem>
+                                      {r.status !== "processed" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "processed" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Mark Processed
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={() => setDeleteTarget(r)}
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                      <TablePagination
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        totalItems={pagination.totalItems}
+                        from={pagination.from}
+                        to={pagination.to}
+                        pageSize={pagination.pageSize}
+                        onPageChange={pagination.setPage}
+                        onPageSizeChange={pagination.setPageSize}
+                      />
+                    </div>
+                  )}
+
+                  {/* Summary footer */}
+                  {filtered.length > 0 && (
+                    <div className="mt-4 rounded-xl glass-morphism p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Total Basic</p>
+                        <p className="font-semibold">{formatCurrency(stats.totalBasic)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total Allowances</p>
+                        <p className="font-semibold text-green-600">{formatCurrency(stats.totalAllowances)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total Deductions</p>
+                        <p className="font-semibold text-destructive">{formatCurrency(stats.totalDeductions)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Net Payroll</p>
+                        <p className="font-bold text-lg text-gradient-primary">{formatCurrency(stats.totalPayroll)}</p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
             <TabsContent value="analytics">
               <PayrollAnalyticsDashboard />
@@ -402,224 +619,6 @@ export default function Payroll() {
               )}
             </TabsContent>
           </Tabs>
-        </motion.div>
-
-        {/* Payroll Table */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.4 }}>
-        <Card className="glass-card">
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-gradient-primary">Payroll Register</CardTitle>
-              <CardDescription>Salary breakdown for {periodLabel(selectedPeriod)}</CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger className="w-40">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods().map((p) => (
-                    <SelectItem key={p} value={p}>{periodLabel(p)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-9 w-40"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="processed">Processed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {selectedIds.length > 0 && (
-                <Button
-                  onClick={handleBulkProcess}
-                  disabled={processPayroll.isPending}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <Zap className="h-4 w-4 mr-1" />
-                  Process ({selectedIds.length})
-                </Button>
-              )}
-
-              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Record
-                  </Button>
-                </DialogTrigger>
-
-              <BulkUploadDialog config={bulkUploadConfig} />
-                <DialogContent className="max-w-md glass-morphism">
-                  <DialogHeader>
-                    <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
-                    <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
-                  </DialogHeader>
-                  {salaryFormFields}
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAdd} disabled={createPayroll.isPending}>
-                      {createPayroll.isPending ? "Adding..." : "Add Record"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading || roleLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-3 text-muted-foreground">
-                  {searchQuery || statusFilter !== "all"
-                    ? "No records match your filter"
-                    : `No payroll records for ${periodLabel(selectedPeriod)}`}
-                </p>
-                <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Add First Record
-                </Button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table className="min-w-[600px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={selectedIds.length === filtered.length && filtered.length > 0}
-                          onCheckedChange={toggleAll}
-                        />
-                      </TableHead>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead className="text-right">Basic</TableHead>
-                      <TableHead className="text-right">Allowances</TableHead>
-                      <TableHead className="text-right">Deductions</TableHead>
-                      <TableHead className="text-right">Net Pay</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagination.paginatedItems.map((r) => {
-                      const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
-                      const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
-                      return (
-                        <TableRow
-                          key={r.id}
-                          className="cursor-pointer hover:bg-primary/5 transition-colors"
-                          onClick={() => setPaySlipRecord(r)}
-                        >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={selectedIds.includes(r.id)}
-                              onCheckedChange={() => toggleSelect(r.id)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{r.profiles?.full_name || "Unknown"}</p>
-                              <p className="text-sm text-muted-foreground">{r.profiles?.job_title || ""}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
-                          <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
-                          <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
-                          <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
-                              {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setPaySlipRecord(r)}>
-                                  <Eye className="mr-2 h-4 w-4" /> View Pay Slip
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEdit(r)}>
-                                  <Pencil className="mr-2 h-4 w-4" /> Edit
-                                </DropdownMenuItem>
-                                {r.status !== "processed" && (
-                                  <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "processed" })}>
-                                    <CheckCircle className="mr-2 h-4 w-4" /> Mark Processed
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => setDeleteTarget(r)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                <TablePagination
-                  page={pagination.page}
-                  totalPages={pagination.totalPages}
-                  totalItems={pagination.totalItems}
-                  from={pagination.from}
-                  to={pagination.to}
-                  pageSize={pagination.pageSize}
-                  onPageChange={pagination.setPage}
-                  onPageSizeChange={pagination.setPageSize}
-                />
-              </div>
-            )}
-
-            {/* Summary footer */}
-            {filtered.length > 0 && (
-              <div className="mt-4 rounded-xl glass-morphism p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Total Basic</p>
-                  <p className="font-semibold">{formatCurrency(stats.totalBasic)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Allowances</p>
-                  <p className="font-semibold text-green-600">{formatCurrency(stats.totalAllowances)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Deductions</p>
-                  <p className="font-semibold text-destructive">{formatCurrency(stats.totalDeductions)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Net Payroll</p>
-                  <p className="font-bold text-lg text-gradient-primary">{formatCurrency(stats.totalPayroll)}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
         </motion.div>
       </div>
 
