@@ -383,7 +383,7 @@ export default function Bills() {
   const { data: vendors = [] } = useQuery({
     queryKey: ["vendors"],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id,name").order("name");
+      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms").order("name");
       return data ?? [];
     },
   });
@@ -811,15 +811,29 @@ export default function Bills() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label>Vendor Name *</Label>
-                <Input
-                  list="vendor-list-bills"
-                  value={form.vendor_name}
-                  onChange={(e) => setForm((p) => ({ ...p, vendor_name: e.target.value }))}
-                  placeholder="e.g. Acme Supplies Pvt. Ltd."
-                />
-                <datalist id="vendor-list-bills">
-                  {vendors.map((v: any) => <option key={v.id} value={v.name} />)}
-                </datalist>
+                <Select
+                  value={vendors.find((v: any) => v.name === form.vendor_name)?.id || ""}
+                  onValueChange={(vendorId) => {
+                    const vendor = vendors.find((v: any) => v.id === vendorId);
+                    if (vendor) {
+                      setForm((p) => ({
+                        ...p,
+                        vendor_name: vendor.name,
+                        vendor_tax_number: vendor.tax_number || p.vendor_tax_number,
+                        payment_terms: vendor.payment_terms || p.payment_terms,
+                      }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v: any) => (
+                      <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-1.5">
