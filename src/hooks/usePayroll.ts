@@ -37,6 +37,10 @@ export interface PayrollRecord {
   pf_deduction: number;
   tax_deduction: number;
   other_deductions: number;
+  lop_days: number;
+  lop_deduction: number;
+  working_days: number;
+  paid_days: number;
   net_pay: number;
   status: string;
   processed_at: string | null;
@@ -61,6 +65,10 @@ export interface CreatePayrollData {
   pf_deduction: number;
   tax_deduction: number;
   other_deductions: number;
+  lop_days?: number;
+  lop_deduction?: number;
+  working_days?: number;
+  paid_days?: number;
   net_pay: number;
   status?: string;
   notes?: string;
@@ -163,6 +171,10 @@ export function useCreatePayroll() {
           pf_deduction: validated.pf_deduction,
           tax_deduction: validated.tax_deduction,
           other_deductions: validated.other_deductions,
+          lop_days: validated.lop_days ?? 0,
+          lop_deduction: validated.lop_deduction ?? 0,
+          working_days: validated.working_days ?? 0,
+          paid_days: validated.paid_days ?? 0,
           net_pay: validated.net_pay,
           status: validated.status ?? "draft",
           notes: validated.notes ?? null,
