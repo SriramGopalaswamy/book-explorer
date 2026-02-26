@@ -65,7 +65,7 @@ export function useIsAdminOrHR() {
 // Fetch all employees (profiles) - managers get limited view, admins/HR get full view
 export function useEmployees() {
   const { user } = useAuth();
-  const { data: isAdmin } = useIsAdminOrHR();
+  const { data: isAdmin, isLoading: isRoleLoading } = useIsAdminOrHR();
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
@@ -96,7 +96,7 @@ export function useEmployees() {
         })) as Employee[];
       }
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !isRoleLoading) || isDevMode,
   });
 }
 
