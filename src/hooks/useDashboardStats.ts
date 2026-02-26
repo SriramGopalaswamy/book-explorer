@@ -84,8 +84,8 @@ export function useDashboardStats() {
       // Non-financial stats (unchanged)
       const [employeesResult, pendingInvoicesResult, lastMonthInvoicesResult, goalsResult] = await Promise.all([
         supabase.from("profiles").select("id").eq("status", "active"),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent"]),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd),
+        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]),
+        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd),
         supabase.from("goals").select("progress, status"),
       ]);
 
