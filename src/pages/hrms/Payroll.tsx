@@ -95,7 +95,9 @@ const statusStyles: Record<string, string> = {
 
 const defaultForm: Omit<CreatePayrollData, "profile_id" | "pay_period"> = {
   basic_salary: 0, hra: 0, transport_allowance: 0, other_allowances: 0,
-  pf_deduction: 0, tax_deduction: 0, other_deductions: 0, net_pay: 0,
+  pf_deduction: 0, tax_deduction: 0, other_deductions: 0,
+  lop_days: 0, lop_deduction: 0, working_days: 0, paid_days: 0,
+  net_pay: 0,
 };
 
 export default function Payroll() {
@@ -128,14 +130,27 @@ export default function Payroll() {
 
   const [form, setForm] = useState({ profile_id: "", ...defaultForm });
 
-  const calcNet = (f: typeof form) =>
-    f.basic_salary + f.hra + f.transport_allowance + f.other_allowances
-    - f.pf_deduction - f.tax_deduction - f.other_deductions;
+  const calcNet = (f: typeof form) => {
+    const gross = f.basic_salary + f.hra + f.transport_allowance + f.other_allowances;
+    const deductions = f.pf_deduction + f.tax_deduction + f.other_deductions;
+    const lopDeduction = f.lop_days > 0 && f.working_days > 0
+      ? Math.round((gross / f.working_days) * f.lop_days)
+      : 0;
+    return gross - deductions - lopDeduction;
+  };
 
   const setField = (key: string, val: string) => {
     const num = parseFloat(val) || 0;
     setForm((prev) => {
       const next = { ...prev, [key]: num };
+      // Auto-calc LOP deduction and paid days
+      if (key === "lop_days" || key === "working_days") {
+        const gross = next.basic_salary + next.hra + next.transport_allowance + next.other_allowances;
+        next.lop_deduction = next.lop_days > 0 && next.working_days > 0
+          ? Math.round((gross / next.working_days) * next.lop_days)
+          : 0;
+        next.paid_days = Math.max(0, next.working_days - next.lop_days);
+      }
       next.net_pay = calcNet(next);
       return next;
     });
@@ -193,6 +208,10 @@ export default function Payroll() {
       pf_deduction: Number(r.pf_deduction),
       tax_deduction: Number(r.tax_deduction),
       other_deductions: Number(r.other_deductions),
+      lop_days: Number(r.lop_days) || 0,
+      lop_deduction: Number(r.lop_deduction) || 0,
+      working_days: Number(r.working_days) || 0,
+      paid_days: Number(r.paid_days) || 0,
       net_pay: Number(r.net_pay),
     });
     setIsEditOpen(true);
@@ -259,6 +278,35 @@ export default function Payroll() {
               />
             </div>
           ))}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-amber-600">Loss of Pay (LOP)</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-1">
+            <Label className="text-xs">Working Days</Label>
+            <Input
+              type="number"
+              value={form.working_days || ""}
+              onChange={(e) => setField("working_days", e.target.value)}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-xs">LOP Days</Label>
+            <Input
+              type="number"
+              value={form.lop_days || ""}
+              onChange={(e) => setField("lop_days", e.target.value)}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-xs">Paid Days</Label>
+            <Input type="number" value={form.paid_days || ""} disabled className="bg-muted/50" />
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-xs">LOP Deduction</Label>
+            <Input type="number" value={form.lop_deduction || ""} disabled className="bg-muted/50" />
+          </div>
         </div>
       </div>
       <div className="rounded-lg border bg-primary/5 border-primary/20 p-3 flex justify-between items-center">
