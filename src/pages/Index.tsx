@@ -4,9 +4,10 @@ import Dashboard from "./Dashboard";
 import { useCurrentRole } from "@/hooks/useRoles";
 
 const Index = () => {
-  const { data: currentRole, isLoading } = useCurrentRole();
+  const { data: currentRole, isLoading, isFetching, isPending } = useCurrentRole();
 
-  if (isLoading) {
+  // Show loader while role is being resolved (initial load, refetch, or pending state)
+  if (isLoading || isPending || (isFetching && currentRole === undefined)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
