@@ -4019,9 +4019,11 @@ export type Database = {
           created_at: string
           hra: number
           id: string
+          is_superseded: boolean
           net_pay: number
           notes: string | null
           organization_id: string
+          original_record_id: string | null
           other_allowances: number
           other_deductions: number
           pay_period: string
@@ -4029,19 +4031,23 @@ export type Database = {
           processed_at: string | null
           profile_id: string | null
           status: string
+          superseded_by: string | null
           tax_deduction: number
           transport_allowance: number
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
           basic_salary?: number
           created_at?: string
           hra?: number
           id?: string
+          is_superseded?: boolean
           net_pay?: number
           notes?: string | null
           organization_id?: string
+          original_record_id?: string | null
           other_allowances?: number
           other_deductions?: number
           pay_period: string
@@ -4049,19 +4055,23 @@ export type Database = {
           processed_at?: string | null
           profile_id?: string | null
           status?: string
+          superseded_by?: string | null
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
           basic_salary?: number
           created_at?: string
           hra?: number
           id?: string
+          is_superseded?: boolean
           net_pay?: number
           notes?: string | null
           organization_id?: string
+          original_record_id?: string | null
           other_allowances?: number
           other_deductions?: number
           pay_period?: string
@@ -4069,10 +4079,12 @@ export type Database = {
           processed_at?: string | null
           profile_id?: string | null
           status?: string
+          superseded_by?: string | null
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -4090,6 +4102,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payroll_records_original_record_id_fkey"
+            columns: ["original_record_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payroll_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
@@ -4101,6 +4120,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
             referencedColumns: ["id"]
           },
         ]
@@ -4172,6 +4198,117 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payslip_disputes: {
+        Row: {
+          created_at: string
+          description: string
+          dispute_category: string
+          finance_notes: string | null
+          finance_reviewed_at: string | null
+          finance_reviewed_by: string | null
+          hr_notes: string | null
+          hr_reviewed_at: string | null
+          hr_reviewed_by: string | null
+          id: string
+          manager_notes: string | null
+          manager_reviewed_at: string | null
+          manager_reviewed_by: string | null
+          organization_id: string
+          pay_period: string
+          payroll_record_id: string
+          profile_id: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          revised_payroll_record_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          dispute_category?: string
+          finance_notes?: string | null
+          finance_reviewed_at?: string | null
+          finance_reviewed_by?: string | null
+          hr_notes?: string | null
+          hr_reviewed_at?: string | null
+          hr_reviewed_by?: string | null
+          id?: string
+          manager_notes?: string | null
+          manager_reviewed_at?: string | null
+          manager_reviewed_by?: string | null
+          organization_id: string
+          pay_period: string
+          payroll_record_id: string
+          profile_id: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          revised_payroll_record_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          dispute_category?: string
+          finance_notes?: string | null
+          finance_reviewed_at?: string | null
+          finance_reviewed_by?: string | null
+          hr_notes?: string | null
+          hr_reviewed_at?: string | null
+          hr_reviewed_by?: string | null
+          id?: string
+          manager_notes?: string | null
+          manager_reviewed_at?: string | null
+          manager_reviewed_by?: string | null
+          organization_id?: string
+          pay_period?: string
+          payroll_record_id?: string
+          profile_id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          revised_payroll_record_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payslip_disputes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_payroll_record_id_fkey"
+            columns: ["payroll_record_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_revised_payroll_record_id_fkey"
+            columns: ["revised_payroll_record_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
             referencedColumns: ["id"]
           },
         ]
