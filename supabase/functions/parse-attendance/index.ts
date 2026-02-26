@@ -688,58 +688,80 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
     /In\s*Time/i.test(l)
   );
 
+  // ── Extract a "global" date from header lines like "On Dated: 19/02/2026" ──
+  // Some summary reports put the date only once in the header, not per row.
+  let globalDate: string | null = null;
+  for (const line of lines) {
+    const onDatedMatch = line.match(/On\s*Dated\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
+    if (onDatedMatch) {
+      globalDate = normalizeDate(onDatedMatch[1]);
+      break;
+    }
+  }
+
   // Accumulate records by employee code
   const empMap = new Map<string, ParsedEmployee>();
 
   for (let i = (headerIdx >= 0 ? headerIdx + 1 : 0); i < lines.length; i++) {
     const line = lines[i];
 
-    // Try to parse a summary row
-    // Common patterns:
-    // DD/MM/YYYY  EmpCode  Name  CardNo  InTime  OutTime  WorkHrs  OT  ShiftRange  Status
-    // Or: SNo  EmpCode  CardNo  DD/MM/YYYY  InTime  OutTime  ...  Status
+    // Skip header/title lines that repeat on page 2+
+    if (/Company\s*Name\s*:/i.test(line)) continue;
+    if (/Location\s*:/i.test(line)) continue;
+    if (/Attendance\s*Report/i.test(line)) continue;
+    if (/On\s*Dated\s*:/i.test(line)) {
+      // Update globalDate if a new page has a different date
+      const m = line.match(/On\s*Dated\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
+      if (m) globalDate = normalizeDate(m[1]);
+      continue;
+    }
+    if (/^\s*Date\s*:\s*$/i.test(line)) continue;
+    if (/S\s*No\s+EMP\s*Code/i.test(line)) continue; // repeated header
+    if (/EMP\s*Code.*In\s*Time/i.test(line)) continue; // repeated header
 
-    // Strategy: find the date first, then extract fields around it
-    const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
-    if (!dateMatch) continue;
+    // ── Strategy 1: Row contains its own date ──
+    const inlineDateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+    let rowDate: string | null = null;
 
-    const isoDate = normalizeDate(dateMatch[1]);
-    if (!isoDate) continue;
+    if (inlineDateMatch) {
+      rowDate = normalizeDate(inlineDateMatch[1]);
+      // If this line is just a standalone date (e.g. "19/02/2026"), it might be a header date
+      if (line.replace(/\d{2}\/\d{2}\/\d{4}/, '').trim().length < 3) {
+        if (!globalDate) globalDate = rowDate;
+        continue;
+      }
+    }
+
+    const effectiveDate = rowDate || globalDate;
+    if (!effectiveDate) continue; // No date context yet
 
     // Extract all time-like tokens
     const timeTokens = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?/g) || [];
     const validTimes = timeTokens.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
 
-    // Extract status code
-    const statusMatch = line.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP|AB)\b/);
+    // Extract status code — handle Greek lookalikes (ΝΑ vs NA)
+    const normalizedLine = line
+      .replace(/\u039D/g, 'N')  // Greek Ν → N
+      .replace(/\u0391/g, 'A'); // Greek Α → A
+    const statusMatch = normalizedLine.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP|AB)\b/);
     const status = statusMatch ? statusMatch[1] : undefined;
 
-    // Extract employee code — typically a numeric or alphanumeric code
-    // It's usually near the beginning of the line or right after a serial number
+    // ── Extract employee code and name ──
     let empCode = "";
     let empName = "";
 
-    // Split line by tabs first (tab-separated columns from PDF extraction)
+    // Tab-separated path
     const parts = line.split(/\t/).map(p => p.trim()).filter(Boolean);
-
     if (parts.length >= 4) {
-      // Tab-separated: try to identify columns
-      // Find the part containing the date, and work from there
       const datePartIdx = parts.findIndex(p => /\d{2}\/\d{2}\/\d{4}/.test(p));
-
       if (datePartIdx >= 0) {
-        // Look for employee code: a short numeric/alphanumeric token (not a date, not a time)
         for (let pi = 0; pi < parts.length; pi++) {
           if (pi === datePartIdx) continue;
           const p = parts[pi];
-          // Employee code: typically 1-10 chars, numeric or alphanumeric
           if (/^\d{1,10}$/.test(p) && !/\d{2}\/\d{2}\/\d{4}/.test(p) && !/\d{1,2}:\d{2}/.test(p)) {
-            if (!empCode) {
-              empCode = p;
-            }
+            if (!empCode) empCode = p;
             continue;
           }
-          // Employee name: longer text, not a date/time/status
           if (p.length > 3 && !/\d{2}\/\d{2}\/\d{4}/.test(p) && !/\d{1,2}:\d{2}/.test(p) &&
               !/^(P|A|HD|MIS|NA|WO|WFH|AB)$/.test(p) && !/^\d+$/.test(p) && !empName) {
             empName = p;
@@ -748,18 +770,30 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
       }
     }
 
-    // Fallback: regex-based extraction from the full line
+    // Space-separated path: "SNo EmpCode CardNo EmpName Shift InTime ..."
+    // Rows start with a serial number followed by emp code
     if (!empCode) {
-      // Pattern: serial_no  emp_code  date  or  date  emp_code  name
+      // Pattern: "1 2 2 Laxmi Sai Prasad General 12:20 17:48 ..."
+      // SNo(digits) EmpCode(digits) CardNo(digits) Name(text+) Shift(word) Times...
+      const rowMatch = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)(?:\s+General|\s+Shift|\s+\d{1,2}:\d{2})/i);
+      if (rowMatch) {
+        empCode = rowMatch[2]; // second number is emp code
+        empName = rowMatch[4].trim();
+      }
+    }
+
+    // Fallback: regex-based extraction
+    if (!empCode) {
       const empMatch = line.match(/(?:^\d+\s+)?(\d{1,10})\s+(?:\d{2}\/\d{2}\/\d{4}|[A-Z][a-z])/);
       if (empMatch) empCode = empMatch[1];
     }
 
     if (!empCode) {
-      // Try: after date
-      const afterDate = line.match(/\d{2}\/\d{2}\/\d{4}\s+(\w+)\s+/);
-      if (afterDate && /^[A-Za-z0-9]{1,10}$/.test(afterDate[1])) {
-        empCode = afterDate[1];
+      if (inlineDateMatch) {
+        const afterDate = line.match(/\d{2}\/\d{2}\/\d{4}\s+(\w+)\s+/);
+        if (afterDate && /^[A-Za-z0-9]{1,10}$/.test(afterDate[1])) {
+          empCode = afterDate[1];
+        }
       }
     }
 
@@ -777,16 +811,20 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
     const emp = empMap.get(empCode)!;
     if (!emp.employee_name && empName) emp.employee_name = empName;
 
-    emp.records.push({
-      date: isoDate,
-      status,
-      in_time: validTimes[0] || null,
-      out_time: validTimes.length > 1 ? validTimes[1] : null,
-      work_hours: validTimes.length > 2 ? validTimes[2] : null,
-      punches: validTimes,
-    });
+    // Avoid duplicate date entries for same employee
+    if (!emp.records.some(r => r.date === effectiveDate)) {
+      emp.records.push({
+        date: effectiveDate,
+        status,
+        in_time: validTimes[0] || null,
+        out_time: validTimes.length > 1 ? validTimes[1] : null,
+        work_hours: validTimes.length > 2 ? validTimes[2] : null,
+        punches: validTimes,
+      });
+    }
   }
 
+  console.log(`[SUMMARY] Parsed ${empMap.size} employees from summary format`);
   return { employees: Array.from(empMap.values()), errors };
 }
 
