@@ -88,7 +88,7 @@ const hrmsNav: NavItem[] = [
 const employeeHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
-  { name: "My Payslips", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
 ];
@@ -97,7 +97,7 @@ const employeeHrmsNav: NavItem[] = [
 const managerHrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
-  { name: "My Payslips", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
