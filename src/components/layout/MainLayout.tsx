@@ -26,6 +26,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
   const prevRoleRef = useRef<string | null | undefined>(undefined);
   const navigate = useNavigate();
   const location = useLocation();
+  const mainRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -35,6 +36,14 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
     window.addEventListener("sidebar-toggle", handler);
     return () => window.removeEventListener("sidebar-toggle", handler);
   }, []);
+
+  // Scroll main content area to top on route change instead of the whole window
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Redirect when role changes (not on initial load)
   useEffect(() => {
@@ -50,7 +59,10 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`transition-[padding] duration-300 ${collapsed ? "md:pl-16" : "md:pl-64"}`}>
+      <div
+        ref={mainRef}
+        className={`transition-[padding] duration-300 ${collapsed ? "md:pl-16" : "md:pl-64"}`}
+      >
         <Header title={title} subtitle={subtitle} />
         <main className="p-4 md:p-6 pb-24 md:pb-6">
           <AnimatedPage>{children}</AnimatedPage>
