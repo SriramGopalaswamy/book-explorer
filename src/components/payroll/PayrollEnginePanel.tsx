@@ -91,9 +91,13 @@ export function PayrollEnginePanel() {
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
-  const canSubmitReview = (run: PayrollRun) => run.status === "completed";
-  const canApprove = (run: PayrollRun) => run.status === "under_review" && (isFinance || currentRole === "admin");
-  const canLock = (run: PayrollRun) => run.status === "approved" && (isFinance || currentRole === "admin");
+  const isHR = currentRole === "hr";
+  const isFinanceOrAdmin = isFinance || currentRole === "admin";
+
+  // HR submits for review; Finance/Admin approves and locks
+  const canSubmitReview = (run: PayrollRun) => run.status === "completed" && (isHR || isFinanceOrAdmin);
+  const canApprove = (run: PayrollRun) => run.status === "under_review" && isFinanceOrAdmin;
+  const canLock = (run: PayrollRun) => run.status === "approved" && isFinanceOrAdmin;
 
   const handleConfirmAction = () => {
     if (!confirmAction) return;
