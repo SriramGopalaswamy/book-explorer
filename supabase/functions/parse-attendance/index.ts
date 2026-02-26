@@ -1,122 +1,59 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
+// ═══════════════════════════════════════════════════════════════
+// GRX10 Books — Deterministic Attendance PDF Parser
+// Production-grade, compliance-critical, no LLM inference
+// ═══════════════════════════════════════════════════════════════
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ─── Types ────────────────────────────────────────────────────
+
 interface ParsedPunch {
   employee_code: string;
+  employee_name: string;
   card_no?: string;
-  punch_datetime: string;
+  punch_datetime: string;   // ISO: YYYY-MM-DDTHH:mm:ss
   raw_status?: string;
-  name?: string;
+}
+
+interface ParsedEmployee {
+  employee_code: string;
+  employee_name: string;
+  card_no?: string;
+  shift_name?: string | null;
+  shift_start?: string | null;
+  shift_end?: string | null;
+  records: EmployeeRecord[];
+}
+
+interface EmployeeRecord {
+  date: string;           // YYYY-MM-DD
+  status?: string;
+  in_time?: string | null;
+  out_time?: string | null;
+  work_hours?: string | null;
+  punches: string[];      // HH:mm:ss[]
 }
 
 interface ParseResult {
   punches: ParsedPunch[];
+  employees: ParsedEmployee[];
   errors: string[];
-  format: "punch" | "summary" | "unknown";
+  format: "detailed" | "summary" | "unknown";
+  metadata: {
+    organization?: string;
+    date?: string;
+    extraction_method: string;
+    employees_detected: number;
+    validation_passed: boolean;
+  };
 }
 
-// ─── PDF TEXT EXTRACTION ──────────────────────────
-async function extractTextFromPDF(data: Uint8Array): Promise<string> {
-  try {
-    // Use pdfjs-dist legacy build (no worker needed, Deno-compatible)
-    const pdfjsLib = await import("https://esm.sh/pdfjs-dist@4.0.379/build/pdf.mjs");
-
-    // Disable worker (not available in edge functions)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-
-    const loadingTask = pdfjsLib.getDocument({
-      data,
-      useSystemFonts: true,
-      disableFontFace: true,
-      isEvalSupported: false,
-    });
-    const pdf = await loadingTask.promise;
-
-    console.log(`[PDF] Loaded PDF with ${pdf.numPages} page(s)`);
-
-    let fullText = "";
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-
-      // Reconstruct text with spatial awareness
-      // Sort items by y position (top to bottom), then x (left to right)
-      const items = content.items
-        .filter((item: any) => item.str && item.str.trim().length > 0)
-        .map((item: any) => ({
-          str: item.str,
-          x: item.transform[4],
-          y: item.transform[5],
-          width: item.width,
-          height: item.height,
-        }));
-
-      // Group items by approximate y position (same row)
-      const rows: Map<number, any[]> = new Map();
-      const ROW_TOLERANCE = 3; // pixels
-
-      for (const item of items) {
-        let foundRow = false;
-        for (const [rowY, rowItems] of rows) {
-          if (Math.abs(item.y - rowY) <= ROW_TOLERANCE) {
-            rowItems.push(item);
-            foundRow = true;
-            break;
-          }
-        }
-        if (!foundRow) {
-          rows.set(item.y, [item]);
-        }
-      }
-
-      // Sort rows top-to-bottom (higher y = higher on page in PDF coords)
-      const sortedRows = Array.from(rows.entries())
-        .sort((a, b) => b[0] - a[0]);
-
-      for (const [, rowItems] of sortedRows) {
-        // Sort items left to right within each row
-        rowItems.sort((a: any, b: any) => a.x - b.x);
-
-        // Join with appropriate spacing
-        let rowText = "";
-        for (let j = 0; j < rowItems.length; j++) {
-          const item = rowItems[j];
-          if (j > 0) {
-            const prev = rowItems[j - 1];
-            const gap = item.x - (prev.x + prev.width);
-            // Large gap = tab/column separator, use tab; small gap = space
-            rowText += gap > 15 ? "\t" : gap > 2 ? " " : "";
-          }
-          rowText += item.str;
-        }
-        fullText += rowText + "\n";
-      }
-    }
-
-    return fullText;
-  } catch (err: any) {
-    console.error(`[PDF] Extraction error:`, err);
-    throw new Error(`PDF text extraction failed: ${err.message}`);
-  }
-}
-
-// ─── BASE64 DECODING ─────────────────────────────
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// ─── DIAGNOSTIC ANALYSIS (Steps 1-4) ─────────────────
 interface DiagnosticReport {
   file_name: string;
   pages?: number;
@@ -150,283 +87,831 @@ interface DiagnosticReport {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 1️⃣  EXTRACTION LAYER — Two-stage pipeline
+// ═══════════════════════════════════════════════════════════════
+
+/** Stage A: Primary PDF text extraction via pdfjs-dist with spatial reconstruction */
+async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pages: number }> {
+  const pdfjsLib = await import("https://esm.sh/pdfjs-dist@4.0.379/build/pdf.mjs");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    useSystemFonts: true,
+    disableFontFace: true,
+    isEvalSupported: false,
+  });
+  const pdf = await loadingTask.promise;
+  const pageCount = pdf.numPages;
+  console.log(`[PDF] Loaded ${pageCount} page(s)`);
+
+  let fullText = "";
+
+  for (let i = 1; i <= pageCount; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    // Extract items with position data
+    const items = content.items
+      .filter((item: any) => item.str !== undefined)
+      .map((item: any) => ({
+        str: item.str,
+        x: Math.round(item.transform[4]),
+        y: Math.round(item.transform[5]),
+        width: item.width || 0,
+        height: item.height || 0,
+      }));
+
+    // Group items into rows by Y-coordinate proximity
+    const ROW_TOLERANCE = 3;
+    const rows: Map<number, typeof items> = new Map();
+
+    for (const item of items) {
+      let matched = false;
+      for (const [rowY, rowItems] of rows) {
+        if (Math.abs(item.y - rowY) <= ROW_TOLERANCE) {
+          rowItems.push(item);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        rows.set(item.y, [item]);
+      }
+    }
+
+    // Sort rows top-to-bottom (PDF Y is bottom-up)
+    const sortedRows = Array.from(rows.entries()).sort((a, b) => b[0] - a[0]);
+
+    for (const [, rowItems] of sortedRows) {
+      // Sort items left-to-right
+      rowItems.sort((a, b) => a.x - b.x);
+
+      let rowText = "";
+      for (let j = 0; j < rowItems.length; j++) {
+        const item = rowItems[j];
+        if (j > 0) {
+          const prev = rowItems[j - 1];
+          const gap = item.x - (prev.x + prev.width);
+          // Large gap → tab separator (column boundary)
+          // Medium gap → space
+          // Tiny/negative gap → concatenate
+          if (gap > 20) rowText += "\t";
+          else if (gap > 3) rowText += " ";
+        }
+        rowText += item.str;
+      }
+
+      // Only add non-empty rows
+      if (rowText.trim().length > 0) {
+        fullText += rowText + "\n";
+      }
+    }
+
+    // Page separator for multi-page PDFs
+    if (i < pageCount) {
+      fullText += "\n";
+    }
+  }
+
+  return { text: fullText, pages: pageCount };
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** Resolve text content from request body — handles PDF base64, plain text */
+async function resolveTextContent(body: any): Promise<{ text: string; pages?: number; extractionMethod: string }> {
+  // Case 1: Plain text (TXT/CSV)
+  if (body.text_content && !body.text_content.startsWith("%PDF")) {
+    return { text: body.text_content, extractionMethod: "plain_text" };
+  }
+
+  // Case 2: Base64-encoded PDF binary
+  if (body.file_data) {
+    console.log(`[EXTRACT] Decoding base64 PDF (${body.file_data.length} chars)`);
+    const pdfBytes = base64ToUint8Array(body.file_data);
+    console.log(`[EXTRACT] PDF binary: ${pdfBytes.length} bytes`);
+
+    const { text: rawText, pages } = await extractTextFromPDF(pdfBytes);
+    const normalized = normalizeText(rawText);
+
+    console.log(`[EXTRACT] Extracted ${normalized.length} chars from ${pages} pages`);
+
+    // Stage B threshold: if text is too sparse, it's likely a scanned/image PDF
+    if (normalized.length < 300) {
+      const dateCount = (normalized.match(/\d{2}\/\d{2}\/\d{4}/g) || []).length;
+      const timeCount = (normalized.match(/\d{1,2}:\d{2}/g) || []).length;
+      if (dateCount === 0 && timeCount === 0) {
+        throw new Error(
+          "PDF_EXTRACTION_FAILED: PDF contains insufficient extractable text (" +
+          normalized.length + " chars). This may be a scanned image PDF requiring OCR."
+        );
+      }
+    }
+
+    return { text: normalized, pages, extractionMethod: "pdfjs" };
+  }
+
+  // Case 3: Raw PDF sent as text (client error)
+  if (body.text_content?.startsWith("%PDF")) {
+    throw new Error(
+      "PDF file was sent as raw text instead of binary. " +
+      "Client must send PDF files as base64-encoded file_data."
+    );
+  }
+
+  throw new Error("No valid file content provided. Send text_content (TXT/CSV) or file_data (PDF base64).");
+}
+
+function normalizeText(text: string): string {
+  return text
+    .replace(/\r/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2️⃣  FORMAT DETECTION — Anchor keyword analysis
+// ═══════════════════════════════════════════════════════════════
+
+type AttendanceFormat = "detailed" | "summary" | "unknown";
+
+function detectFormat(text: string): AttendanceFormat {
+  const lines = text.split("\n");
+
+  // Detailed format indicators (per-employee punch blocks)
+  const hasEmployeeCodeHeader = /Employee\s*Code\s*:/i.test(text);
+  const hasShiftIndicator = /Shift\s*:/i.test(text);
+  const hasPunchRows = lines.some(l => {
+    // Lines with date + multiple time entries
+    const dateMatch = /\d{2}\/\d{2}\/\d{4}/.test(l);
+    const timeMatches = (l.match(/\d{1,2}:\d{2}/g) || []).length;
+    return dateMatch && timeMatches >= 1;
+  });
+
+  // Summary format indicators (tabular with status columns)
+  const hasEmpCodeColumn = /EMP\s*Code/i.test(text) || /Emp\.?\s*Code/i.test(text);
+  const hasInTimeColumn = /In\s*Time/i.test(text);
+  const hasOutTimeColumn = /Out\s*Time/i.test(text);
+  const hasWorkHrsColumn = /Work\s*Hrs/i.test(text);
+  const hasStatusColumn = /\b(Status|Att)\b/i.test(text);
+
+  // Score-based detection
+  let detailedScore = 0;
+  let summaryScore = 0;
+
+  if (hasEmployeeCodeHeader) detailedScore += 3;
+  if (hasShiftIndicator) detailedScore += 2;
+  if (hasPunchRows && hasEmployeeCodeHeader) detailedScore += 2;
+
+  if (hasEmpCodeColumn) summaryScore += 2;
+  if (hasInTimeColumn) summaryScore += 2;
+  if (hasOutTimeColumn) summaryScore += 2;
+  if (hasWorkHrsColumn) summaryScore += 1;
+  if (hasStatusColumn) summaryScore += 1;
+
+  // Additional: count "Employee Code :" occurrences (detailed has many)
+  const empCodeOccurrences = (text.match(/Employee\s*Code\s*:/gi) || []).length;
+  if (empCodeOccurrences >= 3) detailedScore += 3;
+
+  console.log(`[FORMAT] Detailed score: ${detailedScore}, Summary score: ${summaryScore}`);
+  console.log(`[FORMAT] Indicators: empCodeHeader=${hasEmployeeCodeHeader}, shift=${hasShiftIndicator}, empCodeCol=${hasEmpCodeColumn}, inTime=${hasInTimeColumn}`);
+
+  if (detailedScore >= 5) return "detailed";
+  if (summaryScore >= 4) return "summary";
+
+  // Fallback heuristics
+  if (hasEmployeeCodeHeader && hasPunchRows) return "detailed";
+  if (empCodeOccurrences >= 2) return "detailed";
+
+  // Check for tabular rows with status codes
+  const statusRows = lines.filter(l => /\b(P|A|HD|MIS|NA|WO)\b/.test(l) && /\d{1,2}:\d{2}/.test(l));
+  if (statusRows.length >= 5) return "summary";
+
+  return "unknown";
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3️⃣  NORMALIZATION HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+/** Normalize date: DD/MM/YYYY → YYYY-MM-DD */
+function normalizeDate(dateStr: string): string | null {
+  // Handle DD/MM/YYYY or DD-MM-YYYY
+  const match = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  const day = parseInt(dd), month = parseInt(mm), year = parseInt(yyyy);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2000 || year > 2100) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Normalize time: various formats → HH:mm:ss */
+function normalizeTime(timeStr: string): string | null {
+  if (!timeStr || timeStr.trim() === "") return null;
+  const cleaned = timeStr.trim().replace(/\./g, ":");
+
+  // Match H:mm, HH:mm, H:mm:ss, HH:mm:ss
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+
+  const hours = parseInt(match[1]);
+  const minutes = parseInt(match[2]);
+  const seconds = parseInt(match[3] || "0");
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) return null;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** Parse shift string like "General (09:00 To 18:00)" */
+function parseShift(shiftStr: string): { name: string | null; start: string | null; end: string | null } {
+  if (!shiftStr || shiftStr.trim() === "") return { name: null, start: null, end: null };
+
+  const match = shiftStr.match(/^(.+?)\s*\(?\s*(\d{1,2}:\d{2})\s*(?:To|to|-)\s*(\d{1,2}:\d{2})\s*\)?$/);
+  if (match) {
+    return {
+      name: match[1].trim(),
+      start: normalizeTime(match[2]),
+      end: normalizeTime(match[3]),
+    };
+  }
+
+  // Just a name, no times
+  return { name: shiftStr.trim(), start: null, end: null };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 4️⃣  DETAILED FORMAT PARSER (Punch-based blocks)
+// ═══════════════════════════════════════════════════════════════
+
+function parseDetailedFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
+  const errors: string[] = [];
+
+  // Split text into per-employee blocks using "Employee Code :" anchor
+  const blocks = text.split(/(?=Employee\s*Code\s*:)/i).filter(b => /Employee\s*Code\s*:/i.test(b));
+
+  if (blocks.length === 0) {
+    errors.push("No employee blocks found despite detailed format detection");
+    return { employees: [], errors };
+  }
+
+  console.log(`[DETAILED] Found ${blocks.length} employee block(s)`);
+
+  const employees: ParsedEmployee[] = [];
+
+  for (const block of blocks) {
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+
+    // Extract employee code — anchored to "Employee Code :"
+    let empCode = "";
+    let empName = "";
+    let cardNo = "";
+    let shiftStr = "";
+
+    for (const line of lines) {
+      // Employee Code : 1234  Name : John Doe  Card No : 5678
+      const codeMatch = line.match(/Employee\s*Code\s*:\s*(\S+)/i);
+      if (codeMatch) empCode = codeMatch[1].trim();
+
+      const nameMatch = line.match(/Name\s*:\s*(.+?)(?:\s+Card|\s+Emp|\s*$)/i);
+      if (nameMatch) empName = nameMatch[1].trim();
+
+      // Sometimes name is after "Name :" with card on same or next line
+      if (!empName) {
+        const nameMatch2 = line.match(/Name\s*:\s*(.+)/i);
+        if (nameMatch2) empName = nameMatch2[1].replace(/Card\s*No\s*:\s*\S+/i, "").trim();
+      }
+
+      const cardMatch = line.match(/Card\s*No\s*:\s*(\S+)/i);
+      if (cardMatch) cardNo = cardMatch[1].trim();
+
+      const shiftMatch = line.match(/Shift\s*:\s*(.+)/i);
+      if (shiftMatch) shiftStr = shiftMatch[1].trim();
+    }
+
+    if (!empCode) {
+      errors.push(`Block skipped: could not extract employee code`);
+      continue;
+    }
+
+    const shift = parseShift(shiftStr);
+
+    // Parse date rows — look for lines starting with DD/MM/YYYY
+    const records: EmployeeRecord[] = [];
+
+    for (const line of lines) {
+      const dateMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})/);
+      if (!dateMatch) continue;
+
+      const isoDate = normalizeDate(dateMatch[1]);
+      if (!isoDate) {
+        errors.push(`Invalid date "${dateMatch[1]}" for employee ${empCode}`);
+        continue;
+      }
+
+      // Extract all time values from the line
+      const timeMatches = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?/g) || [];
+      const normalizedTimes = timeMatches
+        .map(t => normalizeTime(t))
+        .filter((t): t is string => t !== null);
+
+      // Extract status if present (P, A, HD, MIS, NA, WO, etc.)
+      const statusMatch = line.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP)\b/);
+      const status = statusMatch ? statusMatch[1] : undefined;
+
+      records.push({
+        date: isoDate,
+        status,
+        in_time: normalizedTimes[0] || null,
+        out_time: normalizedTimes.length > 1 ? normalizedTimes[normalizedTimes.length - 1] : null,
+        punches: normalizedTimes,
+      });
+    }
+
+    employees.push({
+      employee_code: empCode,
+      employee_name: empName,
+      card_no: cardNo || undefined,
+      shift_name: shift.name,
+      shift_start: shift.start,
+      shift_end: shift.end,
+      records,
+    });
+  }
+
+  return { employees, errors };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 5️⃣  SUMMARY FORMAT PARSER (Tabular rows)
+// ═══════════════════════════════════════════════════════════════
+
+function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
+  const errors: string[] = [];
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  // Detect header line to understand column layout
+  const headerIdx = lines.findIndex(l =>
+    (/EMP\s*Code/i.test(l) || /Emp\.?\s*Code/i.test(l)) &&
+    /In\s*Time/i.test(l)
+  );
+
+  // Accumulate records by employee code
+  const empMap = new Map<string, ParsedEmployee>();
+
+  for (let i = (headerIdx >= 0 ? headerIdx + 1 : 0); i < lines.length; i++) {
+    const line = lines[i];
+
+    // Try to parse a summary row
+    // Common patterns:
+    // DD/MM/YYYY  EmpCode  Name  CardNo  InTime  OutTime  WorkHrs  OT  ShiftRange  Status
+    // Or: SNo  EmpCode  CardNo  DD/MM/YYYY  InTime  OutTime  ...  Status
+
+    // Strategy: find the date first, then extract fields around it
+    const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (!dateMatch) continue;
+
+    const isoDate = normalizeDate(dateMatch[1]);
+    if (!isoDate) continue;
+
+    // Extract all time-like tokens
+    const timeTokens = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?/g) || [];
+    const validTimes = timeTokens.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
+
+    // Extract status code
+    const statusMatch = line.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP|AB)\b/);
+    const status = statusMatch ? statusMatch[1] : undefined;
+
+    // Extract employee code — typically a numeric or alphanumeric code
+    // It's usually near the beginning of the line or right after a serial number
+    let empCode = "";
+    let empName = "";
+
+    // Split line by tabs first (tab-separated columns from PDF extraction)
+    const parts = line.split(/\t/).map(p => p.trim()).filter(Boolean);
+
+    if (parts.length >= 4) {
+      // Tab-separated: try to identify columns
+      // Find the part containing the date, and work from there
+      const datePartIdx = parts.findIndex(p => /\d{2}\/\d{2}\/\d{4}/.test(p));
+
+      if (datePartIdx >= 0) {
+        // Look for employee code: a short numeric/alphanumeric token (not a date, not a time)
+        for (let pi = 0; pi < parts.length; pi++) {
+          if (pi === datePartIdx) continue;
+          const p = parts[pi];
+          // Employee code: typically 1-10 chars, numeric or alphanumeric
+          if (/^\d{1,10}$/.test(p) && !/\d{2}\/\d{2}\/\d{4}/.test(p) && !/\d{1,2}:\d{2}/.test(p)) {
+            if (!empCode) {
+              empCode = p;
+            }
+            continue;
+          }
+          // Employee name: longer text, not a date/time/status
+          if (p.length > 3 && !/\d{2}\/\d{2}\/\d{4}/.test(p) && !/\d{1,2}:\d{2}/.test(p) &&
+              !/^(P|A|HD|MIS|NA|WO|WFH|AB)$/.test(p) && !/^\d+$/.test(p) && !empName) {
+            empName = p;
+          }
+        }
+      }
+    }
+
+    // Fallback: regex-based extraction from the full line
+    if (!empCode) {
+      // Pattern: serial_no  emp_code  date  or  date  emp_code  name
+      const empMatch = line.match(/(?:^\d+\s+)?(\d{1,10})\s+(?:\d{2}\/\d{2}\/\d{4}|[A-Z][a-z])/);
+      if (empMatch) empCode = empMatch[1];
+    }
+
+    if (!empCode) {
+      // Try: after date
+      const afterDate = line.match(/\d{2}\/\d{2}\/\d{4}\s+(\w+)\s+/);
+      if (afterDate && /^[A-Za-z0-9]{1,10}$/.test(afterDate[1])) {
+        empCode = afterDate[1];
+      }
+    }
+
+    if (!empCode) continue; // Can't parse this row
+
+    // Build or update employee record
+    if (!empMap.has(empCode)) {
+      empMap.set(empCode, {
+        employee_code: empCode,
+        employee_name: empName,
+        records: [],
+      });
+    }
+
+    const emp = empMap.get(empCode)!;
+    if (!emp.employee_name && empName) emp.employee_name = empName;
+
+    emp.records.push({
+      date: isoDate,
+      status,
+      in_time: validTimes[0] || null,
+      out_time: validTimes.length > 1 ? validTimes[1] : null,
+      work_hours: validTimes.length > 2 ? validTimes[2] : null,
+      punches: validTimes,
+    });
+  }
+
+  return { employees: Array.from(empMap.values()), errors };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 6️⃣  AUTHENTICITY & VALIDATION CHECKS
+// ═══════════════════════════════════════════════════════════════
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  reason?: string;
+}
+
+/** Check if this is a legitimate attendance file */
+function checkAuthenticity(text: string, employees: ParsedEmployee[]): ValidationResult {
+  const timeTokens = (text.match(/\d{1,2}:\d{2}/g) || []).length;
+  const dateTokens = (text.match(/\d{2}\/\d{2}\/\d{4}/g) || []).length;
+
+  // Must have meaningful time/date content
+  if (timeTokens < 5 && dateTokens < 3) {
+    return {
+      valid: false,
+      error: "INVALID_ATTENDANCE_FILE",
+      reason: `Insufficient attendance markers: ${timeTokens} time tokens, ${dateTokens} date tokens. Minimum: 5 times, 3 dates.`,
+    };
+  }
+
+  // Must have detected employees
+  if (employees.length === 0) {
+    return {
+      valid: false,
+      error: "INVALID_ATTENDANCE_FILE",
+      reason: "No employee records could be extracted from the file.",
+    };
+  }
+
+  return { valid: true };
+}
+
+/** Validate parsed data for logical consistency */
+function validateParsedData(employees: ParsedEmployee[], format: AttendanceFormat): ValidationResult {
+  // Must have employees
+  if (employees.length === 0) {
+    return {
+      valid: false,
+      error: "ATTENDANCE_VALIDATION_FAILED",
+      reason: "No employees detected in parsed data.",
+    };
+  }
+
+  // Check for duplicate employee codes
+  const codes = employees.map(e => e.employee_code);
+  const uniqueCodes = new Set(codes);
+  if (uniqueCodes.size !== codes.length) {
+    const dupes = codes.filter((c, i) => codes.indexOf(c) !== i);
+    return {
+      valid: false,
+      error: "ATTENDANCE_VALIDATION_FAILED",
+      reason: `Duplicate employee codes detected: ${[...new Set(dupes)].join(", ")}`,
+    };
+  }
+
+  // Validate each employee
+  for (const emp of employees) {
+    if (!emp.employee_code) {
+      return {
+        valid: false,
+        error: "ATTENDANCE_VALIDATION_FAILED",
+        reason: `Employee missing code (name: ${emp.employee_name || "unknown"})`,
+      };
+    }
+
+    // Detailed format: each employee should have at least one record with punches
+    if (format === "detailed") {
+      const hasPunches = emp.records.some(r => r.punches.length >= 1);
+      if (!hasPunches && emp.records.length > 0) {
+        // Warn but don't fail — employee may have all absent days
+        console.log(`[VALIDATE] Warning: Employee ${emp.employee_code} has records but no punches`);
+      }
+    }
+
+    // Validate time values in records
+    for (const rec of emp.records) {
+      for (const punch of rec.punches) {
+        if (!/^\d{2}:\d{2}:\d{2}$/.test(punch)) {
+          return {
+            valid: false,
+            error: "ATTENDANCE_VALIDATION_FAILED",
+            reason: `Invalid time value "${punch}" for employee ${emp.employee_code} on ${rec.date}`,
+          };
+        }
+      }
+
+      // Summary format: in_time should be <= out_time (unless absent with 00:00)
+      if (format === "summary" && rec.in_time && rec.out_time) {
+        if (rec.out_time !== "00:00:00" && rec.in_time > rec.out_time) {
+          // Night shift edge case — allow it with a warning
+          console.log(`[VALIDATE] Night shift detected: ${emp.employee_code} on ${rec.date}: ${rec.in_time} → ${rec.out_time}`);
+        }
+      }
+    }
+  }
+
+  // Validate shift times if present
+  for (const emp of employees) {
+    if (emp.shift_start && emp.shift_end) {
+      if (emp.shift_start >= emp.shift_end) {
+        // Night shift — allow but log
+        console.log(`[VALIDATE] Night shift config: ${emp.employee_code}: ${emp.shift_start} → ${emp.shift_end}`);
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 7️⃣  MAIN PARSE FUNCTION — Orchestrates all layers
+// ═══════════════════════════════════════════════════════════════
+
+function parseAttendanceText(text: string, extractionMethod: string): ParseResult {
+  const errors: string[] = [];
+
+  // Step 1: Detect format
+  const format = detectFormat(text);
+  console.log(`[PARSE] Detected format: ${format}`);
+
+  if (format === "unknown") {
+    // Don't fail — try both parsers and pick the one that works
+    console.log(`[PARSE] Unknown format, trying both parsers...`);
+
+    const detailedResult = parseDetailedFormat(text);
+    const summaryResult = parseSummaryFormat(text);
+
+    const detailedCount = detailedResult.employees.reduce((s, e) => s + e.records.length, 0);
+    const summaryCount = summaryResult.employees.reduce((s, e) => s + e.records.length, 0);
+
+    console.log(`[PARSE] Detailed yielded ${detailedResult.employees.length} employees (${detailedCount} records), Summary yielded ${summaryResult.employees.length} employees (${summaryCount} records)`);
+
+    if (detailedCount > summaryCount && detailedResult.employees.length > 0) {
+      return buildResult(detailedResult.employees, detailedResult.errors, "detailed", text, extractionMethod);
+    } else if (summaryResult.employees.length > 0) {
+      return buildResult(summaryResult.employees, summaryResult.errors, "summary", text, extractionMethod);
+    }
+
+    // Both failed
+    return {
+      punches: [],
+      employees: [],
+      errors: ["UNKNOWN_ATTENDANCE_FORMAT: Could not detect or parse attendance format from the file content."],
+      format: "unknown",
+      metadata: {
+        extraction_method: extractionMethod,
+        employees_detected: 0,
+        validation_passed: false,
+      },
+    };
+  }
+
+  // Step 2: Parse with detected format
+  const { employees, errors: parseErrors } =
+    format === "detailed" ? parseDetailedFormat(text) : parseSummaryFormat(text);
+
+  errors.push(...parseErrors);
+
+  return buildResult(employees, errors, format, text, extractionMethod);
+}
+
+function buildResult(
+  employees: ParsedEmployee[],
+  errors: string[],
+  format: AttendanceFormat,
+  text: string,
+  extractionMethod: string
+): ParseResult {
+  // Step 3: Authenticity check
+  const authCheck = checkAuthenticity(text, employees);
+  if (!authCheck.valid) {
+    return {
+      punches: [],
+      employees: [],
+      errors: [`${authCheck.error}: ${authCheck.reason}`],
+      format,
+      metadata: {
+        extraction_method: extractionMethod,
+        employees_detected: 0,
+        validation_passed: false,
+      },
+    };
+  }
+
+  // Step 4: Logical validation
+  const validation = validateParsedData(employees, format);
+  if (!validation.valid) {
+    return {
+      punches: [],
+      employees,
+      errors: [`${validation.error}: ${validation.reason}`, ...errors],
+      format,
+      metadata: {
+        extraction_method: extractionMethod,
+        employees_detected: employees.length,
+        validation_passed: false,
+      },
+    };
+  }
+
+  // Extract organization name from text (if present)
+  const orgMatch = text.match(/Company\s*(?:Name)?\s*:\s*(.+?)(?:\n|$)/i) ||
+                   text.match(/Organization\s*:\s*(.+?)(?:\n|$)/i);
+  const organization = orgMatch ? orgMatch[1].trim() : undefined;
+
+  // Extract report date
+  const dateMatch = text.match(/On\s*Dated?\s*:\s*(\d{2}\/\d{2}\/\d{4})/i) ||
+                    text.match(/Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const reportDate = dateMatch ? normalizeDate(dateMatch[1]) || undefined : undefined;
+
+  // Step 5: Convert employees to flat punches for DB insertion
+  const punches: ParsedPunch[] = [];
+  for (const emp of employees) {
+    for (const rec of emp.records) {
+      if (rec.punches.length > 0) {
+        // Each punch becomes a separate record
+        for (const punchTime of rec.punches) {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${punchTime}`,
+            raw_status: rec.status,
+          });
+        }
+      } else if (rec.in_time) {
+        // Summary: in_time as check-in punch
+        punches.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          card_no: emp.card_no,
+          punch_datetime: `${rec.date}T${rec.in_time}`,
+          raw_status: rec.status,
+        });
+        // out_time as check-out punch
+        if (rec.out_time && rec.out_time !== "00:00:00") {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${rec.out_time}`,
+            raw_status: rec.status,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    punches,
+    employees,
+    errors,
+    format: format as "detailed" | "summary",
+    metadata: {
+      organization,
+      date: reportDate,
+      extraction_method: extractionMethod,
+      employees_detected: employees.length,
+      validation_passed: true,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 8️⃣  DIAGNOSTIC ANALYSIS (non-mutating debug tool)
+// ═══════════════════════════════════════════════════════════════
+
 function runDiagnosticAnalysis(text: string, fileName: string, pages?: number): DiagnosticReport {
   const rawLines = text.split("\n");
   const nonEmptyLines = rawLines.filter(l => l.trim().length > 0);
 
-  const extraction = {
-    total_characters: text.length,
-    first_1000_chars: text.slice(0, 1000),
-    last_1000_chars: text.slice(-1000),
-    line_count: rawLines.length,
-    first_50_lines: rawLines.slice(0, 50),
-  };
-
   const dateMatches = text.match(/\d{2}\/\d{2}\/\d{4}/g) || [];
   const timeMatches = text.match(/\d{1,2}:\d{2}/g) || [];
   const employeeWordMatches = text.match(/Employee\s+Code/gi) || [];
-  const statusMatches = text.match(/\b(P|A|NA|MIS|HD)\b/g) || [];
-
-  const patterns = {
-    date_count: dateMatches.length,
-    time_count: timeMatches.length,
-    employee_code_count: employeeWordMatches.length,
-    status_count: statusMatches.length,
-    date_samples: dateMatches.slice(0, 10),
-    time_samples: timeMatches.slice(0, 10),
-  };
+  const statusMatches = text.match(/\b(P|A|NA|MIS|HD|WO)\b/g) || [];
 
   const lineLengths = nonEmptyLines.map(l => l.trim().length);
   const singleTokenLines = nonEmptyLines.filter(l => l.trim().split(/\s+/).length === 1).length;
   const numericOnlyLines = nonEmptyLines.filter(l => /^\d+$/.test(l.trim())).length;
   const timeOnlyLines = nonEmptyLines.filter(l => /^\d{1,2}:\d{2}(:\d{2})?$/.test(l.trim())).length;
 
-  const fragmentation = {
-    single_token_lines: singleTokenLines,
-    numeric_only_lines: numericOnlyLines,
-    time_only_lines: timeOnlyLines,
-    avg_line_length: lineLengths.length > 0 ? Math.round(lineLengths.reduce((a, b) => a + b, 0) / lineLengths.length) : 0,
-    max_line_length: lineLengths.length > 0 ? Math.max(...lineLengths) : 0,
-    min_line_length: lineLengths.length > 0 ? Math.min(...lineLengths) : 0,
-    empty_line_count: rawLines.length - nonEmptyLines.length,
-  };
-
   const signals: string[] = [];
   let guess: "likely_summary" | "likely_punch" | "unknown" = "unknown";
 
-  if (dateMatches.length > 20 && timeMatches.length > 40) {
-    guess = "likely_summary";
-    signals.push(`High date density (${dateMatches.length}) + time density (${timeMatches.length})`);
-  }
-  if (employeeWordMatches.length > 5 && timeMatches.length > 20) {
+  if (employeeWordMatches.length >= 3) {
     guess = "likely_punch";
-    signals.push(`Employee Code headers (${employeeWordMatches.length}) + times (${timeMatches.length})`);
+    signals.push(`Employee Code headers found: ${employeeWordMatches.length}`);
+  } else if (dateMatches.length > 20 && timeMatches.length > 40) {
+    guess = "likely_summary";
+    signals.push(`High date/time density`);
   }
-  if (statusMatches.length > 10) {
-    signals.push(`Status tokens found (${statusMatches.length}): P/A/NA/MIS/HD`);
-  }
-  if (singleTokenLines > nonEmptyLines.length * 0.5) {
-    signals.push(`HIGH FRAGMENTATION: ${singleTokenLines}/${nonEmptyLines.length} lines are single-token`);
-  }
-  if (timeOnlyLines > 5) {
-    signals.push(`Isolated time values detected: ${timeOnlyLines} lines`);
-  }
-  if (numericOnlyLines > 10) {
-    signals.push(`Numeric-only lines: ${numericOnlyLines}`);
-  }
-  if (fragmentation.avg_line_length < 10) {
-    signals.push(`Very short avg line length (${fragmentation.avg_line_length}) - likely column-fragmented PDF`);
+
+  if (statusMatches.length > 10) signals.push(`Status tokens: ${statusMatches.length}`);
+  if (singleTokenLines > nonEmptyLines.length * 0.5) signals.push(`HIGH FRAGMENTATION`);
+
+  // Try actual parsing to report what would happen
+  const format = detectFormat(text);
+  signals.push(`Detected format: ${format}`);
+
+  if (format !== "unknown") {
+    const result = format === "detailed" ? parseDetailedFormat(text) : parseSummaryFormat(text);
+    signals.push(`Parsed ${result.employees.length} employees`);
+    const totalRecords = result.employees.reduce((s, e) => s + e.records.length, 0);
+    signals.push(`Total records: ${totalRecords}`);
+    if (result.errors.length > 0) signals.push(`Parse errors: ${result.errors.length}`);
   }
 
   return {
     file_name: fileName,
     pages,
-    extraction,
-    patterns,
-    fragmentation,
+    extraction: {
+      total_characters: text.length,
+      first_1000_chars: text.slice(0, 1000),
+      last_1000_chars: text.slice(-1000),
+      line_count: rawLines.length,
+      first_50_lines: rawLines.slice(0, 50),
+    },
+    patterns: {
+      date_count: dateMatches.length,
+      time_count: timeMatches.length,
+      employee_code_count: employeeWordMatches.length,
+      status_count: statusMatches.length,
+      date_samples: dateMatches.slice(0, 10),
+      time_samples: timeMatches.slice(0, 10),
+    },
+    fragmentation: {
+      single_token_lines: singleTokenLines,
+      numeric_only_lines: numericOnlyLines,
+      time_only_lines: timeOnlyLines,
+      avg_line_length: lineLengths.length > 0 ? Math.round(lineLengths.reduce((a, b) => a + b, 0) / lineLengths.length) : 0,
+      max_line_length: lineLengths.length > 0 ? Math.max(...lineLengths) : 0,
+      min_line_length: lineLengths.length > 0 ? Math.min(...lineLengths) : 0,
+      empty_line_count: rawLines.length - nonEmptyLines.length,
+    },
     classification: { guess, confidence_signals: signals },
   };
 }
 
-// ─── TEXT NORMALIZATION ──────────────────────────
-function normalizeExtractedText(text: string): string {
-  return text
-    .replace(/\r/g, "\n")
-    .replace(/[ ]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-// ─── RESOLVE TEXT CONTENT ────────────────────────
-// Handles: text_content (plain text), file_data (base64 PDF)
-async function resolveTextContent(body: any): Promise<{ text: string; pages?: number; extractionMethod: string }> {
-  // Case 1: Already have plain text (TXT/CSV uploads)
-  if (body.text_content && !body.text_content.startsWith("%PDF")) {
-    return { text: body.text_content, extractionMethod: "plain_text" };
-  }
-
-  // Case 2: base64-encoded PDF data
-  if (body.file_data) {
-    console.log(`[EXTRACT] Decoding base64 PDF data (${body.file_data.length} chars)`);
-    const pdfBytes = base64ToUint8Array(body.file_data);
-    console.log(`[EXTRACT] PDF binary size: ${pdfBytes.length} bytes`);
-
-    const rawText = await extractTextFromPDF(pdfBytes);
-    const normalized = normalizeExtractedText(rawText);
-
-    // Validate extraction produced real text
-    const dateCount = (normalized.match(/\d{2}\/\d{2}\/\d{4}/g) || []).length;
-    const timeCount = (normalized.match(/\d{1,2}:\d{2}/g) || []).length;
-
-    console.log(`[EXTRACT] Extracted ${normalized.length} chars, ${dateCount} dates, ${timeCount} times`);
-
-    if (normalized.length < 200 && dateCount === 0 && timeCount === 0) {
-      throw new Error("PDF contains no extractable text. Likely a scanned image — OCR required.");
-    }
-
-    return { text: normalized, extractionMethod: "pdfjs" };
-  }
-
-  // Case 3: text_content that starts with %PDF (was incorrectly read as text on frontend)
-  if (body.text_content && body.text_content.startsWith("%PDF")) {
-    throw new Error(
-      "PDF file was sent as raw text instead of binary. " +
-      "Please update your client to send PDF files as base64-encoded file_data."
-    );
-  }
-
-  throw new Error("No valid file content provided. Send text_content (for TXT/CSV) or file_data (for PDF base64).");
-}
-
-/**
- * Parse biometric attendance text content.
- * Detects format (punch-based vs summary) and extracts records.
- */
-function parseAttendanceText(text: string): ParseResult {
-  const punches: ParsedPunch[] = [];
-  const errors: string[] = [];
-
-  // Normalize whitespace
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\t+/g, " ");
-  const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
-
-  // Detect format
-  const hasPunchFormat = lines.some(
-    (l) => /Employee\s*Code/i.test(l) || /Punch\s*Records/i.test(l)
-  );
-  const hasSummaryFormat = lines.some(
-    (l) =>
-      /^\d{2}\/\d{2}\/\d{4}/.test(l) &&
-      /\b(P|A|NA|MIS|HD)\b/.test(l) &&
-      /\d{1,2}:\d{2}/.test(l)
-  );
-
-  if (hasPunchFormat) {
-    return parsePunchFormat(lines);
-  } else if (hasSummaryFormat) {
-    return parseSummaryFormat(lines);
-  }
-
-  // Fallback: try both
-  const summaryResult = parseSummaryFormat(lines);
-  if (summaryResult.punches.length > 0) return summaryResult;
-
-  const punchResult = parsePunchFormat(lines);
-  if (punchResult.punches.length > 0) return punchResult;
-
-  return { punches: [], errors: ["Could not detect attendance format"], format: "unknown" };
-}
-
-function parsePunchFormat(lines: string[]): ParseResult {
-  const punches: ParsedPunch[] = [];
-  const errors: string[] = [];
-  let currentEmpCode = "";
-  let currentName = "";
-  let currentCardNo = "";
-
-  for (const line of lines) {
-    const empMatch = line.match(
-      /Employee\s*Code\s*[:\-]\s*(\w+).*?Name\s*[:\-]\s*(.+?)(?:\s+Card\s*No\s*[:\-]\s*(\w+))?$/i
-    );
-    if (empMatch) {
-      currentEmpCode = empMatch[1].trim();
-      currentName = empMatch[2].trim();
-      currentCardNo = empMatch[3]?.trim() || "";
-      continue;
-    }
-
-    const simpleEmpMatch = line.match(/Employee\s*Code\s*[:\-]\s*(\w+)/i);
-    if (simpleEmpMatch && !empMatch) {
-      currentEmpCode = simpleEmpMatch[1].trim();
-      const nameMatch = line.match(/Name\s*[:\-]\s*(.+?)(?:\s+Card|$)/i);
-      if (nameMatch) currentName = nameMatch[1].trim();
-      continue;
-    }
-
-    if (!currentEmpCode) continue;
-
-    const punchMatch = line.match(
-      /(\d{2}[\/-]\d{2}[\/-]\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)/
-    );
-    if (punchMatch) {
-      const dateStr = punchMatch[1].replace(/-/g, "/");
-      const timeStr = punchMatch[2];
-      const [dd, mm, yyyy] = dateStr.split("/");
-      const isoDate = `${yyyy}-${mm}-${dd}`;
-      const timeParts = timeStr.split(":");
-      const paddedTime = `${timeParts[0].padStart(2, "0")}:${timeParts[1]}${timeParts[2] ? ":" + timeParts[2] : ":00"}`;
-
-      punches.push({
-        employee_code: currentEmpCode,
-        card_no: currentCardNo || undefined,
-        punch_datetime: `${isoDate}T${paddedTime}`,
-        name: currentName || undefined,
-      });
-    }
-  }
-
-  return { punches, errors, format: "punch" };
-}
-
-function parseSummaryFormat(lines: string[]): ParseResult {
-  const punches: ParsedPunch[] = [];
-  const errors: string[] = [];
-
-  for (const line of lines) {
-    const summaryMatch = line.match(
-      /^(\d{2}\/\d{2}\/\d{4})\s+(\w+)\s+(.+?)\s+(\d+)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(\w+)\s+(\d{2}:\d{2}-\d{2}:\d{2})\s+(P|A|NA|MIS|HD)/
-    );
-
-    if (summaryMatch) {
-      const [, dateStr, empCode, name, cardNo, inTime, outTime, , , , , status] = summaryMatch;
-      const [dd, mm, yyyy] = dateStr.split("/");
-      const isoDate = `${yyyy}-${mm}-${dd}`;
-
-      punches.push({
-        employee_code: empCode,
-        card_no: cardNo,
-        punch_datetime: `${isoDate}T${inTime.padStart(5, "0")}:00`,
-        raw_status: status,
-        name: name.trim(),
-      });
-
-      if (outTime && outTime !== "00:00") {
-        punches.push({
-          employee_code: empCode,
-          card_no: cardNo,
-          punch_datetime: `${isoDate}T${outTime.padStart(5, "0")}:00`,
-          raw_status: status,
-          name: name.trim(),
-        });
-      }
-      continue;
-    }
-
-    const simpleMatch = line.match(
-      /^(\d{2}\/\d{2}\/\d{4})\s+(\w+)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+(P|A|NA|MIS|HD)/
-    );
-    if (simpleMatch) {
-      const [, dateStr, empCode, inTime, outTime, status] = simpleMatch;
-      const [dd, mm, yyyy] = dateStr.split("/");
-      const isoDate = `${yyyy}-${mm}-${dd}`;
-
-      punches.push({
-        employee_code: empCode,
-        punch_datetime: `${isoDate}T${inTime.padStart(5, "0")}:00`,
-        raw_status: status,
-      });
-      if (outTime && outTime !== "00:00") {
-        punches.push({
-          employee_code: empCode,
-          punch_datetime: `${isoDate}T${outTime.padStart(5, "0")}:00`,
-          raw_status: status,
-        });
-      }
-    }
-  }
-
-  return { punches, errors, format: "summary" };
-}
+// ═══════════════════════════════════════════════════════════════
+// 9️⃣  HTTP HANDLER — Edge function entry point
+// ═══════════════════════════════════════════════════════════════
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -443,10 +928,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const {
-      data: { user },
-      error: authError,
-    } = await userClient.auth.getUser();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -464,18 +946,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Safety: reject oversized payloads
+    // Size guard (~10MB in base64)
     const contentSize = (body.text_content?.length || 0) + (body.file_data?.length || 0);
-    if (contentSize > 15_000_000) { // ~10MB in base64
+    if (contentSize > 15_000_000) {
       return new Response(
         JSON.stringify({ error: "File content too large (max 10MB)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ═══════════════════════════════════════════════════════
-    // RESOLVE TEXT: Extract text from PDF or use plain text
-    // ═══════════════════════════════════════════════════════
+    // ─── EXTRACT TEXT ────────────────────────────────────
     let extractedText: string;
     let extractionMethod: string;
     let pdfPages: number | undefined;
@@ -485,26 +965,18 @@ Deno.serve(async (req) => {
       extractedText = resolved.text;
       extractionMethod = resolved.extractionMethod;
       pdfPages = resolved.pages;
-      console.log(`[PARSE] Text resolved via ${extractionMethod}: ${extractedText.length} chars`);
+      console.log(`[MAIN] Resolved via ${extractionMethod}: ${extractedText.length} chars, ${pdfPages ?? "?"} pages`);
     } catch (extractErr: any) {
-      console.error(`[PARSE] Extraction failed:`, extractErr.message);
+      console.error(`[MAIN] Extraction failed:`, extractErr.message);
 
-      // For diagnostic mode, return the error with what we can
       if (diagnostic_mode) {
         const errorDiagnostic: DiagnosticReport = {
           file_name: file_name || "unknown",
-          extraction: {
-            total_characters: 0,
-            first_1000_chars: "",
-            last_1000_chars: "",
-            line_count: 0,
-            first_50_lines: [],
-          },
+          extraction: { total_characters: 0, first_1000_chars: "", last_1000_chars: "", line_count: 0, first_50_lines: [] },
           patterns: { date_count: 0, time_count: 0, employee_code_count: 0, status_count: 0, date_samples: [], time_samples: [] },
           fragmentation: { single_token_lines: 0, numeric_only_lines: 0, time_only_lines: 0, avg_line_length: 0, max_line_length: 0, min_line_length: 0, empty_line_count: 0 },
           classification: { guess: "unknown", confidence_signals: [`EXTRACTION FAILED: ${extractErr.message}`] },
         };
-
         return new Response(
           JSON.stringify({ success: false, diagnostic_mode: true, diagnostic: errorDiagnostic, error: extractErr.message }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -517,34 +989,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ═══════════════════════════════════════════════════════
-    // DIAGNOSTIC MODE — analysis only, no data mutation
-    // ═══════════════════════════════════════════════════════
+    // ─── DIAGNOSTIC MODE ─────────────────────────────────
     if (diagnostic_mode) {
-      console.log(`[DIAGNOSTIC] Running analysis on: ${file_name}, ${extractedText.length} chars`);
-
+      console.log(`[DIAGNOSTIC] Running analysis on: ${file_name}`);
       const diagnostic = runDiagnosticAnalysis(extractedText, file_name || "unknown", pdfPages);
 
-      // Save diagnostic snapshot (max 5000 chars excerpt)
-      const rawExcerpt = extractedText.slice(0, 5000);
       await adminClient.from("attendance_parse_diagnostics").insert({
         organization_id,
         file_name: file_name || "unknown",
-        raw_excerpt: rawExcerpt,
+        raw_excerpt: extractedText.slice(0, 5000),
         metrics: {
           extraction_method: extractionMethod,
-          extraction: {
-            total_characters: diagnostic.extraction.total_characters,
-            line_count: diagnostic.extraction.line_count,
-          },
+          extraction: { total_characters: diagnostic.extraction.total_characters, line_count: diagnostic.extraction.line_count },
           patterns: diagnostic.patterns,
           fragmentation: diagnostic.fragmentation,
           classification: diagnostic.classification,
         },
       });
-
-      console.log(`[DIAGNOSTIC] Analysis complete. Method: ${extractionMethod}, Classification: ${diagnostic.classification.guess}`);
-      console.log(`[DIAGNOSTIC] Patterns: dates=${diagnostic.patterns.date_count}, times=${diagnostic.patterns.time_count}`);
 
       return new Response(
         JSON.stringify({ success: true, diagnostic_mode: true, diagnostic }),
@@ -552,26 +1013,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ═══════════════════════════════════════════════════════
-    // NORMAL MODE — existing parsing logic (UNTOUCHED)
-    // ═══════════════════════════════════════════════════════
-    const result = parseAttendanceText(extractedText);
+    // ─── PARSE ───────────────────────────────────────────
+    const result = parseAttendanceText(extractedText, extractionMethod);
+
+    console.log(`[MAIN] Parse result: format=${result.format}, employees=${result.metadata.employees_detected}, punches=${result.punches.length}, valid=${result.metadata.validation_passed}`);
 
     if (result.punches.length === 0) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "No attendance records could be parsed from the file",
+          error: result.errors.length > 0
+            ? result.errors[0]
+            : "No attendance records could be parsed from the file",
           parse_errors: result.errors,
           format: result.format,
           extraction_method: extractionMethod,
+          employees_detected: result.metadata.employees_detected,
+          total_parsed: 0,
+          inserted: 0,
+          duplicates_skipped: 0,
+          matched_employees: 0,
+          unmatched_codes: [],
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Resolve employee codes to profile IDs
-    const uniqueCodes = [...new Set(result.punches.map((p) => p.employee_code))];
+    // ─── RESOLVE EMPLOYEE CODES → PROFILE IDs ────────────
+    const uniqueCodes = [...new Set(result.punches.map(p => p.employee_code))];
 
     const { data: empDetails } = await adminClient
       .from("employee_details")
@@ -588,13 +1057,15 @@ Deno.serve(async (req) => {
     const unmatchedCodes: string[] = [];
 
     for (const code of uniqueCodes) {
+      // Match by employee_id_number first (primary key)
       const match = empDetails?.find((e: any) => e.employee_id_number === code);
       if (match) {
         codeToProfileId.set(code, match.profile_id);
         continue;
       }
 
-      const punchName = result.punches.find((p) => p.employee_code === code)?.name;
+      // Fallback: match by name from parsed data
+      const punchName = result.punches.find(p => p.employee_code === code)?.employee_name;
       if (punchName) {
         const profileMatch = profiles?.find(
           (p: any) =>
@@ -607,6 +1078,7 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Fallback: match by email prefix
       const emailMatch = profiles?.find((p: any) =>
         p.email?.toLowerCase().startsWith(code.toLowerCase())
       );
@@ -618,11 +1090,11 @@ Deno.serve(async (req) => {
       unmatchedCodes.push(code);
     }
 
-    // Insert matched punches
+    // ─── INSERT PUNCHES ──────────────────────────────────
     const batchId = crypto.randomUUID();
     const insertRows = result.punches
-      .filter((p) => codeToProfileId.has(p.employee_code))
-      .map((p) => ({
+      .filter(p => codeToProfileId.has(p.employee_code))
+      .map(p => ({
         organization_id,
         profile_id: codeToProfileId.get(p.employee_code)!,
         employee_code: p.employee_code,
@@ -637,6 +1109,7 @@ Deno.serve(async (req) => {
     let duplicateCount = 0;
 
     if (insertRows.length > 0) {
+      // Batch duplicate check for efficiency
       for (const row of insertRows) {
         const { data: existing } = await adminClient
           .from("attendance_punches")
@@ -656,21 +1129,19 @@ Deno.serve(async (req) => {
           .insert(row);
 
         if (insertErr) {
-          result.errors.push(
-            `Insert error for ${row.employee_code}: ${insertErr.message}`
-          );
+          result.errors.push(`Insert error for ${row.employee_code}: ${insertErr.message}`);
         } else {
           insertedCount++;
         }
       }
     }
 
-    // Log the upload
+    // ─── LOG THE UPLOAD ──────────────────────────────────
     await adminClient.from("attendance_upload_logs").insert({
       organization_id,
       uploaded_by: user.id,
-      file_name: file_name || "unknown.pdf",
-      file_type: file_name?.endsWith(".zip") ? "zip" : "pdf",
+      file_name: file_name || "unknown",
+      file_type: file_name?.split(".").pop()?.toLowerCase() || "pdf",
       total_punches: insertedCount,
       matched_employees: codeToProfileId.size,
       unmatched_codes: unmatchedCodes,
@@ -679,6 +1150,7 @@ Deno.serve(async (req) => {
       status: "completed",
     });
 
+    // ─── RESPONSE ────────────────────────────────────────
     return new Response(
       JSON.stringify({
         success: true,
@@ -691,11 +1163,12 @@ Deno.serve(async (req) => {
         unmatched_codes: unmatchedCodes,
         parse_errors: result.errors,
         extraction_method: extractionMethod,
+        metadata: result.metadata,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err) {
-    console.error("parse-attendance error:", err);
+  } catch (err: any) {
+    console.error("[FATAL] parse-attendance error:", err);
     return new Response(
       JSON.stringify({ error: err.message || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
