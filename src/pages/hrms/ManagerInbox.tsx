@@ -1054,6 +1054,7 @@ export default function ManagerInbox() {
   const pendingCount = leaves.length + corrections.length;
   const { data: pendingReimbursements = [] } = useDirectReportsPendingReimbursements();
   const { data: pendingExpenses = [] } = useDirectReportsPendingExpenses();
+  const { data: pendingMemos = [] } = useDirectReportsPendingMemos();
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -1062,7 +1063,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length;
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length;
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -1122,6 +1123,11 @@ export default function ManagerInbox() {
             <TabsTrigger value="memos" className="gap-2">
               <FileText className="h-4 w-4" />
               Memos
+              {pendingMemos.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingMemos.length}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="reimbursements" className="gap-2">
               <BadgeDollarSign className="h-4 w-4" />
