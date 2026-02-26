@@ -32,7 +32,7 @@ export default function Analytics() {
   const pl = useProfitLoss(); // CoA-based — used for Reports tab P&L statement
   const bs = useBalanceSheet();
   const expenses = useExpenseByCategory();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("coa");
   
   // Date range filter for Reports tab
   const [reportFrom, setReportFrom] = useState<Date | undefined>();
@@ -135,6 +135,10 @@ export default function Analytics() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-4 max-w-lg">
+            <TabsTrigger value="coa" className="flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5" />
+              CoA
+            </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
               Overview
@@ -146,10 +150,6 @@ export default function Analytics() {
             <TabsTrigger value="charts" className="flex items-center gap-1.5">
               <PieChart className="h-3.5 w-3.5" />
               Charts
-            </TabsTrigger>
-            <TabsTrigger value="coa" className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" />
-              CoA
             </TabsTrigger>
           </TabsList>
 
