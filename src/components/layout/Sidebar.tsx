@@ -280,14 +280,16 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { data: currentRole } = useCurrentRole();
+  const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+
+  // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
+  const isLoading = !isFetched;
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
   const isFinance = currentRole === "finance";
   const isHR = currentRole === "hr";
-  const isLoading = currentRole === undefined;
 
   // Expose setter so Header can trigger it
   setMobileMenuOpen = setMobileOpen;
