@@ -87,16 +87,24 @@ export function useRaisePayslipDispute() {
         .single();
       if (!profile) throw new Error("Profile not found");
 
+      // Fetch the user's organization_id (required by RLS)
+      const { data: orgData } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", profile.id)
+        .single();
+      if (!orgData?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("payslip_disputes" as any)
         .insert({
           payroll_record_id: input.payroll_record_id,
           profile_id: profile.id,
+          organization_id: orgData.organization_id,
           pay_period: input.pay_period,
           dispute_category: input.dispute_category,
           description: input.description,
           status: "pending_manager",
-          user_id: user.id,
         } as any)
         .select("*")
         .single();
