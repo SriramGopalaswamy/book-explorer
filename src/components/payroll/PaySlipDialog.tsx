@@ -178,21 +178,24 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const handleDownload = () => {
     const html = buildHTML();
-    // Create a standalone HTML file with inline styles for offline viewing
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.html`;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    // Use click() directly — no window.open, no print dialog
-    link.click();
-    // Cleanup after a short delay to ensure download starts
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 100);
+    // Open a hidden window, render the payslip, and trigger print-to-PDF
+    const win = window.open("", "_blank", "width=800,height=900");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    // Inject a script that triggers print (user can "Save as PDF" from the dialog)
+    win.onload = () => {
+      setTimeout(() => {
+        win.print();
+      }, 300);
+    };
+    win.onafterprint = () => win.close();
+    const poll = setInterval(() => {
+      if (win.closed) {
+        clearInterval(poll);
+        window.focus();
+      }
+    }, 500);
   };
 
   return (
@@ -207,7 +210,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
             </Button>
             <Button size="sm" onClick={handleDownload} className="bg-gradient-financial text-white hover:opacity-90">
               <Download className="h-4 w-4 mr-1" />
-              Download
+              Download PDF
             </Button>
           </div>
         </DialogHeader>
