@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   usePayrollRunEntries,
   useGeneratePayroll,
   useDeletePayrollRun,
+  useUpdateEntryLWP,
   exportPayrollCSV,
   type PayrollRun,
 } from "@/hooks/usePayrollEngine";
@@ -317,7 +318,14 @@ export function PayrollEnginePanel() {
 
 function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: entries = [], isLoading } = usePayrollRunEntries(run.id);
+  const updateLWP = useUpdateEntryLWP();
   const isLocked = run.status === "locked";
+  const isEditable = !isLocked && run.status !== "approved";
+
+  const handleLWPChange = useCallback((entryId: string, value: string) => {
+    const lwpDays = Math.max(0, parseInt(value) || 0);
+    updateLWP.mutate({ entryId, lwpDays, runId: run.id });
+  }, [run.id, updateLWP]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -331,6 +339,9 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
           </DialogTitle>
           <DialogDescription>
             {run.employee_count} employees
+            {isEditable && (
+              <span className="ml-2 text-xs text-amber-600">• LWP days are editable — click to adjust</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -343,6 +354,20 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
         </div>
 
         <Separator />
+
+        {/* Leave adjustment info banner */}
+        {isEditable && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+            <Calendar className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Automatic Leave Adjustments Applied</p>
+              <p className="mt-0.5 text-muted-foreground">
+                LWP days are auto-calculated from approved unpaid leaves and attendance absences.
+                You can manually override by editing the LWP column below — net pay will recalculate automatically.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Export buttons */}
         <div className="flex flex-wrap gap-2">
@@ -370,7 +395,7 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table className="min-w-[800px]">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
@@ -380,7 +405,12 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                   <TableHead className="text-right">PF</TableHead>
                   <TableHead className="text-right">TDS</TableHead>
                   <TableHead className="text-right">Deductions</TableHead>
-                  <TableHead className="text-right">LWP</TableHead>
+                  <TableHead className="text-right">Working</TableHead>
+                  <TableHead className="text-center">
+                    LWP
+                    {isEditable && <span className="block text-[10px] text-amber-600 font-normal">(editable)</span>}
+                  </TableHead>
+                  <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Net Pay</TableHead>
                 </TableRow>
               </TableHeader>
@@ -399,9 +429,33 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                     <TableCell className="text-right">{formatCurrency(e.pf_employee ?? 0)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(e.tds_amount ?? 0)}</TableCell>
                     <TableCell className="text-right text-destructive">-{formatCurrency(e.total_deductions)}</TableCell>
-                    <TableCell className="text-right">
-                      {e.lwp_days > 0 ? <span className="text-amber-600">{e.lwp_days}d</span> : <span className="text-muted-foreground">0</span>}
+                    <TableCell className="text-right text-muted-foreground">{e.working_days}d</TableCell>
+                    <TableCell className="text-center">
+                      {isEditable ? (
+                        <input
+                          type="number"
+                          min={0}
+                          max={e.working_days}
+                          defaultValue={e.lwp_days}
+                          className="w-14 h-7 text-center text-sm rounded border border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                          onBlur={(ev) => {
+                            const newVal = parseInt(ev.target.value) || 0;
+                            if (newVal !== e.lwp_days) {
+                              handleLWPChange(e.id, ev.target.value);
+                            }
+                          }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
+                          }}
+                          disabled={updateLWP.isPending}
+                        />
+                      ) : (
+                        e.lwp_days > 0
+                          ? <span className="text-amber-600">{e.lwp_days}d</span>
+                          : <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
+                    <TableCell className="text-right text-muted-foreground">{e.paid_days}d</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(e.net_pay)}</TableCell>
                   </TableRow>
                 ))}
