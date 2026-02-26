@@ -633,12 +633,37 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Email the creator
+        // Email the creator (internal notification)
         const { data: creatorProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", invoice.user_id).maybeSingle();
         if (creatorProfile?.email) {
           const rows = [tableRow("Invoice", invoice.invoice_number, true), tableRow("Client", invoice.client_name), tableRow("Amount", amountStr, true), tableRow("Status", statusLabel, true)].join("");
           const htmlBody = emailTemplate(color, icon, `Invoice ${statusLabel}`, `Invoice ${invoice.invoice_number} status update`, rows);
           await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Invoice ${invoice.invoice_number} — ${statusLabel}`, htmlBody);
+        }
+
+        // Email the customer when invoice is sent
+        if (new_status === "sent" && invoice.client_email) {
+          const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
+          const invoiceDateStr = invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "N/A";
+          const customerRows = [
+            tableRow("Invoice Number", invoice.invoice_number, true),
+            tableRow("Invoice Date", invoiceDateStr),
+            tableRow("Amount Due", amountStr, true),
+            tableRow("Due Date", dueDateStr, true),
+            ...(invoice.payment_terms ? [tableRow("Payment Terms", invoice.payment_terms)] : []),
+            ...(invoice.notes ? [tableRow("Notes", invoice.notes)] : []),
+          ].join("");
+          const customerHtml = emailTemplate(
+            "#3498db", "📄", `Invoice ${invoice.invoice_number}`,
+            `You have received a new invoice from GRX10`,
+            customerRows,
+            `Please arrange payment by <strong>${dueDateStr}</strong>. If you have any questions, please contact us.`
+          );
+          await sendEmail(
+            [{ email: invoice.client_email, name: invoice.client_name || undefined }],
+            `📄 Invoice ${invoice.invoice_number} — ${amountStr} Due`,
+            customerHtml
+          );
         }
       } catch (err) {
         console.error("invoice_status_changed error:", err);
