@@ -294,6 +294,75 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// OCR FALLBACK — Gemini Vision API for scanned/image PDFs
+// ═══════════════════════════════════════════════════════════════
+
+async function ocrWithGemini(base64PdfData: string): Promise<string> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("OCR_UNAVAILABLE: LOVABLE_API_KEY not configured");
+
+  console.log("[OCR] Sending scanned PDF to Gemini Vision for OCR...");
+
+  const prompt = `You are an OCR engine extracting attendance data from a scanned PDF image.
+
+CRITICAL RULES:
+- Extract ALL text visible in the document exactly as it appears
+- Preserve the tabular structure using consistent spacing or pipe delimiters
+- Include ALL employee codes, names, dates, times, and status values
+- Preserve column headers exactly as shown
+- Each row should be on its own line
+- Do NOT add any commentary, explanations, or formatting — output ONLY the raw extracted text
+- If there are multiple pages, combine them into one continuous text output
+- For dates, preserve the original format (DD/MM/YYYY)
+- For times, preserve the original format (HH:mm or HH:mm:ss)
+
+Output the extracted text now:`;
+
+  const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:application/pdf;base64,${base64PdfData}`,
+              },
+            },
+          ],
+        },
+      ],
+      max_tokens: 16000,
+      temperature: 0,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`[OCR] Gemini API error: ${response.status} — ${errText}`);
+    throw new Error(`OCR_API_ERROR: Gemini returned ${response.status}`);
+  }
+
+  const result = await response.json();
+  const ocrText = result.choices?.[0]?.message?.content?.trim() || "";
+  console.log(`[OCR] Gemini returned ${ocrText.length} chars of OCR text`);
+
+  if (ocrText.length < 50) {
+    throw new Error("OCR_LOW_YIELD: Gemini could not extract meaningful text from this PDF");
+  }
+
+  return ocrText;
+}
+
 /** Resolve text content from request body — handles PDF base64, plain text */
 async function resolveTextContent(body: any): Promise<{ text: string; pages?: number; extractionMethod: string }> {
   // Case 1: Plain text (TXT/CSV)
@@ -312,15 +381,24 @@ async function resolveTextContent(body: any): Promise<{ text: string; pages?: nu
 
     console.log(`[EXTRACT] Extracted ${normalized.length} chars from ${pages} pages`);
 
-    // Stage B threshold: if text is too sparse, it's likely a scanned/image PDF
+    // Stage B threshold: if text is too sparse, try OCR fallback
     if (normalized.length < 300) {
       const dateCount = (normalized.match(/\d{2}\/\d{2}\/\d{4}/g) || []).length;
       const timeCount = (normalized.match(/\d{1,2}:\d{2}/g) || []).length;
       if (dateCount === 0 && timeCount === 0) {
-        throw new Error(
-          "PDF_EXTRACTION_FAILED: PDF contains insufficient extractable text (" +
-          normalized.length + " chars). This may be a scanned image PDF requiring OCR."
-        );
+        // This is a scanned/image PDF — use Gemini OCR
+        console.log("[EXTRACT] Text extraction yielded insufficient data, falling back to AI OCR...");
+        try {
+          const ocrText = await ocrWithGemini(body.file_data);
+          const ocrNormalized = normalizeText(ocrText);
+          return { text: ocrNormalized, pages, extractionMethod: "gemini_ocr" };
+        } catch (ocrErr: any) {
+          console.error(`[EXTRACT] OCR fallback also failed: ${ocrErr.message}`);
+          throw new Error(
+            "PDF_EXTRACTION_FAILED: This appears to be a scanned image PDF. " +
+            "Text extraction found " + normalized.length + " chars and AI OCR also failed: " + ocrErr.message
+          );
+        }
       }
     }
 
