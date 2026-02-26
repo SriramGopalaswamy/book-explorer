@@ -78,7 +78,11 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
                 dataKey="month"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                interval={revenueData && revenueData.length > 15 ? Math.ceil(revenueData.length / 10) : 0}
+                angle={revenueData && revenueData.length > 10 ? -45 : 0}
+                textAnchor={revenueData && revenueData.length > 10 ? "end" : "middle"}
+                height={revenueData && revenueData.length > 10 ? 50 : 30}
               />
               <YAxis
                 axisLine={false}
