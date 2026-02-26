@@ -343,7 +343,7 @@ export default function StatutoryFilings() {
           {/* Content */}
           {activeTab === "gstr1" && (
             <div className="space-y-4">
-              <FilingHeader title="GSTR-1 — Outward Supplies" desc="Details of outward supplies of goods/services. Upload to GST Portal → Returns → GSTR-1." portal="gst.gov.in" />
+              <FilingHeader title="GSTR-1 — Outward Supplies" desc="Details of outward supplies of goods/services. Upload to GST Portal → Returns → GSTR-1." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
               {gstr1.data && gstr1.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Total Invoices" value={String(new Set(gstr1.data.map(r => r.invoice_number)).size)} />
@@ -357,14 +357,14 @@ export default function StatutoryFilings() {
 
           {activeTab === "gstr3b" && (
             <div className="space-y-4">
-              <FilingHeader title="GSTR-3B — Summary Return" desc="Monthly summary of outward/inward supplies and tax liability. Upload to GST Portal → Returns → GSTR-3B." portal="gst.gov.in" />
+              <FilingHeader title="GSTR-3B — Summary Return" desc="Monthly summary of outward/inward supplies and tax liability. Upload to GST Portal → Returns → GSTR-3B." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
               {gstr3b.data && <GSTR3BSummaryCards data={gstr3b.data} />}
             </div>
           )}
 
           {activeTab === "tds24q" && (
             <div className="space-y-4">
-              <FilingHeader title="TDS Form 24Q — Salary" desc="Quarterly statement of TDS deducted from employee salaries. Upload to TRACES Portal." portal="tdscpc.gov.in" />
+              <FilingHeader title="TDS Form 24Q — Salary" desc="Quarterly statement of TDS deducted from employee salaries. Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
               {tds24q.data && tds24q.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Employees" value={String(tds24q.data.length)} />
@@ -378,7 +378,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "tds26q" && (
             <div className="space-y-4">
-              <FilingHeader title="TDS Form 26Q — Non-Salary" desc="Quarterly statement of TDS on payments other than salary (contractor, professional fees, rent, etc.). Upload to TRACES Portal." portal="tdscpc.gov.in" />
+              <FilingHeader title="TDS Form 26Q — Non-Salary" desc="Quarterly statement of TDS on payments other than salary (contractor, professional fees, rent, etc.). Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
               {tds26q.data && tds26q.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Deductees" value={String(tds26q.data.length)} />
@@ -392,7 +392,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "pf" && (
             <div className="space-y-4">
-              <FilingHeader title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="unifiedportal-emp.epfindia.gov.in" />
+              <FilingHeader title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="unifiedportal.epfindia.gov.in" portalUrl="https://unifiedportal.epfindia.gov.in" />
               {pfEcr.data && pfEcr.data.length > 0 && (
                 <div className="grid grid-cols-4 gap-3">
                   <SummaryCard label="Employees" value={String(pfEcr.data.length)} />
@@ -407,7 +407,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "esi" && (
             <div className="space-y-4">
-              <FilingHeader title="ESI Return — Employee State Insurance" desc="Half-yearly ESI contribution details for employees earning ≤ ₹21,000/month. Upload to ESIC Portal." portal="esic.gov.in" />
+              <FilingHeader title="ESI Return — Employee State Insurance" desc="Half-yearly ESI contribution details for employees earning ≤ ₹21,000/month. Upload to ESIC Portal." portal="esic.gov.in" portalUrl="https://www.esic.gov.in" />
               {esiData.data && esiData.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Covered Employees" value={String(esiData.data.length)} />
@@ -438,16 +438,24 @@ export default function StatutoryFilings() {
   );
 }
 
-function FilingHeader({ title, desc, portal }: { title: string; desc: string; portal: string }) {
+function FilingHeader({ title, desc, portal, portalUrl }: { title: string; desc: string; portal: string; portalUrl?: string }) {
   return (
     <div className="flex items-start justify-between">
       <div>
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         <p className="text-sm text-muted-foreground">{desc}</p>
       </div>
-      <Badge variant="outline" className="gap-1 text-xs">
-        <AlertCircle className="h-3 w-3" /> Upload to {portal}
-      </Badge>
+      {portalUrl ? (
+        <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+          <Badge variant="outline" className="gap-1 text-xs cursor-pointer hover:bg-accent">
+            <AlertCircle className="h-3 w-3" /> Upload to {portal}
+          </Badge>
+        </a>
+      ) : (
+        <Badge variant="outline" className="gap-1 text-xs">
+          <AlertCircle className="h-3 w-3" /> Upload to {portal}
+        </Badge>
+      )}
     </div>
   );
 }
