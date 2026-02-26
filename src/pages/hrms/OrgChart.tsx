@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   GitBranch, Users, ShieldAlert, Building2,
   ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut,
-  Maximize2, X, Mail, Phone, CalendarDays,
+  Maximize2, X, Mail, Phone, CalendarDays, Expand,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,31 +250,51 @@ function OrgCard({
           <div className="px-3 py-2 flex items-start gap-2">
             {/* Avatar */}
             <div
-              className="flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative mt-0.5"
+              className={cn(
+                "flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white relative mt-0.5",
+                node.status !== "active" && "opacity-60"
+              )}
               style={{ background: `${color}cc` }}
             >
               {initials}
               {node.status === "active" && (
                 <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-card" />
               )}
+              {node.status === "inactive" && (
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-muted-foreground border-2 border-card" />
+              )}
+              {node.status === "on_leave" && (
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-card" />
+              )}
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-[11px] leading-tight text-foreground truncate">
+              <p className={cn(
+                "font-semibold text-[11px] leading-tight truncate",
+                node.status === "active" ? "text-foreground" : "text-muted-foreground"
+              )}>
                 {node.full_name || "Unnamed"}
               </p>
               <p className="text-[10px] text-muted-foreground truncate mt-0.5">
                 {node.job_title || "No title"}
               </p>
-              {node.department && (
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
                 <span
-                  className="inline-block mt-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                  className="inline-block text-[9px] font-medium px-1.5 py-0.5 rounded-full"
                   style={{ background: `${color}20`, color }}
                 >
-                  {node.department}
+                  {node.department || "Unassigned"}
                 </span>
-              )}
+                {node.status !== "active" && (
+                  <span className={cn(
+                    "inline-block text-[9px] font-medium px-1.5 py-0.5 rounded-full",
+                    node.status === "inactive" ? "bg-muted text-muted-foreground" : "bg-amber-500/15 text-amber-600"
+                  )}>
+                    {node.status === "on_leave" ? "On Leave" : "Inactive"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -506,18 +526,37 @@ function OrgChartCanvas({
     });
   }, []);
 
+  const expandAll = useCallback(() => {
+    setCollapsedIds(new Set());
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    const ids = new Set<string>();
+    function walk(nodes: ProfileNode[], depth: number) {
+      for (const n of nodes) {
+        if (depth >= 1 && n.children.length > 0) ids.add(n.id);
+        walk(n.children, depth + 1);
+      }
+    }
+    walk(roots, 0);
+    setCollapsedIds(ids);
+  }, [roots]);
+
   return (
     <div className="relative w-full h-full" ref={containerRef}>
       {/* Controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => zoom(1.2)}>
+        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => zoom(1.2)} title="Zoom In">
           <ZoomIn className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => zoom(0.8)}>
+        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => zoom(0.8)} title="Zoom Out">
           <ZoomOut className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={fitView}>
+        <Button size="icon" variant="outline" className="h-8 w-8" onClick={fitView} title="Fit View">
           <Maximize2 className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="outline" className="h-8 w-8" onClick={expandAll} title="Expand All">
+          <Expand className="h-4 w-4" />
         </Button>
       </div>
 
