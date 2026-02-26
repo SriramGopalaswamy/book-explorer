@@ -11,10 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Eye, AlertTriangle, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Eye, AlertTriangle, Clock, CheckCircle2, XCircle, IndianRupee, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useMyPayrollRecords, type PayrollRecord } from "@/hooks/usePayroll";
 import { useMyPayslipDisputes, useRaisePayslipDispute, DISPUTE_CATEGORIES, type PayslipDispute } from "@/hooks/usePayslipDisputes";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
+import { useCompensationHistory, type CompensationStructure } from "@/hooks/useCompensation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -56,10 +60,29 @@ function isWithinDisputeWindow(payPeriod: string): boolean {
 }
 
 export default function MyPayslips() {
+  const { user } = useAuth();
   const [paySlipRecord, setPaySlipRecord] = useState<PayrollRecord | null>(null);
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const { data: myDisputes = [] } = useMyPayslipDisputes();
   const raiseDispute = useRaisePayslipDispute();
+  const [expandedRevision, setExpandedRevision] = useState<string | null>(null);
+
+  // Get own profile ID for compensation lookup
+  const { data: myProfileId } = useQuery({
+    queryKey: ["my-profile-id-comp", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data?.id || null;
+    },
+    enabled: !!user,
+  });
+
+  const { data: compensationHistory = [], isLoading: compLoading } = useCompensationHistory(myProfileId ?? null);
 
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
   const [disputeRecord, setDisputeRecord] = useState<PayrollRecord | null>(null);
@@ -98,10 +121,14 @@ export default function MyPayslips() {
         <Tabs defaultValue="payslips">
           <TabsList>
             <TabsTrigger value="payslips">Payslips</TabsTrigger>
+            <TabsTrigger value="compensation" className="gap-2">
+              <IndianRupee className="h-3.5 w-3.5" />
+              Compensation
+            </TabsTrigger>
             <TabsTrigger value="disputes" className="gap-2">
               Disputes
               {myDisputes.filter((d) => !["approved", "rejected"].includes(d.status)).length > 0 && (
-                <span className="ml-1 rounded-full bg-amber-500/20 text-amber-600 text-xs px-1.5 py-0.5 font-semibold">
+                <span className="ml-1 rounded-full bg-destructive/20 text-destructive text-xs px-1.5 py-0.5 font-semibold">
                   {myDisputes.filter((d) => !["approved", "rejected"].includes(d.status)).length}
                 </span>
               )}
@@ -207,6 +234,179 @@ export default function MyPayslips() {
                           })}
                         </TableBody>
                       </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          {/* Compensation Tab */}
+          <TabsContent value="compensation">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="space-y-4">
+              {/* Active CTC Summary */}
+              {compensationHistory.length > 0 && compensationHistory[0].is_active && (
+                <Card className="glass-card border-primary/20">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Current Annual CTC</p>
+                        <p className="text-3xl font-bold text-gradient-primary">
+                          ₹{compensationHistory[0].annual_ctc.toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                          Active
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Revision #{compensationHistory[0].revision_number}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Effective from {new Date(compensationHistory[0].effective_from).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {` • Monthly: ₹${Math.round(compensationHistory[0].annual_ctc / 12).toLocaleString("en-IN")}`}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Revision History */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Salary Revision History
+                  </CardTitle>
+                  <CardDescription>Your complete CTC breakdown across all revisions</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {compLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+                    </div>
+                  ) : compensationHistory.length === 0 ? (
+                    <div className="text-center py-12">
+                      <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground/40" />
+                      <p className="mt-3 text-muted-foreground">No compensation records found</p>
+                      <p className="text-xs text-muted-foreground mt-1">Contact HR if you believe this is an error</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {compensationHistory.map((rev) => {
+                        const isExpanded = expandedRevision === rev.id;
+                        const earnings = rev.compensation_components
+                          .filter(c => c.component_type === "earning")
+                          .sort((a, b) => a.display_order - b.display_order);
+                        const deductions = rev.compensation_components
+                          .filter(c => c.component_type === "deduction")
+                          .sort((a, b) => a.display_order - b.display_order);
+                        const totalEarnings = earnings.reduce((s, c) => s + c.annual_amount, 0);
+                        const totalDeductions = deductions.reduce((s, c) => s + c.annual_amount, 0);
+
+                        return (
+                          <div key={rev.id} className="rounded-xl border border-border/50 overflow-hidden">
+                            {/* Revision Header - clickable */}
+                            <button
+                              className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left"
+                              onClick={() => setExpandedRevision(isExpanded ? null : rev.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`h-3 w-3 rounded-full ${rev.is_active ? "bg-primary animate-pulse" : "bg-muted-foreground/30"}`} />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">₹{rev.annual_ctc.toLocaleString("en-IN")}</span>
+                                    <Badge variant="outline" className="text-[10px] h-5">
+                                      Rev #{rev.revision_number}
+                                    </Badge>
+                                    {rev.is_active && (
+                                      <Badge variant="outline" className="text-[10px] h-5 bg-primary/10 text-primary border-primary/30">
+                                        Current
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {new Date(rev.effective_from).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                    {rev.effective_to && ` — ${new Date(rev.effective_to).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
+                                    {rev.revision_reason && ` • ${rev.revision_reason}`}
+                                  </p>
+                                </div>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                            </button>
+
+                            {/* Expanded CTC Breakdown */}
+                            {isExpanded && (
+                              <div className="border-t border-border/50 p-4 bg-muted/10">
+                                {rev.compensation_components.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground text-center py-4">No component breakdown available</p>
+                                ) : (
+                                  <div className="grid md:grid-cols-2 gap-6">
+                                    {/* Earnings */}
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Earnings</p>
+                                      <div className="space-y-1.5">
+                                        {earnings.map((c) => (
+                                          <div key={c.id || c.component_name} className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">{c.component_name}</span>
+                                            <div className="text-right">
+                                              <span className="font-medium">₹{c.annual_amount.toLocaleString("en-IN")}</span>
+                                              <span className="text-xs text-muted-foreground ml-1">/yr</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                        <div className="flex justify-between text-sm font-semibold pt-1.5 border-t border-border/50">
+                                          <span>Total Earnings</span>
+                                          <span>₹{totalEarnings.toLocaleString("en-IN")}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Deductions */}
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Deductions</p>
+                                      <div className="space-y-1.5">
+                                        {deductions.map((c) => (
+                                          <div key={c.id || c.component_name} className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">{c.component_name}</span>
+                                            <div className="text-right">
+                                              <span className="font-medium text-destructive">₹{c.annual_amount.toLocaleString("en-IN")}</span>
+                                              <span className="text-xs text-muted-foreground ml-1">/yr</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                        {deductions.length > 0 && (
+                                          <div className="flex justify-between text-sm font-semibold pt-1.5 border-t border-border/50">
+                                            <span>Total Deductions</span>
+                                            <span className="text-destructive">₹{totalDeductions.toLocaleString("en-IN")}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Net & Monthly */}
+                                <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Take-home (approx.)</p>
+                                    <p className="font-bold text-lg">₹{(rev.annual_ctc - (deductions.reduce((s, c) => s + c.annual_amount, 0))).toLocaleString("en-IN")} <span className="text-xs font-normal text-muted-foreground">/yr</span></p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-muted-foreground">Monthly</p>
+                                    <p className="font-semibold">₹{Math.round((rev.annual_ctc - totalDeductions) / 12).toLocaleString("en-IN")}</p>
+                                  </div>
+                                </div>
+
+                                {rev.notes && (
+                                  <p className="text-xs text-muted-foreground mt-2 italic">Notes: {rev.notes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
