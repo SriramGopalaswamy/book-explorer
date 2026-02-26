@@ -245,9 +245,7 @@ export default function Dashboard() {
           transition={{ delay: 0.7 }}
         >
           <RecentActivityEnhanced />
-          <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 shadow-lg">
-            <RevenueChart dateRange={filterRange} />
-          </div>
+          <RevenueChart dateRange={filterRange} />
         </motion.div>
 
         {/* Expense Chart */}
