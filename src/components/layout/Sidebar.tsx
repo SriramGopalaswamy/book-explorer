@@ -117,6 +117,7 @@ const financeHrmsNav: NavItem[] = [
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "CTC Components", path: "/hrms/ctc-components", icon: IndianRupee, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
