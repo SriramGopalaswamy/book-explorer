@@ -54,6 +54,7 @@ import {
   type LeaveType,
 } from "@/hooks/useLeaves";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
+import { useIsManager } from "@/hooks/useRoles";
 
 const iconMap: Record<string, typeof Palmtree> = {
   Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
@@ -94,6 +95,8 @@ export default function Leaves() {
   const holidays = holidaysRaw.filter((h) => h.date >= today);
   const { data: isAdminOrHR } = useIsAdminOrHR();
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
+  const { data: isManager } = useIsManager();
+  const showMyLeavesTab = isAdminHROrFinance || isManager;
   
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
@@ -523,7 +526,7 @@ export default function Leaves() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
               <TabsList className="mb-4">
-                {isAdminOrHR && (
+                {showMyLeavesTab && (
                   <TabsTrigger value="mine">My Leaves</TabsTrigger>
                 )}
                 <TabsTrigger value="all">All</TabsTrigger>
