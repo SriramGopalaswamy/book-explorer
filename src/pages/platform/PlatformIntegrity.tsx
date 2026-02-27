@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Shield, Play, Loader2, CheckCircle2, AlertTriangle, XCircle,
   Clock, ChevronDown, ChevronRight, Lock, Database, FileCheck, Server,
-  ShieldAlert, Wrench, Info
+  ShieldAlert, Wrench, Info, Copy
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
