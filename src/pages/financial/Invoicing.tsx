@@ -154,7 +154,7 @@ export default function Invoicing() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, email")
+        .select("id, name, email, tax_number")
         .eq("status", "active")
         .order("name");
       if (error) throw error;
@@ -495,7 +495,13 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Customer *</Label>
-                        <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                        <Select value={selectedCustomerId} onValueChange={(val) => {
+                          setSelectedCustomerId(val);
+                          const cust = customers.find(c => c.id === val);
+                          if (cust?.tax_number) {
+                            setFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
+                          }
+                        }}>
                           <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                           <SelectContent>
                             {customers.length === 0 ? (
@@ -570,7 +576,13 @@ export default function Invoicing() {
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label>Customer *</Label>
-                      <Select value={editSelectedCustomerId} onValueChange={setEditSelectedCustomerId}>
+                      <Select value={editSelectedCustomerId} onValueChange={(val) => {
+                        setEditSelectedCustomerId(val);
+                        const cust = customers.find(c => c.id === val);
+                        if (cust?.tax_number) {
+                          setEditFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
+                        }
+                      }}>
                         <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                         <SelectContent>
                           {customers.map((c) => (
