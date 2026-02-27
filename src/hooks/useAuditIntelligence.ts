@@ -294,3 +294,73 @@ export function getCurrentFinancialYear(): string {
   }
   return `${year - 1}-${year.toString().slice(-2)}`;
 }
+
+// ─── Mutations ──────────────────────────────────────────────────────────────
+
+/** Run a full AI audit */
+export function useRunFullAudit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (financialYear: string) => {
+      const { data, error } = await supabase.functions.invoke("ai-audit-engine", {
+        body: { action: "run_full_audit", financial_year: financialYear },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["audit-latest-run"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-compliance-runs"] });
+      toast.success("AI audit completed successfully");
+    },
+    onError: (err: any) => {
+      toast.error(`Audit failed: ${err.message || "Unknown error"}`);
+    },
+  });
+}
+
+/** Run a pre-audit simulation */
+export function useRunPreAuditSimulation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (financialYear: string) => {
+      const { data, error } = await supabase.functions.invoke("ai-audit-engine", {
+        body: { action: "pre_audit_simulation", financial_year: financialYear },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["audit-latest-run"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-compliance-runs"] });
+      toast.success("Pre-audit simulation completed");
+    },
+    onError: (err: any) => {
+      toast.error(`Simulation failed: ${err.message || "Unknown error"}`);
+    },
+  });
+}
+
+/** Generate auditor pack */
+export function useGenerateAuditorPack() {
+  return useMutation({
+    mutationFn: async ({ financialYear, runId }: { financialYear: string; runId: string | null }) => {
+      const { data, error } = await supabase.functions.invoke("ai-audit-engine", {
+        body: { action: "generate_auditor_pack", financial_year: financialYear, run_id: runId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Auditor pack generated");
+    },
+    onError: (err: any) => {
+      toast.error(`Pack generation failed: ${err.message || "Unknown error"}`);
+    },
+  });
+}
