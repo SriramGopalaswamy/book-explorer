@@ -135,7 +135,7 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
-    const { data: profiles } = await supabase.from("profiles").select("id, email, full_name");
+    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name");
     const errors: string[] = [];
     let success = 0;
 
@@ -145,14 +145,19 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
         (p) => p.email?.toLowerCase().startsWith(empId) || p.full_name?.toLowerCase().includes(empId)
       );
 
+      if (!profile) {
+        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+        continue;
+      }
+
       const checkInDate = row.check_in && row.date
         ? `${row.date}T${row.check_in}` : null;
       const checkOutDate = row.check_out && row.date
         ? `${row.date}T${row.check_out}` : null;
 
       const { error } = await supabase.from("attendance_records").insert({
-        user_id: user.id,
-        profile_id: profile?.id || null,
+        user_id: profile.user_id,
+        profile_id: profile.id,
         date: row.date,
         status: row.status || "present",
         check_in: checkInDate,
