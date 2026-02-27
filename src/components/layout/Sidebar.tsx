@@ -41,6 +41,7 @@ import {
   Landmark,
   Crown,
   IndianRupee,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -83,6 +84,7 @@ const hrmsNav: NavItem[] = [
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "Holidays", path: "/hrms/holidays", icon: PartyPopper, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
@@ -91,6 +93,7 @@ const hrmsNav: NavItem[] = [
 
 // Employee-only HRMS items
 const employeeHrmsNav: NavItem[] = [
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
@@ -100,6 +103,7 @@ const employeeHrmsNav: NavItem[] = [
 
 // Manager HRMS items (same as employee + Inbox)
 const managerHrmsNav: NavItem[] = [
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
@@ -114,6 +118,7 @@ const financeHrmsNav: NavItem[] = [
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "CTC Components", path: "/hrms/ctc-components", icon: IndianRupee, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
