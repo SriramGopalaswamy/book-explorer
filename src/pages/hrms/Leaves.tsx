@@ -140,6 +140,12 @@ export default function Leaves() {
     const from = new Date(fy, fm - 1, fd);
     const to = new Date(ty, tm - 1, td);
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (from < today) {
+      toast.error("Cannot apply leave for past dates.");
+      return;
+    }
     if (to < from) {
       toast.error("To date cannot be before From date.");
       return;
