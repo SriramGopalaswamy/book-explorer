@@ -40,6 +40,7 @@ import Employees from "./pages/hrms/Employees";
 import Attendance from "./pages/hrms/Attendance";
 import Leaves from "./pages/hrms/Leaves";
 import Payroll from "./pages/hrms/Payroll";
+import CTCComponents from "./pages/hrms/CTCComponents";
 import MyPayslips from "./pages/hrms/MyPayslips";
 import Holidays from "./pages/hrms/Holidays";
 import OrgChart from "./pages/hrms/OrgChart";
