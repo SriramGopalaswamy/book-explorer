@@ -105,6 +105,9 @@ export function usePayrollRecords(payPeriod?: string) {
       return data as PayrollRecord[];
     },
     enabled: !!user || isDevMode,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
   });
 }
 
