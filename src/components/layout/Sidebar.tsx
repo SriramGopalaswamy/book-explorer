@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
@@ -133,6 +133,9 @@ const performanceNav: NavItem[] = [
 
 let persistedCollapsed = false;
 export function getSidebarCollapsed() { return persistedCollapsed; }
+
+// Persist sidebar scroll position across remounts (each route renders its own MainLayout)
+let savedSidebarScroll = 0;
 
 // Mobile sidebar state managed via a global-ish export so Header can trigger it
 export let mobileMenuOpen = false;
@@ -280,9 +283,21 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
   const isLoading = !isFetched;
+
+  // Restore sidebar scroll position after remount (each route change remounts Sidebar)
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (el) {
+      el.scrollTop = savedSidebarScroll;
+      const onScroll = () => { savedSidebarScroll = el.scrollTop; };
+      el.addEventListener("scroll", onScroll, { passive: true });
+      return () => el.removeEventListener("scroll", onScroll);
+    }
+  }, []);
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
@@ -343,7 +358,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
+      <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
         {!isLoading && (
           <>
             {visibleMainNav.length > 0 && (
