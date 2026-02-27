@@ -71,6 +71,32 @@ function maybeConvertExcelSerial(value: string): string {
   return value;
 }
 
+/**
+ * Convert Excel time serial (fractional day, e.g. 0.375 = 09:00) to HH:mm:ss string.
+ * Also normalizes datetime strings to extract just the time portion.
+ */
+function maybeConvertExcelTime(value: string): string {
+  const trimmed = value.trim();
+
+  // Already looks like a time (HH:mm or HH:mm:ss) — return as-is
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed;
+
+  // Excel time serial: fractional number between 0 and 1 (e.g. 0.375 = 09:00)
+  const num = Number(trimmed);
+  if (!isNaN(num) && num >= 0 && num < 1 && trimmed.includes(".")) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  }
+
+  // DateTime string like "1899-12-30T09:00:00.000Z" or "2026-02-01 09:00:00" — extract time
+  const dtMatch = trimmed.match(/(\d{1,2}:\d{2}(:\d{2})?)/);
+  if (dtMatch) return dtMatch[1].length === 5 ? dtMatch[1] + ":00" : dtMatch[1];
+
+  return trimmed;
+}
+
 export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const { user } = useAuth();
   const qc = useQueryClient();
