@@ -88,9 +88,13 @@ const periods = () => {
 };
 
 const statusStyles: Record<string, string> = {
+  locked: "bg-green-500/10 text-green-600 border-green-500/30",
+  approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  under_review: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  draft: "bg-muted text-muted-foreground border-border",
+  // Legacy fallbacks
   processed: "bg-green-500/10 text-green-600 border-green-500/30",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/30",
-  draft: "bg-muted text-muted-foreground border-border",
 };
 
 const defaultForm: Omit<CreatePayrollData, "profile_id" | "pay_period"> = {

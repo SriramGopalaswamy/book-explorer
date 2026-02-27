@@ -92,6 +92,15 @@ export default function Expenses() {
       if (!user) throw new Error("Not authenticated");
       if (!form.category || !form.amount) throw new Error("Category and amount are required.");
       if (!receiptFile) throw new Error("Bill/receipt upload is required.");
+
+      // Look up the correct profile_id from profiles table
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      if (profileErr || !profile) throw new Error("Could not find your employee profile.");
+
       let receiptUrl: string | null = null;
       if (receiptFile) {
         const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
@@ -101,7 +110,7 @@ export default function Expenses() {
         }
       }
       const { error } = await supabase.from("expenses").insert({
-        user_id: user.id, profile_id: user.id, category: form.category, amount: Number(form.amount),
+        user_id: user.id, profile_id: profile.id, category: form.category, amount: Number(form.amount),
         description: form.description || null, expense_date: form.expense_date,
         notes: form.notes || null, receipt_url: receiptUrl,
       });
