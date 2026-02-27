@@ -176,26 +176,51 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     }, 500);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const html = buildHTML();
-    // Open a hidden window, render the payslip, and trigger print-to-PDF
-    const win = window.open("", "_blank", "width=800,height=900");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    // Inject a script that triggers print (user can "Save as PDF" from the dialog)
-    win.onload = () => {
-      setTimeout(() => {
-        win.print();
-      }, 300);
-    };
-    win.onafterprint = () => win.close();
-    const poll = setInterval(() => {
-      if (win.closed) {
-        clearInterval(poll);
-        window.focus();
-      }
-    }, 500);
+    // Create a temporary container to render the payslip
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    // Extract just the body content and styles
+    const styleContent = container.querySelector("style")?.outerHTML || "";
+    const bodyContent = container.querySelector("body")?.innerHTML || html;
+    
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "fixed";
+    wrapper.style.left = "-9999px";
+    wrapper.style.top = "0";
+    wrapper.style.width = "740px";
+    wrapper.style.background = "white";
+    wrapper.style.padding = "48px";
+    wrapper.style.fontFamily = "'Segoe UI', system-ui, -apple-system, sans-serif";
+    wrapper.style.color = "#111827";
+    wrapper.innerHTML = `<style>${styleContent.replace(/<\/?style>/g, "")}</style>${bodyContent}`;
+    document.body.appendChild(wrapper);
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      await html2pdf()
+        .set({
+          margin: 0,
+          filename: `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(wrapper)
+        .save();
+    } catch (err) {
+      console.error("PDF generation failed, falling back to print:", err);
+      // Fallback to print dialog
+      const win = window.open("", "_blank", "width=800,height=900");
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.onload = () => setTimeout(() => win.print(), 300);
+      win.onafterprint = () => win.close();
+    } finally {
+      document.body.removeChild(wrapper);
+    }
   };
 
   return (
