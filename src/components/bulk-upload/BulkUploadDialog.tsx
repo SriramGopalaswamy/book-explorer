@@ -37,7 +37,8 @@ interface ParsedRow {
 }
 
 function parseCSV(text: string): string[][] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  // Handle all line ending formats: \r\n (Windows), \n (Unix), \r (old Mac)
+  const lines = text.split(/\r\n|\n|\r/).filter((l) => l.trim());
   return lines.map((line) => {
     const result: string[] = [];
     let current = "";
