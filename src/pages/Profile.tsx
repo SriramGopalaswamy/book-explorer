@@ -274,7 +274,7 @@ export default function Profile() {
 
   return (
     <MainLayout title="Profile" subtitle="View your details and manage account settings">
-      <div className="container max-w-4xl py-8">
+      <div className="w-full py-8">
         <motion.div initial="hidden" animate="show" variants={fadeUp} className="space-y-6">
           {/* Profile Header */}
           <Card className="glass-morphism">
