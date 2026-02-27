@@ -241,7 +241,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
 
       // Log to bulk_upload_history
       if (user) {
-        await supabase.from("bulk_upload_history" as any).insert({
+        const { error: historyErr } = await supabase.from("bulk_upload_history" as any).insert({
           module: config.module,
           file_name: fileName,
           total_rows: parsedRows.length,
@@ -250,6 +250,9 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
           errors: result.errors.slice(0, 50),
           uploaded_by: user.id,
         });
+        if (historyErr) {
+          console.error("Failed to log upload history:", historyErr.message);
+        }
         qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
       }
 
