@@ -1077,6 +1077,393 @@ export type Database = {
           },
         ]
       }
+      audit_ai_anomalies: {
+        Row: {
+          anomaly_type: string
+          confidence_score: number | null
+          created_at: string
+          current_value: number | null
+          data_reference: Json | null
+          deviation_pct: number | null
+          id: string
+          last_year_value: number | null
+          organization_id: string
+          risk_score: number
+          run_id: string
+          suggested_audit_action: string | null
+          theme_id: string | null
+          trigger_condition: string
+        }
+        Insert: {
+          anomaly_type: string
+          confidence_score?: number | null
+          created_at?: string
+          current_value?: number | null
+          data_reference?: Json | null
+          deviation_pct?: number | null
+          id?: string
+          last_year_value?: number | null
+          organization_id: string
+          risk_score?: number
+          run_id: string
+          suggested_audit_action?: string | null
+          theme_id?: string | null
+          trigger_condition: string
+        }
+        Update: {
+          anomaly_type?: string
+          confidence_score?: number | null
+          created_at?: string
+          current_value?: number | null
+          data_reference?: Json | null
+          deviation_pct?: number | null
+          id?: string
+          last_year_value?: number | null
+          organization_id?: string
+          risk_score?: number
+          run_id?: string
+          suggested_audit_action?: string | null
+          theme_id?: string | null
+          trigger_condition?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_ai_anomalies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_ai_anomalies_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_ai_anomalies_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "audit_risk_themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_ai_narratives: {
+        Row: {
+          content: string
+          created_at: string
+          data_points: Json | null
+          financial_year: string
+          generated_at: string
+          id: string
+          narrative_type: string
+          organization_id: string
+          run_id: string
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          data_points?: Json | null
+          financial_year: string
+          generated_at?: string
+          id?: string
+          narrative_type: string
+          organization_id: string
+          run_id: string
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          data_points?: Json | null
+          financial_year?: string
+          generated_at?: string
+          id?: string
+          narrative_type?: string
+          organization_id?: string
+          run_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_ai_narratives_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_ai_narratives_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_ai_samples: {
+        Row: {
+          amount: number | null
+          created_at: string
+          entity_id: string
+          entity_reference: string | null
+          entity_type: string
+          id: string
+          is_accepted: boolean | null
+          metadata: Json | null
+          organization_id: string
+          reason_selected: string
+          risk_weight: number | null
+          run_id: string
+          sample_name: string
+          sample_type: string
+          transaction_date: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          entity_id: string
+          entity_reference?: string | null
+          entity_type: string
+          id?: string
+          is_accepted?: boolean | null
+          metadata?: Json | null
+          organization_id: string
+          reason_selected: string
+          risk_weight?: number | null
+          run_id: string
+          sample_name: string
+          sample_type: string
+          transaction_date?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          entity_id?: string
+          entity_reference?: string | null
+          entity_type?: string
+          id?: string
+          is_accepted?: boolean | null
+          metadata?: Json | null
+          organization_id?: string
+          reason_selected?: string
+          risk_weight?: number | null
+          run_id?: string
+          sample_name?: string
+          sample_type?: string
+          transaction_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_ai_samples_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_ai_samples_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_compliance_checks: {
+        Row: {
+          affected_amount: number | null
+          affected_count: number | null
+          check_code: string
+          check_name: string
+          created_at: string
+          data_references: Json | null
+          details: Json | null
+          id: string
+          module: string
+          organization_id: string
+          recommendation: string | null
+          run_id: string
+          severity: string
+          status: string
+        }
+        Insert: {
+          affected_amount?: number | null
+          affected_count?: number | null
+          check_code: string
+          check_name: string
+          created_at?: string
+          data_references?: Json | null
+          details?: Json | null
+          id?: string
+          module: string
+          organization_id: string
+          recommendation?: string | null
+          run_id: string
+          severity?: string
+          status?: string
+        }
+        Update: {
+          affected_amount?: number | null
+          affected_count?: number | null
+          check_code?: string
+          check_name?: string
+          created_at?: string
+          data_references?: Json | null
+          details?: Json | null
+          id?: string
+          module?: string
+          organization_id?: string
+          recommendation?: string | null
+          run_id?: string
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_compliance_checks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_compliance_checks_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_compliance_runs: {
+        Row: {
+          ai_risk_index: number | null
+          completed_at: string | null
+          compliance_score: number | null
+          created_at: string
+          financial_year: string
+          id: string
+          ifc_rating: string | null
+          organization_id: string
+          risk_breakdown: Json | null
+          run_by: string
+          run_type: string
+          score_breakdown: Json | null
+          started_at: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ai_risk_index?: number | null
+          completed_at?: string | null
+          compliance_score?: number | null
+          created_at?: string
+          financial_year: string
+          id?: string
+          ifc_rating?: string | null
+          organization_id: string
+          risk_breakdown?: Json | null
+          run_by: string
+          run_type?: string
+          score_breakdown?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ai_risk_index?: number | null
+          completed_at?: string | null
+          compliance_score?: number | null
+          created_at?: string
+          financial_year?: string
+          id?: string
+          ifc_rating?: string | null
+          organization_id?: string
+          risk_breakdown?: Json | null
+          run_by?: string
+          run_type?: string
+          score_breakdown?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_compliance_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_ifc_assessments: {
+        Row: {
+          affected_count: number | null
+          affected_user_ids: string[] | null
+          check_name: string
+          check_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          organization_id: string
+          recommendation: string | null
+          run_id: string
+          severity: string
+          status: string
+        }
+        Insert: {
+          affected_count?: number | null
+          affected_user_ids?: string[] | null
+          check_name: string
+          check_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id: string
+          recommendation?: string | null
+          run_id: string
+          severity?: string
+          status?: string
+        }
+        Update: {
+          affected_count?: number | null
+          affected_user_ids?: string[] | null
+          check_name?: string
+          check_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string
+          recommendation?: string | null
+          run_id?: string
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_ifc_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_ifc_assessments_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -1133,6 +1520,129 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_pack_exports: {
+        Row: {
+          created_at: string
+          export_type: string
+          exported_by: string
+          file_url: string | null
+          financial_year: string
+          id: string
+          metadata: Json | null
+          organization_id: string
+          run_id: string | null
+          sections_included: string[] | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          export_type?: string
+          exported_by: string
+          file_url?: string | null
+          financial_year: string
+          id?: string
+          metadata?: Json | null
+          organization_id: string
+          run_id?: string | null
+          sections_included?: string[] | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          export_type?: string
+          exported_by?: string
+          file_url?: string | null
+          financial_year?: string
+          id?: string
+          metadata?: Json | null
+          organization_id?: string
+          run_id?: string | null
+          sections_included?: string[] | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_pack_exports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_pack_exports_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_risk_themes: {
+        Row: {
+          confidence_score: number
+          contributing_flags: Json | null
+          created_at: string
+          explanation: string | null
+          historical_comparison: Json | null
+          id: string
+          impact_area: string
+          impacted_value: number | null
+          organization_id: string
+          risk_score: number
+          run_id: string
+          suggested_action: string | null
+          theme_name: string
+          transaction_count: number | null
+        }
+        Insert: {
+          confidence_score?: number
+          contributing_flags?: Json | null
+          created_at?: string
+          explanation?: string | null
+          historical_comparison?: Json | null
+          id?: string
+          impact_area: string
+          impacted_value?: number | null
+          organization_id: string
+          risk_score?: number
+          run_id: string
+          suggested_action?: string | null
+          theme_name: string
+          transaction_count?: number | null
+        }
+        Update: {
+          confidence_score?: number
+          contributing_flags?: Json | null
+          created_at?: string
+          explanation?: string | null
+          historical_comparison?: Json | null
+          id?: string
+          impact_area?: string
+          impacted_value?: number | null
+          organization_id?: string
+          risk_score?: number
+          run_id?: string
+          suggested_action?: string | null
+          theme_name?: string
+          transaction_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_risk_themes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_risk_themes_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "audit_compliance_runs"
             referencedColumns: ["id"]
           },
         ]
