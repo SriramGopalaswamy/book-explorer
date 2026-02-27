@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Shield, Play, Loader2, CheckCircle2, AlertTriangle, XCircle,
   Clock, ChevronDown, ChevronRight, Lock, Database, FileCheck, Server,
-  ShieldAlert, Wrench, Info
+  ShieldAlert, Wrench, Info, Copy
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -227,6 +227,26 @@ export default function PlatformIntegrity() {
                   } catch { return "Unknown"; }
                 })()}
               </div>
+            )}
+            {result && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const text = [
+                    `Verification Result: ${result.engine_status}`,
+                    `Run at: ${result.run_at || result.timestamp || new Date().toISOString()}`,
+                    `Total checks: ${result.total_checks} | Passed: ${passCount} | Failed: ${failCount} | Warnings: ${warnCount}`,
+                    '',
+                    ...checks.map(c => `[${c.status}] ${c.id} (${c.severity}) — ${c.detail}`)
+                  ].join('\n');
+                  navigator.clipboard.writeText(text);
+                  toast.success("Results copied to clipboard");
+                }}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy Results
+              </Button>
             )}
             <Button onClick={runVerification} disabled={running} size="sm">
               {running ? (
