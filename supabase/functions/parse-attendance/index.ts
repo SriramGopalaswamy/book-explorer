@@ -813,12 +813,41 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
 
     // Avoid duplicate date entries for same employee
     if (!emp.records.some(r => r.date === effectiveDate)) {
+      // Determine in_time and out_time based on status and number of time tokens.
+      // Column order: In Time | Out Time | Shift Hrs | Work Hrs | OT Hrs
+      // Absent/NA: only have Shift Hrs, Work Hrs, OT Hrs (no in/out)
+      // MIS (missing punch): only have one real punch (in_time), rest are shift/work/OT
+      // Present: have In Time + Out Time + Shift Hrs + Work Hrs + OT Hrs (5 times)
+      const absentStatuses = ["A", "NA", "AB", "WO", "CO"];
+      const isAbsent = status && absentStatuses.includes(status);
+      const isMIS = status === "MIS";
+
+      let inTime: string | null = null;
+      let outTime: string | null = null;
+      let workHours: string | null = null;
+
+      if (isAbsent) {
+        // No actual check-in/out for absent employees
+        inTime = null;
+        outTime = null;
+      } else if (isMIS) {
+        // MIS: only one real punch, no out_time
+        inTime = validTimes[0] || null;
+        outTime = null;
+        workHours = validTimes.length > 2 ? validTimes[2] : null;
+      } else {
+        // Present/HD/etc: first two times are in/out
+        inTime = validTimes[0] || null;
+        outTime = validTimes.length > 1 ? validTimes[1] : null;
+        workHours = validTimes.length > 3 ? validTimes[3] : (validTimes.length > 2 ? validTimes[2] : null);
+      }
+
       emp.records.push({
         date: effectiveDate,
         status,
-        in_time: validTimes[0] || null,
-        out_time: validTimes.length > 1 ? validTimes[1] : null,
-        work_hours: validTimes.length > 2 ? validTimes[2] : null,
+        in_time: inTime,
+        out_time: outTime,
+        work_hours: workHours,
         punches: validTimes,
       });
     }
@@ -1064,8 +1093,33 @@ function buildResult(
   const punches: ParsedPunch[] = [];
   for (const emp of employees) {
     for (const rec of emp.records) {
-      if (rec.punches.length > 0) {
-        // Each punch becomes a separate record
+      if (format === "summary") {
+        // Summary format: only use in_time and out_time as punches.
+        // Skip absent/NA employees — their time tokens are shift/work/OT hours, not real punches.
+        const absentStatuses = ["A", "NA", "AB", "WO", "CO"];
+        if (rec.status && absentStatuses.includes(rec.status)) {
+          continue; // No actual punches for absent employees
+        }
+        if (rec.in_time && rec.in_time !== "00:00:00") {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${rec.in_time}`,
+            raw_status: rec.status,
+          });
+        }
+        if (rec.out_time && rec.out_time !== "00:00:00") {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${rec.out_time}`,
+            raw_status: rec.status,
+          });
+        }
+      } else if (rec.punches.length > 0) {
+        // Detailed format: each punch is an actual biometric tap
         for (const punchTime of rec.punches) {
           punches.push({
             employee_code: emp.employee_code,
@@ -1076,7 +1130,7 @@ function buildResult(
           });
         }
       } else if (rec.in_time) {
-        // Summary: in_time as check-in punch
+        // Fallback: use in_time/out_time
         punches.push({
           employee_code: emp.employee_code,
           employee_name: emp.employee_name,
@@ -1084,7 +1138,6 @@ function buildResult(
           punch_datetime: `${rec.date}T${rec.in_time}`,
           raw_status: rec.status,
         });
-        // out_time as check-out punch
         if (rec.out_time && rec.out_time !== "00:00:00") {
           punches.push({
             employee_code: emp.employee_code,
