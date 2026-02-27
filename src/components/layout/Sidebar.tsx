@@ -288,16 +288,22 @@ export function Sidebar() {
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
   const isLoading = !isFetched;
 
-  // Restore sidebar scroll position after remount (each route change remounts Sidebar)
+  // Restore sidebar scroll position after remount AND after content has rendered
+  // We depend on isLoading so scroll is restored once nav items are actually in the DOM
   useEffect(() => {
     const el = sidebarScrollRef.current;
-    if (el) {
+    if (!el || isLoading) return;
+    // Use rAF to ensure the browser has laid out the content before restoring scroll
+    const raf = requestAnimationFrame(() => {
       el.scrollTop = savedSidebarScroll;
-      const onScroll = () => { savedSidebarScroll = el.scrollTop; };
-      el.addEventListener("scroll", onScroll, { passive: true });
-      return () => el.removeEventListener("scroll", onScroll);
-    }
-  }, []);
+    });
+    const onScroll = () => { savedSidebarScroll = el.scrollTop; };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [isLoading]);
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
