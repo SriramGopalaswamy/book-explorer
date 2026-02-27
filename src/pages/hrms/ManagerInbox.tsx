@@ -1472,6 +1472,15 @@ export default function ManagerInbox() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="profile-changes" className="gap-2">
+              <UserCog className="h-4 w-4" />
+              Profile Changes
+              {pendingProfileChanges.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingProfileChanges.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
               History
