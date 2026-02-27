@@ -813,12 +813,41 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
 
     // Avoid duplicate date entries for same employee
     if (!emp.records.some(r => r.date === effectiveDate)) {
+      // Determine in_time and out_time based on status and number of time tokens.
+      // Column order: In Time | Out Time | Shift Hrs | Work Hrs | OT Hrs
+      // Absent/NA: only have Shift Hrs, Work Hrs, OT Hrs (no in/out)
+      // MIS (missing punch): only have one real punch (in_time), rest are shift/work/OT
+      // Present: have In Time + Out Time + Shift Hrs + Work Hrs + OT Hrs (5 times)
+      const absentStatuses = ["A", "NA", "AB", "WO", "CO"];
+      const isAbsent = status && absentStatuses.includes(status);
+      const isMIS = status === "MIS";
+
+      let inTime: string | null = null;
+      let outTime: string | null = null;
+      let workHours: string | null = null;
+
+      if (isAbsent) {
+        // No actual check-in/out for absent employees
+        inTime = null;
+        outTime = null;
+      } else if (isMIS) {
+        // MIS: only one real punch, no out_time
+        inTime = validTimes[0] || null;
+        outTime = null;
+        workHours = validTimes.length > 2 ? validTimes[2] : null;
+      } else {
+        // Present/HD/etc: first two times are in/out
+        inTime = validTimes[0] || null;
+        outTime = validTimes.length > 1 ? validTimes[1] : null;
+        workHours = validTimes.length > 3 ? validTimes[3] : (validTimes.length > 2 ? validTimes[2] : null);
+      }
+
       emp.records.push({
         date: effectiveDate,
         status,
-        in_time: validTimes[0] || null,
-        out_time: validTimes.length > 1 ? validTimes[1] : null,
-        work_hours: validTimes.length > 2 ? validTimes[2] : null,
+        in_time: inTime,
+        out_time: outTime,
+        work_hours: workHours,
         punches: validTimes,
       });
     }
