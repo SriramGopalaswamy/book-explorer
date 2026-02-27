@@ -92,6 +92,7 @@ const hrmsNav: NavItem[] = [
 
 // Employee-only HRMS items
 const employeeHrmsNav: NavItem[] = [
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
