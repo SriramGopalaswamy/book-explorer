@@ -770,14 +770,33 @@ function PendingPayslipDisputes() {
     setPayslipData(null);
     setLoadingPayslip(true);
 
-    // Fetch the linked payroll record
     try {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles:profile_id(full_name, department, job_title)")
-        .eq("id", dispute.payroll_record_id)
-        .single();
-      if (!error && data) setPayslipData(data);
+      let data: any = null;
+
+      // Try by payroll_record_id first
+      if (dispute.payroll_record_id) {
+        const res = await supabase
+          .from("payroll_records")
+          .select("*, profiles:profile_id(full_name, department, job_title)")
+          .eq("id", dispute.payroll_record_id)
+          .maybeSingle();
+        if (!res.error && res.data) data = res.data;
+      }
+
+      // Fallback: look up by profile_id + pay_period
+      if (!data && dispute.profile_id && dispute.pay_period) {
+        const res = await supabase
+          .from("payroll_records")
+          .select("*, profiles:profile_id(full_name, department, job_title)")
+          .eq("profile_id", dispute.profile_id)
+          .eq("pay_period", dispute.pay_period)
+          .order("version", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!res.error && res.data) data = res.data;
+      }
+
+      if (data) setPayslipData(data);
     } catch (err) {
       console.warn("Failed to fetch payroll record:", err);
     } finally {
