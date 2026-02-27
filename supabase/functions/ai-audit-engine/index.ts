@@ -21,14 +21,13 @@ serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify JWT using getClaims
+    // Verify user via getUser
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) throw new Error("Unauthorized");
-    const userId = claimsData.claims.sub as string;
+    const { data: userData, error: userError } = await authClient.auth.getUser();
+    if (userError || !userData?.user) throw new Error("Unauthorized");
+    const userId = userData.user.id;
 
     // Use service role for data operations
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -37,7 +36,7 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles")
       .select("organization_id")
-      .eq("id", userId)
+      .eq("user_id", userId)
       .maybeSingle();
 
     let orgId = profile?.organization_id;
