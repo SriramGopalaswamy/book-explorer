@@ -73,7 +73,7 @@ export default function Customers() {
       const { error } = await supabase.from("customers").update(values).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "Customer Updated" }); setEditingCustomer(null); setForm(emptyForm); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["invoices"] }); queryClient.invalidateQueries({ queryKey: ["quotes"] }); queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Customer Updated" }); setEditingCustomer(null); setForm(emptyForm); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
