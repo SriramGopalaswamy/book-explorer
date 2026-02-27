@@ -150,10 +150,19 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      const checkInDate = row.check_in && row.date
-        ? `${row.date}T${row.check_in}` : null;
-      const checkOutDate = row.check_out && row.date
-        ? `${row.date}T${row.check_out}` : null;
+      // Normalize time values — strip any date prefix, ensure HH:mm:ss format
+      const normalizeTime = (t: string | undefined): string | null => {
+        if (!t || !t.trim()) return null;
+        // Extract time portion from datetime strings or time-only strings
+        const match = t.trim().match(/(\d{1,2}:\d{2}(:\d{2})?)/);
+        if (match) return match[1].length === 5 ? match[1] + ":00" : match[1];
+        return null;
+      };
+
+      const checkInTime = normalizeTime(row.check_in);
+      const checkOutTime = normalizeTime(row.check_out);
+      const checkInDate = checkInTime && row.date ? `${row.date}T${checkInTime}` : null;
+      const checkOutDate = checkOutTime && row.date ? `${row.date}T${checkOutTime}` : null;
 
       const { error } = await supabase.from("attendance_records").insert({
         user_id: profile.user_id,
