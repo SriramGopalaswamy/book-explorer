@@ -367,7 +367,22 @@ export default function Invoicing() {
     );
   };
 
+  // Enforce valid status transitions: draft→sent→paid, sent→overdue→paid
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    draft: ["sent"],
+    sent: ["paid", "overdue"],
+    overdue: ["paid"],
+    paid: [],
+  };
+
   const handleStatusChange = (invoiceId: string, newStatus: Invoice["status"]) => {
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    const currentStatus = invoice?.status || "draft";
+    const allowed = VALID_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(newStatus)) {
+      toast({ title: "Invalid Transition", description: `Cannot change status from "${currentStatus}" to "${newStatus}".`, variant: "destructive" });
+      return;
+    }
     updateStatus.mutate({ id: invoiceId, status: newStatus });
   };
 
