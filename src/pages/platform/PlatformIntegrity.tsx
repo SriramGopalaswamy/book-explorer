@@ -104,9 +104,14 @@ export default function PlatformIntegrity() {
     setRunning(true);
     try {
       const { data, error } = await supabase.rpc("run_financial_verification" as any);
+      console.log("Verification RPC raw response:", { data, error });
       if (error) throw error;
+      if (!data) throw new Error("No data returned from verification engine");
 
-      const parsed = data as unknown as VerificationResult;
+      const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as VerificationResult;
+      if (!parsed.checks || !Array.isArray(parsed.checks)) {
+        throw new Error("Invalid response structure: missing checks array");
+      }
       setResult(parsed);
 
       // Expand all categories by default
@@ -215,7 +220,12 @@ export default function PlatformIntegrity() {
             {result && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {format(new Date(result.run_at || result.timestamp || new Date()), "yyyy-MM-dd HH:mm:ss")}
+                {(() => {
+                  try {
+                    const dateStr = result.run_at || result.timestamp;
+                    return format(dateStr ? new Date(dateStr) : new Date(), "yyyy-MM-dd HH:mm:ss");
+                  } catch { return "Unknown"; }
+                })()}
               </div>
             )}
             <Button onClick={runVerification} disabled={running} size="sm">
