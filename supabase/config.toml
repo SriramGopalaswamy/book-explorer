@@ -9,7 +9,11 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.financial-engine]
     verify_jwt = false
+  [functions.generate-invoice-pdf]
+    verify_jwt = false
   [functions.generate-payslip]
+    verify_jwt = false
+  [functions.generate-quote-pdf]
     verify_jwt = false
   [functions.goal-reminders]
     verify_jwt = false
@@ -18,6 +22,10 @@ project_id = "qfgudhbrjfjmbamwsfuj"
   [functions.ms365-auth]
     verify_jwt = false
   [functions.parse-attendance]
+    verify_jwt = false
+  [functions.process-reimbursement]
+    verify_jwt = false
+  [functions.send-notification-email]
     verify_jwt = false
   [functions.scan-bill]
     verify_jwt = false
