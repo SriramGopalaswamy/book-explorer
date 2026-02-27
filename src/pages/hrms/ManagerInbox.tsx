@@ -375,6 +375,46 @@ function PendingCorrections() {
     if (error) {
       toast.error("Failed to update correction request.");
     } else {
+      // If approved, update the actual attendance record with corrected times
+      if (pendingAction === "approved") {
+        const updateFields: Record<string, any> = {};
+        if (selected.requested_check_in) updateFields.check_in = selected.requested_check_in;
+        if (selected.requested_check_out) updateFields.check_out = selected.requested_check_out;
+        updateFields.updated_at = new Date().toISOString();
+        updateFields.notes = `Correction approved by manager${notes ? ': ' + notes : ''}`;
+
+        if (Object.keys(updateFields).length > 1) {
+          // Try to update existing record for that date & user
+          const { data: existingRecord } = await supabase
+            .from("attendance_records")
+            .select("id")
+            .eq("user_id", selected.user_id)
+            .eq("date", selected.date)
+            .maybeSingle();
+
+          if (existingRecord) {
+            await supabase
+              .from("attendance_records")
+              .update(updateFields)
+              .eq("id", existingRecord.id);
+          } else {
+            // Create a new attendance record if none exists for that date
+            await supabase
+              .from("attendance_records")
+              .insert({
+                user_id: selected.user_id,
+                profile_id: selected.profile_id,
+                date: selected.date,
+                check_in: selected.requested_check_in || null,
+                check_out: selected.requested_check_out || null,
+                status: "present",
+                notes: `Created from approved correction${notes ? ': ' + notes : ''}`,
+              });
+          }
+          queryClient.invalidateQueries({ queryKey: ["attendance"] });
+        }
+      }
+
       toast.success(`Correction request ${pendingAction}.`);
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-pending"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-history"] });
