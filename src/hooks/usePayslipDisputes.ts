@@ -198,10 +198,25 @@ export function useManagerReviewDispute() {
         .update(update)
         .eq("id", disputeId);
       if (error) throw error;
+      return { disputeId, action, notes };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });
-      toast.success("Dispute reviewed successfully");
+      queryClient.invalidateQueries({ queryKey: ["my-payslip-disputes"] });
+      toast.success(result.action === "forward" ? "Dispute forwarded to HR" : "Dispute rejected");
+
+      // Send notification & email
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "payslip_dispute_reviewed",
+          payload: {
+            dispute_id: result.disputeId,
+            decision: result.action === "forward" ? "forwarded_to_hr" : "rejected",
+            reviewer_name: user?.user_metadata?.full_name ?? user?.email ?? "Manager",
+            reviewer_notes: result.notes || null,
+          },
+        },
+      }).catch((err) => console.warn("Failed to send dispute review notification:", err));
     },
     onError: (err: any) => toast.error(err.message),
   });
