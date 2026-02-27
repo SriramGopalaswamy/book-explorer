@@ -365,6 +365,11 @@ function PendingCorrections() {
   const handleSubmit = async () => {
     if (!selected || !pendingAction || !user) return;
     setSubmitting(true);
+
+    // Use the (possibly edited) times from the dialog
+    const finalCheckIn = editCheckIn || null;
+    const finalCheckOut = editCheckOut || null;
+
     const { error } = await supabase
       .from("attendance_correction_requests")
       .update({
@@ -372,6 +377,8 @@ function PendingCorrections() {
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString(),
         reviewer_notes: notes || null,
+        requested_check_in: finalCheckIn,
+        requested_check_out: finalCheckOut,
       })
       .eq("id", selected.id);
     setSubmitting(false);
@@ -379,51 +386,87 @@ function PendingCorrections() {
     if (error) {
       toast.error("Failed to update correction request.");
     } else {
-      // If approved, update the actual attendance record with corrected times
+      // If approved, update the actual attendance records with corrected times
       if (pendingAction === "approved") {
-        const updateFields: Record<string, any> = {};
-        if (selected.requested_check_in) updateFields.check_in = selected.requested_check_in;
-        if (selected.requested_check_out) updateFields.check_out = selected.requested_check_out;
-        updateFields.updated_at = new Date().toISOString();
-        updateFields.notes = `Correction approved by manager${notes ? ': ' + notes : ''}`;
+        const correctionNote = `Correction approved by manager${notes ? ': ' + notes : ''}`;
 
-        if (Object.keys(updateFields).length > 1) {
-          // Try to update existing record for that date & user
-          const { data: existingRecord } = await supabase
+        // 1. Update/insert attendance_records (legacy table)
+        const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
+        if (finalCheckIn) updateFields.check_in = finalCheckIn;
+        if (finalCheckOut) updateFields.check_out = finalCheckOut;
+        updateFields.notes = correctionNote;
+
+        const { data: existingRecord } = await supabase
+          .from("attendance_records")
+          .select("id")
+          .eq("user_id", selected.user_id)
+          .eq("date", selected.date)
+          .maybeSingle();
+
+        if (existingRecord) {
+          await supabase
             .from("attendance_records")
+            .update(updateFields)
+            .eq("id", existingRecord.id);
+        } else {
+          await supabase
+            .from("attendance_records")
+            .insert({
+              user_id: selected.user_id,
+              profile_id: selected.profile_id,
+              date: selected.date,
+              check_in: finalCheckIn,
+              check_out: finalCheckOut,
+              status: "present",
+              notes: correctionNote,
+            });
+        }
+
+        // 2. Update attendance_daily (biometric engine table) if profile_id exists
+        if (selected.profile_id) {
+          const dailyUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
+          if (finalCheckIn) dailyUpdate.first_in_time = finalCheckIn;
+          if (finalCheckOut) dailyUpdate.last_out_time = finalCheckOut;
+
+          // Recalculate work minutes if both times available
+          if (finalCheckIn && finalCheckOut) {
+            try {
+              const inParts = finalCheckIn.split(":");
+              const outParts = finalCheckOut.split(":");
+              const inMins = parseInt(inParts[0]) * 60 + parseInt(inParts[1]);
+              const outMins = parseInt(outParts[0]) * 60 + parseInt(outParts[1]);
+              const totalMins = Math.max(0, outMins - inMins);
+              dailyUpdate.total_work_minutes = totalMins;
+              dailyUpdate.status = totalMins >= 480 ? "P" : totalMins >= 240 ? "HD" : "A";
+            } catch { /* skip recalc on parse error */ }
+          }
+
+          const { data: existingDaily } = await supabase
+            .from("attendance_daily")
             .select("id")
-            .eq("user_id", selected.user_id)
-            .eq("date", selected.date)
+            .eq("profile_id", selected.profile_id)
+            .eq("attendance_date", selected.date)
             .maybeSingle();
 
-          if (existingRecord) {
+          if (existingDaily) {
             await supabase
-              .from("attendance_records")
-              .update(updateFields)
-              .eq("id", existingRecord.id);
-          } else {
-            // Create a new attendance record if none exists for that date
-            await supabase
-              .from("attendance_records")
-              .insert({
-                user_id: selected.user_id,
-                profile_id: selected.profile_id,
-                date: selected.date,
-                check_in: selected.requested_check_in || null,
-                check_out: selected.requested_check_out || null,
-                status: "present",
-                notes: `Created from approved correction${notes ? ': ' + notes : ''}`,
-              });
+              .from("attendance_daily")
+              .update(dailyUpdate)
+              .eq("id", existingDaily.id);
           }
-          queryClient.invalidateQueries({ queryKey: ["attendance"] });
         }
+
+        queryClient.invalidateQueries({ queryKey: ["attendance"] });
+        queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["attendance-daily"] });
+        queryClient.invalidateQueries({ queryKey: ["my-attendance"] });
       }
 
       toast.success(`Correction request ${pendingAction}.`);
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-pending"] });
       queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-history"] });
       setDialogOpen(false);
-      supabase.from("audit_logs" as any).insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: pendingAction === "approved" ? "correction_approved" : "correction_rejected", entity_type: "attendance_correction", entity_id: selected.id, target_user_id: selected.user_id, metadata: { notes: notes || null } } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
+      supabase.from("audit_logs" as any).insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: pendingAction === "approved" ? "correction_approved" : "correction_rejected", entity_type: "attendance_correction", entity_id: selected.id, target_user_id: selected.user_id, metadata: { notes: notes || null, final_check_in: finalCheckIn, final_check_out: finalCheckOut } } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "correction_request_decided",
