@@ -67,12 +67,23 @@ export function useAttendanceStats(date?: string) {
     queryKey: ["attendance-stats", selectedDate, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockAttendanceStats;
-      const { data, error } = await supabase
-        .from("attendance_records")
-        .select("status")
-        .eq("date", selectedDate);
 
-      if (error) throw error;
+      // Fetch attendance records and approved leave requests in parallel
+      const [attendanceRes, leaveRes] = await Promise.all([
+        supabase
+          .from("attendance_records")
+          .select("status, user_id")
+          .eq("date", selectedDate),
+        supabase
+          .from("leave_requests")
+          .select("user_id")
+          .eq("status", "approved")
+          .lte("from_date", selectedDate)
+          .gte("to_date", selectedDate),
+      ]);
+
+      if (attendanceRes.error) throw attendanceRes.error;
+      const data = attendanceRes.data;
 
       const stats: AttendanceStats = {
         present: 0,
@@ -81,6 +92,9 @@ export function useAttendanceStats(date?: string) {
         leave: 0,
         total: data.length,
       };
+
+      // Track user_ids already marked as leave in attendance_records
+      const leaveUserIds = new Set<string>();
 
       data.forEach((record) => {
         if (record.status === "present" || record.status === "half_day") {
@@ -91,8 +105,18 @@ export function useAttendanceStats(date?: string) {
           stats.late++;
         } else if (record.status === "leave") {
           stats.leave++;
+          if (record.user_id) leaveUserIds.add(record.user_id);
         }
       });
+
+      // Add approved leaves that don't already have an attendance record with status 'leave'
+      if (leaveRes.data) {
+        const extraLeaves = leaveRes.data.filter(
+          (lr) => !leaveUserIds.has(lr.user_id)
+        );
+        stats.leave += extraLeaves.length;
+        stats.total += extraLeaves.length;
+      }
 
       return stats;
     },
