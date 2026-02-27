@@ -48,17 +48,17 @@ serve(async (req) => {
 
     // ─── ACTION: run_full_audit ───────────────────────────────────────
     if (action === "run_full_audit") {
-      return await runFullAudit(supabase, orgId, user.id, financial_year, LOVABLE_API_KEY);
+      return await runFullAudit(supabase, orgId, userId, financial_year, LOVABLE_API_KEY);
     }
 
     // ─── ACTION: generate_auditor_pack ────────────────────────────────
     if (action === "generate_auditor_pack") {
-      return await generateAuditorPack(supabase, orgId, user.id, financial_year, run_id);
+      return await generateAuditorPack(supabase, orgId, userId, financial_year, run_id);
     }
 
     // ─── ACTION: pre_audit_simulation ─────────────────────────────────
     if (action === "pre_audit_simulation") {
-      return await runPreAuditSimulation(supabase, orgId, user.id, financial_year, LOVABLE_API_KEY);
+      return await runPreAuditSimulation(supabase, orgId, userId, financial_year, LOVABLE_API_KEY);
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
