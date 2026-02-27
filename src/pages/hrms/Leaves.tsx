@@ -95,6 +95,8 @@ export default function Leaves() {
   const holidays = holidaysRaw.filter((h) => h.date >= today);
   const { data: isAdminOrHR } = useIsAdminOrHR();
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
+  const { data: isManager } = useIsManager();
+  const showMyLeavesTab = isAdminHROrFinance || isManager;
   
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
