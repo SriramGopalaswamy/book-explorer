@@ -60,9 +60,11 @@ import { Input } from "@/components/ui/input";
 import {
   usePendingPayslipDisputes,
   useManagerReviewDispute,
+  useHRReviewDispute,
   DISPUTE_CATEGORIES,
   type PayslipDispute,
 } from "@/hooks/usePayslipDisputes";
+import { useCurrentRole } from "@/hooks/useRoles";
 import {
   useDirectReportsPendingMemos,
   useApproveMemo,
