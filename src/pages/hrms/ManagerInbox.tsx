@@ -1951,6 +1951,17 @@ export default function ManagerInbox() {
                 </span>
               )}
             </TabsTrigger>
+            {isHRRole && (
+              <TabsTrigger value="hr-disputes" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                HR Approvals
+                {pendingHRDisputes.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                    {pendingHRDisputes.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="profile-changes" className="gap-2">
               <UserCog className="h-4 w-4" />
               Profile Changes
