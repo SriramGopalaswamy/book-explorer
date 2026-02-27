@@ -9,7 +9,11 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.financial-engine]
     verify_jwt = false
+  [functions.generate-invoice-pdf]
+    verify_jwt = false
   [functions.generate-payslip]
+    verify_jwt = false
+  [functions.generate-quote-pdf]
     verify_jwt = false
   [functions.goal-reminders]
     verify_jwt = false
