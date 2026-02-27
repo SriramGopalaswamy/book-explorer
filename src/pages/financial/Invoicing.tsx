@@ -154,7 +154,7 @@ export default function Invoicing() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, email")
+        .select("id, name, email, tax_number")
         .eq("status", "active")
         .order("name");
       if (error) throw error;
