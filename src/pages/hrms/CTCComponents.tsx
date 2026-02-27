@@ -203,7 +203,7 @@ export default function CTCComponents() {
   );
 
   return (
-    <MainLayout>
+    <MainLayout title="CTC Components" subtitle="Manage master salary component templates">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
