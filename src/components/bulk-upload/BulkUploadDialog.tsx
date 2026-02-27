@@ -153,9 +153,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       const row: Record<string, string> = {};
       fileHeaders.forEach((h, i) => {
         const val = String(cells[i] ?? "").trim();
-        // Only apply Excel date serial conversion to columns that look like date fields
+        // Apply appropriate conversion based on column type
         const isDateColumn = /date|dob|birth|expiry|joining|leaving|start|end/.test(h);
-        row[h] = isDateColumn ? maybeConvertExcelSerial(val) : val;
+        const isTimeColumn = /check_in|check_out|time_in|time_out|clock_in|clock_out|in_time|out_time/.test(h);
+        if (isTimeColumn) {
+          row[h] = maybeConvertExcelTime(val);
+        } else if (isDateColumn) {
+          row[h] = maybeConvertExcelSerial(val);
+        } else {
+          row[h] = val;
+        }
       });
       return validateRow(row, idx);
     });
