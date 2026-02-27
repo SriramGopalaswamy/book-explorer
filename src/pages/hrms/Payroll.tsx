@@ -336,8 +336,8 @@ export default function Payroll() {
           {[
             { label: "Total Payroll", value: formatCurrency(stats.totalPayroll), sub: `For ${periodLabel(selectedPeriod)}`, icon: Wallet, iconClass: "text-primary" },
             { label: "Employees", value: String(stats.totalEmployees), sub: "In payroll this period", icon: Users, iconClass: "text-primary" },
-            { label: "Processed", value: String(stats.processed), sub: stats.totalEmployees > 0 ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete` : "No records", icon: CheckCircle, iconClass: "text-green-500", valueClass: "text-green-500" },
-            { label: "Pending", value: String(stats.pending), sub: "Awaiting processing", icon: Clock, iconClass: "text-amber-500", valueClass: "text-amber-500" },
+            { label: "Locked", value: String(stats.processed), sub: stats.totalEmployees > 0 ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete` : "No records", icon: CheckCircle, iconClass: "text-green-500", valueClass: "text-green-500" },
+            { label: "In Progress", value: String(stats.pending), sub: "Draft / Review / Approved", icon: Clock, iconClass: "text-amber-500", valueClass: "text-amber-500" },
           ].map((stat) => (
             <motion.div key={stat.label} variants={fadeUp}>
               <Card className="glass-card glow-on-hover group transition-all duration-300 hover:-translate-y-1">
