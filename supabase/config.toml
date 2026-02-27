@@ -1,28 +1,23 @@
 project_id = "qfgudhbrjfjmbamwsfuj"
 
-[functions.ms365-auth]
-verify_jwt = false
-
-[functions.manage-roles]
-verify_jwt = false
-
-[functions.categorise-transactions]
-verify_jwt = false
-
-[functions.scan-bill]
-verify_jwt = false
-
-[functions.ai-insights]
-verify_jwt = false
-
-[functions.financial-engine]
-verify_jwt = false
-
-[functions.parse-attendance]
-verify_jwt = false
-
-[functions.generate-payslip]
-verify_jwt = false
-
-[functions.goal-reminders]
-verify_jwt = false
+[functions]
+  [functions.ai-insights]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.categorise-transactions]
+    verify_jwt = false
+  [functions.financial-engine]
+    verify_jwt = false
+  [functions.generate-payslip]
+    verify_jwt = false
+  [functions.goal-reminders]
+    verify_jwt = false
+  [functions.manage-roles]
+    verify_jwt = false
+  [functions.ms365-auth]
+    verify_jwt = false
+  [functions.parse-attendance]
+    verify_jwt = false
+  [functions.scan-bill]
+    verify_jwt = false
