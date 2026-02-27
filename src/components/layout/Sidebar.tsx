@@ -75,6 +75,7 @@ const financialNav: NavItem[] = [
   { name: "Assets", path: "/financial/assets", icon: Package, module: "financial" },
   { name: "Statutory Filings", path: "/financial/statutory", icon: Landmark, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
+  { name: "CA Audit Console", path: "/financial/audit-console", icon: Shield, module: "financial" },
 ];
 
 const hrmsNav: NavItem[] = [
