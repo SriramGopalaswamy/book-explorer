@@ -199,16 +199,8 @@ function NavSection({
           </Tooltip>
         )}
 
-        <AnimatePresence initial={false}>
-          {(sectionOpen || collapsed) && (
-            <motion.nav
-              key={sectionId}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="overflow-hidden space-y-1"
-            >
+        {(sectionOpen || collapsed) && (
+          <nav className="space-y-1">
               {items.map((item) => {
                 const isActive = location.pathname === item.path;
                 const Icon = item.icon;
@@ -267,9 +259,8 @@ function NavSection({
                   </NavLink>
                 );
               })}
-            </motion.nav>
-          )}
-        </AnimatePresence>
+          </nav>
+        )}
       </div>
     </TooltipProvider>
   );
