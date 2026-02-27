@@ -495,7 +495,13 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Customer *</Label>
-                        <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                        <Select value={selectedCustomerId} onValueChange={(val) => {
+                          setSelectedCustomerId(val);
+                          const cust = customers.find(c => c.id === val);
+                          if (cust?.tax_number) {
+                            setFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
+                          }
+                        }}>
                           <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                           <SelectContent>
                             {customers.length === 0 ? (
