@@ -564,15 +564,46 @@ function PendingCorrections() {
               {pendingAction === "approved" ? "Approve" : "Reject"} Correction Request
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label htmlFor="reviewer-notes">Reviewer Notes (optional)</Label>
-            <Textarea
-              id="reviewer-notes"
-              placeholder="Add any notes for this decision…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
+          <div className="space-y-4 py-2">
+            {pendingAction === "approved" && selected && (
+              <div className="space-y-3 p-3 rounded-lg border border-border/50 bg-muted/30">
+                <p className="text-sm font-medium text-foreground">Correct Times</p>
+                <p className="text-xs text-muted-foreground">You can edit the times before approving.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-check-in" className="text-xs">Check-in Time</Label>
+                    <Input
+                      id="edit-check-in"
+                      type="time"
+                      value={editCheckIn}
+                      onChange={(e) => setEditCheckIn(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-check-out" className="text-xs">Check-out Time</Label>
+                    <Input
+                      id="edit-check-out"
+                      type="time"
+                      value={editCheckOut}
+                      onChange={(e) => setEditCheckOut(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="reviewer-notes">Reviewer Notes (optional)</Label>
+              <Textarea
+                id="reviewer-notes"
+                placeholder="Add any notes for this decision…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="mt-1"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
