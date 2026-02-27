@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
-  Shield, AlertTriangle, CheckCircle2, TrendingUp, FileText, Download,
-  BarChart3, Eye, RefreshCw, Lock, Sparkles, Target, Layers, Activity,
-  FileSearch, Package, Clock, ArrowRight, ChevronRight, Zap,
+  Shield, AlertTriangle, CheckCircle2, FileText, Download,
+  BarChart3, Eye, RefreshCw, Sparkles, Target, Layers, Activity,
+  FileSearch, Package, ArrowRight, Zap, Play, FlaskConical, Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -22,8 +21,13 @@ import {
   useAiNarratives,
   useIfcAssessments,
   getCurrentFinancialYear,
+  useRunFullAudit,
+  useRunPreAuditSimulation,
+  useGenerateAuditorPack,
 } from "@/hooks/useAuditIntelligence";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import JSZip from "jszip";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -38,22 +42,8 @@ function ScoreGauge({ score, label, max = 100, variant = "default" }: { score: n
     <div className="flex flex-col items-center gap-2">
       <div className="relative w-24 h-24">
         <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-          <path
-            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-            fill="none"
-            stroke="currentColor"
-            className="text-muted/20"
-            strokeWidth="3"
-          />
-          <path
-            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-            fill="none"
-            stroke="currentColor"
-            className={color}
-            strokeWidth="3"
-            strokeDasharray={`${pct}, 100`}
-            strokeLinecap="round"
-          />
+          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" className="text-muted/20" strokeWidth="3" />
+          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" className={color} strokeWidth="3" strokeDasharray={`${pct}, 100`} strokeLinecap="round" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={cn("text-2xl font-bold", color)}>{val}</span>
@@ -68,7 +58,6 @@ function RiskHeatmapCell({ area, score }: { area: string; score: number }) {
   const bg = score > 60 ? "bg-red-500/20 border-red-500/40 text-red-400"
     : score > 30 ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
     : "bg-green-500/20 border-green-500/40 text-green-400";
-
   return (
     <div className={cn("rounded-lg border p-3 text-center transition-all hover:scale-105", bg)}>
       <p className="text-xs font-medium uppercase tracking-wider mb-1">{area}</p>
@@ -110,8 +99,6 @@ function StatusBadge({ status }: { status: string }) {
 const fmtCurrency = (v: number) =>
   `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-// ─── Financial Year Options ────────────────────────────────────────────────
-
 function getFinancialYearOptions() {
   const current = new Date().getFullYear();
   const month = new Date().getMonth() + 1;
@@ -120,6 +107,26 @@ function getFinancialYearOptions() {
     const y = startYear - i;
     return `${y}-${(y + 1).toString().slice(-2)}`;
   });
+}
+
+// ─── CSV Export Helper ─────────────────────────────────────────────────────
+
+function exportToCSV(data: any[], filename: string) {
+  if (!data.length) return;
+  const headers = Object.keys(data[0]);
+  const csv = [
+    headers.join(","),
+    ...data.map(row => headers.map(h => {
+      const val = row[h];
+      const str = typeof val === "object" ? JSON.stringify(val) : String(val ?? "");
+      return `"${str.replace(/"/g, '""')}"`;
+    }).join(","))
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────
@@ -138,11 +145,14 @@ export default function AuditConsole() {
   const { data: narratives = [] } = useAiNarratives(runId);
   const { data: ifcChecks = [] } = useIfcAssessments(runId);
 
+  const runAudit = useRunFullAudit();
+  const runSimulation = useRunPreAuditSimulation();
+  const generatePack = useGenerateAuditorPack();
+
   const failedChecks = checks.filter(c => c.status === "fail");
   const warningChecks = checks.filter(c => c.status === "warning");
   const criticalAnomalies = anomalies.filter(a => a.risk_score >= 70);
 
-  // Breakdown scores
   const scoreBreakdown = latestRun?.score_breakdown || {};
   const riskBreakdown = latestRun?.risk_breakdown || {};
 
@@ -156,13 +166,53 @@ export default function AuditConsole() {
     { area: "Journals", score: riskBreakdown.journal || 0 },
   ];
 
-  // Module compliance summaries
   const gstChecks = checks.filter(c => c.module === "gst");
   const tdsChecks = checks.filter(c => c.module === "tds");
   const gstPassRate = gstChecks.length > 0 ? Math.round((gstChecks.filter(c => c.status === "pass").length / gstChecks.length) * 100) : 0;
   const tdsPassRate = tdsChecks.length > 0 ? Math.round((tdsChecks.filter(c => c.status === "pass").length / tdsChecks.length) * 100) : 0;
 
   const hasData = !!latestRun;
+  const isRunning = runAudit.isPending || runSimulation.isPending;
+
+  const handleRunAudit = () => runAudit.mutate(selectedFY);
+  const handleSimulation = () => runSimulation.mutate(selectedFY);
+
+  const handleExportPack = async () => {
+    try {
+      const result = await generatePack.mutateAsync({ financialYear: selectedFY, runId });
+      // Build ZIP
+      const zip = new JSZip();
+      const sections = result.sections || {};
+      for (const [folderName, data] of Object.entries(sections)) {
+        zip.file(`${folderName}/data.json`, JSON.stringify(data, null, 2));
+      }
+      zip.file("metadata.json", JSON.stringify(result.metadata, null, 2));
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `GRX10_AuditorPack_FY${selectedFY}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleExportSamplesCSV = () => {
+    if (!samples.length) { toast.info("No samples to export"); return; }
+    exportToCSV(samples.map(s => ({
+      type: s.sample_type,
+      name: s.sample_name,
+      entity_type: s.entity_type,
+      reference: s.entity_reference || s.entity_id,
+      risk_weight: s.risk_weight,
+      amount: s.amount || "",
+      reason: s.reason_selected,
+      date: s.transaction_date || "",
+    })), `audit_samples_FY${selectedFY}.csv`);
+  };
 
   return (
     <MainLayout title="CA Audit Console" subtitle="Indian CA Audit Intelligence System (ICAIS)">
@@ -178,7 +228,7 @@ export default function AuditConsole() {
               Indian CA Audit Intelligence System (ICAIS) — AI-Augmented Compliance & Risk Analysis
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Select value={selectedFY} onValueChange={setSelectedFY}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="FY" />
@@ -189,14 +239,27 @@ export default function AuditConsole() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" disabled>
-              <RefreshCw className="h-4 w-4 mr-1" /> Run Audit
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSimulation}
+              disabled={isRunning}
+            >
+              {runSimulation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FlaskConical className="h-4 w-4 mr-1" />}
+              Simulate
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleRunAudit}
+              disabled={isRunning}
+            >
+              {runAudit.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              Run AI Audit
             </Button>
           </div>
         </div>
 
         {!hasData ? (
-          /* Empty State */
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="border-dashed border-2 border-primary/20">
               <CardContent className="flex flex-col items-center justify-center py-20 gap-4">
@@ -208,12 +271,16 @@ export default function AuditConsole() {
                   Run the AI-powered compliance audit to generate risk scores, compliance checks,
                   anomaly detection, and smart sampling recommendations for this financial year.
                 </p>
-                <Button disabled className="mt-2">
-                  <Zap className="h-4 w-4 mr-2" /> Run Full Compliance Audit
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  AI audit engine will be enabled in Phase 2
-                </p>
+                <div className="flex gap-3 mt-2">
+                  <Button variant="outline" onClick={handleSimulation} disabled={isRunning}>
+                    {runSimulation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FlaskConical className="h-4 w-4 mr-2" />}
+                    Pre-Audit Simulation
+                  </Button>
+                  <Button onClick={handleRunAudit} disabled={isRunning}>
+                    {runAudit.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+                    Run Full AI Audit
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -226,6 +293,7 @@ export default function AuditConsole() {
               <TabsTrigger value="compliance" className="gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Compliance</TabsTrigger>
               <TabsTrigger value="sampling" className="gap-1"><Target className="h-3.5 w-3.5" /> Sampling</TabsTrigger>
               <TabsTrigger value="journals" className="gap-1"><FileSearch className="h-3.5 w-3.5" /> High-Risk Journals</TabsTrigger>
+              <TabsTrigger value="narratives" className="gap-1"><FileText className="h-3.5 w-3.5" /> AI Narratives</TabsTrigger>
               <TabsTrigger value="export" className="gap-1"><Package className="h-3.5 w-3.5" /> Auditor Pack</TabsTrigger>
             </TabsList>
 
@@ -238,24 +306,15 @@ export default function AuditConsole() {
                     <ScoreGauge score={latestRun.ai_risk_index} label="AI Risk Index" variant="risk" />
                   </CardContent>
                 </Card>
-
                 <Card className="bg-card/60 border-border/50">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Financial Year</span>
-                      <Badge variant="outline">{latestRun.financial_year}</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">IFC Rating</span>
-                      <IFCBadge rating={latestRun.ifc_rating} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Run Version</span>
-                      <Badge variant="outline">v{latestRun.version}</Badge>
-                    </div>
+                    <div className="flex justify-between items-center"><span className="text-sm">Financial Year</span><Badge variant="outline">{latestRun.financial_year}</Badge></div>
+                    <div className="flex justify-between items-center"><span className="text-sm">IFC Rating</span><IFCBadge rating={latestRun.ifc_rating} /></div>
+                    <div className="flex justify-between items-center"><span className="text-sm">Run Type</span><Badge variant="outline" className="capitalize">{latestRun.run_type}</Badge></div>
+                    <div className="flex justify-between items-center"><span className="text-sm">Version</span><Badge variant="outline">v{latestRun.version}</Badge></div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Completed</span>
                       <span className="text-xs text-muted-foreground">
@@ -264,7 +323,6 @@ export default function AuditConsole() {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="bg-card/60 border-border/50">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Summary</CardTitle>
@@ -295,8 +353,7 @@ export default function AuditConsole() {
                 <Card className="bg-card/60 border-border/50">
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      Compliance Score Breakdown
+                      <CheckCircle2 className="h-4 w-4 text-green-500" /> Compliance Score Breakdown
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -317,12 +374,10 @@ export default function AuditConsole() {
                     ))}
                   </CardContent>
                 </Card>
-
                 <Card className="bg-card/60 border-border/50">
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      AI Risk Index Breakdown
+                      <AlertTriangle className="h-4 w-4 text-amber-500" /> AI Risk Index Breakdown
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -352,30 +407,16 @@ export default function AuditConsole() {
             <TabsContent value="heatmap">
               <Card className="bg-card/60 border-border/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    AI Risk Heatmap
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" /> AI Risk Heatmap</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                    {heatmapAreas.map(item => (
-                      <RiskHeatmapCell key={item.area} area={item.area} score={item.score} />
-                    ))}
+                    {heatmapAreas.map(item => <RiskHeatmapCell key={item.area} area={item.area} score={item.score} />)}
                   </div>
                   <div className="flex items-center gap-4 mt-6 justify-center">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-green-500/40" />
-                      <span className="text-xs text-muted-foreground">Low (0–30)</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-amber-500/40" />
-                      <span className="text-xs text-muted-foreground">Medium (31–60)</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-red-500/40" />
-                      <span className="text-xs text-muted-foreground">High (61–100)</span>
-                    </div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-500/40" /><span className="text-xs text-muted-foreground">Low (0–30)</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-amber-500/40" /><span className="text-xs text-muted-foreground">Medium (31–60)</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-500/40" /><span className="text-xs text-muted-foreground">High (61–100)</span></div>
                   </div>
                 </CardContent>
               </Card>
@@ -385,10 +426,7 @@ export default function AuditConsole() {
             <TabsContent value="themes">
               <Card className="bg-card/60 border-border/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="h-5 w-5 text-primary" />
-                    Top AI Risk Themes
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Layers className="h-5 w-5 text-primary" /> Top AI Risk Themes</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {themes.length === 0 ? (
@@ -396,11 +434,7 @@ export default function AuditConsole() {
                   ) : (
                     <div className="space-y-3">
                       {themes.slice(0, 10).map((theme, i) => (
-                        <motion.div
-                          key={theme.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
+                        <motion.div key={theme.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
                           className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
                         >
                           <div className="flex-1 min-w-0">
@@ -411,6 +445,7 @@ export default function AuditConsole() {
                             <p className="text-xs text-muted-foreground">
                               {theme.transaction_count} transactions · {fmtCurrency(theme.impacted_value)} impacted
                             </p>
+                            {theme.explanation && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{theme.explanation}</p>}
                           </div>
                           <div className="flex items-center gap-4 shrink-0">
                             <div className="text-right">
@@ -433,9 +468,7 @@ export default function AuditConsole() {
             <TabsContent value="compliance">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <Card className="bg-card/60 border-border/50">
-                  <CardHeader>
-                    <CardTitle className="text-sm">GST Compliance</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-sm">GST Compliance</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-4 mb-4">
                       <ScoreGauge score={gstPassRate} label="Match %" />
@@ -447,11 +480,8 @@ export default function AuditConsole() {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="bg-card/60 border-border/50">
-                  <CardHeader>
-                    <CardTitle className="text-sm">TDS Compliance</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-sm">TDS Compliance</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-4 mb-4">
                       <ScoreGauge score={tdsPassRate} label="Compliance %" />
@@ -464,14 +494,9 @@ export default function AuditConsole() {
                   </CardContent>
                 </Card>
               </div>
-
-              {/* All Checks Table */}
               <Card className="bg-card/60 border-border/50">
                 <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    All Compliance Checks
-                  </CardTitle>
+                  <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> All Compliance Checks</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {checks.length === 0 ? (
@@ -485,14 +510,10 @@ export default function AuditConsole() {
                               <Badge variant="outline" className="text-xs capitalize font-mono">{check.module}</Badge>
                               <span className="text-sm font-medium">{check.check_name}</span>
                             </div>
-                            {check.recommendation && (
-                              <p className="text-xs text-muted-foreground mt-1 truncate">{check.recommendation}</p>
-                            )}
+                            {check.recommendation && <p className="text-xs text-muted-foreground mt-1 truncate">{check.recommendation}</p>}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {check.affected_count > 0 && (
-                              <span className="text-xs text-muted-foreground">{check.affected_count} items</span>
-                            )}
+                            {check.affected_count > 0 && <span className="text-xs text-muted-foreground">{check.affected_count} items</span>}
                             <SeverityBadge severity={check.severity} />
                             <StatusBadge status={check.status} />
                           </div>
@@ -508,17 +529,14 @@ export default function AuditConsole() {
             <TabsContent value="sampling">
               <Card className="bg-card/60 border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-primary" />
-                    AI Smart Sampling
-                  </CardTitle>
-                  <Button variant="outline" size="sm" disabled>
+                  <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> AI Smart Sampling</CardTitle>
+                  <Button variant="outline" size="sm" onClick={handleExportSamplesCSV} disabled={samples.length === 0}>
                     <Download className="h-4 w-4 mr-1" /> Export CSV
                   </Button>
                 </CardHeader>
                 <CardContent>
                   {samples.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No sampling suggestions for this run. Run audit to generate samples.</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">No sampling suggestions for this run.</p>
                   ) : (
                     <Tabs defaultValue="high_risk">
                       <TabsList className="mb-4">
@@ -560,22 +578,15 @@ export default function AuditConsole() {
             <TabsContent value="journals">
               <Card className="bg-card/60 border-border/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileSearch className="h-5 w-5 text-primary" />
-                    High-Risk Journal Entries
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><FileSearch className="h-5 w-5 text-primary" /> High-Risk Journal Entries</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {anomalies.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No high-risk journal entries flagged for this run.</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">No high-risk journal entries flagged.</p>
                   ) : (
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {anomalies.map((anomaly, i) => (
-                        <motion.div
-                          key={anomaly.id}
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.03 }}
+                        <motion.div key={anomaly.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                           className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-2"
                         >
                           <div className="flex items-center justify-between">
@@ -608,26 +619,51 @@ export default function AuditConsole() {
               </Card>
             </TabsContent>
 
-            {/* SECTION 7 – Auditor Pack Export */}
+            {/* SECTION 7 – AI Narratives */}
+            <TabsContent value="narratives">
+              <Card className="bg-card/60 border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> AI-Generated Audit Narratives</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {narratives.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No narratives generated. Run a full AI audit to generate narratives.</p>
+                  ) : (
+                    <div className="space-y-6">
+                      {narratives.map(n => (
+                        <div key={n.id} className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize text-xs">{n.narrative_type.replace(/_/g, " ")}</Badge>
+                            <span className="text-xs text-muted-foreground">v{n.version}</span>
+                          </div>
+                          <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap">
+                            {n.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* SECTION 8 – Auditor Pack Export */}
             <TabsContent value="export">
               <Card className="bg-card/60 border-border/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5 text-primary" />
-                    AI Auditor Pack Export
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> AI Auditor Pack Export</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
                     {[
-                      { icon: FileText, name: "01 Financials", desc: "P&L, Balance Sheet, Trial Balance" },
-                      { icon: FileText, name: "02 Ledgers", desc: "General Ledger, Sub-ledgers" },
-                      { icon: FileText, name: "03 GST", desc: "GSTR-1, GSTR-2B reconciliation" },
-                      { icon: FileText, name: "04 TDS", desc: "Section-wise summary, challans" },
-                      { icon: FileText, name: "05 Fixed Assets", desc: "Register, depreciation schedule" },
+                      { icon: FileText, name: "01 Financials", desc: "GL Accounts, Journal Summary" },
+                      { icon: FileText, name: "02 Ledgers", desc: "Journal Lines Summary" },
+                      { icon: FileText, name: "03 GST", desc: "Invoice data, GST compliance checks" },
+                      { icon: FileText, name: "04 TDS", desc: "TDS checks, vendor PAN data" },
+                      { icon: FileText, name: "05 Fixed Assets", desc: "Asset register, depreciation" },
                       { icon: Shield, name: "06 IFC", desc: "Internal controls assessment" },
                       { icon: CheckCircle2, name: "07 Compliance Reports", desc: "All compliance check results" },
-                      { icon: Clock, name: "08 Audit Logs", desc: "Complete audit trail" },
+                      { icon: RefreshCw, name: "08 Audit Logs", desc: "Complete audit trail" },
                       { icon: Sparkles, name: "09 AI Risk Insights", desc: "AI summary, anomalies, themes" },
                     ].map(item => (
                       <div key={item.name} className="flex items-center gap-3 p-3 rounded-lg border border-border/30 bg-muted/10">
@@ -639,11 +675,16 @@ export default function AuditConsole() {
                       </div>
                     ))}
                   </div>
-                  <Button disabled className="w-full sm:w-auto">
-                    <Download className="h-4 w-4 mr-2" /> Generate AI Auditor Pack — FY {selectedFY}
+                  <Button
+                    onClick={handleExportPack}
+                    disabled={generatePack.isPending}
+                    className="w-full sm:w-auto"
+                  >
+                    {generatePack.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Generate AI Auditor Pack — FY {selectedFY}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Pack generation with AI Risk Summary PDF will be available in Phase 2.
+                    Downloads a ZIP containing all 9 audit sections with data from this financial year.
                   </p>
                 </CardContent>
               </Card>
