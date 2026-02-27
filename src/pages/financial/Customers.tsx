@@ -78,7 +78,18 @@ export default function Customers() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => {
+      // Check for linked invoices or credit notes before deleting
+      const [invoiceCheck, creditNoteCheck] = await Promise.all([
+        supabase.from("invoices").select("id").eq("customer_id", id).limit(1),
+        supabase.from("credit_notes").select("id").eq("customer_id", id).limit(1),
+      ]);
+      if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this customer because they have linked invoices or credit notes. Mark them as inactive instead.");
+      }
+      const { error } = await supabase.from("customers").delete().eq("id", id);
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "Customer Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
