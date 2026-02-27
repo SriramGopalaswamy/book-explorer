@@ -207,9 +207,8 @@ export default function CTCComponents() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">CTC Components</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage master salary component templates used across all employee structures
+            <p className="text-sm text-muted-foreground">
+              Define and manage salary component templates used across all employee CTC structures
             </p>
           </div>
           <Button onClick={openCreate}>

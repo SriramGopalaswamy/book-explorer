@@ -111,6 +111,7 @@ const managerHrmsNav: NavItem[] = [
 const financeHrmsNav: NavItem[] = [
   { name: "Employees", path: "/hrms/employees", icon: Users, module: "hrms" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
+  { name: "CTC Components", path: "/hrms/ctc-components", icon: IndianRupee, module: "hrms" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
