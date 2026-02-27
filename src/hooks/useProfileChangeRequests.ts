@@ -64,7 +64,10 @@ export function useSubmitChangeRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile-change-requests"] });
-      toast.success("Change request submitted to HR");
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employee-details"] });
+      queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
+      toast.success("Change request submitted to your manager");
     },
     onError: (err: any) => {
       toast.error("Failed to submit: " + err.message);
@@ -116,6 +119,10 @@ export function useReviewChangeRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile-change-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-profile-changes-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employee-details"] });
+      queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
       toast.success("Change request reviewed");
     },
     onError: (err: any) => {
