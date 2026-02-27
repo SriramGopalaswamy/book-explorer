@@ -33,16 +33,28 @@ serve(async (req) => {
     // Use service role for data operations
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { data: profile, error: profileErr } = await supabase
+    // Try profiles first, then fall back to user_roles for org lookup
+    const { data: profile } = await supabase
       .from("profiles")
       .select("organization_id")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    console.log("Profile lookup for user:", userId, "result:", profile, "error:", profileErr);
+    let orgId = profile?.organization_id;
 
-    const orgId = profile?.organization_id;
-    if (!orgId) throw new Error("No organization found for user " + userId);
+    // Fallback: check user_roles table
+    if (!orgId) {
+      const { data: roleRow } = await supabase
+        .from("user_roles")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      orgId = roleRow?.organization_id;
+    }
+
+    console.log("Org lookup for user:", userId, "orgId:", orgId);
+    if (!orgId) throw new Error("No organization found. Please ensure your profile is set up.");
 
     const { action, financial_year, run_id } = await req.json();
 
