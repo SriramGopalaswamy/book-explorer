@@ -523,13 +523,16 @@ export default function Leaves() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
               <TabsList className="mb-4">
+                {isAdminOrHR && (
+                  <TabsTrigger value="mine">My Leaves</TabsTrigger>
+                )}
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
               </TabsList>
-              <TabsContent value={activeTab}>
-                {isLoadingRequests ? (
+              <TabsContent value={activeTab} forceMount={undefined}>
+                {isLoadingDisplayed ? (
                   <div className="space-y-3">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton key={i} className="h-12 w-full" />
