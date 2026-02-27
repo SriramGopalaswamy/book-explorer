@@ -104,9 +104,14 @@ export default function PlatformIntegrity() {
     setRunning(true);
     try {
       const { data, error } = await supabase.rpc("run_financial_verification" as any);
+      console.log("Verification RPC raw response:", { data, error });
       if (error) throw error;
+      if (!data) throw new Error("No data returned from verification engine");
 
-      const parsed = data as unknown as VerificationResult;
+      const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as VerificationResult;
+      if (!parsed.checks || !Array.isArray(parsed.checks)) {
+        throw new Error("Invalid response structure: missing checks array");
+      }
       setResult(parsed);
 
       // Expand all categories by default
