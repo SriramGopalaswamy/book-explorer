@@ -62,6 +62,7 @@
     "dompurify": "^3.3.1",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.33.0",
+    "html2pdf.js": "0.10.2",
     "input-otp": "^1.4.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.462.0",
