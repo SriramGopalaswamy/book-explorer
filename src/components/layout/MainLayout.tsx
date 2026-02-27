@@ -37,12 +37,12 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
     return () => window.removeEventListener("sidebar-toggle", handler);
   }, []);
 
-  // Scroll main content area to top on route change instead of the whole window
+  // Scroll main content area to top on route change — do NOT use window.scrollTo
+  // as it can affect fixed sidebar scroll position
   useEffect(() => {
     if (mainRef.current) {
       mainRef.current.scrollTop = 0;
     }
-    window.scrollTo(0, 0);
   }, [location.pathname]);
 
   // Redirect when role changes (not on initial load)
