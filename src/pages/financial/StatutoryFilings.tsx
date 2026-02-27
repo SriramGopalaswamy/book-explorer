@@ -392,7 +392,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "pf" && (
             <div className="space-y-4">
-              <FilingHeader title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="unifiedportal-mem.epfindia.gov.in" portalUrl="https://unifiedportal-mem.epfindia.gov.in/minlogin" />
+              <FilingHeader title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="epfindia.gov.in" portalUrl="https://www.epfindia.gov.in" />
               {pfEcr.data && pfEcr.data.length > 0 && (
                 <div className="grid grid-cols-4 gap-3">
                   <SummaryCard label="Employees" value={String(pfEcr.data.length)} />
