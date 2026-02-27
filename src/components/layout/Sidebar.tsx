@@ -134,6 +134,9 @@ const performanceNav: NavItem[] = [
 let persistedCollapsed = false;
 export function getSidebarCollapsed() { return persistedCollapsed; }
 
+// Persist sidebar scroll position across remounts (each route renders its own MainLayout)
+let savedSidebarScroll = 0;
+
 // Mobile sidebar state managed via a global-ish export so Header can trigger it
 export let mobileMenuOpen = false;
 export let setMobileMenuOpen: (v: boolean) => void = () => {};
