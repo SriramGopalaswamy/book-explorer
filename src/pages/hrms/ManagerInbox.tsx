@@ -2094,7 +2094,28 @@ export default function ManagerInbox() {
             </Card>
           </TabsContent>
 
-          {/* ── Goal Plans ── */}
+          {/* ── HR Dispute Approvals ── */}
+          {isHRRole && (
+            <TabsContent value="hr-disputes">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    HR Dispute Approvals
+                    {pendingHRDisputes.length > 0 && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {pendingHRDisputes.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <PendingHRDisputes />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           <TabsContent value="goals">
             <Card>
               <CardHeader className="pb-3">
