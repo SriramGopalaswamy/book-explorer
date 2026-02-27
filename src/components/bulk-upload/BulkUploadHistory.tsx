@@ -22,6 +22,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["bulk-upload-history", module],
     queryFn: async () => {
+      // Fetch from bulk_upload_history
       let query = supabase
         .from("bulk_upload_history" as any)
         .select("*")
@@ -32,9 +33,40 @@ export function BulkUploadHistory({ module }: { module?: string }) {
         query = query.eq("module", module);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as UploadRecord[];
+      const { data: bulkData, error: bulkError } = await query;
+      if (bulkError) console.error("bulk_upload_history error:", bulkError.message);
+
+      const bulkRecords = ((bulkData || []) as unknown as UploadRecord[]);
+
+      // For attendance module, also fetch from attendance_upload_logs
+      if (module === "attendance") {
+        const { data: attData, error: attError } = await supabase
+          .from("attendance_upload_logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (attError) console.error("attendance_upload_logs error:", attError.message);
+
+        const attRecords: UploadRecord[] = ((attData || []) as any[]).map((log) => ({
+          id: log.id,
+          module: "attendance",
+          file_name: log.file_name,
+          total_rows: log.total_punches || 0,
+          successful_rows: log.matched_employees || 0,
+          failed_rows: (log.unmatched_codes?.length || 0) + (log.parse_errors?.length || 0),
+          errors: [...(log.parse_errors || []), ...(log.unmatched_codes || []).map((c: string) => `Unmatched code: ${c}`)],
+          created_at: log.created_at,
+        }));
+
+        // Merge and sort by date descending
+        const merged = [...bulkRecords, ...attRecords].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        return merged.slice(0, 20);
+      }
+
+      return bulkRecords;
     },
   });
 
