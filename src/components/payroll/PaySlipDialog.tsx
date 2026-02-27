@@ -177,24 +177,97 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   };
 
   const handleDownload = async () => {
-    const html = buildHTML();
-    // Create a temporary container to render the payslip
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    // Extract just the body content and styles
-    const styleContent = container.querySelector("style")?.outerHTML || "";
-    const bodyContent = container.querySelector("body")?.innerHTML || html;
-    
+    // Build only the inner content (no DOCTYPE/html/body wrappers) for html2pdf
+    const styleBlock = `<style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      .payslip-root { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 48px; max-width: 740px; }
+      .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px solid #e11d74; margin-bottom: 28px; }
+      .hdr-left { display: flex; align-items: center; gap: 14px; }
+      .hdr-logo { height: 44px; width: auto; }
+      .hdr-left .co { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #e11d74; margin-bottom: 4px; }
+      .hdr-left .doc { font-size: 22px; font-weight: 700; color: #111827; }
+      .hdr-left .per { font-size: 13px; color: #6b7280; margin-top: 2px; }
+      .status { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+      .s-processed { background: #dcfce7; color: #166534; }
+      .s-draft { background: #f3f4f6; color: #6b7280; }
+      .s-pending { background: #fef9c3; color: #854d0e; }
+      .emp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; margin-bottom: 28px; padding: 18px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+      .emp-field label { display: block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; margin-bottom: 3px; }
+      .emp-field span { font-size: 14px; font-weight: 500; color: #111827; }
+      .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+      .tbl-section h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7280; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 7px 0; font-size: 13px; }
+      td.r { text-align: right; font-weight: 500; }
+      td.nil { color: #d1d5db; }
+      .sub td { padding-top: 10px; font-weight: 700; font-size: 13px; border-top: 2px solid #d1d5db; }
+      .earn { color: #16a34a; }
+      .deduct { color: #dc2626; }
+      .net { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: linear-gradient(135deg, #fdf2f8, #fce7f3); border: 1px solid #f9a8d4; border-radius: 10px; margin-bottom: 28px; }
+      .net .lbl { font-size: 16px; font-weight: 600; }
+      .net .sub-lbl { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+      .net .val { font-size: 26px; font-weight: 800; color: #e11d74; }
+      .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end; }
+      .footer .proc { font-size: 11px; color: #6b7280; }
+      .footer .sig { font-size: 11px; color: #9ca3af; text-align: right; }
+      .footer .sig span { display: block; width: 140px; border-top: 1px solid #d1d5db; padding-top: 4px; margin-top: 28px; }
+      .wm { text-align: center; margin-top: 20px; font-size: 10px; color: #d1d5db; }
+    </style>`;
+
+    const bodyContent = `
+      <div class="hdr">
+        <div class="hdr-left">
+          <img src="${new URL(grx10Logo, window.location.origin).href}" alt="GRX10 Logo" class="hdr-logo" crossorigin="anonymous" />
+          <div>
+          <div class="co">GRX10 Business Suite</div>
+          <div class="doc">Pay Slip</div>
+          <div class="per">${period}</div>
+          </div>
+        </div>
+        <span class="status s-${record.status}">${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
+      </div>
+      <div class="emp-grid">
+        <div class="emp-field"><label>Employee Name</label><span>${employeeName}</span></div>
+        <div class="emp-field"><label>Department</label><span>${department}</span></div>
+        <div class="emp-field"><label>Designation</label><span>${jobTitle}</span></div>
+        <div class="emp-field"><label>Pay Period</label><span>${period}</span></div>
+        ${workingDays > 0 ? `<div class="emp-field"><label>Working Days</label><span>${workingDays}</span></div>` : ""}
+        ${paidDays > 0 ? `<div class="emp-field"><label>Paid Days</label><span>${paidDays}${lopDays > 0 ? ` (LOP: ${lopDays})` : ""}</span></div>` : ""}
+      </div>
+      <div class="tables">
+        <div class="tbl-section">
+          <h3>Earnings</h3>
+          <table><tbody>
+            ${earnings.map(e => `<tr><td>${e.label}</td><td class="r${e.amount === 0 ? ' nil' : ''}">${e.amount === 0 ? '—' : fmtFull(e.amount)}</td></tr>`).join("")}
+            <tr class="sub"><td>Total Earnings</td><td class="r earn">${fmtFull(totalEarnings)}</td></tr>
+          </tbody></table>
+        </div>
+        <div class="tbl-section">
+          <h3>Deductions</h3>
+          <table><tbody>
+            ${deductions.map(d => `<tr><td>${d.label}</td><td class="r${d.amount === 0 ? ' nil' : ''}">${d.amount === 0 ? '—' : fmtFull(d.amount)}</td></tr>`).join("")}
+            <tr class="sub"><td>Total Deductions</td><td class="r deduct">${fmtFull(totalDeductions)}</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+      <div class="net">
+        <div><div class="lbl">Net Pay</div><div class="sub-lbl">Total Earnings − Total Deductions</div></div>
+        <div class="val">${fmtFull(netPay)}</div>
+      </div>
+      <div class="footer">
+        <div class="proc">${processedDate ? `Processed on: <strong>${processedDate}</strong>` : '<em>Not yet processed</em>'}</div>
+        <div class="sig"><span>Authorised Signatory</span></div>
+      </div>
+      <div class="wm">System-generated pay slip. No signature required if digitally authorised. &bull; GRX10 ERP</div>`;
+
     const wrapper = document.createElement("div");
-    wrapper.style.position = "fixed";
+    wrapper.className = "payslip-root";
+    wrapper.style.position = "absolute";
     wrapper.style.left = "-9999px";
     wrapper.style.top = "0";
     wrapper.style.width = "740px";
-    wrapper.style.background = "white";
-    wrapper.style.padding = "48px";
-    wrapper.style.fontFamily = "'Segoe UI', system-ui, -apple-system, sans-serif";
-    wrapper.style.color = "#111827";
-    wrapper.innerHTML = `<style>${styleContent.replace(/<\/?style>/g, "")}</style>${bodyContent}`;
+    wrapper.style.zIndex = "-1";
+    wrapper.innerHTML = `${styleBlock}${bodyContent}`;
     document.body.appendChild(wrapper);
 
     try {
@@ -204,22 +277,25 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           margin: 0,
           filename: `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            windowWidth: 740,
+            scrollX: 0,
+            scrollY: 0,
+          },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
         .from(wrapper)
         .save();
     } catch (err) {
       console.error("PDF generation failed, falling back to print:", err);
-      // Fallback to print dialog
-      const win = window.open("", "_blank", "width=800,height=900");
-      if (!win) return;
-      win.document.write(html);
-      win.document.close();
-      win.onload = () => setTimeout(() => win.print(), 300);
-      win.onafterprint = () => win.close();
+      openPrintWindow();
     } finally {
-      document.body.removeChild(wrapper);
+      if (wrapper.parentNode) {
+        document.body.removeChild(wrapper);
+      }
     }
   };
 
