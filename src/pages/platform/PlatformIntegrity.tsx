@@ -24,7 +24,8 @@ interface VerificationCheck {
 
 interface VerificationResult {
   engine_status: "OPERATIONAL" | "DEGRADED" | "BLOCKED";
-  timestamp: string;
+  timestamp?: string;
+  run_at?: string;
   org_filter: string | null;
   total_checks: number;
   checks: VerificationCheck[];
@@ -214,7 +215,7 @@ export default function PlatformIntegrity() {
             {result && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {format(new Date(result.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                {format(new Date(result.run_at || result.timestamp || new Date()), "yyyy-MM-dd HH:mm:ss")}
               </div>
             )}
             <Button onClick={runVerification} disabled={running} size="sm">
