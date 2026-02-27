@@ -885,6 +885,91 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ─── PAYSLIP DISPUTE REVIEWED ────────────────────────────────────────────
+    if (type === "payslip_dispute_reviewed") {
+      const { dispute_id, decision, reviewer_name, reviewer_notes } = payload as any;
+
+      try {
+        const { data: dispute, error: dErr } = await supabase
+          .from("payslip_disputes")
+          .select("*, profiles:profile_id(full_name, email, user_id, manager_id)")
+          .eq("id", dispute_id)
+          .single();
+        if (dErr || !dispute) throw new Error(`Dispute not found: ${dErr?.message}`);
+
+        const employeeName = dispute.profiles?.full_name || "Employee";
+        const employeeEmail = dispute.profiles?.email;
+        const employeeUserId = dispute.profiles?.user_id;
+        const isForwarded = decision === "forwarded_to_hr";
+        const statusIcon = isForwarded ? "🔄" : "❌";
+        const statusText = isForwarded ? "Forwarded to HR" : "Rejected";
+        const statusColor = isForwarded ? "#3498db" : "#e74c3c";
+
+        const rows = [
+          tableRow("Status", statusText, true),
+          tableRow("Pay Period", dispute.pay_period),
+          tableRow("Category", dispute.dispute_category),
+          tableRow("Reviewed by", String(reviewer_name || "Manager")),
+          ...(reviewer_notes ? [tableRow("Notes", String(reviewer_notes))] : []),
+        ].join("");
+
+        // In-app notification for employee
+        if (employeeUserId) {
+          await insertNotification(
+            supabase,
+            employeeUserId,
+            `Payslip Dispute ${statusText}`,
+            `Your payslip dispute for ${dispute.pay_period} has been ${isForwarded ? "forwarded to HR for further review" : "rejected by your manager"}.${reviewer_notes ? ` Notes: ${reviewer_notes}` : ""}`,
+            isForwarded ? "info" : "leave_rejected",
+            "/hrms/my-payslips"
+          );
+        }
+
+        // If forwarded to HR, notify HR users
+        if (isForwarded) {
+          const { data: hrProfiles } = await supabase
+            .from("profiles")
+            .select("user_id, email, full_name")
+            .eq("organization_id", dispute.organization_id)
+            .in("role", ["hr", "admin"]);
+
+          for (const hr of (hrProfiles || [])) {
+            if (hr.user_id) {
+              await insertNotification(
+                supabase,
+                hr.user_id,
+                `Payslip Dispute — ${employeeName}`,
+                `A payslip dispute from ${employeeName} (${dispute.pay_period}) has been forwarded by their manager for HR review.`,
+                "info",
+                "/hrms/payroll"
+              );
+            }
+          }
+
+          // Email to HR users
+          if (hrProfiles && hrProfiles.length > 0) {
+            const hrEmails = hrProfiles.filter((h: any) => h.email).map((h: any) => ({ email: h.email, name: h.full_name || undefined }));
+            if (hrEmails.length > 0) {
+              const htmlBody = emailTemplate(statusColor, statusIcon, `Payslip Dispute Forwarded — ${employeeName}`, "Requires HR review", rows, "Please log in to <strong>GRX10</strong> to review this dispute.");
+              await sendEmail(hrEmails, `${statusIcon} Payslip Dispute Forwarded for HR Review — ${employeeName}`, htmlBody);
+            }
+          }
+        }
+
+        // Email to employee
+        if (employeeEmail) {
+          const extraBlock = reviewer_notes
+            ? `<div style="margin-top: 16px; padding: 12px; background: ${isForwarded ? "#eff6ff" : "#fef2f2"}; border-left: 4px solid ${statusColor}; border-radius: 4px;"><strong>Manager's Notes:</strong> ${reviewer_notes}</div>`
+            : "";
+          const htmlBody = emailTemplate(statusColor, statusIcon, `Payslip Dispute ${statusText}`, `Hi ${employeeName}, your payslip dispute has been reviewed.`, rows, undefined, extraBlock);
+          await sendEmail([{ email: employeeEmail, name: employeeName }], `${statusIcon} Payslip Dispute ${statusText} — ${dispute.pay_period}`, htmlBody);
+        }
+      } catch (err) {
+        console.error("payslip_dispute_reviewed error:", err);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown notification type: ${type}` }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
