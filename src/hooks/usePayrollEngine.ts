@@ -75,6 +75,9 @@ export function usePayrollRuns() {
       return (data ?? []) as PayrollRun[];
     },
     enabled: !!user,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
   });
 }
 
@@ -92,6 +95,9 @@ export function usePayrollRunEntries(runId: string | null) {
       return (data ?? []) as PayrollEntry[];
     },
     enabled: !!runId,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
   });
 }
 
