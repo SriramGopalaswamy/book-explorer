@@ -107,7 +107,45 @@ export function useEmployees() {
           .order("full_name", { ascending: true });
 
         if (error) throw error;
-        return data as Employee[];
+        const employees = data as Employee[];
+
+        // Fix stale on_leave statuses: check if employee actually has an approved leave covering today
+        const today = new Date().toISOString().split("T")[0];
+        const onLeaveIds = employees.filter(e => e.status === "on_leave").map(e => e.id);
+        
+        if (onLeaveIds.length > 0) {
+          const { data: activeLeaves } = await supabase
+            .from("leave_requests")
+            .select("user_id")
+            .eq("status", "approved")
+            .lte("from_date", today)
+            .gte("to_date", today);
+
+          const usersOnLeaveToday = new Set((activeLeaves || []).map(l => l.user_id));
+
+          // Reset profiles that show on_leave but have no active leave today
+          const staleProfiles = employees.filter(
+            e => e.status === "on_leave" && !usersOnLeaveToday.has(e.user_id)
+          );
+
+          if (staleProfiles.length > 0) {
+            // Update in background, don't block the UI
+            Promise.all(
+              staleProfiles.map(p =>
+                supabase.from("profiles").update({ status: "active" }).eq("id", p.id)
+              )
+            ).catch(err => console.warn("Failed to reset stale on_leave status:", err));
+
+            // Also fix the returned data immediately
+            for (const emp of employees) {
+              if (emp.status === "on_leave" && !usersOnLeaveToday.has(emp.user_id)) {
+                emp.status = "active";
+              }
+            }
+          }
+        }
+
+        return employees;
       } else {
         const { data, error } = await supabase
           .from("profiles_safe" as any)
