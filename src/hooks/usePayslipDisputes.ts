@@ -132,6 +132,34 @@ export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance") {
     queryKey: ["payslip-disputes-pending", role, user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      // For manager role, only fetch disputes from direct reports (exclude own)
+      if (role === "manager") {
+        const { data: myProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+        if (!myProfile) return [];
+
+        const { data: reports } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("manager_id", myProfile.id);
+        const reportIds = (reports || []).map((r) => r.id);
+        if (reportIds.length === 0) return [];
+
+        const { data, error } = await supabase
+          .from("payslip_disputes" as any)
+          .select("*, profiles:profile_id(full_name, email, department)")
+          .eq("status", statusMap[role])
+          .in("profile_id", reportIds)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return (data || []) as unknown as PayslipDispute[];
+      }
+
+      // HR/Finance: fetch all disputes with the relevant status
       const { data, error } = await supabase
         .from("payslip_disputes" as any)
         .select("*, profiles:profile_id(full_name, email, department)")
