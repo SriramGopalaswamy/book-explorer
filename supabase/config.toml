@@ -19,5 +19,7 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.parse-attendance]
     verify_jwt = false
+  [functions.send-notification-email]
+    verify_jwt = false
   [functions.scan-bill]
     verify_jwt = false
