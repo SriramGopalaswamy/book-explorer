@@ -71,6 +71,32 @@ function maybeConvertExcelSerial(value: string): string {
   return value;
 }
 
+/**
+ * Convert Excel time serial (fractional day, e.g. 0.375 = 09:00) to HH:mm:ss string.
+ * Also normalizes datetime strings to extract just the time portion.
+ */
+function maybeConvertExcelTime(value: string): string {
+  const trimmed = value.trim();
+
+  // Already looks like a time (HH:mm or HH:mm:ss) — return as-is
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed;
+
+  // Excel time serial: fractional number between 0 and 1 (e.g. 0.375 = 09:00)
+  const num = Number(trimmed);
+  if (!isNaN(num) && num >= 0 && num < 1 && trimmed.includes(".")) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  }
+
+  // DateTime string like "1899-12-30T09:00:00.000Z" or "2026-02-01 09:00:00" — extract time
+  const dtMatch = trimmed.match(/(\d{1,2}:\d{2}(:\d{2})?)/);
+  if (dtMatch) return dtMatch[1].length === 5 ? dtMatch[1] + ":00" : dtMatch[1];
+
+  return trimmed;
+}
+
 export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -127,9 +153,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       const row: Record<string, string> = {};
       fileHeaders.forEach((h, i) => {
         const val = String(cells[i] ?? "").trim();
-        // Only apply Excel date serial conversion to columns that look like date fields
+        // Apply appropriate conversion based on column type
         const isDateColumn = /date|dob|birth|expiry|joining|leaving|start|end/.test(h);
-        row[h] = isDateColumn ? maybeConvertExcelSerial(val) : val;
+        const isTimeColumn = /check_in|check_out|time_in|time_out|clock_in|clock_out|in_time|out_time/.test(h);
+        if (isTimeColumn) {
+          row[h] = maybeConvertExcelTime(val);
+        } else if (isDateColumn) {
+          row[h] = maybeConvertExcelSerial(val);
+        } else {
+          row[h] = val;
+        }
       });
       return validateRow(row, idx);
     });
