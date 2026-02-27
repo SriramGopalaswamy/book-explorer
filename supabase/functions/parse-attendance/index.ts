@@ -1066,8 +1066,11 @@ function buildResult(
     for (const rec of emp.records) {
       if (format === "summary") {
         // Summary format: only use in_time and out_time as punches.
-        // The `punches` array contains ALL time tokens from the row (shift times,
-        // work hours, late minutes, OT, etc.) which should NOT be stored as punches.
+        // Skip absent/NA employees — their time tokens are shift/work/OT hours, not real punches.
+        const absentStatuses = ["A", "NA", "AB", "WO", "CO"];
+        if (rec.status && absentStatuses.includes(rec.status)) {
+          continue; // No actual punches for absent employees
+        }
         if (rec.in_time && rec.in_time !== "00:00:00") {
           punches.push({
             employee_code: emp.employee_code,
