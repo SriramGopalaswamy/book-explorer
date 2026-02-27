@@ -70,6 +70,47 @@ import {
   useProfileSearch,
   type Memo,
 } from "@/hooks/useMemos";
+import {
+  useReviewChangeRequest,
+  type ProfileChangeRequest,
+} from "@/hooks/useProfileChangeRequests";
+
+// ─── Profile Change Request hooks ─────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  full_name: "Full Name", date_of_birth: "Date of Birth", gender: "Gender",
+  blood_group: "Blood Group", marital_status: "Marital Status", nationality: "Nationality",
+  address_line1: "Address Line 1", address_line2: "Address Line 2", city: "City",
+  state: "State", pincode: "Pincode", country: "Country",
+  emergency_contact_name: "Emergency Contact Name", emergency_contact_relation: "Emergency Contact Relation",
+  emergency_contact_phone: "Emergency Contact Phone", bank_name: "Bank Name",
+  bank_account_number: "Bank Account Number", bank_ifsc: "IFSC Code", bank_branch: "Bank Branch",
+  pan_number: "PAN Number", aadhaar_last_four: "Aadhaar (last 4)", uan_number: "UAN Number",
+  esi_number: "ESI Number", employee_id_number: "Employee ID",
+  department: "Department", job_title: "Job Title", phone: "Phone", email: "Email",
+};
+
+function useDirectReportsPendingProfileChanges() {
+  const { data: reports = [] } = useDirectReports();
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+
+  return useQuery({
+    queryKey: ["direct-reports-profile-changes-pending", reports.map((r) => r.id), isDevMode],
+    queryFn: async () => {
+      if (isDevMode || !user || reports.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profile_change_requests" as any)
+        .select("*")
+        .in("profile_id", reports.map((r) => r.id))
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ProfileChangeRequest[];
+    },
+    enabled: (!!user || isDevMode) && reports.length > 0,
+  });
+}
 
 // ─── History hooks ────────────────────────────────────────────────────────────
 
