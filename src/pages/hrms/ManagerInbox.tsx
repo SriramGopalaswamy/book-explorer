@@ -744,30 +744,61 @@ function PendingPayslipDisputes() {
   const { data: reports = [] } = useDirectReports();
   const { data: disputes = [], isLoading } = usePendingPayslipDisputes("manager");
   const reviewDispute = useManagerReviewDispute();
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<PayslipDispute | null>(null);
+  const [payslipData, setPayslipData] = useState<any>(null);
+  const [loadingPayslip, setLoadingPayslip] = useState(false);
   const [notes, setNotes] = useState("");
   const [pendingAction, setPendingAction] = useState<"forward" | "reject" | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const openDialog = (dispute: PayslipDispute, action: "forward" | "reject") => {
+  const fmtCurrency = (v: number) =>
+    `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const periodLabel = (p: string) => {
+    const [y, m] = p.split("-");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[parseInt(m) - 1]} ${y}`;
+  };
+
+  const openReview = async (dispute: PayslipDispute) => {
     setSelected(dispute);
-    setPendingAction(action);
     setNotes("");
-    setDialogOpen(true);
+    setPendingAction(null);
+    setConfirmOpen(false);
+    setPayslipData(null);
+    setLoadingPayslip(true);
+
+    // Fetch the linked payroll record
+    try {
+      const { data, error } = await supabase
+        .from("payroll_records")
+        .select("*, profiles:profile_id(full_name, department, job_title)")
+        .eq("id", dispute.payroll_record_id)
+        .single();
+      if (!error && data) setPayslipData(data);
+    } catch (err) {
+      console.warn("Failed to fetch payroll record:", err);
+    } finally {
+      setLoadingPayslip(false);
+    }
+  };
+
+  const startAction = (action: "forward" | "reject") => {
+    setPendingAction(action);
+    setConfirmOpen(true);
   };
 
   const handleSubmit = () => {
     if (!selected || !pendingAction) return;
     reviewDispute.mutate(
       { disputeId: selected.id, action: pendingAction, notes: notes || undefined },
-      { onSuccess: () => setDialogOpen(false) }
+      {
+        onSuccess: () => {
+          setConfirmOpen(false);
+          setSelected(null);
+        },
+      }
     );
-  };
-
-  const periodLabel = (p: string) => {
-    const [y, m] = p.split("-");
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${months[parseInt(m) - 1]} ${y}`;
   };
 
   if (isLoading) return <div className="flex items-center justify-center py-16 text-muted-foreground"><Clock className="mr-2 h-4 w-4 animate-spin" /> Loading…</div>;
@@ -799,14 +830,9 @@ function PendingPayslipDisputes() {
                     </p>
                     <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="border-green-500/40 text-green-400 hover:bg-green-500/10" onClick={() => openDialog(d, "forward")}>
-                      <Check className="h-3.5 w-3.5 mr-1" /> Forward to HR
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10" onClick={() => openDialog(d, "reject")}>
-                      <X className="h-3.5 w-3.5 mr-1" /> Reject
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => openReview(d)} className="shrink-0">
+                    <Eye className="h-3.5 w-3.5 mr-1" /> Review
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -814,23 +840,202 @@ function PendingPayslipDisputes() {
         ))}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{pendingAction === "forward" ? "Forward to HR" : "Reject Dispute"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label htmlFor="dispute-notes">Notes {pendingAction === "reject" ? "(recommended)" : "(optional)"}</Label>
-            <Textarea id="dispute-notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={reviewDispute.isPending} className={pendingAction === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}>
-              {reviewDispute.isPending ? "Saving…" : pendingAction === "forward" ? "Forward" : "Reject"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Full Review Dialog */}
+      {selected && (
+        <Dialog open onOpenChange={(v) => { if (!v) { setSelected(null); setConfirmOpen(false); } }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Payslip Dispute Review
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5 py-2">
+              {/* Dispute Info */}
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Dispute Details
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Employee</p>
+                    <p className="font-medium">{selected.profiles?.full_name || "Unknown"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Pay Period</p>
+                    <p className="font-medium">{periodLabel(selected.pay_period)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Category</p>
+                    <p className="font-medium">{DISPUTE_CATEGORIES.find(c => c.value === selected.dispute_category)?.label || selected.dispute_category}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Raised On</p>
+                    <p className="font-medium">{formatDate(selected.created_at)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Employee's Concern</p>
+                  <p className="text-sm mt-1 bg-background/60 rounded-md p-2 border border-border/40 italic">"{selected.description}"</p>
+                </div>
+              </div>
+
+              {/* Payslip Summary */}
+              <div className="rounded-lg border border-border/50 bg-card/40 p-4 space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  Payslip Details — {periodLabel(selected.pay_period)}
+                </h4>
+                {loadingPayslip ? (
+                  <div className="flex items-center gap-2 py-6 text-muted-foreground text-sm justify-center">
+                    <Clock className="h-4 w-4 animate-spin" /> Loading payslip…
+                  </div>
+                ) : payslipData ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 text-sm bg-muted/30 rounded-lg p-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Employee</p>
+                        <p className="font-medium">{payslipData.profiles?.full_name || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Department</p>
+                        <p className="font-medium">{payslipData.profiles?.department || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Designation</p>
+                        <p className="font-medium">{payslipData.profiles?.job_title || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <Badge variant="outline" className="text-xs capitalize">{payslipData.status}</Badge>
+                      </div>
+                      {Number(payslipData.working_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Working Days</p>
+                          <p className="font-medium">{payslipData.working_days}</p>
+                        </div>
+                      )}
+                      {Number(payslipData.paid_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Days</p>
+                          <p className="font-medium">
+                            {payslipData.paid_days}
+                            {Number(payslipData.lop_days) > 0 && <span className="text-amber-500 ml-1">(LOP: {payslipData.lop_days})</span>}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Earnings */}
+                      <div>
+                        <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Earnings</h5>
+                        <div className="space-y-1 text-sm">
+                          {[
+                            { label: "Basic Salary", amount: Number(payslipData.basic_salary) },
+                            { label: "HRA", amount: Number(payslipData.hra) },
+                            { label: "Transport", amount: Number(payslipData.transport_allowance) },
+                            { label: "Other Allowances", amount: Number(payslipData.other_allowances) },
+                          ].filter(e => e.amount > 0).map(e => (
+                            <div key={e.label} className="flex justify-between">
+                              <span className="text-muted-foreground">{e.label}</span>
+                              <span className="font-medium">{fmtCurrency(e.amount)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-green-600">
+                            <span>Total Earnings</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.basic_salary) + Number(payslipData.hra) +
+                              Number(payslipData.transport_allowance) + Number(payslipData.other_allowances)
+                            )}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Deductions */}
+                      <div>
+                        <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Deductions</h5>
+                        <div className="space-y-1 text-sm">
+                          {[
+                            { label: "PF", amount: Number(payslipData.pf_deduction) },
+                            { label: "TDS", amount: Number(payslipData.tax_deduction) },
+                            { label: "Other", amount: Number(payslipData.other_deductions) },
+                            ...(Number(payslipData.lop_deduction) > 0 ? [{ label: `LOP (${payslipData.lop_days}d)`, amount: Number(payslipData.lop_deduction) }] : []),
+                          ].filter(d => d.amount > 0).map(d => (
+                            <div key={d.label} className="flex justify-between">
+                              <span className="text-muted-foreground">{d.label}</span>
+                              <span className="font-medium">{fmtCurrency(d.amount)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-destructive">
+                            <span>Total Deductions</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.pf_deduction) + Number(payslipData.tax_deduction) +
+                              Number(payslipData.other_deductions) + (Number(payslipData.lop_deduction) || 0)
+                            )}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Net Pay */}
+                    <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex justify-between items-center">
+                      <span className="font-semibold">Net Pay</span>
+                      <span className="text-xl font-bold text-primary">{fmtCurrency(Number(payslipData.net_pay))}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Could not load payslip details.</p>
+                )}
+              </div>
+
+              {/* Action section */}
+              {!confirmOpen ? (
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+                  <Button
+                    variant="outline"
+                    className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+                    onClick={() => startAction("reject")}
+                  >
+                    <X className="h-4 w-4 mr-1" /> Reject
+                  </Button>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => startAction("forward")}
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Forward to HR
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 border-t border-border/50 pt-4">
+                  <Label htmlFor="dispute-mgr-notes">
+                    {pendingAction === "reject" ? "Rejection Reason" : "Notes for HR"} {pendingAction === "reject" ? "(recommended)" : "(optional)"}
+                  </Label>
+                  <Textarea
+                    id="dispute-mgr-notes"
+                    placeholder={pendingAction === "reject" ? "Explain why this dispute is being rejected…" : "Any context for the HR team…"}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setConfirmOpen(false)}>Back</Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={reviewDispute.isPending}
+                      className={pendingAction === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+                    >
+                      {reviewDispute.isPending ? "Saving…" : pendingAction === "forward" ? "Forward to HR" : "Reject Dispute"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
