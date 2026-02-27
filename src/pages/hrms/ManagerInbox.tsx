@@ -21,6 +21,7 @@ import {
   Sparkles,
   Wallet,
   AlertTriangle,
+  UserCog,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -69,6 +70,47 @@ import {
   useProfileSearch,
   type Memo,
 } from "@/hooks/useMemos";
+import {
+  useReviewChangeRequest,
+  type ProfileChangeRequest,
+} from "@/hooks/useProfileChangeRequests";
+
+// ─── Profile Change Request hooks ─────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  full_name: "Full Name", date_of_birth: "Date of Birth", gender: "Gender",
+  blood_group: "Blood Group", marital_status: "Marital Status", nationality: "Nationality",
+  address_line1: "Address Line 1", address_line2: "Address Line 2", city: "City",
+  state: "State", pincode: "Pincode", country: "Country",
+  emergency_contact_name: "Emergency Contact Name", emergency_contact_relation: "Emergency Contact Relation",
+  emergency_contact_phone: "Emergency Contact Phone", bank_name: "Bank Name",
+  bank_account_number: "Bank Account Number", bank_ifsc: "IFSC Code", bank_branch: "Bank Branch",
+  pan_number: "PAN Number", aadhaar_last_four: "Aadhaar (last 4)", uan_number: "UAN Number",
+  esi_number: "ESI Number", employee_id_number: "Employee ID",
+  department: "Department", job_title: "Job Title", phone: "Phone", email: "Email",
+};
+
+function useDirectReportsPendingProfileChanges() {
+  const { data: reports = [] } = useDirectReports();
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+
+  return useQuery({
+    queryKey: ["direct-reports-profile-changes-pending", reports.map((r) => r.id), isDevMode],
+    queryFn: async () => {
+      if (isDevMode || !user || reports.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profile_change_requests" as any)
+        .select("*")
+        .in("profile_id", reports.map((r) => r.id))
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ProfileChangeRequest[];
+    },
+    enabled: (!!user || isDevMode) && reports.length > 0,
+  });
+}
 
 // ─── History hooks ────────────────────────────────────────────────────────────
 
@@ -1151,6 +1193,164 @@ function PendingExpenses() {
   );
 }
 
+// ─── Pending Profile Changes ──────────────────────────────────────────────────
+
+function PendingProfileChanges() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: reports = [] } = useDirectReports();
+  const { data: requests = [], isLoading } = useDirectReportsPendingProfileChanges();
+  const reviewMutation = useReviewChangeRequest();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<ProfileChangeRequest | null>(null);
+  const [notes, setNotes] = useState("");
+  const [pendingAction, setPendingAction] = useState<"approved" | "rejected" | null>(null);
+
+  const openDialog = (req: ProfileChangeRequest, action: "approved" | "rejected") => {
+    setSelected(req);
+    setPendingAction(action);
+    setNotes("");
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!selected || !pendingAction) return;
+    reviewMutation.mutate(
+      { id: selected.id, status: pendingAction, reviewer_notes: notes || undefined },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["direct-reports-profile-changes-pending"] });
+          queryClient.invalidateQueries({ queryKey: ["profile-change-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["employees"] });
+          queryClient.invalidateQueries({ queryKey: ["employee-details"] });
+          queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
+          setDialogOpen(false);
+        },
+      }
+    );
+  };
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-4 text-center">Loading…</div>;
+  if (requests.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+      <UserCog className="h-8 w-8 opacity-30" />
+      <p className="text-sm">No pending profile change requests.</p>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="space-y-3">
+        {requests.map((req, i) => (
+          <motion.div
+            key={req.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+          >
+            <Card className="border-border/50 bg-card/60">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-sm">
+                        {getEmployeeName(req.profile_id, reports)}
+                      </span>
+                      <Badge variant="outline" className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30">
+                        Pending
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium text-foreground">{FIELD_LABELS[req.field_name] || req.field_name}</span>
+                      <span className="mx-2">·</span>
+                      <span className="capitalize">{req.section}</span>
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground mt-1.5">
+                      <span>Current: <span className="text-foreground">{req.current_value || "—"}</span></span>
+                      <span>→ Requested: <span className="text-primary font-medium">{req.requested_value}</span></span>
+                    </div>
+                    {req.reason && (
+                      <p className="text-xs text-muted-foreground mt-1.5 italic">"{req.reason}"</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Submitted {formatDate(req.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:border-green-500/60"
+                      onClick={() => openDialog(req, "approved")}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60"
+                      onClick={() => openDialog(req, "rejected")}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction === "approved" ? "Approve" : "Reject"} Profile Change
+            </DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3 py-2">
+              <div className="rounded-lg border border-border/50 p-3 text-sm space-y-1.5">
+                <div><span className="text-muted-foreground">Field:</span> <span className="font-medium">{FIELD_LABELS[selected.field_name] || selected.field_name}</span></div>
+                <div><span className="text-muted-foreground">Current:</span> {selected.current_value || "—"}</div>
+                <div><span className="text-muted-foreground">Requested:</span> <span className="text-primary font-medium">{selected.requested_value}</span></div>
+                {selected.reason && <div><span className="text-muted-foreground">Reason:</span> <span className="italic">{selected.reason}</span></div>}
+              </div>
+              {pendingAction === "approved" && (
+                <p className="text-xs text-muted-foreground">Approving will automatically update the employee's profile.</p>
+              )}
+              <Label htmlFor="reviewer-notes-pc">Reviewer Notes (optional)</Label>
+              <Textarea
+                id="reviewer-notes-pc"
+                placeholder="Add any notes for this decision…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={reviewMutation.isPending}
+              className={
+                pendingAction === "approved"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              }
+            >
+              {reviewMutation.isPending ? "Saving…" : pendingAction === "approved" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ManagerInbox() {
@@ -1161,6 +1361,7 @@ export default function ManagerInbox() {
   const { data: pendingExpenses = [] } = useDirectReportsPendingExpenses();
   const { data: pendingMemos = [] } = useDirectReportsPendingMemos();
   const { data: pendingDisputes = [] } = usePendingPayslipDisputes("manager");
+  const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -1169,7 +1370,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length;
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length;
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -1268,6 +1469,15 @@ export default function ManagerInbox() {
               {pendingDisputes.length > 0 && (
                 <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                   {pendingDisputes.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="profile-changes" className="gap-2">
+              <UserCog className="h-4 w-4" />
+              Profile Changes
+              {pendingProfileChanges.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                  {pendingProfileChanges.length}
                 </span>
               )}
             </TabsTrigger>
@@ -1444,6 +1654,26 @@ export default function ManagerInbox() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Profile Changes ── */}
+          <TabsContent value="profile-changes">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UserCog className="h-4 w-4 text-primary" />
+                  Pending Profile Change Requests
+                  {pendingProfileChanges.length > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {pendingProfileChanges.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PendingProfileChanges />
               </CardContent>
             </Card>
           </TabsContent>
