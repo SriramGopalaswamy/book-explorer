@@ -72,11 +72,11 @@ export function useAttendanceStats(date?: string) {
       const [attendanceRes, leaveRes] = await Promise.all([
         supabase
           .from("attendance_records")
-          .select("status, user_id")
+          .select("status, user_id, profile_id")
           .eq("date", selectedDate),
         supabase
           .from("leave_requests")
-          .select("user_id")
+          .select("user_id, profile_id")
           .eq("status", "approved")
           .lte("from_date", selectedDate)
           .gte("to_date", selectedDate),
@@ -93,8 +93,9 @@ export function useAttendanceStats(date?: string) {
         total: data.length,
       };
 
-      // Track user_ids already marked as leave in attendance_records
-      const leaveUserIds = new Set<string>();
+      // Track profile_ids already marked as leave in attendance_records
+      // (profile_id is the reliable employee identifier; user_id may be the admin who created the record)
+      const leaveProfileIds = new Set<string>();
 
       data.forEach((record) => {
         if (record.status === "present" || record.status === "half_day") {
@@ -105,14 +106,14 @@ export function useAttendanceStats(date?: string) {
           stats.late++;
         } else if (record.status === "leave") {
           stats.leave++;
-          if (record.user_id) leaveUserIds.add(record.user_id);
+          if (record.profile_id) leaveProfileIds.add(record.profile_id);
         }
       });
 
       // Add approved leaves that don't already have an attendance record with status 'leave'
       if (leaveRes.data) {
         const extraLeaves = leaveRes.data.filter(
-          (lr) => !leaveUserIds.has(lr.user_id)
+          (lr) => !lr.profile_id || !leaveProfileIds.has(lr.profile_id)
         );
         stats.leave += extraLeaves.length;
         stats.total += extraLeaves.length;
