@@ -114,13 +114,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   }, [config.columns]);
 
   const processRows = useCallback((rawRows: string[][]) => {
-    if (rawRows.length < 2) {
+    // Filter out completely empty rows (all cells empty)
+    const nonEmptyRows = rawRows.filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+    
+    if (nonEmptyRows.length < 2) {
       toast.error("File must have a header row and at least one data row");
       return;
     }
-    const fileHeaders = rawRows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+    const fileHeaders = nonEmptyRows[0].map((h) => String(h ?? "").toLowerCase().replace(/\s+/g, "_"));
     setHeaders(fileHeaders);
-    const dataRows = rawRows.slice(1).map((cells, idx) => {
+    const dataRows = nonEmptyRows.slice(1).map((cells, idx) => {
       const row: Record<string, string> = {};
       fileHeaders.forEach((h, i) => { row[h] = maybeConvertExcelSerial(String(cells[i] ?? "").trim()); });
       return validateRow(row, idx);
