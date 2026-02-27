@@ -283,9 +283,21 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
   const isLoading = !isFetched;
+
+  // Restore sidebar scroll position after remount (each route change remounts Sidebar)
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (el) {
+      el.scrollTop = savedSidebarScroll;
+      const onScroll = () => { savedSidebarScroll = el.scrollTop; };
+      el.addEventListener("scroll", onScroll, { passive: true });
+      return () => el.removeEventListener("scroll", onScroll);
+    }
+  }, []);
 
   const isEmployee = currentRole === "employee";
   const isManager = currentRole === "manager";
