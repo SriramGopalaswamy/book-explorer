@@ -15,40 +15,50 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const supabase = createClient(supabaseUrl, serviceKey, {
-      global: { headers: { Authorization: authHeader || "" } },
+    // Verify JWT using getClaims
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) throw new Error("Unauthorized");
+    const userId = claimsData.claims.sub as string;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Unauthorized");
+    // Use service role for data operations
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("organization_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
 
+    console.log("Profile lookup for user:", userId, "result:", profile, "error:", profileErr);
+
     const orgId = profile?.organization_id;
-    if (!orgId) throw new Error("No organization found");
+    if (!orgId) throw new Error("No organization found for user " + userId);
 
     const { action, financial_year, run_id } = await req.json();
 
     // ─── ACTION: run_full_audit ───────────────────────────────────────
     if (action === "run_full_audit") {
-      return await runFullAudit(supabase, orgId, user.id, financial_year, LOVABLE_API_KEY);
+      return await runFullAudit(supabase, orgId, userId, financial_year, LOVABLE_API_KEY);
     }
 
     // ─── ACTION: generate_auditor_pack ────────────────────────────────
     if (action === "generate_auditor_pack") {
-      return await generateAuditorPack(supabase, orgId, user.id, financial_year, run_id);
+      return await generateAuditorPack(supabase, orgId, userId, financial_year, run_id);
     }
 
     // ─── ACTION: pre_audit_simulation ─────────────────────────────────
     if (action === "pre_audit_simulation") {
-      return await runPreAuditSimulation(supabase, orgId, user.id, financial_year, LOVABLE_API_KEY);
+      return await runPreAuditSimulation(supabase, orgId, userId, financial_year, LOVABLE_API_KEY);
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
