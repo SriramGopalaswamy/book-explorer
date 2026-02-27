@@ -119,6 +119,10 @@ export function useReviewChangeRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile-change-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-profile-changes-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employee-details"] });
+      queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
       toast.success("Change request reviewed");
     },
     onError: (err: any) => {
