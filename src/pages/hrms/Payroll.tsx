@@ -191,7 +191,7 @@ export default function Payroll() {
       const hasDispute = (existing as any)._hasApprovedDispute;
       toast.error(
         `A payslip already exists for this employee for ${periodLabel(selectedPeriod)}.` +
-        (existing.status === "processed"
+        (existing.status === "locked"
           ? " The employee must raise a dispute and get it approved before a revised payslip can be generated."
           : " Edit the existing record instead.")
       );
