@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X } from "lucide-react";
+import { Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X, Settings as SettingsIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
@@ -102,7 +103,6 @@ function BrandingSection() {
 
       const url = publicData.publicUrl + "?v=" + Date.now();
 
-      // Upsert organization_settings
       const { error: dbError } = await supabase
         .from("organization_settings" as any)
         .upsert(
@@ -151,7 +151,6 @@ function BrandingSection() {
       </CardHeader>
       <CardContent>
         <div className="grid gap-6 sm:grid-cols-2">
-          {/* Regular Logo */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Company Logo</Label>
             <p className="text-xs text-muted-foreground">Used on invoices, quotes, payslips, and the sidebar. Recommended: 400×100px PNG/SVG.</p>
@@ -164,12 +163,7 @@ function BrandingSection() {
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={uploading === "logo"}
-                  onClick={() => logoInputRef.current?.click()}
-                >
+                <Button size="sm" variant="outline" disabled={uploading === "logo"} onClick={() => logoInputRef.current?.click()}>
                   <Upload className="h-4 w-4 mr-1" />
                   {uploading === "logo" ? "Uploading…" : "Upload"}
                 </Button>
@@ -180,20 +174,8 @@ function BrandingSection() {
                 )}
               </div>
             </div>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/svg+xml,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload("logo", f);
-                e.target.value = "";
-              }}
-            />
+            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload("logo", f); e.target.value = ""; }} />
           </div>
-
-          {/* Favicon / Short Logo */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Short Logo / Favicon</Label>
             <p className="text-xs text-muted-foreground">Used as browser favicon and in compact UI areas. Recommended: 512×512px square PNG.</p>
@@ -206,12 +188,7 @@ function BrandingSection() {
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={uploading === "favicon"}
-                  onClick={() => faviconInputRef.current?.click()}
-                >
+                <Button size="sm" variant="outline" disabled={uploading === "favicon"} onClick={() => faviconInputRef.current?.click()}>
                   <Upload className="h-4 w-4 mr-1" />
                   {uploading === "favicon" ? "Uploading…" : "Upload"}
                 </Button>
@@ -222,17 +199,7 @@ function BrandingSection() {
                 )}
               </div>
             </div>
-            <input
-              ref={faviconInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload("favicon", f);
-                e.target.value = "";
-              }}
-            />
+            <input ref={faviconInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload("favicon", f); e.target.value = ""; }} />
           </div>
         </div>
       </CardContent>
@@ -240,12 +207,12 @@ function BrandingSection() {
   );
 }
 
-export default function Settings() {
+// ─── User Management Section (lazy-loaded) ────────────────────────────────────
+function UserManagementSection() {
   const { user } = useAuth();
   const bulkUploadConfig = useUsersAndRolesBulkUpload();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -264,40 +231,21 @@ export default function Settings() {
   }, [users, searchQuery]);
 
   useEffect(() => {
-    checkAdminAndLoad();
-  }, [user]);
-
-  const checkAdminAndLoad = async () => {
     if (!user) return;
-
-    // Check admin role and load users in parallel
-    const [roleResult, usersResult] = await Promise.all([
-      supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle(),
-      supabase.functions.invoke("manage-roles", {
+    (async () => {
+      const { data } = await supabase.functions.invoke("manage-roles", {
         body: { action: "list_users" },
-      }),
-    ]);
-
-    const admin = !!roleResult.data;
-    setIsAdmin(admin);
-
-    if (admin && usersResult.data?.users) {
-      setUsers(usersResult.data.users);
-    }
-    setLoading(false);
-  };
+      });
+      if (data?.users) setUsers(data.users);
+      setLoading(false);
+    })();
+  }, [user]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
     const { data, error } = await supabase.functions.invoke("manage-roles", {
       body: { action: "set_role", user_id: userId, role: newRole },
     });
-
     if (error || data?.error) {
       toast.error(data?.error || "Failed to update role");
     } else {
@@ -314,7 +262,6 @@ export default function Settings() {
     const { data, error } = await supabase.functions.invoke("manage-roles", {
       body: { action: "delete_user", user_id: userId },
     });
-
     if (error || data?.error) {
       toast.error(data?.error || "Failed to delete user");
     } else {
@@ -325,6 +272,176 @@ export default function Settings() {
   };
 
   if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-20 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              User Role Management
+            </CardTitle>
+            <CardDescription>
+              Assign roles to control what each user can access. Changes take effect on next sign-in.
+            </CardDescription>
+          </div>
+          <BulkUploadDialog config={bulkUploadConfig} />
+        </CardHeader>
+        <CardContent>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email, department, or role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="space-y-3">
+            {filteredUsers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                {users.length === 0
+                  ? "No users found. Users will appear here after they sign in."
+                  : "No users match your search."}
+              </p>
+            ) : (
+              filteredUsers.map((u) => {
+                const currentRole = u.roles[0] || "employee";
+                const isSelf = u.user_id === user?.id;
+                const isProtected = u.email?.toLowerCase() === "sriram@grx10.com";
+
+                return (
+                  <div
+                    key={u.user_id}
+                    className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/30"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">
+                          {u.full_name || "Unnamed User"}
+                        </p>
+                        {isSelf && (
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            You
+                          </Badge>
+                        )}
+                        {isProtected && (
+                          <Badge variant="outline" className="text-xs shrink-0 border-primary/30 text-primary">
+                            Protected
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {u.email}
+                      </p>
+                      {u.department && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {u.department} {u.job_title ? `· ${u.job_title}` : ""}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <Badge
+                        variant="outline"
+                        className={ROLE_COLORS[currentRole] || ROLE_COLORS.employee}
+                      >
+                        {ROLE_LABELS[currentRole] || currentRole}
+                      </Badge>
+
+                      <Select
+                        value={currentRole}
+                        onValueChange={(val) => handleRoleChange(u.user_id, val)}
+                        disabled={isSelf || updatingUser === u.user_id}
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="finance">Finance</SelectItem>
+                          <SelectItem value="hr">HR</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {!isSelf && !isProtected && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              disabled={deletingUser === u.user_id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete <strong>{u.full_name || u.email}</strong>? This will permanently remove their account, profile, and all associated roles. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => handleDeleteUser(u.user_id, u.email)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <BulkUploadHistory module="users" />
+    </div>
+  );
+}
+
+// ─── Main Settings Page ───────────────────────────────────────────────────────
+export default function Settings() {
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!data);
+      setCheckingAdmin(false);
+    })();
+  }, [user]);
+
+  if (checkingAdmin) {
     return (
       <MainLayout title="Settings">
         <div className="p-6 space-y-4">
@@ -366,144 +483,26 @@ export default function Settings() {
           <p className="text-muted-foreground mt-1">Manage organization branding, user roles and access permissions</p>
         </div>
 
-        {/* Organization Branding */}
-        <BrandingSection />
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList>
+            <TabsTrigger value="general" className="gap-2">
+              <SettingsIcon className="h-4 w-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="h-4 w-4" />
+              User Management
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Bulk Add Users & Roles */}
+          <TabsContent value="general" className="mt-6">
+            <BrandingSection />
+          </TabsContent>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                User Role Management
-              </CardTitle>
-              <CardDescription>
-                Assign roles to control what each user can access. Changes take effect on next sign-in.
-              </CardDescription>
-            </div>
-            <BulkUploadDialog config={bulkUploadConfig} />
-          </CardHeader>
-          <CardContent>
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, department, or role..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="space-y-3">
-              {filteredUsers.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  {users.length === 0
-                    ? "No users found. Users will appear here after they sign in."
-                    : "No users match your search."}
-                </p>
-              ) : (
-                filteredUsers.map((u) => {
-                  const currentRole = u.roles[0] || "employee";
-                  const isSelf = u.user_id === user?.id;
-                  const isProtected = u.email?.toLowerCase() === "sriram@grx10.com";
-
-                  return (
-                    <div
-                      key={u.user_id}
-                      className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/30"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">
-                            {u.full_name || "Unnamed User"}
-                          </p>
-                          {isSelf && (
-                            <Badge variant="outline" className="text-xs shrink-0">
-                              You
-                            </Badge>
-                          )}
-                          {isProtected && (
-                            <Badge variant="outline" className="text-xs shrink-0 border-primary/30 text-primary">
-                              Protected
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {u.email}
-                        </p>
-                        {u.department && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {u.department} {u.job_title ? `· ${u.job_title}` : ""}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Badge
-                          variant="outline"
-                          className={ROLE_COLORS[currentRole] || ROLE_COLORS.employee}
-                        >
-                          {ROLE_LABELS[currentRole] || currentRole}
-                        </Badge>
-
-                        <Select
-                          value={currentRole}
-                          onValueChange={(val) => handleRoleChange(u.user_id, val)}
-                          disabled={isSelf || updatingUser === u.user_id}
-                        >
-                          <SelectTrigger className="w-[130px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="finance">Finance</SelectItem>
-                            <SelectItem value="hr">HR</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        {!isSelf && !isProtected && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                disabled={deletingUser === u.user_id}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete <strong>{u.full_name || u.email}</strong>? This will permanently remove their account, profile, and all associated roles. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  onClick={() => handleDeleteUser(u.user_id, u.email)}
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <BulkUploadHistory module="users" />
+          <TabsContent value="users" className="mt-6">
+            <UserManagementSection />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
