@@ -1430,6 +1430,7 @@ function PendingProfileChanges() {
           queryClient.invalidateQueries({ queryKey: ["employees"] });
           queryClient.invalidateQueries({ queryKey: ["employee-details"] });
           queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
+          queryClient.invalidateQueries({ queryKey: ["direct-reports"] });
           setDialogOpen(false);
         },
       }
