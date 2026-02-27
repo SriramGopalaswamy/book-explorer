@@ -36,7 +36,7 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles")
       .select("organization_id")
-      .eq("id", userId)
+      .eq("user_id", userId)
       .maybeSingle();
 
     let orgId = profile?.organization_id;
