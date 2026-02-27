@@ -529,9 +529,19 @@ export default function Payroll() {
                                       <DropdownMenuItem onClick={() => openEdit(r)}>
                                         <Pencil className="mr-2 h-4 w-4" /> Edit
                                       </DropdownMenuItem>
-                                      {r.status !== "processed" && (
-                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "processed" })}>
-                                          <CheckCircle className="mr-2 h-4 w-4" /> Mark Processed
+                                      {r.status === "draft" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "under_review" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Submit for Review
+                                        </DropdownMenuItem>
+                                      )}
+                                      {r.status === "under_review" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "approved" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Approve
+                                        </DropdownMenuItem>
+                                      )}
+                                      {r.status === "approved" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "locked" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Lock
                                         </DropdownMenuItem>
                                       )}
                                       <DropdownMenuItem
