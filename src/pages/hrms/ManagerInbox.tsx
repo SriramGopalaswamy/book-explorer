@@ -345,6 +345,8 @@ function PendingCorrections() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<(typeof corrections)[0] | null>(null);
   const [notes, setNotes] = useState("");
+  const [editCheckIn, setEditCheckIn] = useState("");
+  const [editCheckOut, setEditCheckOut] = useState("");
   const [pendingAction, setPendingAction] = useState<"approved" | "rejected" | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -355,6 +357,8 @@ function PendingCorrections() {
     setSelected(correction);
     setPendingAction(action);
     setNotes("");
+    setEditCheckIn(correction.requested_check_in || "");
+    setEditCheckOut(correction.requested_check_out || "");
     setDialogOpen(true);
   };
 
