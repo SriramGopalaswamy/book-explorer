@@ -358,7 +358,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
+      <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
         {!isLoading && (
           <>
             {visibleMainNav.length > 0 && (
