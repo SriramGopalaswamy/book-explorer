@@ -1007,14 +1007,15 @@ function PendingPayslipDisputes() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    Could not load payslip details. The payroll record may not exist yet for this period.
-                  </p>
-                  <p className="text-xs text-center text-muted-foreground">
-                    You can still review the employee's concern above and take action.
-                  </p>
-                </div>
-              )}
+                  <div className="py-4 text-center space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Could not load payslip details. The payroll record may not exist yet for this period.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      You can still review the employee's concern above and take action.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Action section */}
