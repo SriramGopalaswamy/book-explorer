@@ -82,7 +82,10 @@ export default function Leaves() {
   const [newColor, setNewColor] = useState("text-blue-600");
   const [newDefaultDays, setNewDefaultDays] = useState(12);
 
-  const { data: leaveRequests = [], isLoading: isLoadingRequests } = useLeaveRequests(activeTab);
+  const isMyLeavesTab = activeTab === "mine";
+  const statusFilter = isMyLeavesTab ? "all" : activeTab;
+  const { data: leaveRequests = [], isLoading: isLoadingRequests } = useLeaveRequests(statusFilter);
+  const { data: myLeaveRequests = [], isLoading: isLoadingMyRequests } = useMyLeaveRequests();
   const { data: leaveBalances = [], isLoading: isLoadingBalances } = useLeaveBalances();
   const { data: holidaysRaw = [] } = useHolidays();
   const { data: activeLeaveTypes = [] } = useLeaveTypes();
@@ -98,7 +101,10 @@ export default function Leaves() {
   const createLeaveType = useCreateLeaveType();
   const updateLeaveType = useUpdateLeaveType();
 
-  const pagination = usePagination(leaveRequests, 10);
+  // Use my leaves when on "mine" tab, otherwise use all/filtered
+  const displayedLeaves = isMyLeavesTab ? myLeaveRequests : leaveRequests;
+  const isLoadingDisplayed = isMyLeavesTab ? isLoadingMyRequests : isLoadingRequests;
+  const pagination = usePagination(displayedLeaves, 10);
 
   // Build a lookup from active leave types
   const leaveTypeConfig = useMemo(() => {
