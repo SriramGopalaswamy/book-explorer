@@ -245,9 +245,8 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
           </div>
         ) : isEditing ? (
           /* ── Edit Mode ── */
-          <Tabs defaultValue="profile" className="mt-4">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="profile" className="text-xs">Profile</TabsTrigger>
+          <Tabs defaultValue="personal" className="mt-4">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
               <TabsTrigger value="address" className="text-xs">Address</TabsTrigger>
               <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
@@ -256,8 +255,8 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
               <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>
             </TabsList>
 
-            {/* Profile tab — core fields (name, email, department, etc.) */}
-            <TabsContent value="profile" className="space-y-3 pt-3">
+            <TabsContent value="personal" className="space-y-3 pt-3">
+              {/* Core profile fields */}
               <div className="grid grid-cols-2 gap-3">
                 {renderProfileEditField("Full Name *", "full_name", "John Doe")}
                 {renderProfileEditField("Email *", "email", "john@company.com", "email")}
@@ -302,41 +301,42 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                   />
                 </div>
               </div>
-            </TabsContent>
-
-            <TabsContent value="personal" className="space-y-3 pt-3">
-              <div className="grid grid-cols-2 gap-3">
-                {renderEditField("Date of Birth", "date_of_birth", undefined, "date")}
-                <div className="grid gap-1">
-                  <Label className="text-xs">Gender</Label>
-                  <Select value={form.gender || ""} onValueChange={(v) => setField("gender", v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {GENDERS.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              {/* Personal details */}
+              <div className="border-t pt-3 mt-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Personal Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {renderEditField("Date of Birth", "date_of_birth", undefined, "date")}
+                  <div className="grid gap-1">
+                    <Label className="text-xs">Gender</Label>
+                    <Select value={form.gender || ""} onValueChange={(v) => setField("gender", v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {GENDERS.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="grid gap-1">
-                  <Label className="text-xs">Blood Group</Label>
-                  <Select value={form.blood_group || ""} onValueChange={(v) => setField("blood_group", v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {BLOOD_GROUPS.map((bg) => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div className="grid gap-1">
+                    <Label className="text-xs">Blood Group</Label>
+                    <Select value={form.blood_group || ""} onValueChange={(v) => setField("blood_group", v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {BLOOD_GROUPS.map((bg) => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1">
+                    <Label className="text-xs">Marital Status</Label>
+                    <Select value={form.marital_status || ""} onValueChange={(v) => setField("marital_status", v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {MARITAL_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {renderEditField("Nationality", "nationality", "Indian")}
                 </div>
-                <div className="grid gap-1">
-                  <Label className="text-xs">Marital Status</Label>
-                  <Select value={form.marital_status || ""} onValueChange={(v) => setField("marital_status", v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {MARITAL_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {renderEditField("Nationality", "nationality", "Indian")}
               </div>
             </TabsContent>
 
