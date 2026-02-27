@@ -526,7 +526,7 @@ export default function Leaves() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
               <TabsList className="mb-4">
-                {isAdminHROrFinance && (
+                {showMyLeavesTab && (
                   <TabsTrigger value="mine">My Leaves</TabsTrigger>
                 )}
                 <TabsTrigger value="all">All</TabsTrigger>
