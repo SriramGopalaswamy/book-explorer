@@ -1193,6 +1193,164 @@ function PendingExpenses() {
   );
 }
 
+// ─── Pending Profile Changes ──────────────────────────────────────────────────
+
+function PendingProfileChanges() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: reports = [] } = useDirectReports();
+  const { data: requests = [], isLoading } = useDirectReportsPendingProfileChanges();
+  const reviewMutation = useReviewChangeRequest();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<ProfileChangeRequest | null>(null);
+  const [notes, setNotes] = useState("");
+  const [pendingAction, setPendingAction] = useState<"approved" | "rejected" | null>(null);
+
+  const openDialog = (req: ProfileChangeRequest, action: "approved" | "rejected") => {
+    setSelected(req);
+    setPendingAction(action);
+    setNotes("");
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!selected || !pendingAction) return;
+    reviewMutation.mutate(
+      { id: selected.id, status: pendingAction, reviewer_notes: notes || undefined },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["direct-reports-profile-changes-pending"] });
+          queryClient.invalidateQueries({ queryKey: ["profile-change-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["employees"] });
+          queryClient.invalidateQueries({ queryKey: ["employee-details"] });
+          queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
+          setDialogOpen(false);
+        },
+      }
+    );
+  };
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-4 text-center">Loading…</div>;
+  if (requests.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+      <UserCog className="h-8 w-8 opacity-30" />
+      <p className="text-sm">No pending profile change requests.</p>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="space-y-3">
+        {requests.map((req, i) => (
+          <motion.div
+            key={req.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+          >
+            <Card className="border-border/50 bg-card/60">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-sm">
+                        {getEmployeeName(req.profile_id, reports)}
+                      </span>
+                      <Badge variant="outline" className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30">
+                        Pending
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium text-foreground">{FIELD_LABELS[req.field_name] || req.field_name}</span>
+                      <span className="mx-2">·</span>
+                      <span className="capitalize">{req.section}</span>
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground mt-1.5">
+                      <span>Current: <span className="text-foreground">{req.current_value || "—"}</span></span>
+                      <span>→ Requested: <span className="text-primary font-medium">{req.requested_value}</span></span>
+                    </div>
+                    {req.reason && (
+                      <p className="text-xs text-muted-foreground mt-1.5 italic">"{req.reason}"</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Submitted {formatDate(req.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:border-green-500/60"
+                      onClick={() => openDialog(req, "approved")}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60"
+                      onClick={() => openDialog(req, "rejected")}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction === "approved" ? "Approve" : "Reject"} Profile Change
+            </DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3 py-2">
+              <div className="rounded-lg border border-border/50 p-3 text-sm space-y-1.5">
+                <div><span className="text-muted-foreground">Field:</span> <span className="font-medium">{FIELD_LABELS[selected.field_name] || selected.field_name}</span></div>
+                <div><span className="text-muted-foreground">Current:</span> {selected.current_value || "—"}</div>
+                <div><span className="text-muted-foreground">Requested:</span> <span className="text-primary font-medium">{selected.requested_value}</span></div>
+                {selected.reason && <div><span className="text-muted-foreground">Reason:</span> <span className="italic">{selected.reason}</span></div>}
+              </div>
+              {pendingAction === "approved" && (
+                <p className="text-xs text-muted-foreground">Approving will automatically update the employee's profile.</p>
+              )}
+              <Label htmlFor="reviewer-notes-pc">Reviewer Notes (optional)</Label>
+              <Textarea
+                id="reviewer-notes-pc"
+                placeholder="Add any notes for this decision…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={reviewMutation.isPending}
+              className={
+                pendingAction === "approved"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              }
+            >
+              {reviewMutation.isPending ? "Saving…" : pendingAction === "approved" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ManagerInbox() {
