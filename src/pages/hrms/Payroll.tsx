@@ -88,9 +88,13 @@ const periods = () => {
 };
 
 const statusStyles: Record<string, string> = {
+  locked: "bg-green-500/10 text-green-600 border-green-500/30",
+  approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  under_review: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  draft: "bg-muted text-muted-foreground border-border",
+  // Legacy fallbacks
   processed: "bg-green-500/10 text-green-600 border-green-500/30",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/30",
-  draft: "bg-muted text-muted-foreground border-border",
 };
 
 const defaultForm: Omit<CreatePayrollData, "profile_id" | "pay_period"> = {
@@ -187,7 +191,7 @@ export default function Payroll() {
       const hasDispute = (existing as any)._hasApprovedDispute;
       toast.error(
         `A payslip already exists for this employee for ${periodLabel(selectedPeriod)}.` +
-        (existing.status === "processed"
+        (existing.status === "locked"
           ? " The employee must raise a dispute and get it approved before a revised payslip can be generated."
           : " Edit the existing record instead.")
       );
@@ -332,8 +336,8 @@ export default function Payroll() {
           {[
             { label: "Total Payroll", value: formatCurrency(stats.totalPayroll), sub: `For ${periodLabel(selectedPeriod)}`, icon: Wallet, iconClass: "text-primary" },
             { label: "Employees", value: String(stats.totalEmployees), sub: "In payroll this period", icon: Users, iconClass: "text-primary" },
-            { label: "Processed", value: String(stats.processed), sub: stats.totalEmployees > 0 ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete` : "No records", icon: CheckCircle, iconClass: "text-green-500", valueClass: "text-green-500" },
-            { label: "Pending", value: String(stats.pending), sub: "Awaiting processing", icon: Clock, iconClass: "text-amber-500", valueClass: "text-amber-500" },
+            { label: "Locked", value: String(stats.processed), sub: stats.totalEmployees > 0 ? `${Math.round((stats.processed / stats.totalEmployees) * 100)}% complete` : "No records", icon: CheckCircle, iconClass: "text-green-500", valueClass: "text-green-500" },
+            { label: "In Progress", value: String(stats.pending), sub: "Draft / Review / Approved", icon: Clock, iconClass: "text-amber-500", valueClass: "text-amber-500" },
           ].map((stat) => (
             <motion.div key={stat.label} variants={fadeUp}>
               <Card className="glass-card glow-on-hover group transition-all duration-300 hover:-translate-y-1">
@@ -398,9 +402,10 @@ export default function Payroll() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="processed">Processed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="under_review">Under Review</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="locked">Locked</SelectItem>
                       </SelectContent>
                     </Select>
 
@@ -524,9 +529,19 @@ export default function Payroll() {
                                       <DropdownMenuItem onClick={() => openEdit(r)}>
                                         <Pencil className="mr-2 h-4 w-4" /> Edit
                                       </DropdownMenuItem>
-                                      {r.status !== "processed" && (
-                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "processed" })}>
-                                          <CheckCircle className="mr-2 h-4 w-4" /> Mark Processed
+                                      {r.status === "draft" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "under_review" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Submit for Review
+                                        </DropdownMenuItem>
+                                      )}
+                                      {r.status === "under_review" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "approved" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Approve
+                                        </DropdownMenuItem>
+                                      )}
+                                      {r.status === "approved" && (
+                                        <DropdownMenuItem onClick={() => updatePayroll.mutate({ id: r.id, status: "locked" })}>
+                                          <CheckCircle className="mr-2 h-4 w-4" /> Lock
                                         </DropdownMenuItem>
                                       )}
                                       <DropdownMenuItem
