@@ -21,6 +21,7 @@ import {
   Sparkles,
   Wallet,
   AlertTriangle,
+  UserCog,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
