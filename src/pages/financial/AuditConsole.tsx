@@ -165,7 +165,7 @@ export default function AuditConsole() {
   const hasData = !!latestRun;
 
   return (
-    <MainLayout>
+    <MainLayout title="CA Audit Console" subtitle="Indian CA Audit Intelligence System (ICAIS)">
       <div className="space-y-6 pb-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
