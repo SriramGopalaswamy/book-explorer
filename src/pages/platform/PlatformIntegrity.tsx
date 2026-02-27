@@ -228,6 +228,26 @@ export default function PlatformIntegrity() {
                 })()}
               </div>
             )}
+            {result && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const text = [
+                    `Verification Result: ${result.engine_status}`,
+                    `Run at: ${result.run_at || result.timestamp || new Date().toISOString()}`,
+                    `Total checks: ${result.total_checks} | Passed: ${passCount} | Failed: ${failCount} | Warnings: ${warnCount}`,
+                    '',
+                    ...checks.map(c => `[${c.status}] ${c.id} (${c.severity}) — ${c.detail}`)
+                  ].join('\n');
+                  navigator.clipboard.writeText(text);
+                  toast.success("Results copied to clipboard");
+                }}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy Results
+              </Button>
+            )}
             <Button onClick={runVerification} disabled={running} size="sm">
               {running ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
