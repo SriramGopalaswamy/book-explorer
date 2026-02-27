@@ -61,7 +61,7 @@ export function RecentActivityEnhanced() {
         <motion.button
           className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           whileHover={{ x: 4 }}
-          onClick={() => navigate("/audit-log")}
+          onClick={() => navigate("/admin/audit-log")}
         >
           View all
           <ArrowRight className="h-4 w-4" />
