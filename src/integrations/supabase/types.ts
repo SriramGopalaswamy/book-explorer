@@ -3608,6 +3608,53 @@ export type Database = {
         }
         Relationships: []
       }
+      master_ctc_components: {
+        Row: {
+          component_name: string
+          component_type: string
+          created_at: string
+          default_percentage_of_basic: number | null
+          display_order: number
+          id: string
+          is_active: boolean
+          is_taxable: boolean
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          component_name: string
+          component_type?: string
+          created_at?: string
+          default_percentage_of_basic?: number | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_taxable?: boolean
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          component_name?: string
+          component_type?: string
+          created_at?: string
+          default_percentage_of_basic?: number | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_taxable?: boolean
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "master_ctc_components_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memos: {
         Row: {
           attachment_url: string | null
