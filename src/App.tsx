@@ -34,6 +34,7 @@ import VendorCredits from "./pages/financial/VendorCredits";
 import Bills from "./pages/financial/Bills";
 import Assets from "./pages/financial/Assets";
 import StatutoryFilings from "./pages/financial/StatutoryFilings";
+import AuditConsole from "./pages/financial/AuditConsole";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
