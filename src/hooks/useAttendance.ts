@@ -111,10 +111,21 @@ export function useAttendanceStats(date?: string) {
       });
 
       // Add approved leaves that don't already have an attendance record with status 'leave'
+      // Use both profile_id and user_id for deduplication to handle data with either identifier
       if (leaveRes.data) {
-        const extraLeaves = leaveRes.data.filter(
-          (lr) => !lr.profile_id || !leaveProfileIds.has(lr.profile_id)
-        );
+        const leaveUserIds = new Set<string>();
+        data.forEach((record) => {
+          if (record.status === "leave" && record.user_id) leaveUserIds.add(record.user_id);
+        });
+
+        const extraLeaves = leaveRes.data.filter((lr) => {
+          // Skip if already counted via profile_id match
+          if (lr.profile_id && leaveProfileIds.has(lr.profile_id)) return false;
+          // Skip if already counted via user_id match
+          if (lr.user_id && leaveUserIds.has(lr.user_id)) return false;
+          // Only count if the leave request has at least one identifier
+          return !!(lr.profile_id || lr.user_id);
+        });
         stats.leave += extraLeaves.length;
         stats.total += extraLeaves.length;
       }
