@@ -102,6 +102,7 @@ const employeeHrmsNav: NavItem[] = [
 
 // Manager HRMS items (same as employee + Inbox)
 const managerHrmsNav: NavItem[] = [
+  { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
