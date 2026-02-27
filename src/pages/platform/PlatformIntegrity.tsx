@@ -24,7 +24,8 @@ interface VerificationCheck {
 
 interface VerificationResult {
   engine_status: "OPERATIONAL" | "DEGRADED" | "BLOCKED";
-  timestamp: string;
+  timestamp?: string;
+  run_at?: string;
   org_filter: string | null;
   total_checks: number;
   checks: VerificationCheck[];
