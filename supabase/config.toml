@@ -29,3 +29,5 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.scan-bill]
     verify_jwt = false
+  [functions.ai-audit-engine]
+    verify_jwt = false
