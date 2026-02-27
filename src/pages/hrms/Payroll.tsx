@@ -402,9 +402,10 @@ export default function Payroll() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="processed">Processed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="under_review">Under Review</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="locked">Locked</SelectItem>
                       </SelectContent>
                     </Select>
 
