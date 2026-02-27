@@ -79,14 +79,17 @@ export default function Customers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Check for linked invoices or credit notes before deleting
-      const [invoiceCheck, creditNoteCheck] = await Promise.all([
+      // Check for linked invoices, credit notes, or quotes before deleting
+      const [invoiceCheck, creditNoteCheck, quoteCheck] = await Promise.all([
         supabase.from("invoices").select("id").eq("customer_id", id).limit(1),
         supabase.from("credit_notes").select("id").eq("customer_id", id).limit(1),
+        supabase.from("quotes").select("id").eq("customer_id", id).limit(1),
       ]);
-      if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0) {
-        throw new Error("Cannot delete this customer because they have linked invoices or credit notes. Mark them as inactive instead.");
+      if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0 || (quoteCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this customer because they have linked invoices, quotes, or credit notes. Mark them as inactive instead.");
       }
+      // Delete AI profile if exists (no user-facing data)
+      await supabase.from("ai_customer_profiles").delete().eq("customer_id", id);
       const { error } = await supabase.from("customers").delete().eq("id", id);
       if (error) throw error;
     },
