@@ -1064,8 +1064,30 @@ function buildResult(
   const punches: ParsedPunch[] = [];
   for (const emp of employees) {
     for (const rec of emp.records) {
-      if (rec.punches.length > 0) {
-        // Each punch becomes a separate record
+      if (format === "summary") {
+        // Summary format: only use in_time and out_time as punches.
+        // The `punches` array contains ALL time tokens from the row (shift times,
+        // work hours, late minutes, OT, etc.) which should NOT be stored as punches.
+        if (rec.in_time && rec.in_time !== "00:00:00") {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${rec.in_time}`,
+            raw_status: rec.status,
+          });
+        }
+        if (rec.out_time && rec.out_time !== "00:00:00") {
+          punches.push({
+            employee_code: emp.employee_code,
+            employee_name: emp.employee_name,
+            card_no: emp.card_no,
+            punch_datetime: `${rec.date}T${rec.out_time}`,
+            raw_status: rec.status,
+          });
+        }
+      } else if (rec.punches.length > 0) {
+        // Detailed format: each punch is an actual biometric tap
         for (const punchTime of rec.punches) {
           punches.push({
             employee_code: emp.employee_code,
@@ -1076,7 +1098,7 @@ function buildResult(
           });
         }
       } else if (rec.in_time) {
-        // Summary: in_time as check-in punch
+        // Fallback: use in_time/out_time
         punches.push({
           employee_code: emp.employee_code,
           employee_name: emp.employee_name,
@@ -1084,7 +1106,6 @@ function buildResult(
           punch_datetime: `${rec.date}T${rec.in_time}`,
           raw_status: rec.status,
         });
-        // out_time as check-out punch
         if (rec.out_time && rec.out_time !== "00:00:00") {
           punches.push({
             employee_code: emp.employee_code,
