@@ -76,6 +76,17 @@ export function useIsManager() {
     queryFn: async () => {
       if (!user) return false;
       
+      // Check user_roles table first
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "manager")
+        .limit(1);
+
+      if (roleData && roleData.length > 0) return true;
+
+      // Fallback: check if anyone reports to this user
       const { data, error } = await supabase
         .from("profiles")
         .select("id")
