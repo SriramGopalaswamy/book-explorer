@@ -54,6 +54,7 @@ import {
   type LeaveType,
 } from "@/hooks/useLeaves";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
+import { useIsManager } from "@/hooks/useRoles";
 
 const iconMap: Record<string, typeof Palmtree> = {
   Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
