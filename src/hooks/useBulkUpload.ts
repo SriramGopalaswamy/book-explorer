@@ -69,7 +69,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     if (!user) throw new Error("Not authenticated");
 
     // Fetch employee profiles to map employee_id → profile_id
-    const { data: profiles } = await supabase.from("profiles").select("id, email, full_name");
+    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name");
     const errors: string[] = [];
     let success = 0;
 
@@ -89,9 +89,14 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         (p) => p.email?.toLowerCase().startsWith(empId) || p.full_name?.toLowerCase().includes(empId)
       );
 
+      if (!profile) {
+        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+        continue;
+      }
+
       const { error } = await supabase.from("payroll_records").insert({
-        user_id: user.id,
-        profile_id: profile?.id || null,
+        user_id: profile.user_id,
+        profile_id: profile.id,
         pay_period: payPeriod,
         basic_salary: basic,
         hra,
