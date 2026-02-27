@@ -769,14 +769,14 @@ export default function OrgChart() {
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
                     active
-                      ? "ring-2 ring-offset-1 ring-offset-background shadow-md scale-105"
+                      ? "shadow-md scale-105"
                       : "opacity-60 hover:opacity-100"
                   )}
                   style={{
                     borderColor: active ? color : `${color}40`,
                     background: active ? `${color}30` : `${color}08`,
                     color,
-                    ...(active ? { '--tw-ring-color': color } as React.CSSProperties : {}),
+                    ...(active ? { boxShadow: `0 0 0 2px ${color}50` } : {}),
                   }}
                 >
                   <span
