@@ -1361,6 +1361,7 @@ export default function ManagerInbox() {
   const { data: pendingExpenses = [] } = useDirectReportsPendingExpenses();
   const { data: pendingMemos = [] } = useDirectReportsPendingMemos();
   const { data: pendingDisputes = [] } = usePendingPayslipDisputes("manager");
+  const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -1369,7 +1370,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length;
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length;
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
