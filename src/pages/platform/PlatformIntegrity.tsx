@@ -220,7 +220,12 @@ export default function PlatformIntegrity() {
             {result && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {format(new Date(result.run_at || result.timestamp || new Date()), "yyyy-MM-dd HH:mm:ss")}
+                {(() => {
+                  try {
+                    const dateStr = result.run_at || result.timestamp;
+                    return format(dateStr ? new Date(dateStr) : new Date(), "yyyy-MM-dd HH:mm:ss");
+                  } catch { return "Unknown"; }
+                })()}
               </div>
             )}
             <Button onClick={runVerification} disabled={running} size="sm">
