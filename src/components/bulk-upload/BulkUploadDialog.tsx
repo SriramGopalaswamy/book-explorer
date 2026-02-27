@@ -125,7 +125,12 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     setHeaders(fileHeaders);
     const dataRows = nonEmptyRows.slice(1).map((cells, idx) => {
       const row: Record<string, string> = {};
-      fileHeaders.forEach((h, i) => { row[h] = maybeConvertExcelSerial(String(cells[i] ?? "").trim()); });
+      fileHeaders.forEach((h, i) => {
+        const val = String(cells[i] ?? "").trim();
+        // Only apply Excel date serial conversion to columns that look like date fields
+        const isDateColumn = /date|dob|birth|expiry|joining|leaving|start|end/.test(h);
+        row[h] = isDateColumn ? maybeConvertExcelSerial(val) : val;
+      });
       return validateRow(row, idx);
     });
     setParsedRows(dataRows);
