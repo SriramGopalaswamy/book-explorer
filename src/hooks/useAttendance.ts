@@ -111,10 +111,21 @@ export function useAttendanceStats(date?: string) {
       });
 
       // Add approved leaves that don't already have an attendance record with status 'leave'
+      // Use both profile_id and user_id for deduplication to handle data with either identifier
       if (leaveRes.data) {
-        const extraLeaves = leaveRes.data.filter(
-          (lr) => !lr.profile_id || !leaveProfileIds.has(lr.profile_id)
-        );
+        const leaveUserIds = new Set<string>();
+        data.forEach((record) => {
+          if (record.status === "leave" && record.user_id) leaveUserIds.add(record.user_id);
+        });
+
+        const extraLeaves = leaveRes.data.filter((lr) => {
+          // Skip if already counted via profile_id match
+          if (lr.profile_id && leaveProfileIds.has(lr.profile_id)) return false;
+          // Skip if already counted via user_id match
+          if (lr.user_id && leaveUserIds.has(lr.user_id)) return false;
+          // Only count if the leave request has at least one identifier
+          return !!(lr.profile_id || lr.user_id);
+        });
         stats.leave += extraLeaves.length;
         stats.total += extraLeaves.length;
       }
@@ -152,23 +163,60 @@ export function useWeeklyAttendanceStats() {
         days.push(date.toISOString().split("T")[0]);
       }
 
-      const { data, error } = await supabase
-        .from("attendance_records")
-        .select("date, status")
-        .gte("date", days[0])
-        .lte("date", days[4]);
+      // Fetch attendance records AND approved leave requests for the week
+      const [attendanceRes, leaveRes] = await Promise.all([
+        supabase
+          .from("attendance_records")
+          .select("date, status, profile_id, user_id")
+          .gte("date", days[0])
+          .lte("date", days[4]),
+        supabase
+          .from("leave_requests")
+          .select("from_date, to_date, profile_id, user_id")
+          .eq("status", "approved")
+          .lte("from_date", days[4])
+          .gte("to_date", days[0]),
+      ]);
 
-      if (error) throw error;
+      if (attendanceRes.error) throw attendanceRes.error;
+      const data = attendanceRes.data;
+      const leaveData = leaveRes.data || [];
 
       const weekData = days.map((day, idx) => {
         const dayRecords = data.filter((r) => r.date === day);
         const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+        // Count leaves from attendance_records
+        const attendanceLeaveProfileIds = new Set<string>();
+        const attendanceLeaveUserIds = new Set<string>();
+        let leaveCount = 0;
+
+        dayRecords.forEach((r) => {
+          if (r.status === "leave") {
+            leaveCount++;
+            if (r.profile_id) attendanceLeaveProfileIds.add(r.profile_id);
+            if (r.user_id) attendanceLeaveUserIds.add(r.user_id);
+          }
+        });
+
+        // Add approved leave requests covering this day (deduplicated)
+        leaveData.forEach((lr) => {
+          if (lr.from_date <= day && lr.to_date >= day) {
+            const alreadyCounted =
+              (lr.profile_id && attendanceLeaveProfileIds.has(lr.profile_id)) ||
+              (lr.user_id && attendanceLeaveUserIds.has(lr.user_id));
+            if (!alreadyCounted && (lr.profile_id || lr.user_id)) {
+              leaveCount++;
+            }
+          }
+        });
+
         return {
           day: dayNames[idx],
           present: dayRecords.filter((r) => r.status === "present" || r.status === "half_day").length,
           absent: dayRecords.filter((r) => r.status === "absent").length,
           late: dayRecords.filter((r) => r.status === "late").length,
-          leave: dayRecords.filter((r) => r.status === "leave").length,
+          leave: leaveCount,
         };
       });
 
