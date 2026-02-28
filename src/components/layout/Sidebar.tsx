@@ -325,17 +325,21 @@ export function Sidebar() {
   const closeMobile = () => setMobileOpen(false);
 
 
-  // Build visible nav based on role
+  // Build visible nav based on role and module access
   const restrictedRole = isEmployee || isManager || isFinance || isHR;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] : financialNav; // finance + admin see financial suite
-  const visibleHrmsNav = isManager
+  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] 
+    : isModuleEnabled("financial") ? financialNav 
+    : [];
+  const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
+    : isManager
     ? managerHrmsNav
     : isEmployee
     ? employeeHrmsNav
     : isFinance
     ? financeHrmsNav
     : hrmsNav;
+  const visiblePerformanceNav = isModuleEnabled("performance") ? performanceNav : [];
 
   const sidebarContent = (
     <>
