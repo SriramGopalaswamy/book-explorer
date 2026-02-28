@@ -4622,6 +4622,9 @@ export type Database = {
           environment_type: string
           id: string
           name: string
+          onboarding_reinitiated_at: string | null
+          onboarding_reinitiated_by: string | null
+          onboarding_version: number | null
           org_state: string
           sandbox_expires_at: string | null
           sandbox_owner: string | null
@@ -4636,6 +4639,9 @@ export type Database = {
           environment_type?: string
           id?: string
           name: string
+          onboarding_reinitiated_at?: string | null
+          onboarding_reinitiated_by?: string | null
+          onboarding_version?: number | null
           org_state?: string
           sandbox_expires_at?: string | null
           sandbox_owner?: string | null
@@ -4650,6 +4656,9 @@ export type Database = {
           environment_type?: string
           id?: string
           name?: string
+          onboarding_reinitiated_at?: string | null
+          onboarding_reinitiated_by?: string | null
+          onboarding_version?: number | null
           org_state?: string
           sandbox_expires_at?: string | null
           sandbox_owner?: string | null
@@ -6397,6 +6406,7 @@ export type Database = {
         Args: { _doc_type: string; _org_id: string }
         Returns: string
       }
+      org_has_transactions: { Args: { _org_id: string }; Returns: boolean }
       post_asset_disposal_journal: {
         Args: { _asset_id: string }
         Returns: string
@@ -6428,6 +6438,7 @@ export type Database = {
         Args: { _org_id: string; _passkey: string }
         Returns: Json
       }
+      reinitiate_onboarding: { Args: { _org_id: string }; Returns: Json }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       reverse_journal_entry: { Args: { p_eid: string }; Returns: string }
       run_financial_verification: { Args: { _org_id?: string }; Returns: Json }
