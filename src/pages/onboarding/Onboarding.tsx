@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
-import { useOnboardingCompliance, ComplianceData } from "@/hooks/useOnboardingCompliance";
+import { useOnboardingCompliance, ComplianceData, useOrgHasTransactions } from "@/hooks/useOnboardingCompliance";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +79,8 @@ export default function Onboarding() {
   const { data: org } = useUserOrganization();
   const { onboardingRequired, loading: subLoading } = useSubscription();
   const { compliance, isLoading, upsert, completePhase1 } = useOnboardingCompliance();
+  const { data: hasTransactions } = useOrgHasTransactions();
+  const configLocked = !!hasTransactions;
 
   const [currentStep, setCurrentStep] = useState(0);
   const [localData, setLocalData] = useState<ComplianceData>({});
@@ -229,9 +231,9 @@ export default function Onboarding() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} />}
-            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} />}
-            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} />}
+            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked} />}
             {currentStep === 3 && <ChartOfAccountsStep data={localData} onChange={handleChange} />}
             {currentStep === 4 && <BrandingStep data={localData} onChange={handleChange} />}
             {currentStep === 5 && <PayrollFlagsStep data={localData} onChange={handleChange} />}
