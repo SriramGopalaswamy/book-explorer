@@ -5,6 +5,8 @@ import { Header } from "./Header";
 import { AnimatedPage } from "./AnimatedPage";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { AlertTriangle } from "lucide-react";
 
 interface MainLayoutProps {
   children: ReactNode;
