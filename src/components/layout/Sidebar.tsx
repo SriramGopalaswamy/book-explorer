@@ -380,7 +380,9 @@ export function Sidebar() {
               <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
-            <NavSection title="Performance OS" items={performanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+            {visiblePerformanceNav.length > 0 && (
+              <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
             {(currentRole === "admin" || currentRole === "hr") && (
               <NavSection
                 title="Admin"
