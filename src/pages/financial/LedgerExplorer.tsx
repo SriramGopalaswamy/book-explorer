@@ -96,7 +96,7 @@ export default function LedgerExplorer() {
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={selectedAccount} onValueChange={v => { setSelectedAccount(v); pagination.setPage(1); }}>
+          <Select value={selectedAccount} onValueChange={v => { setSelectedAccount(v); summaryPagination.setPage(1); ledgerPagination.setPage(1); }}>
             <SelectTrigger className="w-[300px]"><SelectValue placeholder="Select GL Account" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Accounts (Summary)</SelectItem>
