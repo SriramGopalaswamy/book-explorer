@@ -11,9 +11,10 @@ import { ComplianceData } from "@/hooks/useOnboardingCompliance";
 interface Props {
   data: ComplianceData;
   onChange: (updates: Partial<ComplianceData>) => void;
+  locked?: boolean;
 }
 
-export function GstTaxStep({ data, onChange }: Props) {
+export function GstTaxStep({ data, onChange, locked }: Props) {
   const [newGstin, setNewGstin] = useState("");
   const gstins = data.gstin || [];
 
