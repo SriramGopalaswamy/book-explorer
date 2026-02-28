@@ -5476,6 +5476,122 @@ export type Database = {
           },
         ]
       }
+      subscription_keys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          key_hash: string
+          max_uses: number
+          plan: string
+          status: string
+          used_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          key_hash: string
+          max_uses?: number
+          plan: string
+          status?: string
+          used_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          key_hash?: string
+          max_uses?: number
+          plan?: string
+          status?: string
+          used_count?: number
+        }
+        Relationships: []
+      }
+      subscription_redemptions: {
+        Row: {
+          id: string
+          organization_id: string | null
+          redeemed_at: string
+          redeemed_by: string | null
+          subscription_key_id: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          subscription_key_id?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          subscription_key_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_redemptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_redemptions_subscription_key_id_fkey"
+            columns: ["subscription_key_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          is_read_only: boolean
+          organization_id: string
+          plan: string
+          source: string
+          status: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read_only?: boolean
+          organization_id: string
+          plan: string
+          source: string
+          status: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read_only?: boolean
+          organization_id?: string
+          plan?: string
+          source?: string
+          status?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_regimes: {
         Row: {
           created_at: string | null
@@ -6082,6 +6198,10 @@ export type Database = {
       }
       recalculate_attendance: {
         Args: { _end_date: string; _org_id: string; _start_date: string }
+        Returns: Json
+      }
+      redeem_subscription_key: {
+        Args: { _org_id: string; _passkey: string }
         Returns: Json
       }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
