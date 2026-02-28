@@ -5515,21 +5515,21 @@ export type Database = {
       subscription_redemptions: {
         Row: {
           id: string
-          organization_id: string | null
+          organization_id: string
           redeemed_at: string
           redeemed_by: string | null
           subscription_key_id: string | null
         }
         Insert: {
           id?: string
-          organization_id?: string | null
+          organization_id: string
           redeemed_at?: string
           redeemed_by?: string | null
           subscription_key_id?: string | null
         }
         Update: {
           id?: string
-          organization_id?: string | null
+          organization_id?: string
           redeemed_at?: string
           redeemed_by?: string | null
           subscription_key_id?: string | null
@@ -5994,6 +5994,7 @@ export type Database = {
         Returns: boolean
       }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
+      complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
       create_sandbox_org: {
         Args: { _auto_reset?: boolean; _name: string }
