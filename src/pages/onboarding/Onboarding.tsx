@@ -95,15 +95,10 @@ export default function Onboarding() {
   const isPhase1Complete = compliance?.phase1_completed_at != null;
   const orgActive = org?.orgState === "active";
 
-  // If org is active and not on Phase 2, redirect to dashboard
-  if (!subLoading && orgActive && !onboardingRequired && currentStep < 4) {
-    // Allow Phase 2 access even when active
-    if (compliance?.phase1_completed_at && !compliance?.phase2_completed_at) {
-      // Stay on onboarding for Phase 2
-    } else if (compliance?.phase2_completed_at || !compliance?.phase1_completed_at) {
-      return <Navigate to="/" replace />;
-    }
-  }
+  // Determine if we should redirect
+  const shouldRedirect = !subLoading && orgActive && !onboardingRequired && currentStep < 4
+    && !(compliance?.phase1_completed_at && !compliance?.phase2_completed_at)
+    && (compliance?.phase2_completed_at || !compliance?.phase1_completed_at);
 
   const handleChange = useCallback((updates: Partial<ComplianceData>) => {
     setLocalData((prev) => ({ ...prev, ...updates }));
