@@ -32,6 +32,11 @@ export function GstTaxStep({ data, onChange, locked }: Props) {
 
   return (
     <div className="space-y-4">
+      {locked && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-2.5 text-xs text-warning">
+          GSTIN and registration fields are locked because this organization has existing transactions.
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label>GSTIN(s)</Label>
         <div className="flex gap-2">
