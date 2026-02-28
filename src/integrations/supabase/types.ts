@@ -4332,6 +4332,184 @@ export type Database = {
           },
         ]
       }
+      organization_compliance: {
+        Row: {
+          accounting_method: string | null
+          authorized_signatory_name: string | null
+          base_currency: string | null
+          books_start_date: string | null
+          brand_color: string | null
+          cin_or_llpin: string | null
+          coa_confirmed: boolean | null
+          created_at: string | null
+          einvoice_applicable: boolean | null
+          entity_type: string | null
+          esi_applicable: boolean | null
+          ewaybill_applicable: boolean | null
+          filing_frequency: string | null
+          financial_year_start: string | null
+          gratuity_applicable: boolean | null
+          gstin: string[] | null
+          id: string
+          industry_template: string | null
+          itc_eligible: boolean | null
+          legal_name: string | null
+          logo_url: string | null
+          msme_status: boolean | null
+          organization_id: string
+          pan: string | null
+          payroll_enabled: boolean | null
+          payroll_frequency: string | null
+          pf_applicable: boolean | null
+          phase1_completed_at: string | null
+          phase2_completed_at: string | null
+          pincode: string | null
+          professional_tax_applicable: boolean | null
+          registered_address: string | null
+          registration_type: string | null
+          reverse_charge_applicable: boolean | null
+          signature_url: string | null
+          state: string | null
+          tan: string | null
+          trade_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          accounting_method?: string | null
+          authorized_signatory_name?: string | null
+          base_currency?: string | null
+          books_start_date?: string | null
+          brand_color?: string | null
+          cin_or_llpin?: string | null
+          coa_confirmed?: boolean | null
+          created_at?: string | null
+          einvoice_applicable?: boolean | null
+          entity_type?: string | null
+          esi_applicable?: boolean | null
+          ewaybill_applicable?: boolean | null
+          filing_frequency?: string | null
+          financial_year_start?: string | null
+          gratuity_applicable?: boolean | null
+          gstin?: string[] | null
+          id?: string
+          industry_template?: string | null
+          itc_eligible?: boolean | null
+          legal_name?: string | null
+          logo_url?: string | null
+          msme_status?: boolean | null
+          organization_id: string
+          pan?: string | null
+          payroll_enabled?: boolean | null
+          payroll_frequency?: string | null
+          pf_applicable?: boolean | null
+          phase1_completed_at?: string | null
+          phase2_completed_at?: string | null
+          pincode?: string | null
+          professional_tax_applicable?: boolean | null
+          registered_address?: string | null
+          registration_type?: string | null
+          reverse_charge_applicable?: boolean | null
+          signature_url?: string | null
+          state?: string | null
+          tan?: string | null
+          trade_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          accounting_method?: string | null
+          authorized_signatory_name?: string | null
+          base_currency?: string | null
+          books_start_date?: string | null
+          brand_color?: string | null
+          cin_or_llpin?: string | null
+          coa_confirmed?: boolean | null
+          created_at?: string | null
+          einvoice_applicable?: boolean | null
+          entity_type?: string | null
+          esi_applicable?: boolean | null
+          ewaybill_applicable?: boolean | null
+          filing_frequency?: string | null
+          financial_year_start?: string | null
+          gratuity_applicable?: boolean | null
+          gstin?: string[] | null
+          id?: string
+          industry_template?: string | null
+          itc_eligible?: boolean | null
+          legal_name?: string | null
+          logo_url?: string | null
+          msme_status?: boolean | null
+          organization_id?: string
+          pan?: string | null
+          payroll_enabled?: boolean | null
+          payroll_frequency?: string | null
+          pf_applicable?: boolean | null
+          phase1_completed_at?: string | null
+          phase2_completed_at?: string | null
+          pincode?: string | null
+          professional_tax_applicable?: boolean | null
+          registered_address?: string | null
+          registration_type?: string | null
+          reverse_charge_applicable?: boolean | null
+          signature_url?: string | null
+          state?: string | null
+          tan?: string | null
+          trade_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_compliance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_integrations: {
+        Row: {
+          connected_at: string | null
+          encrypted_access_token: string | null
+          encrypted_refresh_token: string | null
+          id: string
+          organization_id: string
+          provider: string
+          provider_tenant_id: string | null
+          scopes: string | null
+          status: string | null
+        }
+        Insert: {
+          connected_at?: string | null
+          encrypted_access_token?: string | null
+          encrypted_refresh_token?: string | null
+          id?: string
+          organization_id: string
+          provider: string
+          provider_tenant_id?: string | null
+          scopes?: string | null
+          status?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          encrypted_access_token?: string | null
+          encrypted_refresh_token?: string | null
+          id?: string
+          organization_id?: string
+          provider?: string
+          provider_tenant_id?: string | null
+          scopes?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_integrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -4357,6 +4535,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_roles: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          role_type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          role_type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          role_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_roles_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -6000,6 +6216,7 @@ export type Database = {
         Returns: boolean
       }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
+      complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
       create_sandbox_org: {
