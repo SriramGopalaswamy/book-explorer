@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
-import { useOnboardingCompliance, ComplianceData } from "@/hooks/useOnboardingCompliance";
+import { useOnboardingCompliance, ComplianceData, useOrgHasTransactions } from "@/hooks/useOnboardingCompliance";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
