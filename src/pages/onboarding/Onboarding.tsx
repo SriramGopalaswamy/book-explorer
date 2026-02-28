@@ -231,9 +231,9 @@ export default function Onboarding() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} />}
-            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} />}
-            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} />}
+            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked} />}
             {currentStep === 3 && <ChartOfAccountsStep data={localData} onChange={handleChange} />}
             {currentStep === 4 && <BrandingStep data={localData} onChange={handleChange} />}
             {currentStep === 5 && <PayrollFlagsStep data={localData} onChange={handleChange} />}
