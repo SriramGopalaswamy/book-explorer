@@ -169,6 +169,10 @@ export default function Onboarding() {
     );
   }
 
+  if (shouldRedirect) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
