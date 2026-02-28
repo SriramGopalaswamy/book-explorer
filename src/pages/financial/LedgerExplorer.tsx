@@ -211,7 +211,7 @@ export default function LedgerExplorer() {
                       ))}
                     </TableBody>
                   </Table>
-                  <TablePagination {...pagination} />
+                  <TablePagination page={ledgerPagination.page} totalPages={ledgerPagination.totalPages} totalItems={ledgerPagination.totalItems} from={ledgerPagination.from} to={ledgerPagination.to} pageSize={ledgerPagination.pageSize} onPageChange={ledgerPagination.setPage} onPageSizeChange={ledgerPagination.setPageSize} />
                 </>
               )}
             </>
