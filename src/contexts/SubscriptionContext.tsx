@@ -90,6 +90,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       subscriptionStatus: subscription?.status ?? null,
       loading: false,
       organizationId: orgId ?? null,
+      enabledModules: subscription?.enabled_modules ?? null,
     };
   }, [loading, org, subscription, orgId]);
 
