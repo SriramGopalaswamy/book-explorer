@@ -41,6 +41,9 @@ import Bills from "./pages/financial/Bills";
 import Assets from "./pages/financial/Assets";
 import StatutoryFilings from "./pages/financial/StatutoryFilings";
 import AuditConsole from "./pages/financial/AuditConsole";
+import JournalEntry from "./pages/financial/JournalEntry";
+import LedgerExplorer from "./pages/financial/LedgerExplorer";
+import CADashboard from "./pages/financial/CADashboard";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
