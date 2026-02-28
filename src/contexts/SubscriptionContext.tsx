@@ -73,6 +73,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscriptionStatus: null,
         loading: true,
         organizationId: orgId ?? null,
+        enabledModules: null,
       };
     }
 
