@@ -5480,6 +5480,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          enabled_modules: string[]
           expires_at: string | null
           id: string
           key_hash: string
@@ -5491,6 +5492,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          enabled_modules?: string[]
           expires_at?: string | null
           id?: string
           key_hash: string
@@ -5502,6 +5504,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          enabled_modules?: string[]
           expires_at?: string | null
           id?: string
           key_hash?: string
@@ -5554,6 +5557,7 @@ export type Database = {
       subscriptions: {
         Row: {
           created_at: string
+          enabled_modules: string[]
           id: string
           is_read_only: boolean
           organization_id: string
@@ -5564,6 +5568,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          enabled_modules?: string[]
           id?: string
           is_read_only?: boolean
           organization_id: string
@@ -5574,6 +5579,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          enabled_modules?: string[]
           id?: string
           is_read_only?: boolean
           organization_id?: string
