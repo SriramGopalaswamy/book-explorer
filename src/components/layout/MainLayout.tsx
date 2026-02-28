@@ -58,6 +58,8 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
     prevRoleRef.current = currentRole;
   }, [currentRole, navigate]);
 
+  const { readOnlyMode } = useSubscription();
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -65,6 +67,12 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         ref={mainRef}
         className={`transition-[padding] duration-300 ${collapsed ? "md:pl-16" : "md:pl-64"}`}
       >
+        {readOnlyMode && (
+          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 flex items-center gap-2 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span className="font-medium">Read-only mode — your subscription has expired. Contact your administrator to renew.</span>
+          </div>
+        )}
         <Header title={title} subtitle={subtitle} />
         <main className="p-4 md:p-6 pb-24 md:pb-6">
           <AnimatedPage>{children}</AnimatedPage>
