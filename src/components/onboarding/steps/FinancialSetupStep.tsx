@@ -44,7 +44,7 @@ export function FinancialSetupStep({ data, onChange, locked }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Accounting Method <span className="text-destructive">*</span></Label>
-          <Select value={data.accounting_method || "accrual"} onValueChange={(v) => onChange({ accounting_method: v })}>
+          <Select value={data.accounting_method || "accrual"} onValueChange={(v) => onChange({ accounting_method: v })} disabled={locked}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="accrual">Accrual</SelectItem>
