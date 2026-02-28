@@ -284,7 +284,7 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
-  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const { isModuleEnabled } = useModuleAccess();
 
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
   const isLoading = !isFetched;
