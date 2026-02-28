@@ -166,7 +166,7 @@ export default function LedgerExplorer() {
                   ))}
                 </TableBody>
               </Table>
-              <TablePagination {...pagination} />
+              <TablePagination page={summaryPagination.page} totalPages={summaryPagination.totalPages} totalItems={summaryPagination.totalItems} from={summaryPagination.from} to={summaryPagination.to} pageSize={summaryPagination.pageSize} onPageChange={summaryPagination.setPage} onPageSizeChange={summaryPagination.setPageSize} />
             </>
           ) : (
             /* Account Ledger Detail */
