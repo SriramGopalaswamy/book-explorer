@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
 import { HRAdminRoute } from "@/components/auth/HRAdminRoute";
 import { ManagerRoute } from "@/components/auth/ManagerRoute";
@@ -17,6 +19,10 @@ import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+
+// Subscription & Onboarding
+import SubscriptionActivate from "./pages/subscription/SubscriptionActivate";
+import Onboarding from "./pages/onboarding/Onboarding";
 
 // Financial Suite
 import Accounting from "./pages/financial/Accounting";
@@ -66,87 +72,104 @@ import PlatformActions from "./pages/platform/PlatformActions";
 import PlatformAudit from "./pages/platform/PlatformAudit";
 import PlatformSandbox from "./pages/platform/PlatformSandbox";
 import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
+import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
 
 // Profile
 import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
+/** Shorthand: ProtectedRoute + SubscriptionGuard */
+function Guarded({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <SubscriptionGuard>{children}</SubscriptionGuard>
+    </ProtectedRoute>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="dark">
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+        <SubscriptionProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
-              {/* Protected routes */}
-              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+                {/* Subscription & Onboarding (protected but exempt from subscription guard) */}
+                <Route path="/subscription/activate" element={<ProtectedRoute><SubscriptionActivate /></ProtectedRoute>} />
+                <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
 
-              {/* Financial Suite */}
-              <Route path="/financial/accounting" element={<ProtectedRoute><FinanceRoute><Accounting /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/customers" element={<ProtectedRoute><FinanceRoute><Customers /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/vendors" element={<ProtectedRoute><FinanceRoute><Vendors /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/invoicing" element={<ProtectedRoute><FinanceRoute><Invoicing /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/invoice-settings" element={<ProtectedRoute><FinanceRoute><InvoiceSettings /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/quotes" element={<ProtectedRoute><FinanceRoute><Quotes /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-              <Route path="/financial/bills" element={<ProtectedRoute><FinanceRoute><Bills /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/credit-notes" element={<ProtectedRoute><FinanceRoute><CreditNotes /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/vendor-credits" element={<ProtectedRoute><FinanceRoute><VendorCredits /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/banking" element={<ProtectedRoute><FinanceRoute><Banking /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/cashflow" element={<ProtectedRoute><FinanceRoute><CashFlow /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/analytics" element={<ProtectedRoute><FinanceRoute><Analytics /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/assets" element={<ProtectedRoute><FinanceRoute><Assets /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/statutory" element={<ProtectedRoute><FinanceRoute><StatutoryFilings /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/financial/audit-console" element={<ProtectedRoute><FinanceRoute><AuditConsole /></FinanceRoute></ProtectedRoute>} />
+                {/* Protected + Subscription-guarded routes */}
+                <Route path="/" element={<Guarded><Index /></Guarded>} />
 
-              {/* HRMS */}
-              <Route path="/hrms/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-              <Route path="/hrms/attendance" element={<ProtectedRoute><HRAdminRoute><Attendance /></HRAdminRoute></ProtectedRoute>} />
-              <Route path="/hrms/leaves" element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
-              <Route path="/hrms/payroll" element={<ProtectedRoute><PayrollRoute><Payroll /></PayrollRoute></ProtectedRoute>} />
-              <Route path="/hrms/ctc-components" element={<ProtectedRoute><FinanceRoute><CTCComponents /></FinanceRoute></ProtectedRoute>} />
-              <Route path="/hrms/my-payslips" element={<ProtectedRoute><MyPayslips /></ProtectedRoute>} />
-              <Route path="/hrms/holidays" element={<ProtectedRoute><HRAdminRoute><Holidays /></HRAdminRoute></ProtectedRoute>} />
-              <Route path="/hrms/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
-              <Route path="/hrms/my-attendance" element={<ProtectedRoute><MyAttendance /></ProtectedRoute>} />
-              <Route path="/hrms/inbox" element={<ProtectedRoute><ManagerRoute><ManagerInbox /></ManagerRoute></ProtectedRoute>} />
-              <Route path="/hrms/reimbursements" element={<ProtectedRoute><Reimbursements /></ProtectedRoute>} />
-              <Route path="/financial/reimbursements" element={<ProtectedRoute><FinanceRoute><ReimbursementsFinance /></FinanceRoute></ProtectedRoute>} />
+                {/* Financial Suite */}
+                <Route path="/financial/accounting" element={<Guarded><FinanceRoute><Accounting /></FinanceRoute></Guarded>} />
+                <Route path="/financial/customers" element={<Guarded><FinanceRoute><Customers /></FinanceRoute></Guarded>} />
+                <Route path="/financial/vendors" element={<Guarded><FinanceRoute><Vendors /></FinanceRoute></Guarded>} />
+                <Route path="/financial/invoicing" element={<Guarded><FinanceRoute><Invoicing /></FinanceRoute></Guarded>} />
+                <Route path="/financial/invoice-settings" element={<Guarded><FinanceRoute><InvoiceSettings /></FinanceRoute></Guarded>} />
+                <Route path="/financial/quotes" element={<Guarded><FinanceRoute><Quotes /></FinanceRoute></Guarded>} />
+                <Route path="/financial/expenses" element={<Guarded><Expenses /></Guarded>} />
+                <Route path="/financial/bills" element={<Guarded><FinanceRoute><Bills /></FinanceRoute></Guarded>} />
+                <Route path="/financial/credit-notes" element={<Guarded><FinanceRoute><CreditNotes /></FinanceRoute></Guarded>} />
+                <Route path="/financial/vendor-credits" element={<Guarded><FinanceRoute><VendorCredits /></FinanceRoute></Guarded>} />
+                <Route path="/financial/banking" element={<Guarded><FinanceRoute><Banking /></FinanceRoute></Guarded>} />
+                <Route path="/financial/cashflow" element={<Guarded><FinanceRoute><CashFlow /></FinanceRoute></Guarded>} />
+                <Route path="/financial/analytics" element={<Guarded><FinanceRoute><Analytics /></FinanceRoute></Guarded>} />
+                <Route path="/financial/assets" element={<Guarded><FinanceRoute><Assets /></FinanceRoute></Guarded>} />
+                <Route path="/financial/statutory" element={<Guarded><FinanceRoute><StatutoryFilings /></FinanceRoute></Guarded>} />
+                <Route path="/financial/audit-console" element={<Guarded><FinanceRoute><AuditConsole /></FinanceRoute></Guarded>} />
 
-              {/* Performance OS */}
-              <Route path="/performance/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
-              <Route path="/performance/memos" element={<ProtectedRoute><Memos /></ProtectedRoute>} />
+                {/* HRMS */}
+                <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
+                <Route path="/hrms/attendance" element={<Guarded><HRAdminRoute><Attendance /></HRAdminRoute></Guarded>} />
+                <Route path="/hrms/leaves" element={<Guarded><Leaves /></Guarded>} />
+                <Route path="/hrms/payroll" element={<Guarded><PayrollRoute><Payroll /></PayrollRoute></Guarded>} />
+                <Route path="/hrms/ctc-components" element={<Guarded><FinanceRoute><CTCComponents /></FinanceRoute></Guarded>} />
+                <Route path="/hrms/my-payslips" element={<Guarded><MyPayslips /></Guarded>} />
+                <Route path="/hrms/holidays" element={<Guarded><HRAdminRoute><Holidays /></HRAdminRoute></Guarded>} />
+                <Route path="/hrms/org-chart" element={<Guarded><OrgChart /></Guarded>} />
+                <Route path="/hrms/my-attendance" element={<Guarded><MyAttendance /></Guarded>} />
+                <Route path="/hrms/inbox" element={<Guarded><ManagerRoute><ManagerInbox /></ManagerRoute></Guarded>} />
+                <Route path="/hrms/reimbursements" element={<Guarded><Reimbursements /></Guarded>} />
+                <Route path="/financial/reimbursements" element={<Guarded><FinanceRoute><ReimbursementsFinance /></FinanceRoute></Guarded>} />
 
-              {/* Admin */}
-              <Route path="/admin/audit-log" element={<ProtectedRoute><HRAdminRoute><AuditLog /></HRAdminRoute></ProtectedRoute>} />
+                {/* Performance OS */}
+                <Route path="/performance/goals" element={<Guarded><Goals /></Guarded>} />
+                <Route path="/performance/memos" element={<Guarded><Memos /></Guarded>} />
 
-              {/* Profile & Settings */}
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                {/* Admin */}
+                <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
 
-              {/* Platform Admin (Super Admin only) */}
-              <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformOrganizations /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/tenant/:orgId" element={<ProtectedRoute><PlatformRoute><PlatformTenantDetail /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/integrity" element={<ProtectedRoute><PlatformRoute><PlatformIntegrity /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/health" element={<ProtectedRoute><PlatformRoute><PlatformHealth /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
-              <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
+                {/* Profile & Settings */}
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            
-          </BrowserRouter>
-        </TooltipProvider>
+                {/* Platform Admin (Super Admin only — exempt from subscription guard) */}
+                <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformOrganizations /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/tenant/:orgId" element={<ProtectedRoute><PlatformRoute><PlatformTenantDetail /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/integrity" element={<ProtectedRoute><PlatformRoute><PlatformIntegrity /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/health" element={<ProtectedRoute><PlatformRoute><PlatformHealth /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/subscription-keys" element={<ProtectedRoute><PlatformRoute><PlatformSubscriptionKeys /></PlatformRoute></ProtectedRoute>} />
+
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              
+            </BrowserRouter>
+          </TooltipProvider>
+        </SubscriptionProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
