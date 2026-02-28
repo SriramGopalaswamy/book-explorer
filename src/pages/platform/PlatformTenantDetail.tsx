@@ -210,6 +210,28 @@ export default function PlatformTenantDetail() {
     }
   };
 
+  const handleReinitiateOnboarding = async () => {
+    setReinitiateLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("reinitiate_onboarding" as any, {
+        _org_id: org.id,
+      });
+      if (error) throw error;
+      const result = data as any;
+      if (!result?.success) throw new Error("Re-initiation failed");
+      toast.success(`Onboarding re-initiated for ${org.name}`, {
+        description: `Version ${result.new_version}. ${result.has_transactions ? "Config fields locked due to existing transactions." : ""}`,
+      });
+      setReinitiateOpen(false);
+      setReinitiateConfirmed(false);
+      refetchAudit();
+    } catch (e: any) {
+      toast.error(e.message || "Re-initiation failed");
+    } finally {
+      setReinitiateLoading(false);
+    }
+  };
+
   const integrityScore = audit?.integrity_score ?? 0;
   const scoreColor =
     integrityScore >= 90
