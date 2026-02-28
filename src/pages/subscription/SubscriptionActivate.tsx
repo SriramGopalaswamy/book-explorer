@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/contexts/SubscriptionContext";
@@ -17,12 +17,6 @@ export default function SubscriptionActivate() {
   const queryClient = useQueryClient();
   const { needsActivation, loading: subLoading } = useSubscription();
   const { data: org } = useUserOrganization();
-
-  // If already has active subscription, redirect
-  if (!subLoading && !needsActivation && org) {
-    const target = org.orgState === "active" ? "/" : "/onboarding";
-    navigate(target, { replace: true });
-  }
 
   const redeemMutation = useMutation({
     mutationFn: async (key: string) => {
@@ -56,6 +50,12 @@ export default function SubscriptionActivate() {
     }
     redeemMutation.mutate(trimmed);
   };
+
+  // If already has active subscription, redirect (via useEffect, not render)
+  if (!subLoading && !needsActivation && org) {
+    const target = org.orgState === "active" ? "/" : "/onboarding";
+    return <Navigate to={target} replace />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
