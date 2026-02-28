@@ -41,6 +41,9 @@ import Bills from "./pages/financial/Bills";
 import Assets from "./pages/financial/Assets";
 import StatutoryFilings from "./pages/financial/StatutoryFilings";
 import AuditConsole from "./pages/financial/AuditConsole";
+import JournalEntry from "./pages/financial/JournalEntry";
+import LedgerExplorer from "./pages/financial/LedgerExplorer";
+import CADashboard from "./pages/financial/CADashboard";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -127,6 +130,9 @@ const App = () => (
                 <Route path="/financial/assets" element={<Guarded><FinanceRoute><Assets /></FinanceRoute></Guarded>} />
                 <Route path="/financial/statutory" element={<Guarded><FinanceRoute><StatutoryFilings /></FinanceRoute></Guarded>} />
                 <Route path="/financial/audit-console" element={<Guarded><FinanceRoute><AuditConsole /></FinanceRoute></Guarded>} />
+                <Route path="/financial/journal-entry" element={<Guarded><FinanceRoute><JournalEntry /></FinanceRoute></Guarded>} />
+                <Route path="/financial/ledger" element={<Guarded><FinanceRoute><LedgerExplorer /></FinanceRoute></Guarded>} />
+                <Route path="/financial/ca-dashboard" element={<Guarded><FinanceRoute><CADashboard /></FinanceRoute></Guarded>} />
 
                 {/* HRMS */}
                 <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
