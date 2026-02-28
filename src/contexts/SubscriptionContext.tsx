@@ -31,6 +31,7 @@ const SubscriptionContext = createContext<SubscriptionState>({
   subscriptionStatus: null,
   loading: true,
   organizationId: null,
+  enabledModules: null,
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
