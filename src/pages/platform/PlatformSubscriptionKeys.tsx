@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -32,6 +33,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   KeyRound,
   Plus,
   Copy,
@@ -40,12 +47,27 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  BookOpen,
+  Users,
+  Target,
+  Shield,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
+const ALL_MODULES = [
+  { id: "financial", label: "Financial Suite", icon: BookOpen, description: "Invoicing, Bills, Banking, Expenses, Assets, Analytics" },
+  { id: "hrms", label: "HRMS", icon: Users, description: "Employees, Attendance, Leaves, Payroll, Org Chart" },
+  { id: "performance", label: "Performance OS", icon: Target, description: "Goals, Memos, Reviews" },
+  { id: "audit", label: "CA Audit Console", icon: Shield, description: "Compliance runs, AI audit engine" },
+  { id: "assets", label: "Asset Management", icon: Package, description: "Fixed assets, Depreciation tracking" },
+] as const;
+
+type ModuleId = (typeof ALL_MODULES)[number]["id"];
+
 function generatePasskey(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No I/O/0/1 for readability
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let key = "";
   const array = new Uint8Array(24);
   crypto.getRandomValues(array);
@@ -72,6 +94,17 @@ export default function PlatformSubscriptionKeys() {
   const [maxUses, setMaxUses] = useState("1");
   const [expiresInDays, setExpiresInDays] = useState("");
   const [filter, setFilter] = useState<string>("all");
+  const [enabledModules, setEnabledModules] = useState<ModuleId[]>(
+    ALL_MODULES.map((m) => m.id)
+  );
+
+  const toggleModule = (moduleId: ModuleId) => {
+    setEnabledModules((prev) =>
+      prev.includes(moduleId)
+        ? prev.filter((m) => m !== moduleId)
+        : [...prev, moduleId]
+    );
+  };
 
   // Fetch keys
   const { data: keys = [], isLoading } = useQuery({
@@ -107,6 +140,9 @@ export default function PlatformSubscriptionKeys() {
   // Create key
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (enabledModules.length === 0) {
+        throw new Error("At least one module must be enabled");
+      }
       const plainKey = generatePasskey();
       const hash = await sha256(plainKey);
       const expiresAt = expiresInDays
@@ -119,6 +155,7 @@ export default function PlatformSubscriptionKeys() {
         max_uses: parseInt(maxUses),
         expires_at: expiresAt,
         created_by: user?.id,
+        enabled_modules: enabledModules,
       });
       if (error) throw error;
       return plainKey;
@@ -165,6 +202,20 @@ export default function PlatformSubscriptionKeys() {
     }
   };
 
+  const modulesBadges = (modules: string[] | null) => {
+    if (!modules || modules.length === 0) return <span className="text-xs text-muted-foreground">None</span>;
+    if (modules.length === ALL_MODULES.length) {
+      return <Badge variant="outline" className="text-xs">All Modules</Badge>;
+    }
+    return (
+      <div className="flex flex-wrap gap-1">
+        {modules.map((m) => (
+          <Badge key={m} variant="outline" className="text-xs capitalize">{m}</Badge>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <PlatformLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
       <div className="space-y-6">
@@ -182,15 +233,15 @@ export default function PlatformSubscriptionKeys() {
             </SelectContent>
           </Select>
 
-          <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setGeneratedKey(null); }}>
+          <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setGeneratedKey(null); setEnabledModules(ALL_MODULES.map((m) => m.id)); } }}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />Generate Key</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Generate Subscription Key</DialogTitle>
                 <DialogDescription>
-                  Create a new passkey for tenant activation
+                  Create a new passkey for tenant activation. Choose which modules to enable.
                 </DialogDescription>
               </DialogHeader>
 
@@ -210,7 +261,11 @@ export default function PlatformSubscriptionKeys() {
                       </Button>
                     </div>
                   </div>
-                  <Button className="w-full" onClick={() => { setCreateOpen(false); setGeneratedKey(null); }}>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">Enabled modules:</span>{" "}
+                    {enabledModules.map((m) => ALL_MODULES.find((am) => am.id === m)?.label).join(", ")}
+                  </div>
+                  <Button className="w-full" onClick={() => { setCreateOpen(false); setGeneratedKey(null); setEnabledModules(ALL_MODULES.map((m) => m.id)); }}>
                     Done
                   </Button>
                 </div>
@@ -227,18 +282,55 @@ export default function PlatformSubscriptionKeys() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Module selection */}
                   <div>
-                    <Label>Max Uses</Label>
-                    <Input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
+                    <Label className="mb-2 block">Enabled Modules</Label>
+                    <div className="space-y-2 rounded-lg border border-border p-3">
+                      {ALL_MODULES.map((mod) => {
+                        const Icon = mod.icon;
+                        const checked = enabledModules.includes(mod.id);
+                        return (
+                          <label
+                            key={mod.id}
+                            className="flex items-start gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => toggleModule(mod.id)}
+                              className="mt-0.5"
+                            />
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <Icon className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium leading-none">{mod.label}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{mod.description}</p>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {enabledModules.length === 0 && (
+                      <p className="text-xs text-destructive mt-1">At least one module must be selected</p>
+                    )}
                   </div>
-                  <div>
-                    <Label>Expires In (days, leave empty for no expiry)</Label>
-                    <Input type="number" min="1" value={expiresInDays} onChange={(e) => setExpiresInDays(e.target.value)} placeholder="No expiry" />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Max Uses</Label>
+                      <Input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Expires In (days)</Label>
+                      <Input type="number" min="1" value={expiresInDays} onChange={(e) => setExpiresInDays(e.target.value)} placeholder="No expiry" />
+                    </div>
                   </div>
+
                   <Button
                     className="w-full"
                     onClick={() => createMutation.mutate()}
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || enabledModules.length === 0}
                   >
                     {createMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
                     Generate
@@ -265,6 +357,7 @@ export default function PlatformSubscriptionKeys() {
                   <TableRow>
                     <TableHead>Hash (prefix)</TableHead>
                     <TableHead>Plan</TableHead>
+                    <TableHead>Modules</TableHead>
                     <TableHead>Usage</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Expires</TableHead>
@@ -277,6 +370,7 @@ export default function PlatformSubscriptionKeys() {
                     <TableRow key={key.id}>
                       <TableCell className="font-mono text-xs">{key.key_hash?.substring(0, 12)}…</TableCell>
                       <TableCell><Badge variant="outline">{key.plan}</Badge></TableCell>
+                      <TableCell>{modulesBadges(key.enabled_modules)}</TableCell>
                       <TableCell>{key.used_count}/{key.max_uses}</TableCell>
                       <TableCell>{statusBadge(key.status)}</TableCell>
                       <TableCell className="text-xs">
