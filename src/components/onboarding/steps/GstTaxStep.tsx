@@ -46,8 +46,9 @@ export function GstTaxStep({ data, onChange, locked }: Props) {
             placeholder="15-character GSTIN"
             maxLength={15}
             className="flex-1"
+            disabled={locked}
           />
-          <Button type="button" variant="outline" size="sm" onClick={addGstin} disabled={newGstin.trim().length !== 15}>
+          <Button type="button" variant="outline" size="sm" onClick={addGstin} disabled={locked || newGstin.trim().length !== 15}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
