@@ -79,6 +79,8 @@ export default function Onboarding() {
   const { data: org } = useUserOrganization();
   const { onboardingRequired, loading: subLoading } = useSubscription();
   const { compliance, isLoading, upsert, completePhase1 } = useOnboardingCompliance();
+  const { data: hasTransactions } = useOrgHasTransactions();
+  const configLocked = !!hasTransactions;
 
   const [currentStep, setCurrentStep] = useState(0);
   const [localData, setLocalData] = useState<ComplianceData>({});
