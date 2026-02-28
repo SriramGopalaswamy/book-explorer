@@ -112,6 +112,11 @@ export default function PlatformTenantDetail() {
     revenue_model: "",
   });
 
+  // Re-initiate onboarding state
+  const [reinitiateOpen, setReinitiateOpen] = useState(false);
+  const [reinitiateConfirmed, setReinitiateConfirmed] = useState(false);
+  const [reinitiateLoading, setReinitiateLoading] = useState(false);
+
   if (orgLoading) {
     return (
       <PlatformLayout title="Tenant Detail" subtitle="Loading...">
