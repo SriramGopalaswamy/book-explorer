@@ -198,7 +198,7 @@ export default function LedgerExplorer() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(pagination.paginatedItems as typeof accountLedger).map((item, i) => (
+                      {ledgerPagination.paginatedItems.map((item, i) => (
                         <TableRow key={item.entry.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => setSelectedEntry(item.entry)}>
                           <TableCell>{item.entry.entry_date}</TableCell>
                           <TableCell className="font-mono text-xs">{item.entry.document_sequence_number || "—"}</TableCell>
