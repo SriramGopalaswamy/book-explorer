@@ -2253,6 +2253,68 @@ export type Database = {
           },
         ]
       }
+      control_account_overrides: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          gl_account_id: string
+          id: string
+          journal_entry_id: string | null
+          organization_id: string
+          overridden_by: string
+          override_reason: string
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          gl_account_id: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id: string
+          overridden_by: string
+          override_reason: string
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          gl_account_id?: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id?: string
+          overridden_by?: string
+          override_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "control_account_overrides_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "control_account_overrides_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "control_account_overrides_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_base"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "control_account_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_transactions: {
         Row: {
           ai_match_id: string | null
@@ -3174,10 +3236,12 @@ export type Database = {
         Row: {
           account_type: string
           code: string
+          control_module: string | null
           created_at: string
           description: string | null
           id: string
           is_active: boolean
+          is_control_account: boolean
           is_locked: boolean
           is_system: boolean
           name: string
@@ -3189,10 +3253,12 @@ export type Database = {
         Insert: {
           account_type: string
           code: string
+          control_module?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
+          is_control_account?: boolean
           is_locked?: boolean
           is_system?: boolean
           name: string
@@ -3204,10 +3270,12 @@ export type Database = {
         Update: {
           account_type?: string
           code?: string
+          control_module?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
+          is_control_account?: boolean
           is_locked?: boolean
           is_system?: boolean
           name?: string
@@ -3762,6 +3830,7 @@ export type Database = {
           reversed_entry_id: string | null
           source_id: string | null
           source_type: string
+          status: string
         }
         Insert: {
           created_at?: string
@@ -3778,6 +3847,7 @@ export type Database = {
           reversed_entry_id?: string | null
           source_id?: string | null
           source_type: string
+          status?: string
         }
         Update: {
           created_at?: string
@@ -3794,6 +3864,7 @@ export type Database = {
           reversed_entry_id?: string | null
           source_id?: string | null
           source_type?: string
+          status?: string
         }
         Relationships: [
           {
@@ -3828,33 +3899,49 @@ export type Database = {
       }
       journal_lines: {
         Row: {
+          asset_id: string | null
+          cost_center: string | null
           created_at: string
           credit: number
           debit: number
+          department: string | null
           description: string | null
           gl_account_id: string
           id: string
           journal_entry_id: string
         }
         Insert: {
+          asset_id?: string | null
+          cost_center?: string | null
           created_at?: string
           credit?: number
           debit?: number
+          department?: string | null
           description?: string | null
           gl_account_id: string
           id?: string
           journal_entry_id: string
         }
         Update: {
+          asset_id?: string | null
+          cost_center?: string | null
           created_at?: string
           credit?: number
           debit?: number
+          department?: string | null
           description?: string | null
           gl_account_id?: string
           id?: string
           journal_entry_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_lines_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "journal_lines_gl_account_id_fkey"
             columns: ["gl_account_id"]
@@ -5107,6 +5194,51 @@ export type Database = {
           },
         ]
       }
+      period_close_logs: {
+        Row: {
+          all_checks_passed: boolean
+          closed_at: string
+          closed_by: string
+          fiscal_period_id: string
+          id: string
+          organization_id: string
+          pre_close_checks: Json
+        }
+        Insert: {
+          all_checks_passed?: boolean
+          closed_at?: string
+          closed_by: string
+          fiscal_period_id: string
+          id?: string
+          organization_id: string
+          pre_close_checks?: Json
+        }
+        Update: {
+          all_checks_passed?: boolean
+          closed_at?: string
+          closed_by?: string
+          fiscal_period_id?: string
+          id?: string
+          organization_id?: string
+          pre_close_checks?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "period_close_logs_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "period_close_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admin_logs: {
         Row: {
           action: string
@@ -5701,6 +5833,53 @@ export type Database = {
           },
         ]
       }
+      subledger_reconciliation_log: {
+        Row: {
+          created_at: string
+          details: Json | null
+          gl_balance: number
+          id: string
+          is_reconciled: boolean
+          module: string
+          organization_id: string
+          reconciliation_date: string
+          subledger_balance: number
+          variance: number
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          gl_balance?: number
+          id?: string
+          is_reconciled?: boolean
+          module: string
+          organization_id: string
+          reconciliation_date?: string
+          subledger_balance?: number
+          variance?: number
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          gl_balance?: number
+          id?: string
+          is_reconciled?: boolean
+          module?: string
+          organization_id?: string
+          reconciliation_date?: string
+          subledger_balance?: number
+          variance?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subledger_reconciliation_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_keys: {
         Row: {
           created_at: string
@@ -6225,6 +6404,10 @@ export type Database = {
         Returns: boolean
       }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
+      close_fiscal_period: {
+        Args: { _org_id: string; _period_id: string }
+        Returns: Json
+      }
       complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
@@ -6419,7 +6602,30 @@ export type Database = {
         Args: { _invoice_id: string }
         Returns: string
       }
-      post_journal_entry: {
+      post_journal_entry:
+        | {
+            Args: {
+              p_date: string
+              p_doc_id: string
+              p_doc_type: string
+              p_lines: Json
+              p_memo: string
+              p_org_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_date: string
+              p_doc_id: string
+              p_doc_type: string
+              p_lines: Json
+              p_memo: string
+              p_org_id: string
+            }
+            Returns: string
+          }
+      post_journal_with_override: {
         Args: {
           p_date: string
           p_doc_id: string
@@ -6427,6 +6633,7 @@ export type Database = {
           p_lines: Json
           p_memo: string
           p_org_id: string
+          p_override_reason: string
         }
         Returns: string
       }
@@ -6434,6 +6641,7 @@ export type Database = {
         Args: { _end_date: string; _org_id: string; _start_date: string }
         Returns: Json
       }
+      reconcile_subledgers: { Args: { _org_id: string }; Returns: Json }
       redeem_subscription_key: {
         Args: { _org_id: string; _passkey: string }
         Returns: Json
@@ -6441,6 +6649,10 @@ export type Database = {
       reinitiate_onboarding: { Args: { _org_id: string }; Returns: Json }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       reverse_journal_entry: { Args: { p_eid: string }; Returns: string }
+      run_depreciation_batch: {
+        Args: { _org_id: string; _period_date: string }
+        Returns: Json
+      }
       run_financial_verification: { Args: { _org_id?: string }; Returns: Json }
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
