@@ -311,27 +311,6 @@ export default function Auth() {
                       <Button type="submit" className="w-full" disabled={isLoading}>
                         {isLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating account...</>) : "Create Account"}
                       </Button>
-                      
-                      <div className="relative my-4">
-                        <Separator />
-                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                          or continue with
-                        </span>
-                      </div>
-                      
-                      <Button type="button" variant="outline" className="w-full" onClick={handleMicrosoftSignIn} disabled={isMsLoading}>
-                        {isMsLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21">
-                            <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-                            <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-                            <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-                            <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-                          </svg>
-                        )}
-                        Sign up with Microsoft 365
-                      </Button>
                     </form>
                   </Form>
                 </TabsContent>
