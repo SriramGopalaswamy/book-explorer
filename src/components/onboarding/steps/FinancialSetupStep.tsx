@@ -7,15 +7,21 @@ import { ComplianceData } from "@/hooks/useOnboardingCompliance";
 interface Props {
   data: ComplianceData;
   onChange: (updates: Partial<ComplianceData>) => void;
+  locked?: boolean;
 }
 
-export function FinancialSetupStep({ data, onChange }: Props) {
+export function FinancialSetupStep({ data, onChange, locked }: Props) {
   return (
     <div className="space-y-4">
+      {locked && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-2.5 text-xs text-warning">
+          Financial year, books start date, and accounting method are locked because this organization has existing transactions.
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Financial Year Start <span className="text-destructive">*</span></Label>
-          <Select value={data.financial_year_start || ""} onValueChange={(v) => onChange({ financial_year_start: v })}>
+          <Select value={data.financial_year_start || ""} onValueChange={(v) => onChange({ financial_year_start: v })} disabled={locked}>
             <SelectTrigger><SelectValue placeholder="Select month" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="april">April (Indian standard)</SelectItem>
@@ -30,6 +36,7 @@ export function FinancialSetupStep({ data, onChange }: Props) {
             type="date"
             value={data.books_start_date || ""}
             onChange={(e) => onChange({ books_start_date: e.target.value })}
+            disabled={locked}
           />
         </div>
       </div>
@@ -37,7 +44,7 @@ export function FinancialSetupStep({ data, onChange }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Accounting Method <span className="text-destructive">*</span></Label>
-          <Select value={data.accounting_method || "accrual"} onValueChange={(v) => onChange({ accounting_method: v })}>
+          <Select value={data.accounting_method || "accrual"} onValueChange={(v) => onChange({ accounting_method: v })} disabled={locked}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="accrual">Accrual</SelectItem>

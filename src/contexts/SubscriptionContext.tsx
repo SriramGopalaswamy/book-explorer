@@ -81,10 +81,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     const isActive = subscription?.status === "active";
     const isExpired = subscription?.status === "expired";
     const orgActive = org.orgState === "active";
+    const orgInitializing = org.orgState === "initializing" || org.orgState === "draft";
 
     return {
       needsActivation: !hasSubscription || (!isActive && !isExpired),
-      readOnlyMode: isExpired || (subscription?.is_read_only ?? false),
+      readOnlyMode: isExpired || (subscription?.is_read_only ?? false) || (isActive && orgInitializing),
       onboardingRequired: isActive && !orgActive,
       plan: subscription?.plan ?? null,
       subscriptionStatus: subscription?.status ?? null,

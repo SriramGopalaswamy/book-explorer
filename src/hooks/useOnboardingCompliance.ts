@@ -2,6 +2,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
+export function useOrgHasTransactions() {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
+  return useQuery({
+    queryKey: ["org-has-transactions", orgId],
+    queryFn: async () => {
+      if (!orgId) return false;
+      const { data, error } = await supabase.rpc("org_has_transactions" as any, { _org_id: orgId });
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!orgId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 export interface ComplianceData {
   // Step 1
   legal_name?: string;

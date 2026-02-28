@@ -29,9 +29,10 @@ const INDIAN_STATES = [
 interface Props {
   data: ComplianceData;
   onChange: (updates: Partial<ComplianceData>) => void;
+  locked?: boolean;
 }
 
-export function EntityIdentityStep({ data, onChange }: Props) {
+export function EntityIdentityStep({ data, onChange, locked }: Props) {
   const showTan = ["Private Limited", "Public Limited", "LLP", "One Person Company"].includes(data.entity_type || "");
   const showCin = ["Private Limited", "Public Limited", "One Person Company", "LLP"].includes(data.entity_type || "");
 

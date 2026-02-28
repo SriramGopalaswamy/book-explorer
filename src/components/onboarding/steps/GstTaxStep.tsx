@@ -11,9 +11,10 @@ import { ComplianceData } from "@/hooks/useOnboardingCompliance";
 interface Props {
   data: ComplianceData;
   onChange: (updates: Partial<ComplianceData>) => void;
+  locked?: boolean;
 }
 
-export function GstTaxStep({ data, onChange }: Props) {
+export function GstTaxStep({ data, onChange, locked }: Props) {
   const [newGstin, setNewGstin] = useState("");
   const gstins = data.gstin || [];
 
@@ -31,6 +32,11 @@ export function GstTaxStep({ data, onChange }: Props) {
 
   return (
     <div className="space-y-4">
+      {locked && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-2.5 text-xs text-warning">
+          GSTIN and registration fields are locked because this organization has existing transactions.
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label>GSTIN(s)</Label>
         <div className="flex gap-2">
@@ -40,8 +46,9 @@ export function GstTaxStep({ data, onChange }: Props) {
             placeholder="15-character GSTIN"
             maxLength={15}
             className="flex-1"
+            disabled={locked}
           />
-          <Button type="button" variant="outline" size="sm" onClick={addGstin} disabled={newGstin.trim().length !== 15}>
+          <Button type="button" variant="outline" size="sm" onClick={addGstin} disabled={locked || newGstin.trim().length !== 15}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
