@@ -19,6 +19,8 @@ interface SubscriptionState {
   loading: boolean;
   /** Organization id */
   organizationId: string | null;
+  /** Modules enabled for this subscription */
+  enabledModules: string[] | null;
 }
 
 const SubscriptionContext = createContext<SubscriptionState>({
