@@ -389,6 +389,7 @@ export function Sidebar() {
                 title="Platform"
                 items={[
                   { name: "Tenants", path: "/platform", icon: Building2 },
+                  { name: "Subscription Keys", path: "/platform/subscription-keys", icon: Crown },
                   { name: "Integrity Monitor", path: "/platform/integrity", icon: Shield },
                   { name: "Audit Console", path: "/platform/audit", icon: Crown },
                   { name: "System Health", path: "/platform/health", icon: Settings },

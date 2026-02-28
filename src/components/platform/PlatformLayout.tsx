@@ -9,12 +9,14 @@ import {
   ChevronLeft,
   Zap,
   FlaskConical,
+  KeyRound,
 } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { PlatformOrgBanner } from "./PlatformOrgBanner";
 
 const platformNav = [
   { name: "Tenants", path: "/platform", icon: Building2 },
+  { name: "Subscription Keys", path: "/platform/subscription-keys", icon: KeyRound },
   { name: "Integrity Monitor", path: "/platform/integrity", icon: Shield },
   { name: "System Health", path: "/platform/health", icon: Activity },
   { name: "Actions", path: "/platform/actions", icon: Zap },
