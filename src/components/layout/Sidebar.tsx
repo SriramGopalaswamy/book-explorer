@@ -62,6 +62,8 @@ const navigation: NavItem[] = [
 
 const financialNav: NavItem[] = [
   { name: "Accounting", path: "/financial/accounting", icon: BookOpen, module: "financial" },
+  { name: "Journal Entry", path: "/financial/journal-entry", icon: BookOpen, module: "financial" },
+  { name: "Ledger Explorer", path: "/financial/ledger", icon: BookOpen, module: "financial" },
   { name: "Customers", path: "/financial/customers", icon: UserCheck, module: "financial" },
   { name: "Vendors", path: "/financial/vendors", icon: Truck, module: "financial" },
   { name: "Invoicing", path: "/financial/invoicing", icon: FileText, module: "financial" },
@@ -76,6 +78,7 @@ const financialNav: NavItem[] = [
   { name: "Assets", path: "/financial/assets", icon: Package, module: "financial" },
   { name: "Statutory Filings", path: "/financial/statutory", icon: Landmark, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
+  { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: Shield, module: "financial" },
 ];
 
