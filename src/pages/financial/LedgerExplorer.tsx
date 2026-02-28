@@ -81,7 +81,8 @@ export default function LedgerExplorer() {
     });
   }, [accounts, entries, searchQuery, typeFilter]);
 
-  const pagination = usePagination(selectedAccount === "all" ? accountSummaries : accountLedger, 20);
+  const summaryPagination = usePagination(accountSummaries, 20);
+  const ledgerPagination = usePagination(accountLedger, 20);
 
   if (checkingRole) return <MainLayout title="Ledger Explorer"><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-6 w-6 animate-spin" /></div></MainLayout>;
   if (!hasAccess) return <AccessDenied message="Finance Access Required" description="You need finance or admin role to access the Ledger Explorer." />;
