@@ -19,6 +19,8 @@ interface SubscriptionState {
   loading: boolean;
   /** Organization id */
   organizationId: string | null;
+  /** Modules enabled for this subscription */
+  enabledModules: string[] | null;
 }
 
 const SubscriptionContext = createContext<SubscriptionState>({
@@ -29,6 +31,7 @@ const SubscriptionContext = createContext<SubscriptionState>({
   subscriptionStatus: null,
   loading: true,
   organizationId: null,
+  enabledModules: null,
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
@@ -43,7 +46,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       if (!orgId) return null;
       const { data, error } = await supabase
         .from("subscriptions")
-        .select("id, plan, status, source, valid_until, is_read_only")
+        .select("id, plan, status, source, valid_until, is_read_only, enabled_modules")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -70,6 +73,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscriptionStatus: null,
         loading: true,
         organizationId: orgId ?? null,
+        enabledModules: null,
       };
     }
 
@@ -86,6 +90,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       subscriptionStatus: subscription?.status ?? null,
       loading: false,
       organizationId: orgId ?? null,
+      enabledModules: subscription?.enabled_modules ?? null,
     };
   }, [loading, org, subscription, orgId]);
 

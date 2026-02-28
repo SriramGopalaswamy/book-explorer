@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import grx10Icon from "@/assets/grx10-icon.png";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useModuleAccess } from "@/hooks/useModuleAccess";
 
 interface NavItem {
   name: string;
@@ -283,6 +284,7 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { isModuleEnabled } = useModuleAccess();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
@@ -323,17 +325,21 @@ export function Sidebar() {
   const closeMobile = () => setMobileOpen(false);
 
 
-  // Build visible nav based on role
+  // Build visible nav based on role and module access
   const restrictedRole = isEmployee || isManager || isFinance || isHR;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] : financialNav; // finance + admin see financial suite
-  const visibleHrmsNav = isManager
+  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] 
+    : isModuleEnabled("financial") ? financialNav 
+    : [];
+  const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
+    : isManager
     ? managerHrmsNav
     : isEmployee
     ? employeeHrmsNav
     : isFinance
     ? financeHrmsNav
     : hrmsNav;
+  const visiblePerformanceNav = isModuleEnabled("performance") ? performanceNav : [];
 
   const sidebarContent = (
     <>
@@ -374,7 +380,9 @@ export function Sidebar() {
               <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
-            <NavSection title="Performance OS" items={performanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+            {visiblePerformanceNav.length > 0 && (
+              <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
             {(currentRole === "admin" || currentRole === "hr") && (
               <NavSection
                 title="Admin"
