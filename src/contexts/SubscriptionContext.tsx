@@ -46,7 +46,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       if (!orgId) return null;
       const { data, error } = await supabase
         .from("subscriptions")
-        .select("id, plan, status, source, valid_until, is_read_only")
+        .select("id, plan, status, source, valid_until, is_read_only, enabled_modules")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
         .limit(1)
