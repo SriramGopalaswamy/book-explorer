@@ -428,6 +428,90 @@ export default function PlatformTenantDetail() {
         </DialogContent>
       </Dialog>
 
+      {/* Re-Initiate Onboarding */}
+      <Card className="mb-6 border-warning/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-warning" />
+            Re-Initiate Onboarding
+          </CardTitle>
+          <CardDescription>
+            Require the organization to complete the onboarding flow again. Historical data and subscription are preserved.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>• Organization state will be set to <Badge variant="outline" className="text-[10px] mx-1">initializing</Badge></p>
+            <p>• Subscription status will not change</p>
+            <p>• All historical transactions are preserved</p>
+            {audit?.transaction_count > 0 && (
+              <p className="text-warning">• Financial config fields will be locked due to existing transactions</p>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            className="border-warning/50 text-warning hover:bg-warning/10"
+            onClick={() => setReinitiateOpen(true)}
+            disabled={orgState === "locked" || orgState === "archived" || reinitiateLoading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Re-Initiate Onboarding
+          </Button>
+          {(orgState === "locked" || orgState === "archived") && (
+            <p className="text-xs text-destructive">Cannot re-initiate: organization is {orgState}.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Re-Initiate Onboarding Confirmation Modal */}
+      <Dialog open={reinitiateOpen} onOpenChange={setReinitiateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Re-Initiate Onboarding
+            </DialogTitle>
+            <DialogDescription>
+              This will require <strong>{org.name}</strong> to complete onboarding again.
+              Historical data will not be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm space-y-1">
+              <p className="font-medium text-foreground">What happens:</p>
+              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+                <li>Organization state → <strong>initializing</strong></li>
+                <li>Users will be redirected to the onboarding flow</li>
+                <li>Dashboard access blocked until Phase 1 is re-completed</li>
+                <li>Onboarding version incremented</li>
+                <li>All transactional data remains intact</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="reinitiate-confirm"
+                checked={reinitiateConfirmed}
+                onCheckedChange={(v) => setReinitiateConfirmed(v === true)}
+              />
+              <label htmlFor="reinitiate-confirm" className="text-sm text-muted-foreground cursor-pointer">
+                I understand this will force the organization through onboarding again
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReinitiateOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+              onClick={handleReinitiateOnboarding}
+              disabled={!reinitiateConfirmed || reinitiateLoading}
+            >
+              {reinitiateLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Confirm Re-Initiation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Controlled Reinitialization */}
       <Card className="mb-6">
         <CardHeader>
