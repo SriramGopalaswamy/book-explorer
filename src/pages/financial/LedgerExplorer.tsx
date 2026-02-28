@@ -147,8 +147,8 @@ export default function LedgerExplorer() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(pagination.paginatedItems as typeof accountSummaries).map(a => (
-                    <TableRow key={a.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => { setSelectedAccount(a.id); pagination.setPage(1); }}>
+                  {summaryPagination.paginatedItems.map(a => (
+                    <TableRow key={a.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => { setSelectedAccount(a.id); ledgerPagination.setPage(1); }}>
                       <TableCell className="font-mono text-xs">{a.code}</TableCell>
                       <TableCell className="font-medium">{a.name}</TableCell>
                       <TableCell><Badge variant="outline" className="text-xs capitalize">{a.account_type}</Badge></TableCell>
