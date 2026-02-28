@@ -7,9 +7,10 @@ import { ComplianceData } from "@/hooks/useOnboardingCompliance";
 interface Props {
   data: ComplianceData;
   onChange: (updates: Partial<ComplianceData>) => void;
+  locked?: boolean;
 }
 
-export function FinancialSetupStep({ data, onChange }: Props) {
+export function FinancialSetupStep({ data, onChange, locked }: Props) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
