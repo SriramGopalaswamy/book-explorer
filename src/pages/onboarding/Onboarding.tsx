@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
@@ -47,29 +47,27 @@ export default function Onboarding() {
   const { onboardingRequired, loading } = useSubscription();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
-  // If org is already active, redirect to dashboard
+  // If org is already active, redirect to dashboard (safe: uses Navigate component)
   if (!loading && !onboardingRequired && org?.orgState === "active") {
-    navigate("/", { replace: true });
+    return <Navigate to="/" replace />;
   }
 
   const initMutation = useMutation({
     mutationFn: async () => {
       if (!org?.organizationId) throw new Error("Organization not found");
 
-      // Initialize Financial OS (seeds CoA, tax, FY, workflows)
-      const { data, error } = await supabase.rpc("initialize_financial_os", {
+      // Use the tenant-safe onboarding RPC (does not require super_admin)
+      const { data, error } = await supabase.rpc("complete_tenant_onboarding", {
         _org_id: org.organizationId,
-        _calibration: {},
-        _force: false,
       });
       if (error) throw error;
 
       const result = data as any;
-      if (!result?.success) throw new Error("Initialization failed");
+      if (!result?.success) throw new Error(result?.error || "Initialization failed");
 
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("Organization onboarding complete!");
       queryClient.invalidateQueries({ queryKey: ["user-organization"] });
       queryClient.invalidateQueries({ queryKey: ["subscription"] });
