@@ -238,9 +238,17 @@ export default function Onboarding() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked} />}
-            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked} />}
-            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {/* Review mode banner */}
+            {isReviewMode && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs text-primary flex items-center gap-2">
+                <Shield className="h-3.5 w-3.5 shrink-0" />
+                You are reviewing a completed step. Fields are read-only.
+              </div>
+            )}
+
+            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
+            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
+            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
             {currentStep === 3 && <ChartOfAccountsStep data={localData} onChange={handleChange} />}
             {currentStep === 4 && <BrandingStep data={localData} onChange={handleChange} />}
             {currentStep === 5 && <PayrollFlagsStep data={localData} onChange={handleChange} />}
