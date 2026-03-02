@@ -8,7 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const senderEmail = "onboarding@resend.dev";
+const senderEmail = "admin@grx10.com";
 
 // Send email via Resend API — returns false on failure instead of throwing
 async function sendEmail(

@@ -8,7 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const senderEmail = "onboarding@resend.dev";
+const senderEmail = "admin@grx10.com";
 
 async function sendEmail(
   toRecipients: { email: string; name?: string }[],
