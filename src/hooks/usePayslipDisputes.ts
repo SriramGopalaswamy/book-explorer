@@ -257,7 +257,7 @@ export function useHRReviewDispute() {
   });
 }
 
-/** Finance: approve (enable payslip revision) or reject */
+/** Finance: approve (auto-apply correction) or reject */
 export function useFinanceReviewDispute() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -274,7 +274,7 @@ export function useFinanceReviewDispute() {
       if (action === "approve") {
         update.status = "approved";
         update.resolved_at = new Date().toISOString();
-        update.resolution_notes = notes || "Approved by Finance — payslip revision enabled";
+        update.resolution_notes = notes || "Approved by Finance — payslip correction applied automatically";
       } else {
         update.status = "rejected";
         update.resolved_at = new Date().toISOString();
@@ -285,10 +285,37 @@ export function useFinanceReviewDispute() {
         .update(update)
         .eq("id", disputeId);
       if (error) throw error;
+
+      // On approval, mark the old payroll record as superseded to enable revision
+      if (action === "approve") {
+        // Fetch the dispute to get payroll_record_id
+        const { data: dispute } = await supabase
+          .from("payslip_disputes" as any)
+          .select("payroll_record_id, profile_id, pay_period")
+          .eq("id", disputeId)
+          .single();
+        const disputeData = dispute as any;
+        if (disputeData?.payroll_record_id) {
+          // Mark existing record as superseded
+          await supabase
+            .from("payroll_records")
+            .update({
+              status: "superseded",
+              updated_at: new Date().toISOString(),
+            } as any)
+            .eq("id", disputeData.payroll_record_id);
+        }
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });
-      toast.success("Dispute reviewed successfully");
+      queryClient.invalidateQueries({ queryKey: ["payroll-records"] });
+      queryClient.invalidateQueries({ queryKey: ["approved-dispute"] });
+      toast.success(
+        variables.action === "approve"
+          ? "Dispute approved — payslip marked for revision. HR/Finance can now generate a corrected payslip."
+          : "Dispute rejected"
+      );
     },
     onError: (err: any) => toast.error(err.message),
   });
