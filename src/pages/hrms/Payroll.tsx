@@ -111,6 +111,124 @@ const defaultForm: Omit<CreatePayrollData, "profile_id" | "pay_period"> = {
   net_pay: 0,
 };
 
+// ─── Inline HR Dispute Approvals for Payroll page ─────────────────────────────
+function PayrollHRDisputes() {
+  const { data: disputes = [], isLoading } = usePendingPayslipDisputes("hr");
+  const reviewDispute = useHRReviewDispute();
+  const [notes, setNotes] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [action, setAction] = useState<"forward" | "reject" | null>(null);
+
+  const periodLabel = (p: string) => { const [y, m] = p.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return `${months[parseInt(m)-1]} ${y}`; };
+
+  const handleSubmit = (disputeId: string) => {
+    if (!action) return;
+    reviewDispute.mutate({ disputeId, action, notes: notes || undefined }, {
+      onSuccess: () => { setActiveId(null); setAction(null); setNotes(""); },
+    });
+  };
+
+  if (isLoading) return <div className="flex items-center justify-center py-16 text-muted-foreground"><Clock className="mr-2 h-4 w-4 animate-spin" /> Loading…</div>;
+  if (disputes.length === 0) return <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"><ShieldAlert className="h-10 w-10 opacity-40" /><p className="text-sm">No payslip disputes pending HR approval.</p></div>;
+
+  return (
+    <div className="space-y-3">
+      {disputes.map((d) => (
+        <div key={d.id} className="rounded-lg border border-border/50 bg-card/60 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium text-sm">{d.profiles?.full_name || "Unknown"}</p>
+              <p className="text-sm text-muted-foreground">{periodLabel(d.pay_period)} · {DISPUTE_CATEGORIES.find(c => c.value === d.dispute_category)?.label || d.dispute_category}</p>
+              <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
+              {d.manager_notes && <p className="text-xs text-muted-foreground mt-1"><strong>Manager:</strong> {d.manager_notes}</p>}
+            </div>
+            {activeId !== d.id ? (
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => { setActiveId(d.id); setAction("reject"); setNotes(""); }}><X className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { setActiveId(d.id); setAction("forward"); setNotes(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Forward to Finance</Button>
+              </div>
+            ) : null}
+          </div>
+          {activeId === d.id && (
+            <div className="space-y-2 border-t border-border/50 pt-3">
+              <Label className="text-xs">{action === "reject" ? "Rejection Reason" : "Notes for Finance"}</Label>
+              <Input placeholder={action === "reject" ? "Explain why…" : "Any context…"} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => { setActiveId(null); setAction(null); }}>Cancel</Button>
+                <Button size="sm" onClick={() => handleSubmit(d.id)} disabled={reviewDispute.isPending} className={action === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
+                  {reviewDispute.isPending ? "Saving…" : action === "forward" ? "Forward" : "Reject"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Inline Finance Dispute Approvals for Payroll page ────────────────────────
+function PayrollFinanceDisputes() {
+  const { data: disputes = [], isLoading } = usePendingPayslipDisputes("finance");
+  const reviewDispute = useFinanceReviewDispute();
+  const [notes, setNotes] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [action, setAction] = useState<"approve" | "reject" | null>(null);
+
+  const periodLabel = (p: string) => { const [y, m] = p.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return `${months[parseInt(m)-1]} ${y}`; };
+
+  const handleSubmit = (disputeId: string) => {
+    if (!action) return;
+    reviewDispute.mutate({ disputeId, action, notes: notes || undefined }, {
+      onSuccess: () => { setActiveId(null); setAction(null); setNotes(""); },
+    });
+  };
+
+  if (isLoading) return <div className="flex items-center justify-center py-16 text-muted-foreground"><Clock className="mr-2 h-4 w-4 animate-spin" /> Loading…</div>;
+  if (disputes.length === 0) return <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"><Wallet className="h-10 w-10 opacity-40" /><p className="text-sm">No payslip disputes pending Finance approval.</p></div>;
+
+  return (
+    <div className="space-y-3">
+      {disputes.map((d) => (
+        <div key={d.id} className="rounded-lg border border-border/50 bg-card/60 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium text-sm">{d.profiles?.full_name || "Unknown"}</p>
+              <p className="text-sm text-muted-foreground">{periodLabel(d.pay_period)} · {DISPUTE_CATEGORIES.find(c => c.value === d.dispute_category)?.label || d.dispute_category}</p>
+              <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
+              {d.manager_notes && <p className="text-xs text-muted-foreground mt-1"><strong>Manager:</strong> {d.manager_notes}</p>}
+              {d.hr_notes && <p className="text-xs text-muted-foreground mt-1"><strong>HR:</strong> {d.hr_notes}</p>}
+            </div>
+            {activeId !== d.id ? (
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => { setActiveId(d.id); setAction("reject"); setNotes(""); }}><X className="h-3.5 w-3.5 mr-1" /> Reject</Button>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { setActiveId(d.id); setAction("approve"); setNotes(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve & Apply</Button>
+              </div>
+            ) : null}
+          </div>
+          {activeId === d.id && (
+            <div className="space-y-2 border-t border-border/50 pt-3">
+              {action === "approve" && (
+                <div className="rounded-md border border-green-500/20 bg-green-500/5 p-2 text-xs text-muted-foreground">
+                  ⚡ Approving will mark the existing payslip as <strong>superseded</strong> and enable a corrected version.
+                </div>
+              )}
+              <Label className="text-xs">{action === "reject" ? "Rejection Reason" : "Approval Notes"}</Label>
+              <Input placeholder={action === "reject" ? "Explain why…" : "Any notes…"} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => { setActiveId(null); setAction(null); }}>Cancel</Button>
+                <Button size="sm" onClick={() => handleSubmit(d.id)} disabled={reviewDispute.isPending} className={action === "approve" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
+                  {reviewDispute.isPending ? "Saving…" : action === "approve" ? "Approve & Apply" : "Reject"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const bulkUploadConfig = usePayrollBulkUpload(selectedPeriod);
