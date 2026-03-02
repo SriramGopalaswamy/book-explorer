@@ -130,6 +130,10 @@ export default function Payroll() {
   const isAdmin = isAdminOrHR || isFinance;
   const roleLoading = roleLoadingHR || roleLoadingFinance;
   const isEmployeeOrManager = currentRole === "employee" || currentRole === "manager";
+  const isHRRole = currentRole === "hr" || currentRole === "admin";
+  const isFinanceRole = currentRole === "finance" || currentRole === "admin";
+  const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes("hr");
+  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes("finance");
   const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
@@ -366,11 +370,31 @@ export default function Payroll() {
         {/* Tabbed Sections */}
         <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.2 }}>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4">
+            <TabsList className="mb-4 flex-wrap">
               <TabsTrigger value="engine">Payroll Engine</TabsTrigger>
               <TabsTrigger value="register">Payroll Register</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="declarations">Tax Declarations</TabsTrigger>
+              {isHRRole && (
+                <TabsTrigger value="hr-disputes">
+                  HR Approvals
+                  {pendingHRDisputes.length > 0 && (
+                    <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                      {pendingHRDisputes.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
+              {isFinanceRole && (
+                <TabsTrigger value="finance-disputes">
+                  Finance Approvals
+                  {pendingFinanceDisputes.length > 0 && (
+                    <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                      {pendingFinanceDisputes.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="engine">
               <PayrollEnginePanel />
