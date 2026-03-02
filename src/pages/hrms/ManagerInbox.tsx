@@ -1982,8 +1982,10 @@ export default function ManagerInbox() {
   const { data: pendingMemos = [] } = useDirectReportsPendingMemos();
   const { data: pendingDisputes = [] } = usePendingPayslipDisputes("manager");
   const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes("hr");
+  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes("finance");
   const { data: currentRole } = useCurrentRole();
   const isHRRole = currentRole === "hr" || currentRole === "admin";
+  const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
@@ -1993,7 +1995,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0);
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0) + (isFinanceRole ? pendingFinanceDisputes.length : 0);
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
