@@ -636,6 +636,38 @@ export default function Payroll() {
                 <p className="text-muted-foreground text-center py-8">Loading profile...</p>
               )}
             </TabsContent>
+            {isHRRole && (
+              <TabsContent value="hr-disputes">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-gradient-primary flex items-center gap-2">
+                      <ShieldAlert className="h-5 w-5" />
+                      HR Payslip Dispute Approvals
+                    </CardTitle>
+                    <CardDescription>Review disputes forwarded by managers</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <PayrollHRDisputes />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+            {isFinanceRole && (
+              <TabsContent value="finance-disputes">
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-gradient-primary flex items-center gap-2">
+                      <Wallet className="h-5 w-5" />
+                      Finance Payslip Dispute Approvals
+                    </CardTitle>
+                    <CardDescription>Final approval step — approving will auto-supersede the existing payslip</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <PayrollFinanceDisputes />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </Tabs>
         </motion.div>
       </div>
