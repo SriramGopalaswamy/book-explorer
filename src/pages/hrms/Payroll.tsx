@@ -33,7 +33,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsAdminOrHR, useEmployees } from "@/hooks/useEmployees";
-// useIsFinance and useCurrentRole already imported above
+import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
+import {
+  usePendingPayslipDisputes,
+  useHRReviewDispute,
+  useFinanceReviewDispute,
+  DISPUTE_CATEGORIES,
+  type PayslipDispute,
+} from "@/hooks/usePayslipDisputes";
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
   useDeletePayroll, useProcessPayroll, useMyPayrollRecords,
