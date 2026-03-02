@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsAdminOrHR, useEmployees } from "@/hooks/useEmployees";
-import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
+// useIsFinance and useCurrentRole already imported above
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
   useDeletePayroll, useProcessPayroll, useMyPayrollRecords,
