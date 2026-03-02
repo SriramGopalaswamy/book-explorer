@@ -294,7 +294,8 @@ export function useFinanceReviewDispute() {
           .select("payroll_record_id, profile_id, pay_period")
           .eq("id", disputeId)
           .single();
-        if (dispute?.payroll_record_id) {
+        const disputeData = dispute as any;
+        if (disputeData?.payroll_record_id) {
           // Mark existing record as superseded
           await supabase
             .from("payroll_records")
@@ -302,7 +303,7 @@ export function useFinanceReviewDispute() {
               status: "superseded",
               updated_at: new Date().toISOString(),
             } as any)
-            .eq("id", dispute.payroll_record_id);
+            .eq("id", disputeData.payroll_record_id);
         }
       }
     },
