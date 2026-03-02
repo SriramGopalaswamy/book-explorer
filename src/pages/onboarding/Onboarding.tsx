@@ -99,10 +99,15 @@ export default function Onboarding() {
   const isPhase1Complete = compliance?.phase1_completed_at != null;
   const orgActive = org?.orgState === "active";
 
-  // Determine if we should redirect
-  const shouldRedirect = !subLoading && orgActive && !onboardingRequired && currentStep < 4
-    && !(compliance?.phase1_completed_at && !compliance?.phase2_completed_at)
-    && (compliance?.phase2_completed_at || !compliance?.phase1_completed_at);
+  // When viewing a completed Phase 1 step after activation, enter read-only review mode
+  const isReviewMode = isPhase1 && isPhase1Complete;
+
+  // Only redirect if the user isn't actively on the onboarding page
+  // Never redirect while the user is navigating steps (review or Phase 2)
+  const shouldRedirect = !subLoading && orgActive && !onboardingRequired
+    && compliance?.phase2_completed_at != null
+    && !compliance?.phase1_completed_at === false
+    && currentStep === 0 && !initialized;
 
   const handleChange = useCallback((updates: Partial<ComplianceData>) => {
     setLocalData((prev) => ({ ...prev, ...updates }));
@@ -233,9 +238,17 @@ export default function Onboarding() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked} />}
-            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked} />}
-            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked} />}
+            {/* Review mode banner */}
+            {isReviewMode && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs text-primary flex items-center gap-2">
+                <Shield className="h-3.5 w-3.5 shrink-0" />
+                You are reviewing a completed step. Fields are read-only.
+              </div>
+            )}
+
+            {currentStep === 0 && <EntityIdentityStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
+            {currentStep === 1 && <GstTaxStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
+            {currentStep === 2 && <FinancialSetupStep data={localData} onChange={handleChange} locked={configLocked || isReviewMode} />}
             {currentStep === 3 && <ChartOfAccountsStep data={localData} onChange={handleChange} />}
             {currentStep === 4 && <BrandingStep data={localData} onChange={handleChange} />}
             {currentStep === 5 && <PayrollFlagsStep data={localData} onChange={handleChange} />}
@@ -248,12 +261,19 @@ export default function Onboarding() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0 || (currentStep === 4 && isPhase1Complete)}
+                disabled={currentStep === 0}
               >
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
               </Button>
 
               <div className="flex gap-2">
+                {/* Review mode: return to Phase 2 */}
+                {isReviewMode && (
+                  <Button size="sm" variant="outline" onClick={() => setCurrentStep(4)}>
+                    <ArrowRight className="h-4 w-4 mr-1" /> Back to Phase 2
+                  </Button>
+                )}
+
                 {/* Phase 2: Skip / Go to Dashboard */}
                 {!isPhase1 && (
                   <Button variant="outline" size="sm" onClick={handleSkipPhase2}>
@@ -262,12 +282,12 @@ export default function Onboarding() {
                 )}
 
                 {/* Last Phase 2 step: Finish */}
-                {currentStep === STEPS.length - 1 ? (
+                {!isReviewMode && currentStep === STEPS.length - 1 ? (
                   <Button size="sm" onClick={handleFinishPhase2} disabled={upsert.isPending}>
                     {upsert.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
                     Finish Setup
                   </Button>
-                ) : (
+                ) : !isReviewMode ? (
                   <Button
                     size="sm"
                     onClick={handleSaveAndContinue}
@@ -280,7 +300,7 @@ export default function Onboarding() {
                     )}
                     {currentStep === 3 ? "Activate Organization" : "Save & Continue"}
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </CardContent>
