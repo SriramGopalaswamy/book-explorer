@@ -267,6 +267,13 @@ export default function Onboarding() {
               </Button>
 
               <div className="flex gap-2">
+                {/* Review mode: return to Phase 2 */}
+                {isReviewMode && (
+                  <Button size="sm" variant="outline" onClick={() => setCurrentStep(4)}>
+                    <ArrowRight className="h-4 w-4 mr-1" /> Back to Phase 2
+                  </Button>
+                )}
+
                 {/* Phase 2: Skip / Go to Dashboard */}
                 {!isPhase1 && (
                   <Button variant="outline" size="sm" onClick={handleSkipPhase2}>
@@ -275,12 +282,12 @@ export default function Onboarding() {
                 )}
 
                 {/* Last Phase 2 step: Finish */}
-                {currentStep === STEPS.length - 1 ? (
+                {!isReviewMode && currentStep === STEPS.length - 1 ? (
                   <Button size="sm" onClick={handleFinishPhase2} disabled={upsert.isPending}>
                     {upsert.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
                     Finish Setup
                   </Button>
-                ) : (
+                ) : !isReviewMode ? (
                   <Button
                     size="sm"
                     onClick={handleSaveAndContinue}
@@ -293,7 +300,7 @@ export default function Onboarding() {
                     )}
                     {currentStep === 3 ? "Activate Organization" : "Save & Continue"}
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </CardContent>
