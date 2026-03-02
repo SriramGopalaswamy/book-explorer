@@ -2109,6 +2109,17 @@ export default function ManagerInbox() {
                 )}
               </TabsTrigger>
             )}
+            {isFinanceRole && (
+              <TabsTrigger value="finance-disputes" className="gap-2">
+                <Wallet className="h-4 w-4" />
+                Finance Approvals
+                {pendingFinanceDisputes.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                    {pendingFinanceDisputes.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="profile-changes" className="gap-2">
               <UserCog className="h-4 w-4" />
               Profile Changes
@@ -2258,6 +2269,28 @@ export default function ManagerInbox() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <PendingHRDisputes />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* ── Finance Dispute Approvals ── */}
+          {isFinanceRole && (
+            <TabsContent value="finance-disputes">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    Finance Dispute Approvals
+                    {pendingFinanceDisputes.length > 0 && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {pendingFinanceDisputes.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <PendingFinanceDisputes />
                 </CardContent>
               </Card>
             </TabsContent>
