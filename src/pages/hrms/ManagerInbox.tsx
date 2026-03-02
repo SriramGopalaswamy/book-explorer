@@ -61,6 +61,7 @@ import {
   usePendingPayslipDisputes,
   useManagerReviewDispute,
   useHRReviewDispute,
+  useFinanceReviewDispute,
   DISPUTE_CATEGORIES,
   type PayslipDispute,
 } from "@/hooks/usePayslipDisputes";
