@@ -80,7 +80,9 @@ export default function Onboarding() {
   const { onboardingRequired, loading: subLoading } = useSubscription();
   const { compliance, isLoading, upsert, completePhase1 } = useOnboardingCompliance();
   const { data: hasTransactions } = useOrgHasTransactions();
-  const configLocked = !!hasTransactions;
+  const orgAlreadyActive = org?.orgState === "active";
+  // Only lock fields when re-onboarding an already-active org with existing transactions
+  const configLocked = !!hasTransactions && orgAlreadyActive;
 
   const [currentStep, setCurrentStep] = useState(0);
   const [localData, setLocalData] = useState<ComplianceData>({});
