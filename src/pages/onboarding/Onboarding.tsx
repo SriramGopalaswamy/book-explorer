@@ -99,10 +99,15 @@ export default function Onboarding() {
   const isPhase1Complete = compliance?.phase1_completed_at != null;
   const orgActive = org?.orgState === "active";
 
-  // Determine if we should redirect
-  const shouldRedirect = !subLoading && orgActive && !onboardingRequired && currentStep < 4
-    && !(compliance?.phase1_completed_at && !compliance?.phase2_completed_at)
-    && (compliance?.phase2_completed_at || !compliance?.phase1_completed_at);
+  // When viewing a completed Phase 1 step after activation, enter read-only review mode
+  const isReviewMode = isPhase1 && isPhase1Complete;
+
+  // Only redirect if the user isn't actively on the onboarding page
+  // Never redirect while the user is navigating steps (review or Phase 2)
+  const shouldRedirect = !subLoading && orgActive && !onboardingRequired
+    && compliance?.phase2_completed_at != null
+    && !compliance?.phase1_completed_at === false
+    && currentStep === 0 && !initialized;
 
   const handleChange = useCallback((updates: Partial<ComplianceData>) => {
     setLocalData((prev) => ({ ...prev, ...updates }));
@@ -248,7 +253,7 @@ export default function Onboarding() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0 || (currentStep === 4 && isPhase1Complete)}
+                disabled={currentStep === 0}
               >
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back
               </Button>
