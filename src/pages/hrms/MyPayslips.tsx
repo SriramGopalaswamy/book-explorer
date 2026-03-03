@@ -156,18 +156,17 @@ export default function MyPayslips() {
                   ) : (
                     <div className="overflow-x-auto">
                       <Table className="min-w-[600px]">
-                         <TableHeader>
+                          <TableHeader>
                           <TableRow>
                             <TableHead>Pay Period</TableHead>
-                            <TableHead className="text-right">Basic</TableHead>
-                            <TableHead className="text-right">Allowances</TableHead>
+                            <TableHead className="text-right">Gross Earnings</TableHead>
                             <TableHead className="text-right">Deductions</TableHead>
                             <TableHead className="text-right">LOP</TableHead>
                             <TableHead className="text-right">Net Pay</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-28"></TableHead>
                           </TableRow>
-                         </TableHeader>
+                          </TableHeader>
                         <TableBody>
                           {activeRecords.map((r) => {
                             const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
