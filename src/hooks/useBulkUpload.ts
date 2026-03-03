@@ -139,11 +139,43 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
+    /**
+     * Flexible profile matching:
+     * 1. Exact full_name match (case-insensitive)
+     * 2. full_name starts with the employee_id value
+     * 3. employee_id is contained in full_name (partial match)
+     * 4. Email prefix match
+     * This handles cases like "Akshata S Dod..." matching "Akshata S Doddamani"
+     */
+    const findProfile = (empId: string) => {
+      if (!profiles || !empId) return null;
+      const needle = empId.toLowerCase().trim();
+      // 1. Exact full_name
+      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
+      if (match) return match;
+      // 2. full_name starts with employee_id
+      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      // 3. employee_id contained in full_name
+      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
+      if (match) return match;
+      // 4. Email prefix match
+      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      // 5. All words in employee_id appear in full_name (handles reordering / partial)
+      const words = needle.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 0) {
+        match = profiles.find(p => {
+          const name = p.full_name?.toLowerCase() || "";
+          return words.every(w => name.includes(w));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+
     for (const row of rows) {
-      const empId = row.employee_id?.toLowerCase();
-      const profile = profiles?.find(
-        (p) => p.email?.toLowerCase().startsWith(empId) || p.full_name?.toLowerCase().includes(empId)
-      );
+      const profile = findProfile(row.employee_id);
 
       if (!profile) {
         errors.push(`Row ${row.employee_id}: No matching employee profile found`);
@@ -153,7 +185,6 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
       // Normalize time values — strip any date prefix, ensure HH:mm:ss format
       const normalizeTime = (t: string | undefined): string | null => {
         if (!t || !t.trim()) return null;
-        // Extract time portion from datetime strings or time-only strings
         const match = t.trim().match(/(\d{1,2}:\d{2}(:\d{2})?)/);
         if (match) return match[1].length === 5 ? match[1] + ":00" : match[1];
         return null;
