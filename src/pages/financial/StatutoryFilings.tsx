@@ -21,6 +21,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -53,9 +54,107 @@ import {
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
+
+// ─── Statutory Due Date Configuration ─────────────────────────────────────────
+
+interface DueDateInfo {
+  dueDate: Date;
+  label: string;
+  daysRemaining: number;
+  urgency: "safe" | "warning" | "urgent" | "overdue";
+}
+
+const STATUTORY_DUE_RULES: Record<string, { description: string; computeDueDate: (now: Date) => { date: Date; label: string } }> = {
+  gstr1: {
+    description: "11th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 11);
+      return { date: next, label: `Due by 11th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  gstr3b: {
+    description: "20th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 20);
+      return { date: next, label: `Due by 20th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  tds24q: {
+    description: "31st of month following quarter-end (Jul, Oct, Jan, May for Q4)",
+    computeDueDate: (now) => {
+      const m = now.getMonth();
+      const y = now.getFullYear();
+      const quarterDues = [
+        new Date(y, 6, 31),      // Q1: Jul 31
+        new Date(y, 9, 31),      // Q2: Oct 31
+        new Date(y + 1, 0, 31),  // Q3: Jan 31
+        new Date(m < 3 ? y : y + 1, 4, 31), // Q4: May 31
+      ];
+      const upcoming = quarterDues.filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
+      const next = upcoming[0] || new Date(y + 1, 6, 31);
+      return { date: next, label: `Due by ${next.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` };
+    },
+  },
+  tds26q: {
+    description: "31st of month following quarter-end",
+    computeDueDate: (now) => STATUTORY_DUE_RULES.tds24q.computeDueDate(now),
+  },
+  pf: {
+    description: "15th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      return { date: next, label: `Due by 15th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  esi: {
+    description: "15th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      return { date: next, label: `Due by 15th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  pt: {
+    description: "Varies by state — typically by 20th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 20);
+      return { date: next, label: `Due by 20th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+};
+
+function getFilingDueDate(filingId: string): DueDateInfo | null {
+  const rule = STATUTORY_DUE_RULES[filingId];
+  if (!rule) return null;
+  const now = new Date();
+  const { date, label } = rule.computeDueDate(now);
+  const diffMs = date.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  let urgency: DueDateInfo["urgency"] = "safe";
+  if (daysRemaining < 0) urgency = "overdue";
+  else if (daysRemaining <= 3) urgency = "urgent";
+  else if (daysRemaining <= 7) urgency = "warning";
+  return { dueDate: date, label, daysRemaining, urgency };
+}
+
+const URGENCY_STYLES: Record<DueDateInfo["urgency"], { bg: string; text: string; border: string; icon: typeof CheckCircle2 }> = {
+  safe: { bg: "bg-secondary/10", text: "text-secondary-foreground", border: "border-secondary/30", icon: CheckCircle2 },
+  warning: { bg: "bg-accent/20", text: "text-accent-foreground", border: "border-accent/40", icon: Clock },
+  urgent: { bg: "bg-destructive/15", text: "text-destructive", border: "border-destructive/30", icon: AlertTriangle },
+  overdue: { bg: "bg-destructive/20", text: "text-destructive", border: "border-destructive/40", icon: AlertCircle },
+};
+
+const URGENCY_BADGE_STYLES: Record<DueDateInfo["urgency"], string> = {
+  safe: "bg-secondary/20 text-secondary-foreground border-secondary/30",
+  warning: "bg-accent/20 text-accent-foreground border-accent/40",
+  urgent: "bg-destructive/15 text-destructive border-destructive/30",
+  overdue: "bg-destructive/25 text-destructive border-destructive/40",
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const currentYear = new Date().getFullYear();
 const FY_OPTIONS = Array.from({ length: 5 }, (_, i) => {
@@ -281,6 +380,7 @@ export default function StatutoryFilings() {
             {filingTypes.map((f) => {
               const Icon = f.icon;
               const isActive = activeTab === f.id;
+              const dueInfo = getFilingDueDate(f.id);
               return (
                 <button
                   key={f.id}
@@ -295,6 +395,15 @@ export default function StatutoryFilings() {
                   <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>{f.label}</span>
                   <span className="text-[10px] text-muted-foreground leading-tight">{f.desc}</span>
                   <Badge variant="outline" className="text-[9px] px-1.5 py-0">{f.frequency}</Badge>
+                  {dueInfo && (
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${URGENCY_BADGE_STYLES[dueInfo.urgency]}`}>
+                      {dueInfo.daysRemaining < 0
+                        ? `${Math.abs(dueInfo.daysRemaining)}d overdue`
+                        : dueInfo.daysRemaining === 0
+                        ? "Due today"
+                        : `${dueInfo.daysRemaining}d left`}
+                    </Badge>
+                  )}
                 </button>
               );
             })}
@@ -347,7 +456,7 @@ export default function StatutoryFilings() {
           {/* Content */}
           {activeTab === "gstr1" && (
             <div className="space-y-4">
-              <FilingHeader title="GSTR-1 — Outward Supplies" desc="Details of outward supplies of goods/services. Upload to GST Portal → Returns → GSTR-1." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
+              <FilingHeader filingId="gstr1" title="GSTR-1 — Outward Supplies" desc="Details of outward supplies of goods/services. Upload to GST Portal → Returns → GSTR-1." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
               {gstr1.data && gstr1.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Total Invoices" value={String(new Set(gstr1.data.map(r => r.invoice_number)).size)} />
@@ -361,14 +470,14 @@ export default function StatutoryFilings() {
 
           {activeTab === "gstr3b" && (
             <div className="space-y-4">
-              <FilingHeader title="GSTR-3B — Summary Return" desc="Monthly summary of outward/inward supplies and tax liability. Upload to GST Portal → Returns → GSTR-3B." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
+              <FilingHeader filingId="gstr3b" title="GSTR-3B — Summary Return" desc="Monthly summary of outward/inward supplies and tax liability. Upload to GST Portal → Returns → GSTR-3B." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
               {gstr3b.data && <GSTR3BSummaryCards data={gstr3b.data} />}
             </div>
           )}
 
           {activeTab === "tds24q" && (
             <div className="space-y-4">
-              <FilingHeader title="TDS Form 24Q — Salary" desc="Quarterly statement of TDS deducted from employee salaries. Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
+              <FilingHeader filingId="tds24q" title="TDS Form 24Q — Salary" desc="Quarterly statement of TDS deducted from employee salaries. Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
               {tds24q.data && tds24q.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Employees" value={String(tds24q.data.length)} />
@@ -382,7 +491,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "tds26q" && (
             <div className="space-y-4">
-              <FilingHeader title="TDS Form 26Q — Non-Salary" desc="Quarterly statement of TDS on payments other than salary (contractor, professional fees, rent, etc.). Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
+              <FilingHeader filingId="tds26q" title="TDS Form 26Q — Non-Salary" desc="Quarterly statement of TDS on payments other than salary (contractor, professional fees, rent, etc.). Upload to TRACES Portal." portal="www.tdscpc.gov.in" portalUrl="https://www.tdscpc.gov.in" />
               {tds26q.data && tds26q.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Deductees" value={String(tds26q.data.length)} />
@@ -396,7 +505,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "pf" && (
             <div className="space-y-4">
-              <FilingHeader title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="epfindia.gov.in" portalUrl="https://www.epfindia.gov.in" />
+              <FilingHeader filingId="pf" title="PF ECR — Electronic Challan cum Return" desc="Monthly PF contribution details. Upload to EPFO Unified Portal → ECR Filing." portal="epfindia.gov.in" portalUrl="https://www.epfindia.gov.in" />
               {pfEcr.data && pfEcr.data.length > 0 && (
                 <div className="grid grid-cols-4 gap-3">
                   <SummaryCard label="Employees" value={String(pfEcr.data.length)} />
@@ -411,7 +520,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "esi" && (
             <div className="space-y-4">
-              <FilingHeader title="ESI Return — Employee State Insurance" desc="Half-yearly ESI contribution details for employees earning ≤ ₹21,000/month. Upload to ESIC Portal." portal="esic.gov.in" portalUrl="https://www.esic.gov.in" />
+              <FilingHeader filingId="esi" title="ESI Return — Employee State Insurance" desc="Half-yearly ESI contribution details for employees earning ≤ ₹21,000/month. Upload to ESIC Portal." portal="esic.gov.in" portalUrl="https://www.esic.gov.in" />
               {esiData.data && esiData.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Covered Employees" value={String(esiData.data.length)} />
@@ -425,7 +534,7 @@ export default function StatutoryFilings() {
 
           {activeTab === "pt" && (
             <div className="space-y-4">
-              <FilingHeader title="Professional Tax" desc="Monthly Professional Tax deduction as per state slabs. Upload to respective State Commercial Tax Portal." portal="State Portal" />
+              <FilingHeader filingId="pt" title="Professional Tax" desc="Monthly Professional Tax deduction as per state slabs. Upload to respective State Commercial Tax Portal." portal="State Portal" />
               {profTax.data && profTax.data.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <SummaryCard label="Employees" value={String(profTax.data.length)} />
@@ -442,23 +551,48 @@ export default function StatutoryFilings() {
   );
 }
 
-function FilingHeader({ title, desc, portal, portalUrl }: { title: string; desc: string; portal: string; portalUrl?: string }) {
+function FilingHeader({ title, desc, portal, portalUrl, filingId }: { title: string; desc: string; portal: string; portalUrl?: string; filingId: string }) {
+  const dueInfo = getFilingDueDate(filingId);
+  const rule = STATUTORY_DUE_RULES[filingId];
+  
   return (
-    <div className="flex items-start justify-between">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        <p className="text-sm text-muted-foreground">{desc}</p>
-      </div>
-      {portalUrl ? (
-        <a href={portalUrl} target="_blank" rel="noopener noreferrer">
-          <Badge variant="outline" className="gap-1 text-xs cursor-pointer hover:bg-accent">
+    <div className="space-y-3">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <p className="text-sm text-muted-foreground">{desc}</p>
+        </div>
+        {portalUrl ? (
+          <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+            <Badge variant="outline" className="gap-1 text-xs cursor-pointer hover:bg-accent">
+              <AlertCircle className="h-3 w-3" /> Upload to {portal}
+            </Badge>
+          </a>
+        ) : (
+          <Badge variant="outline" className="gap-1 text-xs">
             <AlertCircle className="h-3 w-3" /> Upload to {portal}
           </Badge>
-        </a>
-      ) : (
-        <Badge variant="outline" className="gap-1 text-xs">
-          <AlertCircle className="h-3 w-3" /> Upload to {portal}
-        </Badge>
+        )}
+      </div>
+      {dueInfo && rule && (
+        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border ${URGENCY_STYLES[dueInfo.urgency].bg} ${URGENCY_STYLES[dueInfo.urgency].border}`}>
+          {(() => { const UrgIcon = URGENCY_STYLES[dueInfo.urgency].icon; return <UrgIcon className={`h-4 w-4 shrink-0 ${URGENCY_STYLES[dueInfo.urgency].text}`} />; })()}
+          <div className="flex-1 min-w-0">
+            <span className={`text-sm font-semibold ${URGENCY_STYLES[dueInfo.urgency].text}`}>
+              {dueInfo.daysRemaining < 0
+                ? `Overdue by ${Math.abs(dueInfo.daysRemaining)} days`
+                : dueInfo.daysRemaining === 0
+                ? "Due today!"
+                : `${dueInfo.daysRemaining} days remaining`}
+            </span>
+            <span className="text-sm text-muted-foreground ml-2">
+              — {dueInfo.label}
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground shrink-0">
+            Typical deadline: {rule.description}
+          </span>
+        </div>
       )}
     </div>
   );
