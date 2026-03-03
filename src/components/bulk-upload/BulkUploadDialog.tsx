@@ -241,7 +241,16 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
 
       // Log to bulk_upload_history
       if (user) {
-        const { error: historyErr } = await supabase.from("bulk_upload_history" as any).insert({
+        // Fetch user's organization_id for correct tenant isolation
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("organization_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        const orgId = profile?.organization_id || "00000000-0000-0000-0000-000000000001";
+
+        const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
           module: config.module,
           file_name: fileName,
           total_rows: parsedRows.length,
@@ -249,6 +258,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
           failed_rows: result.errors.length + errorCount,
           errors: result.errors.slice(0, 50),
           uploaded_by: user.id,
+          organization_id: orgId,
         });
         if (historyErr) {
           console.error("Failed to log upload history:", historyErr.message);
