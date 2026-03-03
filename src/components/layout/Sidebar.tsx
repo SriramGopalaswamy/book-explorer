@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   Inbox,
   Shield,
+  ShieldCheck,
   UserCheck,
   Truck,
   Quote,
@@ -42,6 +43,9 @@ import {
   Crown,
   IndianRupee,
   User,
+  PenLine,
+  BookMarked,
+  FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -62,8 +66,8 @@ const navigation: NavItem[] = [
 
 const financialNav: NavItem[] = [
   { name: "Accounting", path: "/financial/accounting", icon: BookOpen, module: "financial" },
-  { name: "Journal Entry", path: "/financial/journal-entry", icon: BookOpen, module: "financial" },
-  { name: "Ledger Explorer", path: "/financial/ledger", icon: BookOpen, module: "financial" },
+  { name: "Journal Entry", path: "/financial/journal-entry", icon: PenLine, module: "financial" },
+  { name: "Ledger Explorer", path: "/financial/ledger", icon: BookMarked, module: "financial" },
   { name: "Customers", path: "/financial/customers", icon: UserCheck, module: "financial" },
   { name: "Vendors", path: "/financial/vendors", icon: Truck, module: "financial" },
   { name: "Invoicing", path: "/financial/invoicing", icon: FileText, module: "financial" },
@@ -79,7 +83,7 @@ const financialNav: NavItem[] = [
   { name: "Statutory Filings", path: "/financial/statutory", icon: Landmark, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
-  { name: "CA Audit Console", path: "/financial/audit-console", icon: Shield, module: "financial" },
+  { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, module: "financial" },
 ];
 
 const hrmsNav: NavItem[] = [
@@ -91,7 +95,7 @@ const hrmsNav: NavItem[] = [
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
   { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
-  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
 ];
