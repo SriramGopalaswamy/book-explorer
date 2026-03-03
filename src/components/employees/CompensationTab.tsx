@@ -143,6 +143,7 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
         profileId={profileId}
         employeeName={employeeName}
         latestComponents={activeStructure?.compensation_components ?? null}
+        masterTemplates={masterTemplates}
         onSubmit={createRevision}
       />
     </div>
