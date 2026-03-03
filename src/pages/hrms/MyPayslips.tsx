@@ -169,10 +169,7 @@ export default function MyPayslips() {
                           </TableHeader>
                         <TableBody>
                           {activeRecords.map((r) => {
-                            const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
-                            const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
-                            const lopDays = Number((r as any).lop_days) || 0;
-                            const lopDeduction = Number((r as any).lop_deduction) || 0;
+                            const slip = normalizePayslip(r);
                             const existingDispute = getDisputeForRecord(r.id);
                             const canDispute = r.status === "processed" && isWithinDisputeWindow(r.pay_period) && !existingDispute;
 
@@ -190,17 +187,16 @@ export default function MyPayslips() {
                                     </Badge>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
-                                <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
-                                <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                                <TableCell className="text-right text-green-600">{formatCurrency(slip.totalEarnings)}</TableCell>
+                                <TableCell className="text-right text-destructive">-{formatCurrency(slip.totalDeductions)}</TableCell>
                                 <TableCell className="text-right">
-                                  {lopDays > 0 ? (
-                                    <span className="text-amber-600">{lopDays}d / -{formatCurrency(lopDeduction)}</span>
+                                  {slip.lopDays > 0 ? (
+                                    <span className="text-amber-600">{slip.lopDays}d / -{formatCurrency(slip.lopDeduction)}</span>
                                   ) : (
                                     <span className="text-muted-foreground">—</span>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
+                                <TableCell className="text-right font-semibold">{formatCurrency(slip.netPay)}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
                                     {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
