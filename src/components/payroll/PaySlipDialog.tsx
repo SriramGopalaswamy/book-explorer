@@ -114,7 +114,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     .footer .sig { font-size: 11px; color: #9ca3af; text-align: right; }
     .footer .sig span { display: block; width: 140px; border-top: 1px solid #d1d5db; padding-top: 4px; margin-top: 28px; }
     .wm { text-align: center; margin-top: 20px; font-size: 10px; color: #d1d5db; }
-    @media print { body { padding: 28px; } }
+    @media print { body { padding: 24px; } }
   </style>
 </head>
 <body>
@@ -171,7 +171,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const openPrintWindow = () => {
     const html = buildHTML();
-    const win = window.open("", "_blank", "width=800,height=900");
+    const win = window.open("", "_blank", "width=700,height=900");
     if (!win) return;
     win.document.write(html);
     win.document.close();
