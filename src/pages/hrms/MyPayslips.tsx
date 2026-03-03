@@ -19,6 +19,7 @@ import { useCompensationHistory, type CompensationStructure } from "@/hooks/useC
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizePayslip } from "@/lib/payslip-utils";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
