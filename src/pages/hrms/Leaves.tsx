@@ -156,6 +156,25 @@ export default function Leaves() {
       return;
     }
 
+    // Check for overlapping leave requests (pending or approved)
+    const overlapping = myLeaveRequests.filter((req: any) => {
+      if (req.status === "rejected") return false;
+      return req.from_date <= toDate && req.to_date >= fromDate;
+    });
+
+    if (overlapping.length > 0) {
+      const overlapDates = overlapping.map((req: any) => {
+        const overlapStart = req.from_date > fromDate ? req.from_date : fromDate;
+        const overlapEnd = req.to_date < toDate ? req.to_date : toDate;
+        const status = req.status === "approved" ? "approved" : "pending";
+        return overlapStart === overlapEnd
+          ? `${overlapStart} (${status})`
+          : `${overlapStart} to ${overlapEnd} (${status})`;
+      });
+      toast.error(`Leave already exists for overlapping dates: ${overlapDates.join(", ")}`);
+      return;
+    }
+
     await createLeaveRequest.mutateAsync({
       leave_type: selectedType,
       from_date: fromDate,
