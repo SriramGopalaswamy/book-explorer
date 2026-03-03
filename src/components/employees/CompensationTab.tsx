@@ -267,7 +267,6 @@ function RevisionFormDialog({
     } else {
       setComponents([...DEFAULT_COMPONENTS]);
     }
-    }
     setReason("");
     setNotes("");
     setEffectiveFrom(new Date().toISOString().split("T")[0]);
