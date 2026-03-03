@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -119,19 +119,19 @@ export default function PlatformTenantDetail() {
 
   if (orgLoading) {
     return (
-      <PlatformLayout title="Tenant Detail" subtitle="Loading...">
+      <MainLayout title="Tenant Detail" subtitle="Loading...">
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      </PlatformLayout>
+      </MainLayout>
     );
   }
 
   if (!org) {
     return (
-      <PlatformLayout title="Tenant Not Found">
+      <MainLayout title="Tenant Not Found">
         <p className="text-muted-foreground">Organization not found.</p>
-      </PlatformLayout>
+      </MainLayout>
     );
   }
 
@@ -241,7 +241,7 @@ export default function PlatformTenantDetail() {
       : "text-destructive";
 
   return (
-    <PlatformLayout title="Tenant Detail" subtitle={org.name}>
+    <MainLayout title="Tenant Detail" subtitle={org.name}>
       {/* Back nav */}
       <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate("/platform")}>
         <ArrowLeft className="h-4 w-4 mr-1" />
@@ -731,6 +731,6 @@ export default function PlatformTenantDetail() {
           </Button>
         </CardContent>
       </Card>
-    </PlatformLayout>
+    </MainLayout>
   );
 }
