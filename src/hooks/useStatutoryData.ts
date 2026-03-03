@@ -328,7 +328,7 @@ export function useTDS24QData(from: string, to: string) {
         .select("*, profiles!profile_id(full_name)")
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
-        .eq("status", "processed");
+        .in("status", ["processed", "approved", "locked"]);
       if (error) throw error;
 
       return (data || []).map((p: any): TDS24QRow => {
