@@ -244,9 +244,9 @@ export default function Expenses() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 6 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
+            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
           ) : pagination.paginatedItems.length === 0 ? (
-            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 6} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
+            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
           ) : pagination.paginatedItems.map((e) => (
             <TableRow key={e.id}>
               {isFinanceOrAdmin && <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>}
