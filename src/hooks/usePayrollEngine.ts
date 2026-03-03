@@ -106,12 +106,14 @@ export function useGeneratePayroll() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: org } = useUserOrganization();
+  const { data: flags } = usePayrollFlags();
 
   return useMutation({
     mutationFn: async (payPeriod: string) => {
       if (!user) throw new Error("Not authenticated");
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
+      const f = flags || { pf_applicable: false, esi_applicable: false, professional_tax_applicable: false, gratuity_applicable: false } as PayrollFlags;
 
       // 1. Create payroll run
       const { data: run, error: runErr } = await supabase
