@@ -199,7 +199,7 @@ export default function JournalEntry() {
                         <TableCell className="text-right font-mono">{formatAmount(total)}</TableCell>
                         <TableCell>
                           {entry.status === "posted" && !entry.is_reversal && (
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); reverseJournal.mutate(entry.id); }}>
+                            <Button variant="ghost" size="sm" title="Reverse Entry" onClick={(e) => { e.stopPropagation(); setReverseConfirmId(entry.id); }} disabled={reverseJournal.isPending}>
                               <RotateCcw className="h-4 w-4" />
                             </Button>
                           )}
