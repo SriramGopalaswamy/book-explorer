@@ -315,6 +315,9 @@ export default function Expenses() {
               <Plus className="h-4 w-4" /> Create Expense
             </Button>
           </div>
+        </div>
+
+        <Tabs defaultValue="all">
           <TabsList>
             <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
             <TabsTrigger value="pending" className="gap-2">
@@ -340,6 +343,8 @@ export default function Expenses() {
             {renderExpenseTable(paidExpenses, paidPagination)}
           </TabsContent>
         </Tabs>
+
+        {isFinanceOrAdmin && <BulkUploadHistory module="expenses" />}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
