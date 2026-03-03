@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useOrganizations, useOrgMemberCounts, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export default function PlatformOrganizations() {
   };
 
   return (
-    <PlatformLayout title="Tenants" subtitle="All registered tenants in the platform">
+    <MainLayout title="Tenants" subtitle="All registered tenants in the platform">
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="pb-2">
@@ -163,6 +163,6 @@ export default function PlatformOrganizations() {
           )}
         </CardContent>
       </Card>
-    </PlatformLayout>
+    </MainLayout>
   );
 }

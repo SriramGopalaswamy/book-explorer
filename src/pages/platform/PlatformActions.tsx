@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useOrganizations, useOrgStatusAction, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,7 @@ export default function PlatformActions() {
   };
 
   return (
-    <PlatformLayout title="Action Panel" subtitle="Manage organization lifecycle and data">
+    <MainLayout title="Action Panel" subtitle="Manage organization lifecycle and data">
       <div className="grid gap-4">
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -175,6 +175,6 @@ export default function PlatformActions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PlatformLayout>
+    </MainLayout>
   );
 }
