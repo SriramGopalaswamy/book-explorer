@@ -153,7 +153,11 @@ export function useReverseJournal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       queryClient.invalidateQueries({ queryKey: ["rpc-trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["rpc-gl-balances"] });
       toast.success("Journal entry reversed");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reverse journal entry");
     },
   });
 }
