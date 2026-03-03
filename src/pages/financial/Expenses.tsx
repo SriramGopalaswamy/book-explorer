@@ -28,6 +28,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
+import { useExpensesBulkUpload } from "@/hooks/useBulkUpload";
 
 interface Expense {
   id: string; category: string; amount: number; description: string | null;
