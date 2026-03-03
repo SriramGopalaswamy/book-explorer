@@ -657,7 +657,7 @@ function PendingCorrections() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || (pendingAction === "approved" && !!editCheckIn && !!editCheckOut && editCheckOut <= editCheckIn)}
               className={
                 pendingAction === "approved"
                   ? "bg-green-600 hover:bg-green-700 text-white"
