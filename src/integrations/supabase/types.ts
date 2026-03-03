@@ -6629,6 +6629,10 @@ export type Database = {
         Args: { _end_date: string; _org_id: string; _start_date: string }
         Returns: Json
       }
+      recalculate_attendance_internal: {
+        Args: { _end_date: string; _org_id: string; _start_date: string }
+        Returns: Json
+      }
       reconcile_subledgers: { Args: { _org_id: string }; Returns: Json }
       redeem_subscription_key: {
         Args: { _org_id: string; _passkey: string }
