@@ -52,7 +52,7 @@ import {
   exportProfTax,
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
-
+import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
@@ -82,6 +82,7 @@ export default function StatutoryFilings() {
   const [fy, setFy] = useState(FY_OPTIONS[0].value);
   const [quarter, setQuarter] = useState("1");
   const [month, setMonth] = useState("4");
+  const { data: payrollFlags } = usePayrollFlags();
 
   // Compute date ranges
   const fyRange = useMemo(() => getFinancialYearRange(fy), [fy]);
@@ -249,7 +250,7 @@ export default function StatutoryFilings() {
     { key: "pt_amount", header: "PT Amount", render: (r) => <span className="font-semibold">{formatCurrency(r.pt_amount)}</span>, className: "text-right", headerClassName: "text-right" },
   ];
 
-  const filingTypes = [
+  const allFilingTypes = [
     { id: "gstr1", label: "GSTR-1", icon: FileSpreadsheet, desc: "Outward Supplies", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "gstr3b", label: "GSTR-3B", icon: IndianRupee, desc: "Summary Return", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "tds24q", label: "TDS 24Q", icon: Users, desc: "Salary TDS", frequency: "Quarterly", portal: "incometax.gov.in" },
@@ -258,6 +259,14 @@ export default function StatutoryFilings() {
     { id: "esi", label: "ESI", icon: Shield, desc: "ESI Return", frequency: "Half-Yearly", portal: "esic.gov.in" },
     { id: "pt", label: "Prof Tax", icon: TrendingDown, desc: "Professional Tax", frequency: "Monthly", portal: "State Portal" },
   ];
+
+  // Filter tabs based on org payroll compliance flags
+  const filingTypes = allFilingTypes.filter((f) => {
+    if (f.id === "pf") return payrollFlags?.pf_applicable !== false;
+    if (f.id === "esi") return payrollFlags?.esi_applicable !== false;
+    if (f.id === "pt") return payrollFlags?.professional_tax_applicable !== false;
+    return true; // GST & TDS always shown
+  });
 
   const isGST = activeTab === "gstr1" || activeTab === "gstr3b";
   const isTDS = activeTab === "tds24q" || activeTab === "tds26q";
