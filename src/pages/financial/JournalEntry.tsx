@@ -53,6 +53,7 @@ export default function JournalEntry() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [detailEntry, setDetailEntry] = useState<any>(null);
+  const [reverseConfirmId, setReverseConfirmId] = useState<string | null>(null);
 
   const totalDebit = lines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
@@ -198,7 +199,7 @@ export default function JournalEntry() {
                         <TableCell className="text-right font-mono">{formatAmount(total)}</TableCell>
                         <TableCell>
                           {entry.status === "posted" && !entry.is_reversal && (
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); reverseJournal.mutate(entry.id); }}>
+                            <Button variant="ghost" size="sm" title="Reverse Entry" onClick={(e) => { e.stopPropagation(); setReverseConfirmId(entry.id); }} disabled={reverseJournal.isPending}>
                               <RotateCcw className="h-4 w-4" />
                             </Button>
                           )}
@@ -261,7 +262,37 @@ export default function JournalEntry() {
           </DialogContent>
         </Dialog>
 
-        {/* New Journal Entry Dialog */}
+        {/* Reverse Confirmation Dialog */}
+        <Dialog open={!!reverseConfirmId} onOpenChange={() => setReverseConfirmId(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Confirm Reversal
+              </DialogTitle>
+              <DialogDescription>
+                This will create a new reversal journal entry that negates all debits and credits. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReverseConfirmId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                disabled={reverseJournal.isPending}
+                onClick={() => {
+                  if (reverseConfirmId) {
+                    reverseJournal.mutate(reverseConfirmId, {
+                      onSuccess: () => setReverseConfirmId(null),
+                    });
+                  }
+                }}
+              >
+                {reverseJournal.isPending ? "Reversing…" : "Reverse Entry"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
