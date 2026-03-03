@@ -93,8 +93,8 @@ export function PayrollAnalyticsDashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.monthlyCostTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tickFormatter={periodLabel} className="text-xs" />
-                  <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} className="text-xs" />
+                  <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Legend />
                   <Bar dataKey="gross" fill="hsl(var(--primary))" name="Gross" radius={[4, 4, 0, 0]} />
@@ -149,8 +149,8 @@ export function PayrollAnalyticsDashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={data.tdsCollectedTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tickFormatter={periodLabel} className="text-xs" />
-                  <YAxis tickFormatter={formatK} className="text-xs" />
+                  <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Line type="monotone" dataKey="tds" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
@@ -171,8 +171,8 @@ export function PayrollAnalyticsDashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.pfContributionTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tickFormatter={periodLabel} className="text-xs" />
-                  <YAxis tickFormatter={formatK} className="text-xs" />
+                  <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Legend />
                   <Bar dataKey="employee_pf" fill="hsl(var(--primary))" name="Employee PF" radius={[4, 4, 0, 0]} />
@@ -195,9 +195,9 @@ export function PayrollAnalyticsDashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.lwpImpact}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tickFormatter={periodLabel} className="text-xs" />
-                  <YAxis yAxisId="days" orientation="left" />
-                  <YAxis yAxisId="amount" orientation="right" tickFormatter={formatK} />
+                  <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="days" orientation="left" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis yAxisId="amount" orientation="right" tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip />
                   <Legend />
                   <Bar yAxisId="days" dataKey="lwp_days" fill="hsl(38 92% 50%)" name="LWP Days" radius={[4, 4, 0, 0]} />
@@ -220,8 +220,8 @@ export function PayrollAnalyticsDashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.averageSalaryByRole} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis type="number" tickFormatter={formatK} />
-                  <YAxis type="category" dataKey="role" width={100} className="text-xs" />
+                  <XAxis type="number" tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
+                  <YAxis type="category" dataKey="role" width={100} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="avg_salary" fill="hsl(var(--primary))" name="Avg Salary" radius={[0, 4, 4, 0]} />
                 </BarChart>
