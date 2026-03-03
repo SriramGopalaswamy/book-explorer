@@ -24,6 +24,7 @@ import {
   type CompensationComponent,
   type CompensationStructure,
 } from "@/hooks/useCompensation";
+import { useMasterCTCComponents } from "@/hooks/useMasterCTCComponents";
 
 const formatCurrency = (v: number) =>
   `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -41,6 +42,7 @@ interface Props {
 
 export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
   const { data: history = [], isLoading } = useCompensationHistory(profileId);
+  const { data: masterTemplates = [] } = useMasterCTCComponents();
   const createRevision = useCreateCompensationRevision();
   const [showForm, setShowForm] = useState(false);
 
@@ -141,6 +143,7 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
         profileId={profileId}
         employeeName={employeeName}
         latestComponents={activeStructure?.compensation_components ?? null}
+        masterTemplates={masterTemplates}
         onSubmit={createRevision}
       />
     </div>
@@ -216,6 +219,7 @@ function RevisionFormDialog({
   profileId,
   employeeName,
   latestComponents,
+  masterTemplates,
   onSubmit,
 }: {
   open: boolean;
@@ -223,6 +227,7 @@ function RevisionFormDialog({
   profileId: string;
   employeeName?: string;
   latestComponents: CompensationComponent[] | null;
+  masterTemplates: import("@/hooks/useMasterCTCComponents").MasterCTCComponent[];
   onSubmit: ReturnType<typeof useCreateCompensationRevision>;
 }) {
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
@@ -233,6 +238,7 @@ function RevisionFormDialog({
   // Initialize components when dialog opens
   const initComponents = () => {
     if (latestComponents && latestComponents.length > 0) {
+      // Carry forward from previous revision
       setComponents(
         [...latestComponents]
           .sort((a, b) => a.display_order - b.display_order)
@@ -244,6 +250,19 @@ function RevisionFormDialog({
             is_taxable: c.is_taxable,
             display_order: c.display_order,
           }))
+      );
+    } else if (masterTemplates.length > 0) {
+      // Auto-populate from org master CTC templates
+      const activeTemplates = masterTemplates.filter((t) => t.is_active);
+      setComponents(
+        activeTemplates.map((t) => ({
+          component_name: t.component_name,
+          component_type: t.component_type as "earning" | "deduction",
+          annual_amount: 0,
+          percentage_of_basic: t.default_percentage_of_basic,
+          is_taxable: t.is_taxable,
+          display_order: t.display_order,
+        }))
       );
     } else {
       setComponents([...DEFAULT_COMPONENTS]);
