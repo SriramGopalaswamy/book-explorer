@@ -214,7 +214,7 @@ export function useWeeklyAttendanceStats() {
 
         return {
           day: dayNames[idx],
-          present: dayRecords.filter((r) => r.status === "present" || r.status === "half_day").length,
+          present: dayRecords.filter((r) => r.status === "present" || r.status === "half_day" || r.status === "late").length,
           absent: dayRecords.filter((r) => r.status === "absent").length,
           late: dayRecords.filter((r) => r.status === "late").length,
           leave: leaveCount,
