@@ -391,11 +391,29 @@ function PendingCorrections() {
       if (pendingAction === "approved") {
         const correctionNote = `Correction approved by manager${notes ? ': ' + notes : ''}`;
 
+        // Convert HH:mm time strings to full ISO timestamps using the correction date
+        const toISO = (timeStr: string | null, dateStr: string): string | null => {
+          if (!timeStr) return null;
+          // timeStr is "HH:mm" from the time input
+          return `${dateStr}T${timeStr.length === 5 ? timeStr + ':00' : timeStr}`;
+        };
+
+        const isoCheckIn = toISO(finalCheckIn, selected.date);
+        const isoCheckOut = toISO(finalCheckOut, selected.date);
+
         // 1. Update/insert attendance_records (legacy table)
         const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
-        if (finalCheckIn) updateFields.check_in = finalCheckIn;
-        if (finalCheckOut) updateFields.check_out = finalCheckOut;
+        if (isoCheckIn) updateFields.check_in = isoCheckIn;
+        if (isoCheckOut) updateFields.check_out = isoCheckOut;
         updateFields.notes = correctionNote;
+        // Determine status based on times
+        if (isoCheckIn && isoCheckOut) {
+          const diffMs = new Date(isoCheckOut).getTime() - new Date(isoCheckIn).getTime();
+          const hours = diffMs / 3600000;
+          updateFields.status = hours >= 8 ? "present" : hours >= 4 ? "half_day" : "absent";
+        } else {
+          updateFields.status = "present";
+        }
 
         const { data: existingRecord } = await supabase
           .from("attendance_records")
@@ -416,9 +434,9 @@ function PendingCorrections() {
               user_id: selected.user_id,
               profile_id: selected.profile_id,
               date: selected.date,
-              check_in: finalCheckIn,
-              check_out: finalCheckOut,
-              status: "present",
+              check_in: isoCheckIn,
+              check_out: isoCheckOut,
+              status: updateFields.status || "present",
               notes: correctionNote,
             });
         }
@@ -457,10 +475,15 @@ function PendingCorrections() {
           }
         }
 
+        // Invalidate all attendance-related queries (admin + employee views)
         queryClient.invalidateQueries({ queryKey: ["attendance"] });
         queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
         queryClient.invalidateQueries({ queryKey: ["attendance-daily"] });
         queryClient.invalidateQueries({ queryKey: ["my-attendance"] });
+        queryClient.invalidateQueries({ queryKey: ["my-attendance-today"] });
+        queryClient.invalidateQueries({ queryKey: ["my-attendance-history"] });
+        queryClient.invalidateQueries({ queryKey: ["weekly-attendance-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["my-correction-requests"] });
       }
 
       toast.success(`Correction request ${pendingAction}.`);
