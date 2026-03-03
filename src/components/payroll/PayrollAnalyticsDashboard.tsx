@@ -24,7 +24,25 @@ const COLORS = [
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[parseInt(m) - 1]}`;
+  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
+};
+
+const tooltipStyle = {
+  contentStyle: {
+    backgroundColor: "hsl(var(--card))",
+    borderColor: "hsl(var(--border))",
+    borderRadius: "8px",
+    color: "hsl(var(--foreground))",
+    fontSize: "13px",
+  },
+  labelStyle: {
+    color: "hsl(var(--foreground))",
+    fontWeight: 600,
+    marginBottom: "4px",
+  },
+  itemStyle: {
+    color: "hsl(var(--foreground))",
+  },
 };
 
 export function PayrollAnalyticsDashboard() {
@@ -95,7 +113,7 @@ export function PayrollAnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Legend />
                   <Bar dataKey="gross" fill="hsl(var(--primary))" name="Gross" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="deductions" fill="hsl(var(--destructive))" name="Deductions" radius={[4, 4, 0, 0]} />
@@ -130,7 +148,7 @@ export function PayrollAnalyticsDashboard() {
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -151,7 +169,7 @@ export function PayrollAnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Line type="monotone" dataKey="tds" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -173,7 +191,7 @@ export function PayrollAnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Legend />
                   <Bar dataKey="employee_pf" fill="hsl(var(--primary))" name="Employee PF" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="employer_pf" fill="hsl(262 83% 58%)" name="Employer PF" radius={[4, 4, 0, 0]} />
@@ -198,7 +216,7 @@ export function PayrollAnalyticsDashboard() {
                   <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis yAxisId="days" orientation="left" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis yAxisId="amount" orientation="right" tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
-                  <Tooltip />
+                  <Tooltip {...tooltipStyle} />
                   <Legend />
                   <Bar yAxisId="days" dataKey="lwp_days" fill="hsl(38 92% 50%)" name="LWP Days" radius={[4, 4, 0, 0]} />
                   <Bar yAxisId="amount" dataKey="lwp_deduction" fill="hsl(var(--destructive))" name="LWP Deduction" radius={[4, 4, 0, 0]} />
@@ -222,7 +240,7 @@ export function PayrollAnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis type="number" tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis type="category" dataKey="role" width={100} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Bar dataKey="avg_salary" fill="hsl(var(--primary))" name="Avg Salary" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
