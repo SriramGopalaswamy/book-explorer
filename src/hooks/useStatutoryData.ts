@@ -145,12 +145,13 @@ export function getMonthRange(fy: string, monthIdx: number): { from: string; to:
   return { from: `${year}-${month}-01`, to: `${year}-${month}-${lastDay}` };
 }
 
-// ── GSTR-1 data from invoices + invoice_items ──
+// ── GSTR-1 data from invoices + invoice_items + credit notes ──
 export function useGSTR1Data(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["gstr1", from, to],
     queryFn: async () => {
+      // Fetch invoices
       const { data, error } = await supabase
         .from("invoices")
         .select("*, invoice_items(*)")
@@ -160,7 +161,17 @@ export function useGSTR1Data(from: string, to: string) {
         .order("created_at", { ascending: true });
       if (error) throw error;
 
+      // Fetch issued/applied credit notes for the period
+      const { data: creditNotes } = await supabase
+        .from("credit_notes")
+        .select("*, invoices!invoice_id(invoice_number, customer_gstin, place_of_supply)")
+        .gte("issue_date", from)
+        .lte("issue_date", to + "T23:59:59")
+        .in("status", ["issued", "applied"]);
+
       const rows: GSTR1Row[] = [];
+
+      // Invoice line items
       for (const inv of data || []) {
         const items = (inv as any).invoice_items || [];
         for (const item of items) {
@@ -187,6 +198,34 @@ export function useGSTR1Data(from: string, to: string) {
           });
         }
       }
+
+      // Credit notes as negative entries (reduce outward supplies)
+      for (const cn of creditNotes || []) {
+        const linkedInv = (cn as any).invoices;
+        const cnAmount = Number(cn.amount);
+        rows.push({
+          id: `cn-${cn.id}`,
+          invoice_number: `${cn.credit_note_number} (CN)`,
+          invoice_date: cn.issue_date,
+          customer_name: cn.client_name,
+          customer_gstin: linkedInv?.customer_gstin || "",
+          place_of_supply: linkedInv?.place_of_supply || "",
+          hsn_sac: "",
+          description: cn.reason || "Credit Note",
+          quantity: 1,
+          rate: -cnAmount,
+          taxable_value: -cnAmount,
+          cgst_rate: 0,
+          cgst_amount: 0,
+          sgst_rate: 0,
+          sgst_amount: 0,
+          igst_rate: 0,
+          igst_amount: 0,
+          total_amount: -cnAmount,
+          invoice_type: (linkedInv?.customer_gstin) ? "B2B" : "B2C",
+        });
+      }
+
       return rows;
     },
     enabled: !!user && !!from && !!to,
