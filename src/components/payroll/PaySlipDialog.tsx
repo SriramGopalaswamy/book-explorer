@@ -6,6 +6,30 @@ import { Download, Printer } from "lucide-react";
 import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 import grx10Logo from "@/assets/grx10-logo.webp";
+import { useState, useEffect, useCallback } from "react";
+
+/** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
+function useLogoDataUrl(src: string) {
+  const [dataUrl, setDataUrl] = useState<string>("");
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          setDataUrl(canvas.toDataURL("image/png"));
+        }
+      } catch { /* CORS fallback: leave empty */ }
+    };
+    img.src = src;
+  }, [src]);
+  return dataUrl;
+}
 
 const fmt = (value: number) => {
   if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
