@@ -98,12 +98,13 @@ export function useAttendanceStats(date?: string) {
       const leaveProfileIds = new Set<string>();
 
       data.forEach((record) => {
-        if (record.status === "present" || record.status === "half_day") {
+        if (record.status === "present" || record.status === "half_day" || record.status === "late") {
           stats.present++;
+          if (record.status === "late") {
+            stats.late++;
+          }
         } else if (record.status === "absent") {
           stats.absent++;
-        } else if (record.status === "late") {
-          stats.late++;
         } else if (record.status === "leave") {
           stats.leave++;
           if (record.profile_id) leaveProfileIds.add(record.profile_id);
