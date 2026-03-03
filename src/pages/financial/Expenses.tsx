@@ -239,7 +239,7 @@ export default function Expenses() {
             <TableHead>Date</TableHead>
             <TableHead>Receipt</TableHead>
             <TableHead>Status</TableHead>
-            {isFinanceOrAdmin && <TableHead className="w-12"></TableHead>}
+            <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
