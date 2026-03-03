@@ -1892,7 +1892,10 @@ function PendingReimbursements() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Attached Document</p>
                   {reviewItem.file_type?.startsWith("image/") ? (
-                    <img src={previewUrl} alt="Receipt" className="rounded-lg max-h-48 object-contain border border-border" />
+                    <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="cursor-pointer block">
+                      <img src={previewUrl} alt="Receipt" className="rounded-lg max-h-48 object-contain border border-border hover:opacity-80 transition-opacity" />
+                      <span className="text-xs text-primary mt-1 inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Click to view full size</span>
+                    </a>
                   ) : (
                     <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
                       <ExternalLink className="h-4 w-4" /> Open PDF in new tab
@@ -2068,7 +2071,10 @@ function PendingExpenses() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Receipt / Bill</p>
                   {previewUrl.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
-                    <img src={previewUrl} alt="Receipt" className="rounded-lg max-h-48 object-contain border border-border" />
+                    <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="cursor-pointer block">
+                      <img src={previewUrl} alt="Receipt" className="rounded-lg max-h-48 object-contain border border-border hover:opacity-80 transition-opacity" />
+                      <span className="text-xs text-primary mt-1 inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Click to view full size</span>
+                    </a>
                   ) : (
                     <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
                       <ExternalLink className="h-4 w-4" /> Open document in new tab
