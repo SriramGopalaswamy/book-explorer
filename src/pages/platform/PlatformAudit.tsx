@@ -1,4 +1,4 @@
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { usePlatformAdminLogs } from "@/hooks/useSuperAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ export default function PlatformAudit() {
   const { data: logs, isLoading } = usePlatformAdminLogs();
 
   return (
-    <PlatformLayout title="Audit Console" subtitle="All superadmin actions are logged here">
+    <MainLayout title="Audit Console" subtitle="All superadmin actions are logged here">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -83,6 +83,6 @@ export default function PlatformAudit() {
           )}
         </CardContent>
       </Card>
-    </PlatformLayout>
+    </MainLayout>
   );
 }

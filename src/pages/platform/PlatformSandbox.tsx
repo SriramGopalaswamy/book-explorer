@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { supabase } from "@/integrations/supabase/client";
@@ -218,7 +218,7 @@ export default function PlatformSandbox() {
   };
 
   return (
-    <PlatformLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
+    <MainLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
       {/* Active Impersonation Banner */}
       {activeImpersonation && (
         <Card className="mb-6 border-amber-500/50 bg-amber-500/5">
@@ -425,6 +425,6 @@ export default function PlatformSandbox() {
           )}
         </div>
       </div>
-    </PlatformLayout>
+    </MainLayout>
   );
 }
