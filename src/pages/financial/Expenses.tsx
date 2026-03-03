@@ -339,6 +339,61 @@ export default function Expenses() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Category <span className="text-destructive">*</span></Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {["Travel", "Food & Meals", "Office Supplies", "Software", "Equipment", "Communication", "Transport", "Accommodation", "Training", "Medical", "Miscellaneous"].map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Amount (₹) <span className="text-destructive">*</span></Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={newAmount} onChange={e => setNewAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Date <span className="text-destructive">*</span></Label>
+                <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input placeholder="Brief description of expense" value={newDescription} onChange={e => setNewDescription(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Receipt / Bill <span className="text-destructive">*</span></Label>
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => setReceiptFile(e.target.files?.[0] || null)} />
+              <Button type="button" variant="outline" className="w-full gap-2 justify-start" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                {receiptFile ? receiptFile.name : "Upload receipt (image or PDF)"}
+              </Button>
+              {!receiptFile && <p className="text-xs text-muted-foreground">Mandatory: attach a receipt or bill to submit this expense.</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea placeholder="Additional notes (optional)" value={newNotes} onChange={e => setNewNotes(e.target.value)} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={() => createExpenseMutation.mutate()} disabled={createExpenseMutation.isPending || !newCategory || !newAmount || !receiptFile}>
+              {createExpenseMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Submit Expense
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
