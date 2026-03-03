@@ -68,15 +68,23 @@ export default function Attendance() {
 
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return "-";
-    return format(new Date(timestamp), "hh:mm a");
+    const d = new Date(timestamp);
+    // Display as stored (UTC) since bulk-uploaded times represent local clock times stored as UTC
+    const hours = d.getUTCHours();
+    const minutes = d.getUTCMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h12 = hours % 12 || 12;
+    return `${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`;
   };
 
   const calculateHours = (checkIn: string | null, checkOut: string | null) => {
     if (!checkIn) return "-";
     if (!checkOut) return "Working";
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    const diffMs = end.getTime() - start.getTime();
+    // Use UTC to stay consistent with stored times
+    const start = new Date(checkIn).getTime();
+    const end = new Date(checkOut).getTime();
+    const diffMs = end - start;
+    if (diffMs <= 0) return "-";
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     return `${hours}h ${minutes}m`;
