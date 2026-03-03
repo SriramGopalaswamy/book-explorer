@@ -52,6 +52,8 @@ interface PaySlipDialogProps {
 }
 
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
+  const logoDataUrl = useLogoDataUrl(grx10Logo);
+
   if (!record) return null;
 
   const lopDays = Number((record as any).lop_days) || 0;
@@ -84,6 +86,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
+  // Use embedded data URL so logo works in detached windows & iframes across all roles
+  const logoSrc = logoDataUrl || new URL(grx10Logo, window.location.origin).href;
+
   const buildHTML = () => `<!DOCTYPE html>
 <html>
 <head>
@@ -100,8 +105,11 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     .hdr-left .per { font-size: 13px; color: #6b7280; margin-top: 2px; }
     .status { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
     .s-processed { background: #dcfce7; color: #166534; }
+    .s-locked { background: #dcfce7; color: #166534; }
     .s-draft { background: #f3f4f6; color: #6b7280; }
     .s-pending { background: #fef9c3; color: #854d0e; }
+    .s-under_review { background: #fef9c3; color: #854d0e; }
+    .s-approved { background: #dbeafe; color: #1e40af; }
     .emp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; margin-bottom: 28px; padding: 18px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
     .emp-field label { display: block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; margin-bottom: 3px; }
     .emp-field span { font-size: 14px; font-weight: 500; color: #111827; }
@@ -129,7 +137,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 <body>
   <div class="hdr">
     <div class="hdr-left">
-      <img src="${new URL(grx10Logo, window.location.origin).href}" alt="GRX10 Logo" class="hdr-logo" />
+      <img src="${logoSrc}" alt="GRX10 Logo" class="hdr-logo" />
       <div>
       <div class="co">GRX10 Business Suite</div>
       <div class="doc">Pay Slip</div>
@@ -179,16 +187,16 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 </html>`;
 
   const openPrintWindow = () => {
+    const html = buildHTML();
     const win = window.open("", "_blank", "width=800,height=900");
     if (!win) return;
-    win.document.write(buildHTML());
+    win.document.write(html);
     win.document.close();
-    // Wait for content to render, then trigger print
-    win.onload = () => {
-      setTimeout(() => {
-        win.print();
-      }, 300);
-    };
+    // Use setTimeout instead of onload (more reliable after document.write)
+    setTimeout(() => {
+      win.focus();
+      win.print();
+    }, 500);
     // Auto-close popup after print dialog is dismissed
     win.onafterprint = () => win.close();
     // Fallback: poll for window closure to restore focus
