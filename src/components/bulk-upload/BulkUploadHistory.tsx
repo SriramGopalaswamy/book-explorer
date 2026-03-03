@@ -24,7 +24,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     queryFn: async () => {
       // Fetch from bulk_upload_history
       let query = supabase
-        .from("bulk_upload_history" as any)
+        .from("bulk_upload_history")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(20);
