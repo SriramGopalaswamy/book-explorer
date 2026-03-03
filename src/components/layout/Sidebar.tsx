@@ -95,7 +95,7 @@ const hrmsNav: NavItem[] = [
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, module: "hrms" },
   { name: "My Profile", path: "/profile", icon: User, module: "hrms" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
-  { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
+  { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "My Expenses", path: "/financial/expenses", icon: Wallet, module: "hrms" },
 ];
