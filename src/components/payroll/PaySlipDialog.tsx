@@ -79,7 +79,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   <title>Pay Slip — ${employeeName} — ${period}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 48px; max-width: 740px; margin: 0 auto; }
+    html, body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; width: 640px; max-width: 640px; margin: 0 auto; padding: 36px 32px; }
     .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px solid #e11d74; margin-bottom: 28px; }
     .hdr-left { display: flex; align-items: center; gap: 14px; }
     .hdr-logo { height: 44px; width: auto; }
