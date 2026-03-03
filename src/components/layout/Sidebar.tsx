@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   Inbox,
   Shield,
+  ShieldCheck,
   UserCheck,
   Truck,
   Quote,
@@ -42,6 +43,9 @@ import {
   Crown,
   IndianRupee,
   User,
+  PenLine,
+  BookMarked,
+  FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
