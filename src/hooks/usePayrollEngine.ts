@@ -147,7 +147,17 @@ export function useGeneratePayroll() {
       const periodStart = `${payPeriod}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const periodEnd = `${payPeriod}-${lastDay}`;
-      const workingDays = getWorkingDays(year, month);
+
+      // Fetch company holidays for this period to exclude from working days
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("date")
+        .eq("organization_id", orgId)
+        .gte("date", periodStart)
+        .lte("date", periodEnd);
+
+      const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
+      const workingDays = getWorkingDays(year, month, holidayDates);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
