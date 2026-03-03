@@ -89,9 +89,10 @@ export default function Onboarding() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [initialized, setInitialized] = useState(false);
 
-  // Merge remote data into local on first load
+  // Merge remote data into local on first load or when compliance changes and not yet initialized
   if (compliance && !initialized) {
-    setLocalData((prev) => ({ ...compliance, ...prev }));
+    // Remote-first merge: compliance values take priority on first load
+    setLocalData(compliance);
     setInitialized(true);
   }
 
