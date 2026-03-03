@@ -74,10 +74,10 @@ export default function Customers() {
       if (error) throw error;
 
       // Propagate updated GSTIN to all draft invoices for this customer
-      if (values.gstin !== undefined) {
+      if (values.tax_number !== undefined) {
         await supabase
           .from("invoices")
-          .update({ customer_gstin: values.gstin || null } as any)
+          .update({ customer_gstin: values.tax_number || null } as any)
           .eq("customer_id", id)
           .eq("status", "draft");
       }
