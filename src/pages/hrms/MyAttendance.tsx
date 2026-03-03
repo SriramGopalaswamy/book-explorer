@@ -424,6 +424,11 @@ export default function MyAttendance() {
                 <Input type="time" value={corrCheckOut} onChange={(e) => setCorrCheckOut(e.target.value)} />
               </div>
             </div>
+            {corrCheckIn && corrCheckOut && corrCheckOut <= corrCheckIn && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                ⚠️ Check-out must be after check-in. Use 24h format (e.g. 18:15 for 6:15 PM).
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label>Reason for Correction <span className="text-destructive">*</span></Label>
               <Textarea
@@ -438,7 +443,7 @@ export default function MyAttendance() {
             <Button variant="outline" onClick={() => setCorrectionOpen(false)}>Cancel</Button>
             <Button
               onClick={handleCorrectionSubmit}
-              disabled={!corrDate || !corrReason || submitCorrection.isPending}
+              disabled={!corrDate || !corrReason || submitCorrection.isPending || (!!corrCheckIn && !!corrCheckOut && corrCheckOut <= corrCheckIn)}
             >
               {submitCorrection.isPending ? "Submitting…" : "Submit Correction"}
             </Button>
