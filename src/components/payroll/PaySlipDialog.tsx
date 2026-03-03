@@ -198,7 +198,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     container.style.position = "fixed";
     container.style.left = "-10000px";
     container.style.top = "0";
-    container.style.width = "800px";
+    container.style.width = "640px";
     container.style.background = "#ffffff";
     container.style.zIndex = "-1";
     document.body.appendChild(container);
