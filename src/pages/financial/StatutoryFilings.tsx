@@ -551,23 +551,48 @@ export default function StatutoryFilings() {
   );
 }
 
-function FilingHeader({ title, desc, portal, portalUrl }: { title: string; desc: string; portal: string; portalUrl?: string }) {
+function FilingHeader({ title, desc, portal, portalUrl, filingId }: { title: string; desc: string; portal: string; portalUrl?: string; filingId: string }) {
+  const dueInfo = getFilingDueDate(filingId);
+  const rule = STATUTORY_DUE_RULES[filingId];
+  
   return (
-    <div className="flex items-start justify-between">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        <p className="text-sm text-muted-foreground">{desc}</p>
-      </div>
-      {portalUrl ? (
-        <a href={portalUrl} target="_blank" rel="noopener noreferrer">
-          <Badge variant="outline" className="gap-1 text-xs cursor-pointer hover:bg-accent">
+    <div className="space-y-3">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <p className="text-sm text-muted-foreground">{desc}</p>
+        </div>
+        {portalUrl ? (
+          <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+            <Badge variant="outline" className="gap-1 text-xs cursor-pointer hover:bg-accent">
+              <AlertCircle className="h-3 w-3" /> Upload to {portal}
+            </Badge>
+          </a>
+        ) : (
+          <Badge variant="outline" className="gap-1 text-xs">
             <AlertCircle className="h-3 w-3" /> Upload to {portal}
           </Badge>
-        </a>
-      ) : (
-        <Badge variant="outline" className="gap-1 text-xs">
-          <AlertCircle className="h-3 w-3" /> Upload to {portal}
-        </Badge>
+        )}
+      </div>
+      {dueInfo && rule && (
+        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border ${URGENCY_STYLES[dueInfo.urgency].bg} ${URGENCY_STYLES[dueInfo.urgency].border}`}>
+          {(() => { const UrgIcon = URGENCY_STYLES[dueInfo.urgency].icon; return <UrgIcon className={`h-4 w-4 shrink-0 ${URGENCY_STYLES[dueInfo.urgency].text}`} />; })()}
+          <div className="flex-1 min-w-0">
+            <span className={`text-sm font-semibold ${URGENCY_STYLES[dueInfo.urgency].text}`}>
+              {dueInfo.daysRemaining < 0
+                ? `Overdue by ${Math.abs(dueInfo.daysRemaining)} days`
+                : dueInfo.daysRemaining === 0
+                ? "Due today!"
+                : `${dueInfo.daysRemaining} days remaining`}
+            </span>
+            <span className="text-sm text-muted-foreground ml-2">
+              — {dueInfo.label}
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground shrink-0">
+            Typical deadline: {rule.description}
+          </span>
+        </div>
       )}
     </div>
   );
