@@ -24,6 +24,7 @@ import {
   type CompensationComponent,
   type CompensationStructure,
 } from "@/hooks/useCompensation";
+import { useMasterCTCComponents } from "@/hooks/useMasterCTCComponents";
 
 const formatCurrency = (v: number) =>
   `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
