@@ -24,7 +24,25 @@ const COLORS = [
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[parseInt(m) - 1]}`;
+  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
+};
+
+const tooltipStyle = {
+  contentStyle: {
+    backgroundColor: "hsl(var(--card))",
+    borderColor: "hsl(var(--border))",
+    borderRadius: "8px",
+    color: "hsl(var(--foreground))",
+    fontSize: "13px",
+  },
+  labelStyle: {
+    color: "hsl(var(--foreground))",
+    fontWeight: 600,
+    marginBottom: "4px",
+  },
+  itemStyle: {
+    color: "hsl(var(--foreground))",
+  },
 };
 
 export function PayrollAnalyticsDashboard() {
