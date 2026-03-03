@@ -211,14 +211,16 @@ export default function Expenses() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
-                       {e.receipt_url && (
-                         <DropdownMenuItem onClick={async () => {
-                           const pathOnly = e.receipt_url!.includes("/bill-attachments/") ? e.receipt_url!.split("/bill-attachments/").pop()! : e.receipt_url!;
-                           const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
-                           if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                           else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
-                         }}><Paperclip className="h-4 w-4 mr-2" />View Receipt</DropdownMenuItem>
-                       )}
+                       <DropdownMenuItem onClick={async () => {
+                         if (!e.receipt_url) {
+                           toast({ title: "No Receipt", description: "No receipt was attached to this expense." });
+                           return;
+                         }
+                         const pathOnly = e.receipt_url.includes("/bill-attachments/") ? e.receipt_url.split("/bill-attachments/").pop()! : e.receipt_url;
+                         const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
+                         if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                         else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
+                       }}><Paperclip className="h-4 w-4 mr-2" />{e.receipt_url ? "View Receipt" : "No Receipt"}</DropdownMenuItem>
                        {e.status === "pending" && (
                          <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                        )}
