@@ -171,7 +171,7 @@ export default function MyPayslips() {
                           {activeRecords.map((r) => {
                             const slip = normalizePayslip(r);
                             const existingDispute = getDisputeForRecord(r.id);
-                            const canDispute = r.status === "processed" && isWithinDisputeWindow(r.pay_period) && !existingDispute;
+                            const canDispute = (r.status === "processed" || r.status === "approved" || r.status === "locked") && isWithinDisputeWindow(r.pay_period) && !existingDispute;
 
                             return (
                               <TableRow
