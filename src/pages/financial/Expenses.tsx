@@ -117,7 +117,64 @@ export default function Expenses() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // KPI calculations
+  const createExpenseMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!newCategory) throw new Error("Category is required");
+      if (!newAmount || Number(newAmount) <= 0) throw new Error("Valid amount is required");
+      if (!receiptFile) throw new Error("Receipt/bill upload is mandatory");
+
+      // Get profile_id
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("user_id", user.id)
+        .single();
+      if (!profile) throw new Error("Profile not found");
+
+      // Upload receipt
+      let receiptUrl: string | null = null;
+      const ext = receiptFile.name.split(".").pop() || "pdf";
+      const filePath = `${profile.organization_id}/${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("bill-attachments")
+        .upload(filePath, receiptFile);
+      if (uploadError) throw new Error(`Receipt upload failed: ${uploadError.message}`);
+      receiptUrl = filePath;
+
+      const { error } = await supabase.from("expenses").insert({
+        user_id: user.id,
+        profile_id: profile.id,
+        organization_id: profile.organization_id,
+        category: newCategory,
+        amount: Number(newAmount),
+        description: newDescription || null,
+        expense_date: newDate,
+        receipt_url: receiptUrl,
+        notes: newNotes || null,
+        status: "pending",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-my"] });
+      toast({ title: "Expense Created", description: "Your expense has been submitted for approval." });
+      setCreateOpen(false);
+      resetForm();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const resetForm = () => {
+    setNewCategory("");
+    setNewAmount("");
+    setNewDescription("");
+    setNewDate(new Date().toISOString().split("T")[0]);
+    setNewNotes("");
+    setReceiptFile(null);
+  };
+
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const pendingAmount = expenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
   const approvedAmount = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
