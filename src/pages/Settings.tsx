@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
-  Cloud, CheckCircle2, Loader2, Save,
+  Cloud, CheckCircle2, Loader2, Save, History,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -775,8 +775,6 @@ function UserManagementSection() {
           </div>
         </CardContent>
       </Card>
-
-      <BulkUploadHistory module="users" />
     </div>
   );
 }
@@ -866,6 +864,10 @@ export default function Settings() {
               <Users className="h-4 w-4" />
               Users
             </TabsTrigger>
+            <TabsTrigger value="upload-history" className="gap-1.5">
+              <History className="h-4 w-4" />
+              Upload History
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-6">
@@ -886,6 +888,23 @@ export default function Settings() {
 
           <TabsContent value="users" className="mt-6">
             <UserManagementSection />
+          </TabsContent>
+
+          <TabsContent value="upload-history" className="mt-6">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Upload History
+                  </CardTitle>
+                  <CardDescription>
+                    Track all bulk upload activity across modules — users, roles, attendance, payroll, and more.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+              <BulkUploadHistory />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
