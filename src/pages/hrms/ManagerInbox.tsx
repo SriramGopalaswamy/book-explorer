@@ -274,63 +274,79 @@ function PendingLeaves() {
     );
   }
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   return (
     <div className="space-y-3">
-      {leaves.map((leave, i) => (
-        <motion.div
-          key={leave.id}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05 }}
-        >
-          <Card className="border-border/50 bg-card/60">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium text-sm">
-                      {getEmployeeName(leave.profile_id, reports)}
-                    </span>
-                    <StatusBadge status={leave.status} />
+      {leaves.map((leave, i) => {
+        const toDate = leave.to_date ? new Date(leave.to_date) : null;
+        const isExpired = toDate ? toDate < today : false;
+
+        return (
+          <motion.div
+            key={leave.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+          >
+            <Card className={`border-border/50 ${isExpired ? 'bg-muted/40 opacity-70' : 'bg-card/60'}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium text-sm">
+                        {getEmployeeName(leave.profile_id, reports)}
+                      </span>
+                      <StatusBadge status={leave.status} />
+                      {isExpired && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-500/40 text-yellow-400">
+                          Expired
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {leave.from_date} → {leave.to_date}
+                        <span className="text-xs">({leave.days}d)</span>
+                      </span>
+                      <span className="capitalize">{leave.leave_type.replace(/_/g, " ")} leave</span>
+                    </div>
+                    {leave.reason && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">"{leave.reason}"</p>
+                    )}
+                    {isExpired && (
+                      <p className="text-xs text-yellow-400 mt-2">Leave date has passed — action no longer available.</p>
+                    )}
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                    <span className="flex items-center gap-1">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {leave.from_date} → {leave.to_date}
-                      <span className="text-xs">({leave.days}d)</span>
-                    </span>
-                    <span className="capitalize">{leave.leave_type.replace(/_/g, " ")} leave</span>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:border-green-500/60"
+                      onClick={() => handleAction(leave.id, "approved")}
+                      disabled={leaveApproval.isPending || isExpired}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60"
+                      onClick={() => handleAction(leave.id, "rejected")}
+                      disabled={leaveApproval.isPending || isExpired}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Reject
+                    </Button>
                   </div>
-                  {leave.reason && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">"{leave.reason}"</p>
-                  )}
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:border-green-500/60"
-                    onClick={() => handleAction(leave.id, "approved")}
-                    disabled={leaveApproval.isPending}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-1" /> Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60"
-                    onClick={() => handleAction(leave.id, "rejected")}
-                    disabled={leaveApproval.isPending}
-                  >
-                    <X className="h-3.5 w-3.5 mr-1" /> Reject
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ))}
+              </CardContent>
+            </Card>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
