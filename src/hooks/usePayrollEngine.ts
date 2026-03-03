@@ -224,6 +224,66 @@ export function useGeneratePayroll() {
             }
           });
 
+        // ── Statutory deductions based on org payroll flags ──
+        // Find basic salary component for PF wage base
+        const basicComponent = earningsBreakdown.find(
+          (e: any) => e.name.toLowerCase().includes("basic")
+        );
+        const basicMonthly = basicComponent?.monthly || 0;
+
+        let pfEmployee = 0;
+        let pfEmployer = 0;
+        let esiEmployee = 0;
+        let esiEmployer = 0;
+        let ptAmount = 0;
+
+        // PF: 12% employee + 12% employer on basic (capped at ₹15,000 wage ceiling)
+        if (f.pf_applicable && basicMonthly > 0) {
+          const pfWage = Math.min(basicMonthly, 15000);
+          pfEmployee = Math.round(pfWage * 0.12);
+          pfEmployer = Math.round(pfWage * 0.12);
+          deductionsBreakdown.push({
+            name: "PF (Employee 12%)",
+            annual: pfEmployee * 12,
+            monthly: pfEmployee,
+            is_taxable: false,
+            statutory: true,
+          });
+          totalDeductions += pfEmployee;
+        }
+
+        // ESI: 0.75% employee + 3.25% employer (only if gross ≤ ₹21,000)
+        if (f.esi_applicable && grossEarnings <= 21000) {
+          esiEmployee = Math.round(grossEarnings * 0.0075);
+          esiEmployer = Math.round(grossEarnings * 0.0325);
+          deductionsBreakdown.push({
+            name: "ESI (Employee 0.75%)",
+            annual: esiEmployee * 12,
+            monthly: esiEmployee,
+            is_taxable: false,
+            statutory: true,
+          });
+          totalDeductions += esiEmployee;
+        }
+
+        // Professional Tax: Karnataka slab (common)
+        if (f.professional_tax_applicable && grossEarnings > 0) {
+          if (grossEarnings > 15000) ptAmount = 200;
+          else if (grossEarnings > 10000) ptAmount = 150;
+          else ptAmount = 0;
+
+          if (ptAmount > 0) {
+            deductionsBreakdown.push({
+              name: "Professional Tax",
+              annual: ptAmount * 12,
+              monthly: ptAmount,
+              is_taxable: false,
+              statutory: true,
+            });
+            totalDeductions += ptAmount;
+          }
+        }
+
         const lwpDeduction = lwpDays > 0 ? Math.round((grossEarnings / paidDays) * lwpDays * (paidDays < workingDays ? 0 : 1)) : 0;
 
         return {
@@ -241,6 +301,10 @@ export function useGeneratePayroll() {
           paid_days: paidDays,
           earnings_breakdown: earningsBreakdown,
           deductions_breakdown: deductionsBreakdown,
+          pf_employee: pfEmployee,
+          pf_employer: pfEmployer,
+          esi_employee: esiEmployee,
+          esi_employer: esiEmployer,
           status: "computed",
         };
       });
