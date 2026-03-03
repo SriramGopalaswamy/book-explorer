@@ -209,43 +209,50 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   };
 
   const handleDownload = async () => {
-    // Use an isolated hidden iframe to avoid dialog overlay / layout interference
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.left = "-10000px";
-    iframe.style.top = "0";
-    iframe.style.width = "800px";
-    iframe.style.height = "1200px";
-    iframe.style.border = "none";
-    iframe.style.opacity = "0";
-    iframe.style.pointerEvents = "none";
-    document.body.appendChild(iframe);
+    // Create a temporary container outside the Radix Dialog overlay so html2pdf
+    // captures exactly the same layout the user sees in the print preview.
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-10000px";
+    container.style.top = "0";
+    container.style.width = "800px";
+    container.style.background = "#ffffff";
+    container.style.zIndex = "-1";
+    document.body.appendChild(container);
+
+    // Create a shadow root to fully isolate styles from the main app
+    const shadow = container.attachShadow({ mode: "open" });
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = buildHTML();
+
+    // Extract <style> from the generated HTML and apply it inside shadow DOM
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(buildHTML(), "text/html");
+    const style = parsed.querySelector("style");
+    if (style) shadow.appendChild(style.cloneNode(true));
+
+    // Copy <body> content into shadow root
+    const bodyContent = document.createElement("div");
+    bodyContent.innerHTML = parsed.body.innerHTML;
+    shadow.appendChild(bodyContent);
 
     try {
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error("Cannot access iframe document");
-
-      // Write full HTML into the iframe — completely isolated from main page
-      iframeDoc.open();
-      iframeDoc.write(buildHTML());
-      iframeDoc.close();
-
-      // Wait for content (including logo image) to render
+      // Wait for any images (logo) to load
       await new Promise<void>((resolve) => {
-        const img = iframeDoc.querySelector("img");
+        const img = shadow.querySelector("img") as HTMLImageElement | null;
         if (img && !img.complete) {
           img.onload = () => resolve();
           img.onerror = () => resolve();
-          setTimeout(resolve, 2000); // fallback timeout
+          setTimeout(resolve, 2000);
         } else {
-          setTimeout(resolve, 300);
+          setTimeout(resolve, 400);
         }
       });
 
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
-          margin: 0,
+          margin: [10, 0, 10, 0],
           filename: `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: {
@@ -258,14 +265,14 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
-        .from(iframeDoc.body)
+        .from(bodyContent)
         .save();
     } catch (err) {
       console.error("PDF generation failed, falling back to print:", err);
       openPrintWindow();
     } finally {
-      if (iframe.parentNode) {
-        document.body.removeChild(iframe);
+      if (container.parentNode) {
+        document.body.removeChild(container);
       }
     }
   };
