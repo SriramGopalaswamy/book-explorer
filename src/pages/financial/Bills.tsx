@@ -467,12 +467,15 @@ export default function Bills() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("bills").update({ status }).eq("id", id);
+      const { data, error } = await supabase.from("bills").update({ status }).eq("id", id).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Permission denied. Only Finance or Admin users can update bill status.");
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
-      toast.success("Status updated");
+      toast.success(`Bill ${variables.status === "approved" ? "approved" : variables.status === "paid" ? "marked as paid" : "status updated"} successfully`);
       if (["approved", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {
           body: { type: "bill_status_changed", payload: { bill_id: variables.id, new_status: variables.status } },
