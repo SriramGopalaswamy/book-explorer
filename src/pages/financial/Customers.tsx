@@ -72,6 +72,15 @@ export default function Customers() {
     mutationFn: async ({ id, values }: { id: string; values: typeof emptyForm }) => {
       const { error } = await supabase.from("customers").update(values).eq("id", id);
       if (error) throw error;
+
+      // Propagate updated GSTIN to all draft invoices for this customer
+      if (values.gstin !== undefined) {
+        await supabase
+          .from("invoices")
+          .update({ customer_gstin: values.gstin || null } as any)
+          .eq("customer_id", id)
+          .eq("status", "draft");
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["invoices"] }); queryClient.invalidateQueries({ queryKey: ["quotes"] }); queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Customer Updated" }); setEditingCustomer(null); setForm(emptyForm); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
