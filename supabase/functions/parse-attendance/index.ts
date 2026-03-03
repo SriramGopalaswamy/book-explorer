@@ -1736,6 +1736,40 @@ Deno.serve(async (req) => {
       status: "completed",
     });
 
+    // ─── AUTO-AGGREGATE: Calculate attendance_daily from punches ──
+    // Determine date range from inserted punches
+    if (insertedCount > 0) {
+      const punchDates = result.punches
+        .filter(p => codeToProfileId.has(p.employee_code))
+        .map(p => p.punch_datetime.split("T")[0])
+        .filter(Boolean);
+      const uniqueDates = [...new Set(punchDates)].sort();
+      if (uniqueDates.length > 0) {
+        const startDate = uniqueDates[0];
+        const endDate = uniqueDates[uniqueDates.length - 1];
+        console.log(`[AGGREGATE] Auto-recalculating attendance_daily for ${startDate} to ${endDate}`);
+        try {
+          const { data: recalcResult, error: recalcError } = await adminClient.rpc(
+            "recalculate_attendance",
+            {
+              _org_id: organization_id,
+              _start_date: startDate,
+              _end_date: endDate,
+            }
+          );
+          if (recalcError) {
+            console.error(`[AGGREGATE] Recalculation RPC error:`, recalcError.message);
+            result.errors.push(`Auto-aggregation failed: ${recalcError.message}`);
+          } else {
+            console.log(`[AGGREGATE] Recalculation result:`, JSON.stringify(recalcResult));
+          }
+        } catch (recalcErr: any) {
+          console.error(`[AGGREGATE] Recalculation exception:`, recalcErr.message);
+          result.errors.push(`Auto-aggregation exception: ${recalcErr.message}`);
+        }
+      }
+    }
+
     // ─── RESPONSE ────────────────────────────────────────
     return new Response(
       JSON.stringify({
