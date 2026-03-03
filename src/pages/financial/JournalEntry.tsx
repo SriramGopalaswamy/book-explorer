@@ -53,6 +53,7 @@ export default function JournalEntry() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [detailEntry, setDetailEntry] = useState<any>(null);
+  const [reverseConfirmId, setReverseConfirmId] = useState<string | null>(null);
 
   const totalDebit = lines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
