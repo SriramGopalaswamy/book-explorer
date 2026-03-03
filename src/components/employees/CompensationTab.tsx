@@ -42,6 +42,7 @@ interface Props {
 
 export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
   const { data: history = [], isLoading } = useCompensationHistory(profileId);
+  const { data: masterTemplates = [] } = useMasterCTCComponents();
   const createRevision = useCreateCompensationRevision();
   const [showForm, setShowForm] = useState(false);
 
