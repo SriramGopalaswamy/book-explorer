@@ -1889,6 +1889,8 @@ export type Database = {
           organization_id: string
           status: string
           tax_amount: number
+          tds_rate: number | null
+          tds_section: string | null
           total_amount: number
           updated_at: string
           user_id: string
@@ -1908,6 +1910,8 @@ export type Database = {
           organization_id?: string
           status?: string
           tax_amount?: number
+          tds_rate?: number | null
+          tds_section?: string | null
           total_amount?: number
           updated_at?: string
           user_id: string
@@ -1927,6 +1931,8 @@ export type Database = {
           organization_id?: string
           status?: string
           tax_amount?: number
+          tds_rate?: number | null
+          tds_section?: string | null
           total_amount?: number
           updated_at?: string
           user_id?: string
