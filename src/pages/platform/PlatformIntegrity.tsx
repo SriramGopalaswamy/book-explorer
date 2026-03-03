@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +161,7 @@ export default function PlatformIntegrity() {
   const esConfig = result ? engineStatusConfig(result.engine_status) : null;
 
   return (
-    <PlatformLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
+    <MainLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
       {/* Status Cards */}
       <div className="grid gap-4 md:grid-cols-5 mb-6">
         <Card className="md:col-span-2">
@@ -389,6 +389,6 @@ export default function PlatformIntegrity() {
           </CardContent>
         </Card>
       )}
-    </PlatformLayout>
+    </MainLayout>
   );
 }

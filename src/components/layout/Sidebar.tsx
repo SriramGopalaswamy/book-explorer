@@ -46,6 +46,10 @@ import {
   PenLine,
   BookMarked,
   FileSpreadsheet,
+  Zap,
+  FlaskConical,
+  Activity,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -406,8 +410,10 @@ export function Sidebar() {
                   { name: "Tenants", path: "/platform", icon: Building2 },
                   { name: "Subscription Keys", path: "/platform/subscription-keys", icon: Crown },
                   { name: "Integrity Monitor", path: "/platform/integrity", icon: Shield },
-                  { name: "Audit Console", path: "/platform/audit", icon: Crown },
-                  { name: "System Health", path: "/platform/health", icon: Settings },
+                  { name: "System Health", path: "/platform/health", icon: Activity },
+                  { name: "Actions", path: "/platform/actions", icon: Zap },
+                  { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
+                  { name: "Audit Console", path: "/platform/audit", icon: ClipboardList },
                 ]}
                 sectionId="platform"
                 collapsed={collapsed}
