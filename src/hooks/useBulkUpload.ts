@@ -73,6 +73,28 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
+    const findProfile = (empId: string) => {
+      if (!profiles || !empId) return null;
+      const needle = empId.toLowerCase().trim();
+      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
+      if (match) return match;
+      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      const words = needle.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 0) {
+        match = profiles.find(p => {
+          const name = p.full_name?.toLowerCase() || "";
+          return words.every(w => name.includes(w));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+
     for (const row of rows) {
       const basic = parseFloat(row.basic_salary) || 0;
       const hra = parseFloat(row.hra) || 0;
@@ -83,11 +105,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const otherDed = parseFloat(row.other_deductions) || 0;
       const net = basic + hra + transport + otherAllow - pf - tax - otherDed;
 
-      // Try to find profile by matching employee_id to email prefix or full name
-      const empId = row.employee_id?.toLowerCase();
-      const profile = profiles?.find(
-        (p) => p.email?.toLowerCase().startsWith(empId) || p.full_name?.toLowerCase().includes(empId)
-      );
+      const profile = findProfile(row.employee_id);
 
       if (!profile) {
         errors.push(`Row ${row.employee_id}: No matching employee profile found`);
