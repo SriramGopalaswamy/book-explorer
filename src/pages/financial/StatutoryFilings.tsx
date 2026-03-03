@@ -176,11 +176,26 @@ const MONTH_OPTIONS = [
   { value: "1", label: "January" }, { value: "2", label: "February" }, { value: "3", label: "March" },
 ];
 
+// Compute current defaults based on today's date
+function getCurrentDefaults() {
+  const now = new Date();
+  const m = now.getMonth() + 1; // 1-12
+  // Indian FY: Apr (month 4) starts new FY. Jan-Mar belongs to previous calendar year's FY.
+  const fyStartYear = m >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+  const currentFy = `${fyStartYear}-${fyStartYear + 1}`;
+  // Quarter: Apr-Jun=1, Jul-Sep=2, Oct-Dec=3, Jan-Mar=4
+  const currentQuarter = m >= 4 ? String(Math.ceil((m - 3) / 3)) : "4";
+  const currentMonth = String(m);
+  return { currentFy, currentQuarter, currentMonth };
+}
+
+const defaults = getCurrentDefaults();
+
 export default function StatutoryFilings() {
   const [activeTab, setActiveTab] = useState("gstr1");
-  const [fy, setFy] = useState(FY_OPTIONS[0].value);
-  const [quarter, setQuarter] = useState("1");
-  const [month, setMonth] = useState("4");
+  const [fy, setFy] = useState(defaults.currentFy);
+  const [quarter, setQuarter] = useState(defaults.currentQuarter);
+  const [month, setMonth] = useState(defaults.currentMonth);
   const { data: payrollFlags } = usePayrollFlags();
 
   // Compute date ranges
