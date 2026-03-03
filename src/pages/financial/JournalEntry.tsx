@@ -262,7 +262,37 @@ export default function JournalEntry() {
           </DialogContent>
         </Dialog>
 
-        {/* New Journal Entry Dialog */}
+        {/* Reverse Confirmation Dialog */}
+        <Dialog open={!!reverseConfirmId} onOpenChange={() => setReverseConfirmId(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Confirm Reversal
+              </DialogTitle>
+              <DialogDescription>
+                This will create a new reversal journal entry that negates all debits and credits. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReverseConfirmId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                disabled={reverseJournal.isPending}
+                onClick={() => {
+                  if (reverseConfirmId) {
+                    reverseJournal.mutate(reverseConfirmId, {
+                      onSuccess: () => setReverseConfirmId(null),
+                    });
+                  }
+                }}
+              >
+                {reverseJournal.isPending ? "Reversing…" : "Reverse Entry"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
