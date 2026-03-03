@@ -474,23 +474,15 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
   ];
 
   return (
-    <MainLayout title="Fixed Assets">
+    <MainLayout title="Fixed Assets" subtitle="Manage capital assets, depreciation, and tagging">
       <AnimatedPage>
         <div className="space-y-6 p-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Fixed Assets</h1>
-              <p className="text-sm text-muted-foreground">
-                Manage capital assets, depreciation, and tagging
-              </p>
-            </div>
-            <div className="flex gap-2">
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2">
               <BulkUploadDialog config={bulkUploadConfig} />
               <Button onClick={openCreate} className="gap-2">
                 <Plus className="h-4 w-4" /> Register Asset
               </Button>
-            </div>
           </div>
 
           {/* Stat Cards */}
