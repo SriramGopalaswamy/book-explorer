@@ -145,12 +145,13 @@ export function getMonthRange(fy: string, monthIdx: number): { from: string; to:
   return { from: `${year}-${month}-01`, to: `${year}-${month}-${lastDay}` };
 }
 
-// ── GSTR-1 data from invoices + invoice_items ──
+// ── GSTR-1 data from invoices + invoice_items + credit notes ──
 export function useGSTR1Data(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["gstr1", from, to],
     queryFn: async () => {
+      // Fetch invoices
       const { data, error } = await supabase
         .from("invoices")
         .select("*, invoice_items(*)")
@@ -160,7 +161,17 @@ export function useGSTR1Data(from: string, to: string) {
         .order("created_at", { ascending: true });
       if (error) throw error;
 
+      // Fetch issued/applied credit notes for the period
+      const { data: creditNotes } = await supabase
+        .from("credit_notes")
+        .select("*, invoices!invoice_id(invoice_number, customer_gstin, place_of_supply)")
+        .gte("issue_date", from)
+        .lte("issue_date", to + "T23:59:59")
+        .in("status", ["issued", "applied"]);
+
       const rows: GSTR1Row[] = [];
+
+      // Invoice line items
       for (const inv of data || []) {
         const items = (inv as any).invoice_items || [];
         for (const item of items) {
@@ -187,13 +198,41 @@ export function useGSTR1Data(from: string, to: string) {
           });
         }
       }
+
+      // Credit notes as negative entries (reduce outward supplies)
+      for (const cn of creditNotes || []) {
+        const linkedInv = (cn as any).invoices;
+        const cnAmount = Number(cn.amount);
+        rows.push({
+          id: `cn-${cn.id}`,
+          invoice_number: `${cn.credit_note_number} (CN)`,
+          invoice_date: cn.issue_date,
+          customer_name: cn.client_name,
+          customer_gstin: linkedInv?.customer_gstin || "",
+          place_of_supply: linkedInv?.place_of_supply || "",
+          hsn_sac: "",
+          description: cn.reason || "Credit Note",
+          quantity: 1,
+          rate: -cnAmount,
+          taxable_value: -cnAmount,
+          cgst_rate: 0,
+          cgst_amount: 0,
+          sgst_rate: 0,
+          sgst_amount: 0,
+          igst_rate: 0,
+          igst_amount: 0,
+          total_amount: -cnAmount,
+          invoice_type: (linkedInv?.customer_gstin) ? "B2B" : "B2C",
+        });
+      }
+
       return rows;
     },
     enabled: !!user && !!from && !!to,
   });
 }
 
-// ── GSTR-3B summary from invoices + bills/expenses ──
+// ── GSTR-3B summary from invoices + bills + credit notes + vendor credits ──
 export function useGSTR3BData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
@@ -215,14 +254,41 @@ export function useGSTR3BData(from: string, to: string) {
         .lte("created_at", to + "T23:59:59")
         .in("status", ["approved", "paid"]);
 
-      const outwardTaxable = (invoices || []).reduce((s, i) => s + Number(i.subtotal || 0), 0);
-      const cgstPayable = (invoices || []).reduce((s, i) => s + Number(i.cgst_total || 0), 0);
-      const sgstPayable = (invoices || []).reduce((s, i) => s + Number(i.sgst_total || 0), 0);
-      const igstPayable = (invoices || []).reduce((s, i) => s + Number(i.igst_total || 0), 0);
+      // Credit notes reduce outward taxable supplies
+      const { data: creditNotes } = await supabase
+        .from("credit_notes")
+        .select("amount")
+        .gte("issue_date", from)
+        .lte("issue_date", to + "T23:59:59")
+        .in("status", ["issued", "applied"]);
+
+      // Vendor credits reduce ITC (input tax credit)
+      const { data: vendorCredits } = await supabase
+        .from("vendor_credits")
+        .select("amount")
+        .gte("issue_date", from)
+        .lte("issue_date", to + "T23:59:59")
+        .in("status", ["issued", "applied"]);
+
+      const grossOutwardTaxable = (invoices || []).reduce((s, i) => s + Number(i.subtotal || 0), 0);
+      const cnReduction = (creditNotes || []).reduce((s, cn) => s + Number(cn.amount || 0), 0);
+      const outwardTaxable = Math.max(grossOutwardTaxable - cnReduction, 0);
+
+      // Proportionally reduce tax if credit notes exist
+      const cnRatio = grossOutwardTaxable > 0 ? (1 - cnReduction / grossOutwardTaxable) : 1;
+      const cgstPayable = (invoices || []).reduce((s, i) => s + Number(i.cgst_total || 0), 0) * Math.max(cnRatio, 0);
+      const sgstPayable = (invoices || []).reduce((s, i) => s + Number(i.sgst_total || 0), 0) * Math.max(cnRatio, 0);
+      const igstPayable = (invoices || []).reduce((s, i) => s + Number(i.igst_total || 0), 0) * Math.max(cnRatio, 0);
       const totalTax = cgstPayable + sgstPayable + igstPayable;
 
-      const inwardTaxable = (bills || []).reduce((s, b) => s + Number(b.amount || 0), 0);
-      const itcTotal = (bills || []).reduce((s, b) => s + Number(b.tax_amount || 0), 0);
+      const grossInwardTaxable = (bills || []).reduce((s, b) => s + Number(b.amount || 0), 0);
+      const vcReduction = (vendorCredits || []).reduce((s, vc) => s + Number(vc.amount || 0), 0);
+      const inwardTaxable = Math.max(grossInwardTaxable - vcReduction, 0);
+
+      const grossItcTotal = (bills || []).reduce((s, b) => s + Number(b.tax_amount || 0), 0);
+      // Proportionally reduce ITC if vendor credits exist
+      const vcRatio = grossInwardTaxable > 0 ? (1 - vcReduction / grossInwardTaxable) : 1;
+      const itcTotal = grossItcTotal * Math.max(vcRatio, 0);
       // Assume 50-50 CGST/SGST split for ITC (simplified)
       const itcCgst = itcTotal / 2;
       const itcSgst = itcTotal / 2;
@@ -232,18 +298,18 @@ export function useGSTR3BData(from: string, to: string) {
         outward_exempt: 0,
         outward_nil_rated: 0,
         inward_taxable: inwardTaxable,
-        cgst_payable: cgstPayable,
-        sgst_payable: sgstPayable,
-        igst_payable: igstPayable,
-        total_tax_payable: totalTax,
-        itc_cgst: itcCgst,
-        itc_sgst: itcSgst,
+        cgst_payable: Math.round(cgstPayable * 100) / 100,
+        sgst_payable: Math.round(sgstPayable * 100) / 100,
+        igst_payable: Math.round(igstPayable * 100) / 100,
+        total_tax_payable: Math.round(totalTax * 100) / 100,
+        itc_cgst: Math.round(itcCgst * 100) / 100,
+        itc_sgst: Math.round(itcSgst * 100) / 100,
         itc_igst: 0,
-        total_itc: itcTotal,
-        net_cgst: Math.max(cgstPayable - itcCgst, 0),
-        net_sgst: Math.max(sgstPayable - itcSgst, 0),
-        net_igst: igstPayable,
-        net_payable: Math.max(totalTax - itcTotal, 0),
+        total_itc: Math.round(itcTotal * 100) / 100,
+        net_cgst: Math.max(Math.round((cgstPayable - itcCgst) * 100) / 100, 0),
+        net_sgst: Math.max(Math.round((sgstPayable - itcSgst) * 100) / 100, 0),
+        net_igst: Math.round(igstPayable * 100) / 100,
+        net_payable: Math.max(Math.round((totalTax - itcTotal) * 100) / 100, 0),
       };
       return summary;
     },
