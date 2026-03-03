@@ -631,6 +631,12 @@ function PendingCorrections() {
                     />
                   </div>
                 </div>
+                {editCheckIn && editCheckOut && editCheckOut <= editCheckIn && (
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Check-out time must be after check-in. Use 24h format (e.g. 18:15 for 6:15 PM).
+                  </p>
+                )}
               </div>
             )}
             <div>
@@ -651,7 +657,7 @@ function PendingCorrections() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || (pendingAction === "approved" && !!editCheckIn && !!editCheckOut && editCheckOut <= editCheckIn)}
               className={
                 pendingAction === "approved"
                   ? "bg-green-600 hover:bg-green-700 text-white"
