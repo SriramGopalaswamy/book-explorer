@@ -101,6 +101,20 @@ const AP_CATEGORIES = [
   "Banking & Finance Charges", "Other",
 ];
 
+const TDS_SECTIONS: { code: string; label: string; rate: number }[] = [
+  { code: "", label: "No TDS", rate: 0 },
+  { code: "194C", label: "194C — Contractor Payments", rate: 2 },
+  { code: "194H", label: "194H — Commission / Brokerage", rate: 5 },
+  { code: "194I(a)", label: "194I(a) — Rent (Plant/Machinery)", rate: 2 },
+  { code: "194I(b)", label: "194I(b) — Rent (Land/Building)", rate: 10 },
+  { code: "194IA", label: "194IA — Property Purchase", rate: 1 },
+  { code: "194IB", label: "194IB — Rent by Individual/HUF", rate: 5 },
+  { code: "194J(a)", label: "194J(a) — Technical Services", rate: 2 },
+  { code: "194J(b)", label: "194J(b) — Professional Services", rate: 10 },
+  { code: "194Q", label: "194Q — Purchase of Goods", rate: 0.1 },
+  { code: "194R", label: "194R — Business Perquisites", rate: 10 },
+];
+
 const EMPTY_FORM = {
   vendor_name: "",
   bill_number: "",
@@ -113,6 +127,8 @@ const EMPTY_FORM = {
   ap_category: "",
   payment_terms: "",
   vendor_tax_number: "",
+  tds_section: "",
+  tds_rate: "",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -424,7 +440,9 @@ export default function Bills() {
           attachment_url: uploadedFile?.path || null,
           ai_extracted: aiExtracted,
           user_id: user!.id,
-        })
+          tds_section: form.tds_section || null,
+          tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
+        } as any)
         .select()
         .single();
 
@@ -931,6 +949,45 @@ export default function Bills() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-1.5">
+                <Label>TDS Section</Label>
+                <Select
+                  value={form.tds_section}
+                  onValueChange={(v) => {
+                    const section = TDS_SECTIONS.find((s) => s.code === v);
+                    setForm((p) => ({
+                      ...p,
+                      tds_section: v,
+                      tds_rate: section ? String(section.rate) : "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select TDS section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TDS_SECTIONS.map((s) => (
+                      <SelectItem key={s.code || "none"} value={s.code}>
+                        {s.label}{s.rate > 0 ? ` (${s.rate}%)` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.tds_section && (
+                <div className="space-y-1.5">
+                  <Label>TDS Rate (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.tds_rate}
+                    onChange={(e) => setForm((p) => ({ ...p, tds_rate: e.target.value }))}
+                    placeholder="Auto-populated"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label>Status</Label>
