@@ -6602,29 +6602,17 @@ export type Database = {
         Args: { _invoice_id: string }
         Returns: string
       }
-      post_journal_entry:
-        | {
-            Args: {
-              p_date: string
-              p_doc_id: string
-              p_doc_type: string
-              p_lines: Json
-              p_memo: string
-              p_org_id: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_date: string
-              p_doc_id: string
-              p_doc_type: string
-              p_lines: Json
-              p_memo: string
-              p_org_id: string
-            }
-            Returns: string
-          }
+      post_journal_entry: {
+        Args: {
+          p_date: string
+          p_doc_id: string
+          p_doc_type: string
+          p_lines: Json
+          p_memo: string
+          p_org_id: string
+        }
+        Returns: string
+      }
       post_journal_with_override: {
         Args: {
           p_date: string
