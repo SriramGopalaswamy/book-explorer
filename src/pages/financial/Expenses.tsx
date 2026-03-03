@@ -309,12 +309,12 @@ export default function Expenses() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
-            <Plus className="h-4 w-4" /> Create Expense
-          </Button>
-        </div>
-
-        <Tabs defaultValue="all">
+          <div className="flex items-center gap-2">
+            {isFinanceOrAdmin && <BulkUploadDialog config={expensesBulkConfig} />}
+            <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Create Expense
+            </Button>
+          </div>
           <TabsList>
             <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
             <TabsTrigger value="pending" className="gap-2">
