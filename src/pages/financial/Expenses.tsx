@@ -28,6 +28,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
+import { useExpensesBulkUpload } from "@/hooks/useBulkUpload";
 
 interface Expense {
   id: string; category: string; amount: number; description: string | null;
@@ -56,7 +59,7 @@ export default function Expenses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-
+  const expensesBulkConfig = useExpensesBulkUpload();
   const [createOpen, setCreateOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -306,9 +309,12 @@ export default function Expenses() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
-            <Plus className="h-4 w-4" /> Create Expense
-          </Button>
+          <div className="flex items-center gap-2">
+            {isFinanceOrAdmin && <BulkUploadDialog config={expensesBulkConfig} />}
+            <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Create Expense
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="all">
@@ -337,6 +343,8 @@ export default function Expenses() {
             {renderExpenseTable(paidExpenses, paidPagination)}
           </TabsContent>
         </Tabs>
+
+        {isFinanceOrAdmin && <BulkUploadHistory module="expenses" />}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
