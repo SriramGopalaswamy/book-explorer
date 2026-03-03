@@ -147,7 +147,17 @@ export function useGeneratePayroll() {
       const periodStart = `${payPeriod}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const periodEnd = `${payPeriod}-${lastDay}`;
-      const workingDays = getWorkingDays(year, month);
+
+      // Fetch company holidays for this period to exclude from working days
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("date")
+        .eq("organization_id", orgId)
+        .gte("date", periodStart)
+        .lte("date", periodEnd);
+
+      const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
+      const workingDays = getWorkingDays(year, month, holidayDates);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
@@ -475,12 +485,16 @@ export function useUpdateEntryLWP() {
   });
 }
 
-function getWorkingDays(year: number, month: number): number {
+function getWorkingDays(year: number, month: number, holidayDates?: Set<string>): number {
   const daysInMonth = new Date(year, month, 0).getDate();
   let working = 0;
   for (let d = 1; d <= daysInMonth; d++) {
-    const day = new Date(year, month - 1, d).getDay();
-    if (day !== 0 && day !== 6) working++;
+    const date = new Date(year, month - 1, d);
+    const day = date.getDay();
+    if (day === 0 || day === 6) continue; // skip weekends
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (holidayDates?.has(dateStr)) continue; // skip holidays
+    working++;
   }
   return working;
 }
