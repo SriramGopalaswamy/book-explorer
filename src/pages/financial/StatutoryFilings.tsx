@@ -380,6 +380,7 @@ export default function StatutoryFilings() {
             {filingTypes.map((f) => {
               const Icon = f.icon;
               const isActive = activeTab === f.id;
+              const dueInfo = getFilingDueDate(f.id);
               return (
                 <button
                   key={f.id}
@@ -394,6 +395,15 @@ export default function StatutoryFilings() {
                   <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>{f.label}</span>
                   <span className="text-[10px] text-muted-foreground leading-tight">{f.desc}</span>
                   <Badge variant="outline" className="text-[9px] px-1.5 py-0">{f.frequency}</Badge>
+                  {dueInfo && (
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${URGENCY_BADGE_STYLES[dueInfo.urgency]}`}>
+                      {dueInfo.daysRemaining < 0
+                        ? `${Math.abs(dueInfo.daysRemaining)}d overdue`
+                        : dueInfo.daysRemaining === 0
+                        ? "Due today"
+                        : `${dueInfo.daysRemaining}d left`}
+                    </Badge>
+                  )}
                 </button>
               );
             })}
