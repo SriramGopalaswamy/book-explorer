@@ -57,6 +57,15 @@ export default function Expenses() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newNotes, setNewNotes] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
 
   // All org expenses (finance/admin view)
