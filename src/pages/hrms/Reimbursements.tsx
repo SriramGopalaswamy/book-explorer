@@ -315,16 +315,10 @@ export default function Reimbursements() {
     <MainLayout title="My Reimbursements" subtitle="Submit expense bills for reimbursement">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">My Reimbursements</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Submit expense bills for reimbursement — AI reads your document automatically
-            </p>
-          </div>
+        <div className="flex items-center justify-end">
           <Button onClick={openNew} className="gap-2">
             <Upload className="h-4 w-4" />
-            Submit Expense
+            Submit Reimbursement
           </Button>
         </div>
 
