@@ -1750,7 +1750,7 @@ Deno.serve(async (req) => {
         console.log(`[AGGREGATE] Auto-recalculating attendance_daily for ${startDate} to ${endDate}`);
         try {
           const { data: recalcResult, error: recalcError } = await adminClient.rpc(
-            "recalculate_attendance",
+            "recalculate_attendance_internal",
             {
               _org_id: organization_id,
               _start_date: startDate,
