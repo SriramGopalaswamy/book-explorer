@@ -7,6 +7,7 @@ import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { useState, useEffect, useCallback } from "react";
+import { normalizePayslip } from "@/lib/payslip-utils";
 
 /** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
 function useLogoDataUrl(src: string) {
@@ -56,27 +57,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   if (!record) return null;
 
-  const lopDays = Number((record as any).lop_days) || 0;
-  const lopDeduction = Number((record as any).lop_deduction) || 0;
-  const workingDays = Number((record as any).working_days) || 0;
-  const paidDays = Number((record as any).paid_days) || 0;
-
-  const earnings = [
-    { label: "Basic Salary", amount: Number(record.basic_salary) },
-    { label: "House Rent Allowance (HRA)", amount: Number(record.hra) },
-    { label: "Transport Allowance", amount: Number(record.transport_allowance) },
-    { label: "Other Allowances", amount: Number(record.other_allowances) },
-  ];
-  const totalEarnings = earnings.reduce((s, e) => s + e.amount, 0);
-
-  const deductions = [
-    { label: "Provident Fund (PF)", amount: Number(record.pf_deduction) },
-    { label: "Tax Deduction (TDS)", amount: Number(record.tax_deduction) },
-    { label: "Other Deductions", amount: Number(record.other_deductions) },
-    ...(lopDeduction > 0 ? [{ label: `Loss of Pay (${lopDays} days)`, amount: lopDeduction }] : []),
-  ];
-  const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
-  const netPay = Number(record.net_pay);
+  // Unified normalization — works for both legacy payroll_records and engine payroll_entries
+  const slip = normalizePayslip(record);
+  const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, lopDeduction, workingDays, paidDays } = slip;
 
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const department = DOMPurify.sanitize(record.profiles?.department || "—");
