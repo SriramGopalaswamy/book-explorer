@@ -89,9 +89,10 @@ export default function Onboarding() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [initialized, setInitialized] = useState(false);
 
-  // Merge remote data into local on first load
+  // Merge remote data into local on first load or when compliance changes and not yet initialized
   if (compliance && !initialized) {
-    setLocalData((prev) => ({ ...compliance, ...prev }));
+    // Remote-first merge: compliance values take priority on first load
+    setLocalData(compliance);
     setInitialized(true);
   }
 
@@ -124,8 +125,30 @@ export default function Onboarding() {
     }
 
     try {
-      // Save current data
-      await upsert.mutateAsync(localData);
+      // Save only the fields relevant to the current step to avoid overwriting other data
+      const stepFields: Record<number, (keyof ComplianceData)[]> = {
+        0: ["legal_name", "trade_name", "entity_type", "pan", "tan", "cin_or_llpin", "registered_address", "state", "pincode"],
+        1: ["gstin", "registration_type", "filing_frequency", "reverse_charge_applicable", "einvoice_applicable", "ewaybill_applicable", "itc_eligible"],
+        2: ["financial_year_start", "books_start_date", "accounting_method", "base_currency", "msme_status"],
+        3: ["industry_template", "coa_confirmed"],
+        4: ["logo_url", "brand_color", "authorized_signatory_name", "signature_url"],
+        5: ["payroll_enabled", "payroll_frequency", "pf_applicable", "esi_applicable", "professional_tax_applicable", "gratuity_applicable"],
+      };
+
+      const fields = stepFields[currentStep];
+      const payload: Partial<ComplianceData> = {};
+      if (fields) {
+        for (const key of fields) {
+          if (key in localData) {
+            (payload as any)[key] = (localData as any)[key];
+          }
+        }
+      } else {
+        // For steps without explicit field mapping (leadership, integrations), save all
+        Object.assign(payload, localData);
+      }
+
+      await upsert.mutateAsync(payload);
       setCompletedSteps((prev) => new Set(prev).add(currentStep));
 
       // If completing Step 4 (last Phase 1 step), trigger activation
