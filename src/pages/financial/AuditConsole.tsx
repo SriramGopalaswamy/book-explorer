@@ -217,18 +217,8 @@ export default function AuditConsole() {
   return (
     <MainLayout title="CA Audit Console" subtitle="Indian CA Audit Intelligence System (ICAIS)">
       <div className="space-y-6 pb-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Shield className="h-7 w-7 text-primary" />
-              CA Audit Console
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Indian CA Audit Intelligence System (ICAIS) — AI-Augmented Compliance & Risk Analysis
-            </p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
+        {/* Action Bar */}
+        <div className="flex items-center justify-end gap-3 flex-wrap">
             <Select value={selectedFY} onValueChange={setSelectedFY}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="FY" />
@@ -256,7 +246,6 @@ export default function AuditConsole() {
               {runAudit.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
               Run AI Audit
             </Button>
-          </div>
         </div>
 
         {!hasData ? (

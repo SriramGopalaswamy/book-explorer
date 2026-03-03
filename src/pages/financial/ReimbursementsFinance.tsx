@@ -333,13 +333,6 @@ export default function ReimbursementsFinance() {
   return (
     <MainLayout title="Reimbursements" subtitle="Review and approve expense claims">
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Reimbursements</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Review manager-approved expense claims and record payouts
-          </p>
-        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
