@@ -82,6 +82,7 @@ export default function StatutoryFilings() {
   const [fy, setFy] = useState(FY_OPTIONS[0].value);
   const [quarter, setQuarter] = useState("1");
   const [month, setMonth] = useState("4");
+  const { data: payrollFlags } = usePayrollFlags();
 
   // Compute date ranges
   const fyRange = useMemo(() => getFinancialYearRange(fy), [fy]);
