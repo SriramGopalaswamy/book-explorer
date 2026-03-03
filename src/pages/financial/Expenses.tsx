@@ -14,13 +14,12 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MoreHorizontal, Trash2, Search, Wallet, Paperclip, Check, Clock, IndianRupee, CircleDollarSign } from "lucide-react";
+import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentRole } from "@/hooks/useRoles";
-import { AccessDenied } from "@/components/auth/AccessDenied";
 
 interface Expense {
   id: string; category: string; amount: number; description: string | null;
@@ -53,7 +52,7 @@ export default function Expenses() {
   const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
 
   // All org expenses (finance/admin view)
-  const { data: allExpenses = [], isLoading } = useQuery({
+  const { data: allExpenses = [], isLoading: isLoadingAll } = useQuery({
     queryKey: ["expenses-all"],
     queryFn: async () => {
       if (!user) return [];
@@ -67,9 +66,28 @@ export default function Expenses() {
     enabled: !!user && isFinanceOrAdmin,
   });
 
+  // Employee's own expenses
+  const { data: myExpenses = [], isLoading: isLoadingMy } = useQuery({
+    queryKey: ["expenses-my", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("*, profiles:profile_id(full_name, email)")
+        .eq("user_id", user.id)
+        .order("expense_date", { ascending: false });
+      if (error) throw error;
+      return data as Expense[];
+    },
+    enabled: !!user && !isFinanceOrAdmin,
+  });
+
+  const expenses = isFinanceOrAdmin ? allExpenses : myExpenses;
+  const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); toast({ title: "Expense Deleted" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -82,17 +100,17 @@ export default function Expenses() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // KPI calculations — organizational level
-  const totalExpenses = allExpenses.reduce((s, e) => s + e.amount, 0);
-  const pendingAmount = allExpenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
-  const approvedAmount = allExpenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
-  const paidAmount = allExpenses.filter(e => e.status === "paid").reduce((s, e) => s + e.amount, 0);
+  // KPI calculations
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const pendingAmount = expenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
+  const approvedAmount = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
+  const paidAmount = expenses.filter(e => e.status === "paid").reduce((s, e) => s + e.amount, 0);
 
-  const pendingExpenses = allExpenses.filter(e => e.status === "pending");
-  const approvedExpenses = allExpenses.filter(e => e.status === "approved");
-  const paidExpenses = allExpenses.filter(e => e.status === "paid");
+  const pendingExpenses = expenses.filter(e => e.status === "pending");
+  const approvedExpenses = expenses.filter(e => e.status === "approved");
+  const paidExpenses = expenses.filter(e => e.status === "paid");
 
-  const allFiltered = allExpenses.filter((e) =>
+  const allFiltered = expenses.filter((e) =>
     e.category.toLowerCase().includes(search.toLowerCase()) ||
     (e.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
     ((e.profiles as any)?.full_name ?? "").toLowerCase().includes(search.toLowerCase())
@@ -130,62 +148,65 @@ export default function Expenses() {
     );
   }
 
-  if (!isFinanceOrAdmin) {
-    return <AccessDenied message="Finance Access Required" description="You need finance or admin role to access the Expenses module." />;
-  }
+  const pageTitle = isFinanceOrAdmin ? "Expenses" : "My Expenses";
+  const pageSubtitle = isFinanceOrAdmin
+    ? "Manage and process organization expenses"
+    : "Track your submitted expenses";
 
   const renderExpenseTable = (items: Expense[], pagination: ReturnType<typeof usePagination<Expense>>) => (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Employee</TableHead>
+            {isFinanceOrAdmin && <TableHead>Employee</TableHead>}
             <TableHead>Category</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Receipt</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="w-12"></TableHead>
+            {isFinanceOrAdmin && <TableHead className="w-12"></TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
+            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 6 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
           ) : pagination.paginatedItems.length === 0 ? (
-            <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
+            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 6} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
           ) : pagination.paginatedItems.map((e) => (
             <TableRow key={e.id}>
-              <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>
+              {isFinanceOrAdmin && <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>}
               <TableCell><Badge variant="outline">{e.category}</Badge></TableCell>
               <TableCell className="text-sm max-w-[200px] truncate">{e.description || "—"}</TableCell>
               <TableCell className="font-semibold">{formatCurrency(e.amount)}</TableCell>
               <TableCell className="text-sm">{new Date(e.expense_date).toLocaleDateString("en-IN")}</TableCell>
               <TableCell>{renderReceiptButton(e.receipt_url)}</TableCell>
               <TableCell><Badge variant="outline" className={statusColors[e.status] ?? ""}>{statusLabels[e.status] || e.status}</Badge></TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={async () => {
-                      if (!e.receipt_url) {
-                        toast({ title: "No Receipt", description: "No receipt was attached to this expense." });
-                        return;
-                      }
-                      const pathOnly = e.receipt_url.includes("/bill-attachments/") ? e.receipt_url.split("/bill-attachments/").pop()! : e.receipt_url;
-                      const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
-                      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                      else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
-                    }}><Paperclip className="h-4 w-4 mr-2" />{e.receipt_url ? "View Receipt" : "No Receipt"}</DropdownMenuItem>
-                    {e.status === "pending" && (
-                      <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
-                    )}
-                    {e.status === "approved" && (
-                      <DropdownMenuItem onClick={() => markPaidMutation.mutate(e.id)}><Check className="h-4 w-4 mr-2" />Mark as Paid</DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+              {isFinanceOrAdmin && (
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={async () => {
+                        if (!e.receipt_url) {
+                          toast({ title: "No Receipt", description: "No receipt was attached to this expense." });
+                          return;
+                        }
+                        const pathOnly = e.receipt_url.includes("/bill-attachments/") ? e.receipt_url.split("/bill-attachments/").pop()! : e.receipt_url;
+                        const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
+                        if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                        else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
+                      }}><Paperclip className="h-4 w-4 mr-2" />{e.receipt_url ? "View Receipt" : "No Receipt"}</DropdownMenuItem>
+                      {e.status === "pending" && (
+                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                      )}
+                      {e.status === "approved" && (
+                        <DropdownMenuItem onClick={() => markPaidMutation.mutate(e.id)}><Check className="h-4 w-4 mr-2" />Mark as Paid</DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -197,32 +218,32 @@ export default function Expenses() {
   );
 
   return (
-    <MainLayout title="Expenses" subtitle="Manage and process organization expenses">
+    <MainLayout title={pageTitle} subtitle={pageSubtitle}>
       <div className="space-y-6">
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} />
           <StatCard title="Pending Approval" value={formatCurrency(pendingAmount)} icon={<Clock className="h-4 w-4" />} />
-          <StatCard title="Approved (Unpaid)" value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
+          <StatCard title={isFinanceOrAdmin ? "Approved (Unpaid)" : "Approved"} value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
           <StatCard title="Paid" value={formatCurrency(paidAmount)} icon={<CircleDollarSign className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search by employee, category..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
 
         <Tabs defaultValue="all">
           <TabsList>
-            <TabsTrigger value="all">All Expenses ({allExpenses.length})</TabsTrigger>
+            <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
             <TabsTrigger value="pending" className="gap-2">
               Pending
               {pendingExpenses.length > 0 && <span className="ml-1 rounded-full bg-warning/20 text-warning text-xs px-1.5 py-0.5 font-semibold">{pendingExpenses.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="approved" className="gap-2">
-              Ready for Payment
+              {isFinanceOrAdmin ? "Ready for Payment" : "Approved"}
               {approvedExpenses.length > 0 && <span className="ml-1 rounded-full bg-success/20 text-success text-xs px-1.5 py-0.5 font-semibold">{approvedExpenses.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="paid">Paid ({paidExpenses.length})</TabsTrigger>
