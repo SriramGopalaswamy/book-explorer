@@ -282,6 +282,98 @@ export function useHolidaysBulkUpload(): BulkUploadConfig {
   };
 }
 
+// ─── Expenses ──────────────────────────────────────
+const expenseColumns: BulkUploadColumn[] = [
+  { key: "employee_id", label: "Employee Name/Email", required: true },
+  { key: "category", label: "Category", required: true },
+  { key: "amount", label: "Amount", required: true },
+  { key: "expense_date", label: "Date (YYYY-MM-DD)", required: true },
+  { key: "description", label: "Description" },
+  { key: "notes", label: "Notes" },
+];
+
+const expenseTemplate = `employee_id,category,amount,expense_date,description,notes
+John Doe,Travel,5000,2026-03-01,Client visit to Mumbai,Cab + Hotel
+Jane Smith,Office Supplies,1200,2026-03-02,Stationery purchase,`;
+
+export function useExpensesBulkUpload(): BulkUploadConfig {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name, organization_id");
+    const errors: string[] = [];
+    let success = 0;
+
+    const findProfile = (empId: string) => {
+      if (!profiles || !empId) return null;
+      const needle = empId.toLowerCase().trim();
+      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
+      if (match) return match;
+      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      const words = needle.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 0) {
+        match = profiles.find(p => {
+          const name = p.full_name?.toLowerCase() || "";
+          return words.every(w => name.includes(w));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+
+    for (const row of rows) {
+      const profile = findProfile(row.employee_id);
+      if (!profile) {
+        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+        continue;
+      }
+
+      const amount = parseFloat(row.amount);
+      if (isNaN(amount) || amount <= 0) {
+        errors.push(`Row ${row.employee_id}: Invalid amount "${row.amount}"`);
+        continue;
+      }
+
+      const { error } = await supabase.from("expenses").insert({
+        user_id: profile.user_id,
+        profile_id: profile.id,
+        organization_id: profile.organization_id,
+        category: row.category?.trim() || "Miscellaneous",
+        amount,
+        expense_date: row.expense_date || new Date().toISOString().split("T")[0],
+        description: row.description?.trim() || null,
+        notes: row.notes?.trim() || null,
+        status: "pending",
+      });
+
+      if (error) errors.push(`Row ${row.employee_id}: ${error.message}`);
+      else success++;
+    }
+
+    qc.invalidateQueries({ queryKey: ["expenses-all"] });
+    qc.invalidateQueries({ queryKey: ["expenses-my"] });
+    return { success, errors };
+  }, [user, qc]);
+
+  return {
+    module: "expenses",
+    title: "Bulk Upload Expenses",
+    description: "Upload multiple expense records at once. Employee matching uses name or email. Receipts can be attached individually after import.",
+    columns: expenseColumns,
+    templateFileName: "expenses_template.csv",
+    templateContent: expenseTemplate,
+    onUpload,
+  };
+}
+
 export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
 
@@ -308,7 +400,6 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      // If full_name is provided, treat as new/update user — edge function handles upsert
       if (full_name) {
         const { data, error } = await supabase.functions.invoke("manage-roles", {
           body: { action: "bulk_create_users", users: [{ email, full_name, department, job_title, role }] },
@@ -323,7 +414,6 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
           else created++;
         }
       } else {
-        // Existing user — just set role
         const { data, error } = await supabase.functions.invoke("manage-roles", {
           body: { action: "set_role_by_email", email, role },
         });
