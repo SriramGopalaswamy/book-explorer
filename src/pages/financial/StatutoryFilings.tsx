@@ -21,6 +21,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -53,9 +54,107 @@ import {
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
+
+// ─── Statutory Due Date Configuration ─────────────────────────────────────────
+
+interface DueDateInfo {
+  dueDate: Date;
+  label: string;
+  daysRemaining: number;
+  urgency: "safe" | "warning" | "urgent" | "overdue";
+}
+
+const STATUTORY_DUE_RULES: Record<string, { description: string; computeDueDate: (now: Date) => { date: Date; label: string } }> = {
+  gstr1: {
+    description: "11th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 11);
+      return { date: next, label: `Due by 11th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  gstr3b: {
+    description: "20th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 20);
+      return { date: next, label: `Due by 20th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  tds24q: {
+    description: "31st of month following quarter-end (Jul, Oct, Jan, May for Q4)",
+    computeDueDate: (now) => {
+      const m = now.getMonth();
+      const y = now.getFullYear();
+      const quarterDues = [
+        new Date(y, 6, 31),      // Q1: Jul 31
+        new Date(y, 9, 31),      // Q2: Oct 31
+        new Date(y + 1, 0, 31),  // Q3: Jan 31
+        new Date(m < 3 ? y : y + 1, 4, 31), // Q4: May 31
+      ];
+      const upcoming = quarterDues.filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
+      const next = upcoming[0] || new Date(y + 1, 6, 31);
+      return { date: next, label: `Due by ${next.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` };
+    },
+  },
+  tds26q: {
+    description: "31st of month following quarter-end",
+    computeDueDate: (now) => STATUTORY_DUE_RULES.tds24q.computeDueDate(now),
+  },
+  pf: {
+    description: "15th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      return { date: next, label: `Due by 15th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  esi: {
+    description: "15th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      return { date: next, label: `Due by 15th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+  pt: {
+    description: "Varies by state — typically by 20th of the following month",
+    computeDueDate: (now) => {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 20);
+      return { date: next, label: `Due by 20th ${next.toLocaleString("en-IN", { month: "short", year: "numeric" })}` };
+    },
+  },
+};
+
+function getFilingDueDate(filingId: string): DueDateInfo | null {
+  const rule = STATUTORY_DUE_RULES[filingId];
+  if (!rule) return null;
+  const now = new Date();
+  const { date, label } = rule.computeDueDate(now);
+  const diffMs = date.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  let urgency: DueDateInfo["urgency"] = "safe";
+  if (daysRemaining < 0) urgency = "overdue";
+  else if (daysRemaining <= 3) urgency = "urgent";
+  else if (daysRemaining <= 7) urgency = "warning";
+  return { dueDate: date, label, daysRemaining, urgency };
+}
+
+const URGENCY_STYLES: Record<DueDateInfo["urgency"], { bg: string; text: string; border: string; icon: typeof CheckCircle2 }> = {
+  safe: { bg: "bg-secondary/10", text: "text-secondary-foreground", border: "border-secondary/30", icon: CheckCircle2 },
+  warning: { bg: "bg-accent/20", text: "text-accent-foreground", border: "border-accent/40", icon: Clock },
+  urgent: { bg: "bg-destructive/15", text: "text-destructive", border: "border-destructive/30", icon: AlertTriangle },
+  overdue: { bg: "bg-destructive/20", text: "text-destructive", border: "border-destructive/40", icon: AlertCircle },
+};
+
+const URGENCY_BADGE_STYLES: Record<DueDateInfo["urgency"], string> = {
+  safe: "bg-secondary/20 text-secondary-foreground border-secondary/30",
+  warning: "bg-accent/20 text-accent-foreground border-accent/40",
+  urgent: "bg-destructive/15 text-destructive border-destructive/30",
+  overdue: "bg-destructive/25 text-destructive border-destructive/40",
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const currentYear = new Date().getFullYear();
 const FY_OPTIONS = Array.from({ length: 5 }, (_, i) => {
