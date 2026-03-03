@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,16 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign } from "lucide-react";
+import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign, Plus, Upload, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +56,15 @@ export default function Expenses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newNotes, setNewNotes] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
 
@@ -100,7 +117,64 @@ export default function Expenses() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // KPI calculations
+  const createExpenseMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!newCategory) throw new Error("Category is required");
+      if (!newAmount || Number(newAmount) <= 0) throw new Error("Valid amount is required");
+      if (!receiptFile) throw new Error("Receipt/bill upload is mandatory");
+
+      // Get profile_id
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("user_id", user.id)
+        .single();
+      if (!profile) throw new Error("Profile not found");
+
+      // Upload receipt
+      let receiptUrl: string | null = null;
+      const ext = receiptFile.name.split(".").pop() || "pdf";
+      const filePath = `${profile.organization_id}/${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("bill-attachments")
+        .upload(filePath, receiptFile);
+      if (uploadError) throw new Error(`Receipt upload failed: ${uploadError.message}`);
+      receiptUrl = filePath;
+
+      const { error } = await supabase.from("expenses").insert({
+        user_id: user.id,
+        profile_id: profile.id,
+        organization_id: profile.organization_id,
+        category: newCategory,
+        amount: Number(newAmount),
+        description: newDescription || null,
+        expense_date: newDate,
+        receipt_url: receiptUrl,
+        notes: newNotes || null,
+        status: "pending",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-my"] });
+      toast({ title: "Expense Created", description: "Your expense has been submitted for approval." });
+      setCreateOpen(false);
+      resetForm();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const resetForm = () => {
+    setNewCategory("");
+    setNewAmount("");
+    setNewDescription("");
+    setNewDate(new Date().toISOString().split("T")[0]);
+    setNewNotes("");
+    setReceiptFile(null);
+  };
+
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const pendingAmount = expenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
   const approvedAmount = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
@@ -165,14 +239,14 @@ export default function Expenses() {
             <TableHead>Date</TableHead>
             <TableHead>Receipt</TableHead>
             <TableHead>Status</TableHead>
-            {isFinanceOrAdmin && <TableHead className="w-12"></TableHead>}
+            <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 6 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
+            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
           ) : pagination.paginatedItems.length === 0 ? (
-            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 6} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
+            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
           ) : pagination.paginatedItems.map((e) => (
             <TableRow key={e.id}>
               {isFinanceOrAdmin && <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>}
@@ -182,31 +256,30 @@ export default function Expenses() {
               <TableCell className="text-sm">{new Date(e.expense_date).toLocaleDateString("en-IN")}</TableCell>
               <TableCell>{renderReceiptButton(e.receipt_url)}</TableCell>
               <TableCell><Badge variant="outline" className={statusColors[e.status] ?? ""}>{statusLabels[e.status] || e.status}</Badge></TableCell>
-              {isFinanceOrAdmin && (
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {e.receipt_url && (
                       <DropdownMenuItem onClick={async () => {
-                        if (!e.receipt_url) {
-                          toast({ title: "No Receipt", description: "No receipt was attached to this expense." });
-                          return;
-                        }
-                        const pathOnly = e.receipt_url.includes("/bill-attachments/") ? e.receipt_url.split("/bill-attachments/").pop()! : e.receipt_url;
+                        const pathOnly = e.receipt_url!.includes("/bill-attachments/") ? e.receipt_url!.split("/bill-attachments/").pop()! : e.receipt_url!;
                         const { data } = await supabase.storage.from("bill-attachments").createSignedUrl(pathOnly, 3600);
                         if (data?.signedUrl) window.open(data.signedUrl, "_blank");
                         else toast({ title: "Error", description: "Could not load receipt", variant: "destructive" });
-                      }}><Paperclip className="h-4 w-4 mr-2" />{e.receipt_url ? "View Receipt" : "No Receipt"}</DropdownMenuItem>
-                      {e.status === "pending" && (
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
-                      )}
-                      {e.status === "approved" && (
-                        <DropdownMenuItem onClick={() => markPaidMutation.mutate(e.id)}><Check className="h-4 w-4 mr-2" />Mark as Paid</DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              )}
+                      }}><Paperclip className="h-4 w-4 mr-2" />View Receipt</DropdownMenuItem>
+                    )}
+                    {(e.status === "pending" || e.status === "draft") && e.user_id === user?.id && (
+                      <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                    )}
+                    {isFinanceOrAdmin && e.status === "pending" && e.user_id !== user?.id && (
+                      <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                    )}
+                    {isFinanceOrAdmin && e.status === "approved" && (
+                      <DropdownMenuItem onClick={() => markPaidMutation.mutate(e.id)}><Check className="h-4 w-4 mr-2" />Mark as Paid</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -233,6 +306,9 @@ export default function Expenses() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+          <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
+            <Plus className="h-4 w-4" /> Create Expense
+          </Button>
         </div>
 
         <Tabs defaultValue="all">
@@ -262,6 +338,61 @@ export default function Expenses() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Category <span className="text-destructive">*</span></Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {["Travel", "Food & Meals", "Office Supplies", "Software", "Equipment", "Communication", "Transport", "Accommodation", "Training", "Medical", "Miscellaneous"].map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Amount (₹) <span className="text-destructive">*</span></Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={newAmount} onChange={e => setNewAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Date <span className="text-destructive">*</span></Label>
+                <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input placeholder="Brief description of expense" value={newDescription} onChange={e => setNewDescription(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Receipt / Bill <span className="text-destructive">*</span></Label>
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => setReceiptFile(e.target.files?.[0] || null)} />
+              <Button type="button" variant="outline" className="w-full gap-2 justify-start" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                {receiptFile ? receiptFile.name : "Upload receipt (image or PDF)"}
+              </Button>
+              {!receiptFile && <p className="text-xs text-muted-foreground">Mandatory: attach a receipt or bill to submit this expense.</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea placeholder="Additional notes (optional)" value={newNotes} onChange={e => setNewNotes(e.target.value)} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={() => createExpenseMutation.mutate()} disabled={createExpenseMutation.isPending || !newCategory || !newAmount || !receiptFile}>
+              {createExpenseMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Submit Expense
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
