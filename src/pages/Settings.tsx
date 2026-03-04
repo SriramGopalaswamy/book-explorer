@@ -415,6 +415,7 @@ function PayrollConfigSection() {
                 </Select>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {flags.map(({ key, label, desc }) => (
                   <div key={key} className="flex items-center justify-between rounded-lg border border-border p-3">
                     <div>
