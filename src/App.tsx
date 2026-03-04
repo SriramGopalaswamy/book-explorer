@@ -170,6 +170,7 @@ const App = () => (
                 <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/simulation" element={<ProtectedRoute><PlatformRoute><PlatformSimulation /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/subscription-keys" element={<ProtectedRoute><PlatformRoute><PlatformSubscriptionKeys /></PlatformRoute></ProtectedRoute>} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
