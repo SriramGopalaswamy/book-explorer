@@ -882,6 +882,8 @@ export default function Payroll() {
                           {pagination.paginatedItems.map((r) => {
                             const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
                             const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
+                            const lopDeduct = Number(r.lop_deduction) || 0;
+                            const lopDays = Number(r.lop_days) || 0;
                             return (
                               <TableRow
                                 key={r.id}
@@ -904,6 +906,15 @@ export default function Payroll() {
                                 <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
                                 <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
                                 <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                                <TableCell className="text-right">
+                                  {lopDays > 0 ? (
+                                    <span className="text-amber-600">
+                                      {lopDays}d / -{formatCurrency(lopDeduct)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
