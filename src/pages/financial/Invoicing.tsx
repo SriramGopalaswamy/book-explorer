@@ -146,7 +146,20 @@ export default function Invoicing() {
   const updateInvoice = useUpdateInvoice();
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
-  const pagination = usePagination(invoices, 10);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filteredInvoices = invoices.filter((inv) => {
+    const matchesSearch = !searchQuery ||
+      inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.client_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.client_email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || inv.status === statusFilter ||
+      (statusFilter === "overdue" && isEffectivelyOverdue(inv));
+    return matchesSearch && matchesStatus;
+  });
+
+  const pagination = usePagination(filteredInvoices, 10);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers", user?.id],
