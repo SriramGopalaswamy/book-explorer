@@ -294,6 +294,7 @@ export function useRunDepreciation() {
         .from("asset_depreciation_entries")
         .insert({
           asset_id: assetId,
+          organization_id: asset.organization_id,
           period_date: periodStr,
           depreciation_amount: monthlyDep,
           accumulated_depreciation: accumAfter,
