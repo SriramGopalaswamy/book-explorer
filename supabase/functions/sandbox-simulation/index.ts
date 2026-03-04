@@ -18,7 +18,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify the caller is a super_admin
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -38,7 +37,6 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, sandbox_org_id, run_id } = body;
 
-    // Verify this is a sandbox org
     if (sandbox_org_id) {
       const { data: org } = await adminClient
         .from("organizations")
@@ -93,17 +91,19 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const summary: Record<string, number> = {};
 
   // Clear existing transactional data (order matters for FK constraints)
-  // Tables WITH organization_id column
   const orgScopedTables = [
+    "payslip_disputes", "payroll_records", "payroll_runs",
+    "reimbursement_requests",
+    "goal_plans", "memos",
+    "attendance_daily", "attendance_punches", "attendance_records",
+    "leave_requests",
     "asset_depreciation_entries", "journal_entries",
     "invoices", "bills",
     "bank_transactions", "expenses", "credit_notes",
-    "financial_records", "attendance_records", "leave_requests",
-    "payroll_records", "assets", "audit_logs"
+    "financial_records", "assets", "audit_logs"
   ];
 
-  // First delete child tables that lack organization_id (use parent FK)
-  // journal_lines → via journal_entries
+  // Delete child tables that lack organization_id (use parent FK)
   const { data: jeIds } = await client.from("journal_entries")
     .select("id").eq("organization_id", orgId);
   if (jeIds && jeIds.length > 0) {
@@ -113,7 +113,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
 
-  // invoice_items → via invoices
   const { data: invIds } = await client.from("invoices")
     .select("id").eq("organization_id", orgId);
   if (invIds && invIds.length > 0) {
@@ -123,7 +122,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
 
-  // bill_items → via bills
   const { data: billIds } = await client.from("bills")
     .select("id").eq("organization_id", orgId);
   if (billIds && billIds.length > 0) {
@@ -141,7 +139,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     } catch (_) { /* table may not exist */ }
   }
 
-  // Seed Vendors
+  // ===== SEED VENDORS =====
   const vendors = [];
   const vendorNames = [
     "Acme Supplies Pvt Ltd", "TechGear Solutions", "Office Essentials Co",
@@ -159,7 +157,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.vendors = vendors.length;
 
-  // Seed Customers
+  // ===== SEED CUSTOMERS =====
   const customers = [];
   const customerNames = [
     "Pinnacle Corp", "Nexus Digital", "Metro Industries",
@@ -177,7 +175,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.customers = customers.length;
 
-  // Seed Chart of Accounts (GL Accounts)
+  // ===== SEED GL ACCOUNTS =====
   const glAccounts: Record<string, string> = {};
   const coaEntries = [
     { code: "1000", name: "Cash & Bank", type: "asset" },
@@ -213,7 +211,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.gl_accounts = Object.keys(glAccounts).length;
 
-  // Seed Assets
+  // ===== SEED ASSETS =====
   const assetItems = [
     { name: "Dell Latitude 5540 Laptop", category: "IT Equipment", price: 85000, life: 36 },
     { name: "HP LaserJet Pro Printer", category: "Office Equipment", price: 32000, life: 60 },
@@ -235,13 +233,37 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.assets = assetCount;
 
-  // Seed sample fiscal period
+  // ===== SEED FISCAL PERIOD =====
   const { error: fpError } = await client.from("fiscal_periods").insert({
     organization_id: orgId, name: "FY 2025-26",
     start_date: "2025-04-01", end_date: "2026-03-31",
     status: "open",
   });
   summary.fiscal_periods = fpError ? 0 : 1;
+
+  // ===== SEED LEAVE TYPES =====
+  const leaveTypes = [
+    { name: "Casual Leave", code: "CL", default_days: 12, color: "#3b82f6", icon: "☀️", is_active: true },
+    { name: "Sick Leave", code: "SL", default_days: 10, color: "#ef4444", icon: "🏥", is_active: true },
+    { name: "Earned Leave", code: "EL", default_days: 15, color: "#10b981", icon: "📅", is_active: true },
+  ];
+  let leaveTypeCount = 0;
+  for (const lt of leaveTypes) {
+    const { error } = await client.from("leave_types").upsert({
+      ...lt, organization_id: orgId,
+    }, { onConflict: "code,organization_id" });
+    if (!error) leaveTypeCount++;
+  }
+  summary.leave_types = leaveTypeCount;
+
+  // ===== SEED ATTENDANCE SHIFTS =====
+  const { error: shiftErr } = await client.from("attendance_shifts").upsert({
+    name: "General Shift", organization_id: orgId,
+    start_time: "09:00", end_time: "18:00",
+    full_day_minutes: 480, min_half_day_minutes: 240,
+    grace_minutes: 15, ot_after_minutes: 540, is_default: true,
+  }, { onConflict: "name,organization_id" });
+  summary.attendance_shifts = shiftErr ? 0 : 1;
 
   return {
     success: true,
@@ -255,9 +277,17 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 // ========== WORKFLOW SIMULATION ==========
 async function runWorkflowSimulation(client: any, orgId: string, userId: string, runId?: string) {
   const startTime = Date.now();
-  const results: Array<{ workflow: string; status: string; detail: string; duration_ms: number }> = [];
+  const results: Array<{ workflow: string; module: string; status: string; detail: string; duration_ms: number }> = [];
 
-  // WF1: Create invoices for customers
+  // Get profiles in this org for HR workflows
+  const { data: profiles } = await client.from("profiles")
+    .select("id, full_name, employee_code")
+    .eq("organization_id", orgId).limit(10);
+  const profileList = profiles ?? [];
+
+  // ===== FINANCE WORKFLOWS =====
+
+  // WF1: Create invoices
   const { data: customers } = await client.from("customers")
     .select("id, name").eq("organization_id", orgId).limit(5);
   for (const cust of (customers ?? [])) {
@@ -275,16 +305,16 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
       });
       results.push({
-        workflow: `Invoice: ${invNum}`, status: error ? "failed" : "passed",
+        workflow: `Invoice: ${invNum}`, module: "Finance", status: error ? "failed" : "passed",
         detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + taxAmount).toLocaleString()}`,
         duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
-      results.push({ workflow: `Invoice for ${cust.name}`, status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      results.push({ workflow: `Invoice for ${cust.name}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
 
-  // WF2: Create bills from vendors
+  // WF2: Create bills
   const { data: vendors } = await client.from("vendors")
     .select("id, name").eq("organization_id", orgId).limit(5);
   for (const v of (vendors ?? [])) {
@@ -300,12 +330,12 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         bill_date: new Date().toISOString().split("T")[0],
       });
       results.push({
-        workflow: `Bill: ${billNum}`, status: error ? "failed" : "passed",
+        workflow: `Bill: ${billNum}`, module: "Finance", status: error ? "failed" : "passed",
         detail: error?.message ?? `Created for ${v.name} — ₹${(amount + taxAmount).toLocaleString()}`,
         duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
-      results.push({ workflow: `Bill for ${v.name}`, status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      results.push({ workflow: `Bill for ${v.name}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
 
@@ -315,6 +345,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   const cashAccount = (glAccounts ?? []).find((a: any) => a.code === "1000");
   const revenueAccount = (glAccounts ?? []).find((a: any) => a.code === "4000");
   const expenseAccount = (glAccounts ?? []).find((a: any) => a.code === "5000");
+  const salaryAccount = (glAccounts ?? []).find((a: any) => a.code === "5100");
 
   if (cashAccount && revenueAccount) {
     for (let i = 0; i < 5; i++) {
@@ -334,34 +365,34 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           { journal_entry_id: je.id, gl_account_id: cashAccount.id, debit: amount, credit: 0, description: "Cash received" },
           { journal_entry_id: je.id, gl_account_id: revenueAccount.id, debit: 0, credit: amount, description: "Revenue recognized" },
         ]);
-        results.push({ workflow: `Journal: ${entryNum}`, status: "passed", detail: `Balanced entry ₹${amount.toLocaleString()}`, duration_ms: Date.now() - wfStart });
+        results.push({ workflow: `Journal: ${entryNum}`, module: "Finance", status: "passed", detail: `Balanced entry ₹${amount.toLocaleString()}`, duration_ms: Date.now() - wfStart });
       } catch (e) {
-        results.push({ workflow: `Journal entry #${i + 1}`, status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+        results.push({ workflow: `Journal entry #${i + 1}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
       }
     }
   }
 
   // WF4: Create expenses
+  const expenseCategories = ["Travel", "Office Supplies", "Software", "Meals", "Transport"];
   for (let i = 0; i < 5; i++) {
     const wfStart = Date.now();
     try {
       const amount = Math.round(500 + Math.random() * 50000);
-      const categories = ["Travel", "Office Supplies", "Software", "Meals", "Transport"];
       const { error } = await client.from("expenses").insert({
-        description: `Simulation expense - ${categories[i]}`, amount,
-        category: categories[i], organization_id: orgId, user_id: userId,
+        description: `Simulation expense - ${expenseCategories[i]}`, amount,
+        category: expenseCategories[i], organization_id: orgId, user_id: userId,
         status: "pending", expense_date: new Date().toISOString().split("T")[0],
       });
       results.push({
-        workflow: `Expense: ${categories[i]}`, status: error ? "failed" : "passed",
+        workflow: `Expense: ${expenseCategories[i]}`, module: "Finance", status: error ? "failed" : "passed",
         detail: error?.message ?? `₹${amount.toLocaleString()}`, duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
-      results.push({ workflow: `Expense #${i + 1}`, status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      results.push({ workflow: `Expense #${i + 1}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
 
-  // WF5: Create financial records
+  // WF5: Financial records
   if (cashAccount && expenseAccount) {
     for (let i = 0; i < 3; i++) {
       const wfStart = Date.now();
@@ -374,19 +405,263 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           record_date: new Date().toISOString().split("T")[0],
         });
         results.push({
-          workflow: `Financial record: ${types[i]}`, status: error ? "failed" : "passed",
+          workflow: `Financial record: ${types[i]}`, module: "Finance", status: error ? "failed" : "passed",
           detail: error?.message ?? `₹${amount.toLocaleString()}`, duration_ms: Date.now() - wfStart,
         });
       } catch (e) {
-        results.push({ workflow: `Financial record #${i + 1}`, status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+        results.push({ workflow: `Financial record #${i + 1}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
       }
+    }
+  }
+
+  // ===== ATTENDANCE WORKFLOWS =====
+
+  // WF6: Create attendance records for each profile
+  const today = new Date();
+  for (let dayOffset = 1; dayOffset <= 5; dayOffset++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - dayOffset);
+    const dateStr = date.toISOString().split("T")[0];
+
+    for (const profile of profileList.slice(0, 5)) {
+      const wfStart = Date.now();
+      try {
+        const checkIn = `${dateStr}T09:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
+        const checkOut = `${dateStr}T18:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
+        const { error } = await client.from("attendance_records").insert({
+          user_id: profile.id, profile_id: profile.id,
+          organization_id: orgId, date: dateStr,
+          check_in: checkIn, check_out: checkOut,
+          status: "present",
+        });
+        results.push({
+          workflow: `Attendance: ${profile.full_name ?? profile.employee_code ?? "Employee"} on ${dateStr}`,
+          module: "Attendance", status: error ? "failed" : "passed",
+          detail: error?.message ?? `${checkIn.split("T")[1]} → ${checkOut.split("T")[1]}`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } catch (e) {
+        results.push({ workflow: `Attendance ${dateStr}`, module: "Attendance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      }
+    }
+  }
+
+  // ===== LEAVE WORKFLOWS =====
+
+  // WF7: Create leave requests (various types & statuses)
+  const leaveScenarios = [
+    { type: "Casual Leave", from: 5, to: 6, days: 2, status: "pending", reason: "Family function" },
+    { type: "Sick Leave", from: 10, to: 12, days: 3, status: "pending", reason: "Fever and cold" },
+    { type: "Earned Leave", from: 20, to: 25, days: 6, status: "pending", reason: "Vacation trip" },
+    { type: "Casual Leave", from: 15, to: 15, days: 1, status: "pending", reason: "Personal work" },
+  ];
+  for (let i = 0; i < Math.min(leaveScenarios.length, profileList.length); i++) {
+    const wfStart = Date.now();
+    const scenario = leaveScenarios[i];
+    const profile = profileList[i];
+    const fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() + scenario.from);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + scenario.to);
+    try {
+      const { error } = await client.from("leave_requests").insert({
+        user_id: profile.id, profile_id: profile.id,
+        organization_id: orgId,
+        leave_type: scenario.type,
+        from_date: fromDate.toISOString().split("T")[0],
+        to_date: toDate.toISOString().split("T")[0],
+        days: scenario.days,
+        reason: scenario.reason,
+        status: scenario.status,
+      });
+      results.push({
+        workflow: `Leave: ${scenario.type} for ${profile.full_name ?? "Employee"}`,
+        module: "Leave", status: error ? "failed" : "passed",
+        detail: error?.message ?? `${scenario.days} day(s) — ${scenario.reason}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Leave request #${i + 1}`, module: "Leave", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== PAYROLL WORKFLOWS =====
+
+  // WF8: Create payroll run + payroll records
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    const payPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    try {
+      const { data: payrollRun, error: runErr } = await client.from("payroll_runs").insert({
+        organization_id: orgId, pay_period: payPeriod,
+        generated_by: userId, status: "draft",
+        employee_count: Math.min(profileList.length, 5),
+        total_gross: 0, total_deductions: 0, total_net: 0,
+      }).select("id").single();
+
+      if (runErr) throw runErr;
+
+      let totalGross = 0, totalDeductions = 0, totalNet = 0;
+      const salaryBands = [50000, 65000, 80000, 45000, 95000];
+
+      for (let i = 0; i < Math.min(5, profileList.length); i++) {
+        const profile = profileList[i];
+        const basic = salaryBands[i % salaryBands.length];
+        const hra = Math.round(basic * 0.4);
+        const transport = 1600;
+        const otherAllowances = Math.round(basic * 0.15);
+        const grossPay = basic + hra + transport + otherAllowances;
+        const pf = Math.round(basic * 0.12);
+        const tax = Math.round(grossPay * 0.1);
+        const otherDeductions = 500;
+        const netPay = grossPay - pf - tax - otherDeductions;
+
+        const { error: recErr } = await client.from("payroll_records").insert({
+          user_id: profile.id, profile_id: profile.id,
+          organization_id: orgId, pay_period: payPeriod,
+          basic_salary: basic, hra, transport_allowance: transport,
+          other_allowances: otherAllowances,
+          pf_deduction: pf, tax_deduction: tax, other_deductions: otherDeductions,
+          net_pay: netPay, working_days: 22, paid_days: 22,
+          lop_days: 0, lop_deduction: 0, status: "draft",
+        });
+
+        if (!recErr) {
+          totalGross += grossPay;
+          totalDeductions += pf + tax + otherDeductions;
+          totalNet += netPay;
+        }
+
+        results.push({
+          workflow: `Payslip: ${profile.full_name ?? "Employee"} (${payPeriod})`,
+          module: "Payroll", status: recErr ? "failed" : "passed",
+          detail: recErr?.message ?? `Gross ₹${grossPay.toLocaleString()} → Net ₹${netPay.toLocaleString()}`,
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+
+      // Update run totals
+      await client.from("payroll_runs").update({
+        total_gross: totalGross, total_deductions: totalDeductions, total_net: totalNet,
+        employee_count: Math.min(5, profileList.length),
+      }).eq("id", payrollRun.id);
+
+      results.push({
+        workflow: `Payroll Run: ${payPeriod}`,
+        module: "Payroll", status: "passed",
+        detail: `Run created — Gross ₹${totalGross.toLocaleString()}, Net ₹${totalNet.toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Payroll run ${payPeriod}`, module: "Payroll", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== REIMBURSEMENT WORKFLOWS =====
+
+  // WF9: Create reimbursement requests
+  const reimbCategories = ["Travel", "Medical", "Internet", "Books & Learning"];
+  for (let i = 0; i < Math.min(reimbCategories.length, profileList.length); i++) {
+    const wfStart = Date.now();
+    const profile = profileList[i];
+    const amount = Math.round(1000 + Math.random() * 15000);
+    try {
+      const { error } = await client.from("reimbursement_requests").insert({
+        user_id: profile.id, profile_id: profile.id,
+        organization_id: orgId,
+        amount,
+        category: reimbCategories[i],
+        description: `Simulation reimbursement - ${reimbCategories[i]}`,
+        expense_date: new Date(today.getTime() - Math.random() * 30 * 86400000).toISOString().split("T")[0],
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      });
+      results.push({
+        workflow: `Reimbursement: ${reimbCategories[i]} by ${profile.full_name ?? "Employee"}`,
+        module: "Reimbursement", status: error ? "failed" : "passed",
+        detail: error?.message ?? `₹${amount.toLocaleString()} submitted`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Reimbursement #${i + 1}`, module: "Reimbursement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== GOAL/PERFORMANCE WORKFLOWS =====
+
+  // WF10: Create goal plans
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  for (let i = 0; i < Math.min(3, profileList.length); i++) {
+    const wfStart = Date.now();
+    const profile = profileList[i];
+    const goalItems = [
+      { title: "Complete project milestones", target: "3 milestones", weightage: 40 },
+      { title: "Client satisfaction score", target: "4.5/5", weightage: 30 },
+      { title: "Documentation & knowledge sharing", target: "2 sessions", weightage: 30 },
+    ];
+    try {
+      const { error } = await client.from("goal_plans").insert({
+        user_id: profile.id, profile_id: profile.id,
+        organization_id: orgId,
+        month: currentMonth,
+        items: goalItems,
+        status: "submitted",
+      });
+      results.push({
+        workflow: `Goal Plan: ${profile.full_name ?? "Employee"} (${currentMonth})`,
+        module: "Performance", status: error ? "failed" : "passed",
+        detail: error?.message ?? `3 goals, total weightage 100%`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Goal plan #${i + 1}`, module: "Performance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== MEMO WORKFLOWS =====
+
+  // WF11: Create memos
+  const memoScenarios = [
+    { title: "Q4 Review Schedule", dept: "HR", priority: "high", status: "pending_approval" },
+    { title: "Office Renovation Update", dept: "Admin", priority: "medium", status: "draft" },
+    { title: "New Client Onboarding SOP", dept: "Operations", priority: "high", status: "pending_approval" },
+  ];
+  for (const memo of memoScenarios) {
+    const wfStart = Date.now();
+    try {
+      const { error } = await client.from("memos").insert({
+        title: memo.title,
+        content: `This is a simulation memo for ${memo.title}. It covers key updates and action items for the team.`,
+        author_name: "Simulation Engine",
+        department: memo.dept,
+        priority: memo.priority,
+        status: memo.status,
+        organization_id: orgId,
+        user_id: userId,
+      });
+      results.push({
+        workflow: `Memo: ${memo.title}`,
+        module: "Performance", status: error ? "failed" : "passed",
+        detail: error?.message ?? `${memo.dept} — ${memo.priority} priority — ${memo.status}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Memo: ${memo.title}`, module: "Performance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
 
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
 
-  // Update simulation run if provided
+  // Module breakdown
+  const modules = [...new Set(results.map(r => r.module))];
+  const moduleBreakdown = modules.map(m => ({
+    module: m,
+    total: results.filter(r => r.module === m).length,
+    passed: results.filter(r => r.module === m && r.status === "passed").length,
+    failed: results.filter(r => r.module === m && r.status === "failed").length,
+  }));
+
   if (runId) {
     await client.from("simulation_runs").update({
       workflows_executed: results.length,
@@ -400,6 +675,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   return {
     success: true, action: "run_workflows",
     workflows_executed: results.length, passed, failed,
+    module_breakdown: moduleBreakdown,
     workflow_details: results,
     execution_time_ms: Date.now() - startTime,
   };
@@ -409,14 +685,19 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
 async function runStressTest(client: any, orgId: string, userId: string, runId?: string) {
   const startTime = Date.now();
   const concurrentUsers = 20;
-  const results: Array<{ user: number; workflow: string; status: string; duration_ms: number; detail: string }> = [];
+  const results: Array<{ user: number; workflow: string; module: string; status: string; duration_ms: number; detail: string }> = [];
 
-  // Simulate concurrent operations with Promise.allSettled
+  // Get profiles for HR stress tests
+  const { data: profiles } = await client.from("profiles")
+    .select("id").eq("organization_id", orgId).limit(5);
+  const profileIds = (profiles ?? []).map((p: any) => p.id);
+
   const tasks = Array.from({ length: concurrentUsers }, (_, userIdx) => {
     return (async () => {
       const wfStart = Date.now();
-      const ops = ["invoice", "expense", "journal", "bill"];
+      const ops = ["invoice", "expense", "journal", "bill", "attendance", "leave", "payroll_record", "reimbursement"];
       const op = ops[userIdx % ops.length];
+      const profileId = profileIds[userIdx % profileIds.length] || userId;
 
       try {
         switch (op) {
@@ -431,7 +712,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
               due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
             });
             if (error) throw error;
-            break;
+            return { user: userIdx, workflow: op, module: "Finance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
           case "expense": {
             const { error } = await client.from("expenses").insert({
@@ -440,7 +721,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
               status: "pending", expense_date: new Date().toISOString().split("T")[0],
             });
             if (error) throw error;
-            break;
+            return { user: userIdx, workflow: op, module: "Finance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
           case "journal": {
             const { data: accounts } = await client.from("gl_accounts")
@@ -459,7 +740,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
                 { journal_entry_id: je.id, gl_account_id: accounts[1].id, debit: 0, credit: 10000 },
               ]);
             }
-            break;
+            return { user: userIdx, workflow: op, module: "Finance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
           case "bill": {
             const { error } = await client.from("bills").insert({
@@ -470,12 +751,61 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
               status: "draft", bill_date: new Date().toISOString().split("T")[0],
             });
             if (error) throw error;
-            break;
+            return { user: userIdx, workflow: op, module: "Finance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
+          case "attendance": {
+            const dateStr = new Date(Date.now() - (userIdx + 1) * 86400000).toISOString().split("T")[0];
+            const { error } = await client.from("attendance_records").insert({
+              user_id: profileId, profile_id: profileId,
+              organization_id: orgId, date: dateStr,
+              check_in: `${dateStr}T09:00:00`, check_out: `${dateStr}T18:00:00`,
+              status: "present",
+            });
+            if (error) throw error;
+            return { user: userIdx, workflow: op, module: "Attendance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
+          }
+          case "leave": {
+            const fromDate = new Date(Date.now() + (userIdx + 30) * 86400000).toISOString().split("T")[0];
+            const toDate = new Date(Date.now() + (userIdx + 31) * 86400000).toISOString().split("T")[0];
+            const { error } = await client.from("leave_requests").insert({
+              user_id: profileId, profile_id: profileId,
+              organization_id: orgId, leave_type: "Casual Leave",
+              from_date: fromDate, to_date: toDate, days: 2,
+              reason: `Stress test leave ${userIdx}`, status: "pending",
+            });
+            if (error) throw error;
+            return { user: userIdx, workflow: op, module: "Leave", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
+          }
+          case "payroll_record": {
+            const payPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+            const { error } = await client.from("payroll_records").insert({
+              user_id: profileId, profile_id: profileId,
+              organization_id: orgId, pay_period: payPeriod,
+              basic_salary: 50000, hra: 20000, transport_allowance: 1600,
+              other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
+              other_deductions: 500, net_pay: 64690,
+              working_days: 22, paid_days: 22, lop_days: 0, lop_deduction: 0,
+              status: "draft",
+            });
+            if (error) throw error;
+            return { user: userIdx, workflow: op, module: "Payroll", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
+          }
+          case "reimbursement": {
+            const { error } = await client.from("reimbursement_requests").insert({
+              user_id: profileId, profile_id: profileId,
+              organization_id: orgId, amount: 2000 + userIdx * 500,
+              category: "Travel", description: `Stress reimbursement ${userIdx}`,
+              expense_date: new Date().toISOString().split("T")[0],
+              status: "submitted", submitted_at: new Date().toISOString(),
+            });
+            if (error) throw error;
+            return { user: userIdx, workflow: op, module: "Reimbursement", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
+          }
+          default:
+            return { user: userIdx, workflow: op, module: "Unknown", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
         }
-        return { user: userIdx, workflow: op, status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
       } catch (e) {
-        return { user: userIdx, workflow: op, status: "failed", duration_ms: Date.now() - wfStart, detail: (e as Error).message };
+        return { user: userIdx, workflow: op, module: op, status: "failed", duration_ms: Date.now() - wfStart, detail: (e as Error).message };
       }
     })();
   });
@@ -483,7 +813,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
   const settled = await Promise.allSettled(tasks);
   for (const s of settled) {
     if (s.status === "fulfilled") results.push(s.value);
-    else results.push({ user: -1, workflow: "unknown", status: "failed", duration_ms: 0, detail: s.reason?.message ?? "Unknown error" });
+    else results.push({ user: -1, workflow: "unknown", module: "Unknown", status: "failed", duration_ms: 0, detail: s.reason?.message ?? "Unknown error" });
   }
 
   const passed = results.filter(r => r.status === "passed").length;
@@ -511,9 +841,16 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
 // ========== CHAOS TEST ==========
 async function runChaosTest(client: any, orgId: string, userId: string, runId?: string) {
   const startTime = Date.now();
-  const results: Array<{ test: string; status: string; detail: string }> = [];
+  const results: Array<{ test: string; module: string; status: string; detail: string }> = [];
 
-  // Chaos 1: Duplicate submissions
+  // Get a profile for HR chaos tests
+  const { data: profiles } = await client.from("profiles")
+    .select("id").eq("organization_id", orgId).limit(1);
+  const testProfileId = profiles?.[0]?.id ?? userId;
+
+  // === FINANCE CHAOS ===
+
+  // Chaos 1: Duplicate invoice submissions
   const dupInvNum = `CHAOS-DUP-${Date.now()}`;
   for (let i = 0; i < 3; i++) {
     const { error } = await client.from("invoices").insert({
@@ -525,11 +862,10 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
       due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
     });
     if (i === 0) {
-      results.push({ test: "Duplicate invoice - first insert", status: error ? "anomaly" : "passed", detail: error?.message ?? "First insert succeeded" });
+      results.push({ test: "Duplicate invoice - first insert", module: "Finance", status: error ? "anomaly" : "passed", detail: error?.message ?? "First insert succeeded" });
     } else {
-      // Duplicates may or may not be blocked depending on constraints
       results.push({
-        test: `Duplicate invoice - attempt ${i + 1}`,
+        test: `Duplicate invoice - attempt ${i + 1}`, module: "Finance",
         status: error ? "blocked" : "anomaly",
         detail: error ? `Correctly blocked: ${error.message}` : "WARNING: Duplicate accepted — missing unique constraint",
       });
@@ -543,7 +879,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     status: "pending", expense_date: new Date().toISOString().split("T")[0],
   });
   results.push({
-    test: "Negative expense amount",
+    test: "Negative expense amount", module: "Finance",
     status: negErr ? "blocked" : "anomaly",
     detail: negErr ? `Correctly blocked: ${negErr.message}` : "WARNING: Negative amount accepted",
   });
@@ -565,14 +901,86 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
         { journal_entry_id: je.id, gl_account_id: accounts[1].id, debit: 0, credit: 5000 },
       ]);
       results.push({
-        test: "Imbalanced journal entry",
+        test: "Imbalanced journal entry", module: "Finance",
         status: "anomaly",
         detail: "WARNING: Imbalanced journal accepted (debit=10000, credit=5000) — needs validation trigger",
       });
     }
   }
 
-  // Chaos 4: Rapid-fire operations
+  // === HR/LEAVE CHAOS ===
+
+  // Chaos 4: Overlapping leave requests
+  const futureDate = new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0];
+  const futureDateEnd = new Date(Date.now() + 62 * 86400000).toISOString().split("T")[0];
+  for (let i = 0; i < 2; i++) {
+    const { error } = await client.from("leave_requests").insert({
+      user_id: testProfileId, profile_id: testProfileId,
+      organization_id: orgId, leave_type: "Casual Leave",
+      from_date: futureDate, to_date: futureDateEnd, days: 3,
+      reason: `Chaos overlap test #${i + 1}`, status: "pending",
+    });
+    if (i === 0) {
+      results.push({ test: "Overlapping leave - first request", module: "Leave", status: error ? "anomaly" : "passed", detail: error?.message ?? "First request succeeded" });
+    } else {
+      results.push({
+        test: "Overlapping leave - duplicate dates", module: "Leave",
+        status: error ? "blocked" : "anomaly",
+        detail: error ? `Correctly blocked: ${error.message}` : "WARNING: Overlapping leave accepted",
+      });
+    }
+  }
+
+  // Chaos 5: Negative leave days
+  const { error: negLeaveErr } = await client.from("leave_requests").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, leave_type: "Sick Leave",
+    from_date: futureDate, to_date: futureDate, days: -5,
+    reason: "Chaos: negative days", status: "pending",
+  });
+  results.push({
+    test: "Negative leave days", module: "Leave",
+    status: negLeaveErr ? "blocked" : "anomaly",
+    detail: negLeaveErr ? `Correctly blocked: ${negLeaveErr.message}` : "WARNING: Negative leave days accepted",
+  });
+
+  // === PAYROLL CHAOS ===
+
+  // Chaos 6: Negative salary payroll record
+  const { error: negPayErr } = await client.from("payroll_records").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, pay_period: "2026-01",
+    basic_salary: -50000, hra: 0, transport_allowance: 0,
+    other_allowances: 0, pf_deduction: 0, tax_deduction: 0,
+    other_deductions: 0, net_pay: -50000,
+    working_days: 22, paid_days: 22, lop_days: 0, lop_deduction: 0,
+    status: "draft",
+  });
+  results.push({
+    test: "Negative salary payroll record", module: "Payroll",
+    status: negPayErr ? "blocked" : "anomaly",
+    detail: negPayErr ? `Correctly blocked: ${negPayErr.message}` : "WARNING: Negative salary accepted",
+  });
+
+  // === REIMBURSEMENT CHAOS ===
+
+  // Chaos 7: Zero-amount reimbursement
+  const { error: zeroReimbErr } = await client.from("reimbursement_requests").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, amount: 0,
+    category: "Chaos", description: "Chaos: zero amount",
+    expense_date: new Date().toISOString().split("T")[0],
+    status: "submitted", submitted_at: new Date().toISOString(),
+  });
+  results.push({
+    test: "Zero-amount reimbursement", module: "Reimbursement",
+    status: zeroReimbErr ? "blocked" : "anomaly",
+    detail: zeroReimbErr ? `Correctly blocked: ${zeroReimbErr.message}` : "WARNING: Zero-amount reimbursement accepted",
+  });
+
+  // === RAPID-FIRE CROSS-MODULE ===
+
+  // Chaos 8: Rapid-fire operations across modules
   const rapidTasks = Array.from({ length: 10 }, (_, i) =>
     client.from("financial_records").insert({
       type: "expense", amount: 100 + i, description: `Rapid-fire #${i}`,
@@ -583,7 +991,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const rapidResults = await Promise.allSettled(rapidTasks);
   const rapidPassed = rapidResults.filter(r => r.status === "fulfilled" && !(r.value as any).error).length;
   results.push({
-    test: "Rapid-fire 10 operations",
+    test: "Rapid-fire 10 financial operations", module: "Finance",
     status: rapidPassed === 10 ? "passed" : "partial",
     detail: `${rapidPassed}/10 rapid-fire inserts succeeded`,
   });
@@ -602,27 +1010,29 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   return { success: true, action: "run_chaos_test", ...chaosResults, execution_time_ms: Date.now() - startTime };
 }
 
-// ========== ACCOUNTING VALIDATION ==========
+// ========== VALIDATION ==========
 async function runAccountingValidation(client: any, orgId: string, userId: string, runId?: string) {
   const startTime = Date.now();
-  const checks: Array<{ check: string; status: string; detail: string }> = [];
+  const checks: Array<{ check: string; module: string; status: string; detail: string }> = [];
 
-  // V1: Debits = Credits
+  // === FINANCE VALIDATIONS ===
+
+  // V1: Debits = Credits (Trial Balance)
   const { data: balanceData } = await client.rpc("run_financial_verification", { _org_id: orgId });
   if (balanceData && Array.isArray(balanceData)) {
     for (const check of balanceData) {
       if (check.id === "SUMMARY") continue;
       checks.push({
-        check: check.id,
+        check: check.id, module: "Finance",
         status: check.status === "PASS" ? "passed" : check.status === "WARNING" ? "warning" : "failed",
         detail: check.message,
       });
     }
   } else {
-    checks.push({ check: "V_VERIFICATION_ENGINE", status: "failed", detail: "Could not run verification engine" });
+    checks.push({ check: "V_VERIFICATION_ENGINE", module: "Finance", status: "failed", detail: "Could not run verification engine" });
   }
 
-  // V2: Check depreciation entries exist for active assets
+  // V2: Depreciation coverage
   const { count: activeAssets } = await client.from("assets")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId).eq("status", "active");
@@ -630,7 +1040,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   checks.push({
-    check: "V_DEPRECIATION_COVERAGE",
+    check: "V_DEPRECIATION_COVERAGE", module: "Finance",
     status: (activeAssets ?? 0) > 0 && (depEntries ?? 0) === 0 ? "warning" : "passed",
     detail: `${activeAssets ?? 0} active assets, ${depEntries ?? 0} depreciation entries`,
   });
@@ -640,9 +1050,109 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   checks.push({
-    check: "V_AUDIT_COVERAGE",
+    check: "V_AUDIT_COVERAGE", module: "Finance",
     status: (auditCount ?? 0) > 0 ? "passed" : "warning",
     detail: `${auditCount ?? 0} audit log entries for sandbox org`,
+  });
+
+  // === HR VALIDATIONS ===
+
+  // V4: All profiles have required fields
+  const { data: incompleteProfiles } = await client.from("profiles")
+    .select("id, full_name, email")
+    .eq("organization_id", orgId)
+    .or("full_name.is.null,email.is.null");
+  checks.push({
+    check: "V_PROFILE_COMPLETENESS", module: "HR",
+    status: (incompleteProfiles ?? []).length === 0 ? "passed" : "warning",
+    detail: `${(incompleteProfiles ?? []).length} profiles missing name or email`,
+  });
+
+  // === ATTENDANCE VALIDATIONS ===
+
+  // V5: No duplicate attendance records (same user, same date)
+  const { data: attendanceRecords } = await client.from("attendance_records")
+    .select("user_id, date")
+    .eq("organization_id", orgId);
+  const attendanceKeys = new Set<string>();
+  let dupAttendance = 0;
+  for (const rec of (attendanceRecords ?? [])) {
+    const key = `${rec.user_id}-${rec.date}`;
+    if (attendanceKeys.has(key)) dupAttendance++;
+    attendanceKeys.add(key);
+  }
+  checks.push({
+    check: "V_ATTENDANCE_NO_DUPLICATES", module: "Attendance",
+    status: dupAttendance === 0 ? "passed" : "warning",
+    detail: dupAttendance === 0 ? "No duplicate attendance entries" : `${dupAttendance} duplicate attendance entries found`,
+  });
+
+  // === LEAVE VALIDATIONS ===
+
+  // V6: All approved leaves have a reviewer
+  const { data: badLeaves } = await client.from("leave_requests")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("status", "approved")
+    .is("reviewed_by", null);
+  checks.push({
+    check: "V_LEAVE_APPROVAL_INTEGRITY", module: "Leave",
+    status: (badLeaves ?? []).length === 0 ? "passed" : "failed",
+    detail: (badLeaves ?? []).length === 0
+      ? "All approved leaves have a reviewer"
+      : `${(badLeaves ?? []).length} approved leaves without reviewer`,
+  });
+
+  // === PAYROLL VALIDATIONS ===
+
+  // V7: No superseded records without superseded_by link
+  const { data: brokenSuperseded } = await client.from("payroll_records")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("is_superseded", true)
+    .is("superseded_by", null);
+  checks.push({
+    check: "V_PAYROLL_SUPERSEDE_CHAIN", module: "Payroll",
+    status: (brokenSuperseded ?? []).length === 0 ? "passed" : "warning",
+    detail: (brokenSuperseded ?? []).length === 0
+      ? "All superseded records have valid chain"
+      : `${(brokenSuperseded ?? []).length} broken supersede chains`,
+  });
+
+  // V8: Payroll net_pay = basic + hra + transport + other_allowances - pf - tax - other_deductions - lop
+  const { data: payrollRecords } = await client.from("payroll_records")
+    .select("id, basic_salary, hra, transport_allowance, other_allowances, pf_deduction, tax_deduction, other_deductions, lop_deduction, net_pay")
+    .eq("organization_id", orgId)
+    .eq("is_superseded", false)
+    .limit(100);
+  let payrollMismatches = 0;
+  for (const pr of (payrollRecords ?? [])) {
+    const expected = pr.basic_salary + pr.hra + pr.transport_allowance + pr.other_allowances
+      - pr.pf_deduction - pr.tax_deduction - pr.other_deductions - pr.lop_deduction;
+    if (Math.abs(expected - pr.net_pay) > 0.01) payrollMismatches++;
+  }
+  checks.push({
+    check: "V_PAYROLL_NET_PAY_CALC", module: "Payroll",
+    status: payrollMismatches === 0 ? "passed" : "failed",
+    detail: payrollMismatches === 0
+      ? `All ${(payrollRecords ?? []).length} payroll records have correct net pay`
+      : `${payrollMismatches} records with incorrect net pay calculation`,
+  });
+
+  // === REIMBURSEMENT VALIDATIONS ===
+
+  // V9: No paid reimbursements without finance review
+  const { data: badReimb } = await client.from("reimbursement_requests")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("status", "paid")
+    .is("finance_reviewed_by", null);
+  checks.push({
+    check: "V_REIMBURSEMENT_WORKFLOW", module: "Reimbursement",
+    status: (badReimb ?? []).length === 0 ? "passed" : "warning",
+    detail: (badReimb ?? []).length === 0
+      ? "All paid reimbursements have finance review"
+      : `${(badReimb ?? []).length} paid reimbursements without finance review`,
   });
 
   const passed = checks.filter(c => c.status === "passed").length;
@@ -670,7 +1180,6 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
 async function runFullSimulation(client: any, orgId: string, userId: string) {
   const fullStart = Date.now();
 
-  // Create simulation run record
   const { data: run, error: runErr } = await client.from("simulation_runs").insert({
     sandbox_org_id: orgId, run_type: "full", status: "running",
     initiated_by: userId, started_at: new Date().toISOString(),
@@ -680,7 +1189,6 @@ async function runFullSimulation(client: any, orgId: string, userId: string) {
 
   try {
     // Phase 1: Reset & Seed
-    await client.from("simulation_runs").update({ status: "running" }).eq("id", runId);
     const seedResult = await resetAndSeed(client, orgId, userId);
     await client.from("simulation_runs").update({
       seed_summary: seedResult.seed_summary,
@@ -695,12 +1203,11 @@ async function runFullSimulation(client: any, orgId: string, userId: string) {
     // Phase 4: Chaos Test
     const chaosResult = await runChaosTest(client, orgId, userId, runId);
 
-    // Phase 5: Accounting Validation
+    // Phase 5: Validation
     const validationResult = await runAccountingValidation(client, orgId, userId, runId);
 
     const totalTime = Date.now() - fullStart;
 
-    // Generate report
     const report = {
       simulation_id: runId,
       sandbox_org_id: orgId,
@@ -720,10 +1227,10 @@ async function runFullSimulation(client: any, orgId: string, userId: string) {
         validation_passed: validationResult.validation_passed,
         concurrent_users_tested: stressResult.concurrent_users ?? 0,
         chaos_anomalies: chaosResult.anomalies ?? 0,
+        module_breakdown: workflowResult.module_breakdown ?? [],
       },
     };
 
-    // Generate HTML report
     const htmlReport = generateHTMLReport(report);
 
     await client.from("simulation_runs").update({
@@ -751,6 +1258,10 @@ async function runFullSimulation(client: any, orgId: string, userId: string) {
 
 function generateHTMLReport(report: any): string {
   const s = report.summary;
+  const moduleRows = (s.module_breakdown ?? []).map((m: any) =>
+    `<tr><td>${m.module}</td><td>${m.total}</td><td class="pass">${m.passed}</td><td class="${m.failed > 0 ? 'fail' : ''}">${m.failed}</td></tr>`
+  ).join('');
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Simulation Report - ${report.simulation_id}</title>
 <style>
@@ -768,9 +1279,10 @@ function generateHTMLReport(report: any): string {
   .badge-pass { background: #d1fae5; color: #065f46; }
   .badge-fail { background: #fee2e2; color: #991b1b; }
   .badge-warn { background: #fef3c7; color: #92400e; }
+  .badge-module { background: #e0e7ff; color: #3730a3; margin-right: 4px; }
   .timestamp { color: #94a3b8; font-size: 13px; }
 </style></head><body>
-<h1>🔬 Financial Simulation Report</h1>
+<h1>🔬 Full System Simulation Report</h1>
 <p class="timestamp">Generated: ${report.timestamp} | Duration: ${(report.total_execution_time_ms / 1000).toFixed(1)}s</p>
 <div>
   <div class="metric"><div class="value">${s.total_records_created}</div><div class="label">Records Created</div></div>
@@ -779,25 +1291,27 @@ function generateHTMLReport(report: any): string {
   <div class="metric"><div class="value">${s.concurrent_users_tested}</div><div class="label">Concurrent Users</div></div>
   <div class="metric"><div class="value ${s.validation_passed ? 'pass' : 'fail'}">${s.validation_passed ? '✓' : '✗'}</div><div class="label">Integrity</div></div>
 </div>
+${moduleRows ? `<h2>Module Breakdown</h2>
+<table><tr><th>Module</th><th>Total</th><th>Passed</th><th>Failed</th></tr>${moduleRows}</table>` : ''}
 <h2>Seed Data</h2>
 <table><tr>${Object.keys(report.phases.seed.seed_summary ?? {}).map((k: string) => `<th>${k}</th>`).join('')}</tr>
 <tr>${Object.values(report.phases.seed.seed_summary ?? {}).map((v: any) => `<td>${v}</td>`).join('')}</tr></table>
 <h2>Workflow Results</h2>
-<table><tr><th>Workflow</th><th>Status</th><th>Detail</th><th>Duration</th></tr>
+<table><tr><th>Module</th><th>Workflow</th><th>Status</th><th>Detail</th><th>Duration</th></tr>
 ${(report.phases.workflows.workflow_details ?? []).map((w: any) =>
-  `<tr><td>${w.workflow}</td><td><span class="badge badge-${w.status === 'passed' ? 'pass' : 'fail'}">${w.status}</span></td><td>${w.detail}</td><td>${w.duration_ms}ms</td></tr>`
+  `<tr><td><span class="badge badge-module">${w.module ?? 'Finance'}</span></td><td>${w.workflow}</td><td><span class="badge badge-${w.status === 'passed' ? 'pass' : 'fail'}">${w.status}</span></td><td>${w.detail}</td><td>${w.duration_ms}ms</td></tr>`
 ).join('')}</table>
 <h2>Stress Test</h2>
 <p>${report.phases.stress_test.passed ?? 0} passed / ${report.phases.stress_test.failed ?? 0} failed across ${report.phases.stress_test.concurrent_users ?? 0} concurrent users. Avg: ${report.phases.stress_test.avg_duration_ms ?? 0}ms</p>
 <h2>Chaos Test</h2>
-<table><tr><th>Test</th><th>Status</th><th>Detail</th></tr>
+<table><tr><th>Module</th><th>Test</th><th>Status</th><th>Detail</th></tr>
 ${(report.phases.chaos_test.details ?? []).map((c: any) =>
-  `<tr><td>${c.test}</td><td><span class="badge badge-${c.status === 'passed' || c.status === 'blocked' ? 'pass' : c.status === 'anomaly' ? 'fail' : 'warn'}">${c.status}</span></td><td>${c.detail}</td></tr>`
+  `<tr><td><span class="badge badge-module">${c.module ?? 'Finance'}</span></td><td>${c.test}</td><td><span class="badge badge-${c.status === 'passed' || c.status === 'blocked' ? 'pass' : c.status === 'anomaly' ? 'fail' : 'warn'}">${c.status}</span></td><td>${c.detail}</td></tr>`
 ).join('')}</table>
-<h2>Accounting Validation</h2>
-<table><tr><th>Check</th><th>Status</th><th>Detail</th></tr>
+<h2>System Validation</h2>
+<table><tr><th>Module</th><th>Check</th><th>Status</th><th>Detail</th></tr>
 ${(report.phases.validation.details ?? []).map((v: any) =>
-  `<tr><td>${v.check}</td><td><span class="badge badge-${v.status === 'passed' ? 'pass' : v.status === 'warning' ? 'warn' : 'fail'}">${v.status}</span></td><td>${v.detail}</td></tr>`
+  `<tr><td><span class="badge badge-module">${v.module ?? 'Finance'}</span></td><td>${v.check}</td><td><span class="badge badge-${v.status === 'passed' ? 'pass' : v.status === 'warning' ? 'warn' : 'fail'}">${v.status}</span></td><td>${v.detail}</td></tr>`
 ).join('')}</table>
 </body></html>`;
 }
