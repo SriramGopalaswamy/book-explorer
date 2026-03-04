@@ -2780,6 +2780,23 @@ export default function ManagerInbox() {
             </Card>
           </TabsContent>
 
+          {/* ── Comp Revisions (Finance) ── */}
+          {isFinanceRole && (
+            <TabsContent value="comp-revisions">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <IndianRupee className="h-4 w-4 text-primary" />
+                    Pending Compensation Revisions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <PendingCompRevisions requests={pendingCompRevisions} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           {/* ── Profile Changes ── */}
           <TabsContent value="profile-changes">
             <Card>
