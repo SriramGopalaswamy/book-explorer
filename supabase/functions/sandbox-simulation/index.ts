@@ -337,9 +337,25 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.bank_accounts = bankAccountCount;
 
+  // ===== SEED HOLIDAYS =====
+  await client.from("holidays").delete().eq("organization_id", orgId);
+  const holidayList = [
+    { name: "Republic Day", date: "2026-01-26", year: 2026 },
+    { name: "Holi", date: "2026-03-17", year: 2026 },
+    { name: "Good Friday", date: "2026-04-03", year: 2026 },
+    { name: "Independence Day", date: "2026-08-15", year: 2026 },
+    { name: "Gandhi Jayanti", date: "2026-10-02", year: 2026 },
+    { name: "Diwali", date: "2026-10-20", year: 2026 },
+    { name: "Christmas", date: "2026-12-25", year: 2026 },
+  ];
+  let holidayCount = 0;
+  for (const h of holidayList) {
+    const { error } = await client.from("holidays").insert({ ...h, organization_id: orgId });
+    if (!error) holidayCount++;
+  }
+  summary.holidays = holidayCount;
+
   // ===== SEED SANDBOX PROFILES (employees) =====
-  // profiles schema: id, user_id, full_name, department, job_title, avatar_url,
-  //   created_at, updated_at, email, status, join_date, phone, manager_id, organization_id
   const { data: existingProfiles } = await client.from("profiles")
     .select("id").eq("organization_id", orgId);
 
@@ -365,7 +381,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
         const tempPassword = crypto.randomUUID() + "Aa1!";
 
-        // Create auth user (triggers handle_new_user which creates a profile)
         const { data: newUser, error: createErr } = await client.auth.admin.createUser({
           email,
           password: tempPassword,
@@ -378,8 +393,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           continue;
         }
 
-        // Update the auto-created profile with employee details
-        // Using ONLY columns that exist in the profiles table
         const { error: updateErr } = await client.from("profiles").update({
           organization_id: orgId,
           full_name: emp.name,
@@ -402,18 +415,36 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.profiles = seededProfiles;
 
-  // ===== SEED COMPENSATION STRUCTURES for seeded profiles =====
-  const { data: seededProfileList } = await client.from("profiles")
-    .select("id, full_name, job_title")
+  // ===== SEED USER ROLES for employees =====
+  const { data: allProfilesList } = await client.from("profiles")
+    .select("id, full_name, department, job_title")
     .eq("organization_id", orgId);
 
+  // Role mapping based on department/title
+  const roleMapping: Record<string, string> = {
+    "Finance Manager": "finance",
+    "HR Executive": "hr",
+    "Tech Lead": "manager",
+    "Operations Lead": "manager",
+  };
+  let roleCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    const role = roleMapping[p.job_title] || "employee";
+    const { error } = await client.from("user_roles").upsert({
+      user_id: p.id, role, organization_id: orgId,
+    }, { onConflict: "user_id,role,organization_id" });
+    if (!error) roleCount++;
+  }
+  summary.user_roles = roleCount;
+
+  // ===== SEED COMPENSATION STRUCTURES =====
   const salaryByTitle: Record<string, number> = {
     "Senior Developer": 95000, "Finance Manager": 85000, "Operations Lead": 72000,
     "HR Executive": 60000, "Tech Lead": 110000, "Marketing Analyst": 55000,
     "Sales Executive": 65000, "QA Engineer": 68000,
   };
   let compCount = 0;
-  for (const p of (seededProfileList ?? [])) {
+  for (const p of (allProfilesList ?? [])) {
     const basic = salaryByTitle[p.job_title] ?? 50000;
     const annualCTC = Math.round(basic * 12 * 1.55);
     const { data: existingComp } = await client.from("compensation_structures")
@@ -431,6 +462,27 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
   summary.compensation_structures = compCount;
+
+  // ===== SEED BUDGETS =====
+  let budgetCount = 0;
+  if (financialYearId) {
+    const { data: fpList } = await client.from("fiscal_periods")
+      .select("id").eq("organization_id", orgId).eq("financial_year_id", financialYearId).limit(3);
+    const budgetAccounts = ["5100", "5200", "5300"]; // Salaries, Rent, Utilities
+    for (const fp of (fpList ?? [])) {
+      for (const code of budgetAccounts) {
+        const acctId = glAccounts[code];
+        if (acctId) {
+          const { error } = await client.from("budgets").insert({
+            organization_id: orgId, account_id: acctId, fiscal_period_id: fp.id,
+            budget_amount: Math.round(50000 + Math.random() * 200000),
+          });
+          if (!error) budgetCount++;
+        }
+      }
+    }
+  }
+  summary.budgets = budgetCount;
 
   return {
     success: true,
