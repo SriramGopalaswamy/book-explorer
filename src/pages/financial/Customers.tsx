@@ -48,7 +48,7 @@ export default function Customers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string }>({});
+  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string; email?: string }>({});
 
   // Auto-set country code when country changes
   useEffect(() => {
