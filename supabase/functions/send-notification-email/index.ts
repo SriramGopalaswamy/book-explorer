@@ -237,11 +237,14 @@ Deno.serve(async (req) => {
 
   let type: string;
   let payload: Record<string, unknown>;
+  let requestOrgId: string | null = null;
 
   try {
     const body = await req.json();
     type = body.type;
     payload = body.payload;
+    // Accept organization_id at top level or inside payload
+    requestOrgId = body.organization_id || (payload as any)?.organization_id || null;
   } catch (err) {
     console.error("Failed to parse request body:", err);
     return new Response(
@@ -249,6 +252,32 @@ Deno.serve(async (req) => {
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
+
+  // If no org_id from payload, try to resolve from auth token
+  if (!requestOrgId) {
+    try {
+      const authHeader = req.headers.get("authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id")
+            .eq("user_id", userData.user.id)
+            .maybeSingle();
+          if (profile?.organization_id) requestOrgId = profile.organization_id;
+        }
+      }
+    } catch { /* non-critical */ }
+  }
+
+  // Scoped send helper that automatically includes org context
+  const send = (
+    toRecipients: { email: string; name?: string }[],
+    subject: string,
+    htmlBody: string
+  ) => sendEmail(toRecipients, subject, htmlBody, supabase, requestOrgId);
 
   try {
 
