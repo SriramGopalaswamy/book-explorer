@@ -56,6 +56,8 @@ import {
   Trash2,
   Download,
   Settings2,
+  Search,
+  Filter,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -146,7 +148,26 @@ export default function Invoicing() {
   const updateInvoice = useUpdateInvoice();
   const updateStatus = useUpdateInvoiceStatus();
   const deleteInvoice = useDeleteInvoice();
-  const pagination = usePagination(invoices, 10);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
+    inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
+
+  const filteredInvoices = invoices.filter((inv) => {
+    const matchesSearch = !searchQuery ||
+      inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.client_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.client_email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || inv.status === statusFilter ||
+      (statusFilter === "overdue" && isEffectivelyOverdue(inv));
+    return matchesSearch && matchesStatus;
+  });
+
+  const pagination = usePagination(filteredInvoices, 10);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers", user?.id],
@@ -201,11 +222,7 @@ export default function Invoicing() {
     );
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
-  const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
-    inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv))
@@ -475,11 +492,42 @@ export default function Invoicing() {
           <StatCard title="Draft Invoices" value={draftCount.toString()} icon={<Clock className="h-4 w-4" />} />
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-between">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search by invoice #, client..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Invoices Table */}
         <div className="rounded-xl border bg-card shadow-card">
           <div className="flex items-center justify-between border-b p-6">
             <div>
-              <h3 className="text-lg font-semibold text-foreground">All Invoices</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {statusFilter !== "all" ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Invoices` : "All Invoices"}
+                {searchQuery && <span className="text-muted-foreground font-normal text-sm ml-2">({filteredInvoices.length} results)</span>}
+              </h3>
               <p className="text-sm text-muted-foreground">Manage and track all your invoices</p>
             </div>
             <div className="flex items-center gap-2">
@@ -642,8 +690,12 @@ export default function Invoicing() {
           ) : invoices.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold text-foreground">No invoices yet</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Create your first invoice to get started</p>
+              <h3 className="mt-4 text-lg font-semibold text-foreground">
+                {searchQuery || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {searchQuery || statusFilter !== "all" ? "Try adjusting your search or filter criteria" : "Create your first invoice to get started"}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
