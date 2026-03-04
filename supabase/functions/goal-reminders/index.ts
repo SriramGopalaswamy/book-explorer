@@ -10,34 +10,89 @@ const corsHeaders = {
 
 const senderEmail = "admin@grx10.com";
 
+// Cache MS Graph access token
+let cachedToken: string | null = null;
+let tokenExpiresAt = 0;
+
+async function getMsGraphToken(): Promise<string | null> {
+  if (cachedToken && Date.now() < tokenExpiresAt - 60000) return cachedToken;
+
+  const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
+  const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
+  const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+
+  if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
+    console.warn("Azure credentials not configured — skipping email");
+    return null;
+  }
+
+  try {
+    const tokenUrl = `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`;
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: AZURE_CLIENT_ID,
+        client_secret: AZURE_CLIENT_SECRET,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials",
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn(`Azure token request failed [${res.status}]: ${err}`);
+      return null;
+    }
+
+    const data = await res.json();
+    cachedToken = data.access_token;
+    tokenExpiresAt = Date.now() + (data.expires_in * 1000);
+    return cachedToken;
+  } catch (err) {
+    console.warn("getMsGraphToken exception:", err);
+    return null;
+  }
+}
+
 async function sendEmail(
   toRecipients: { email: string; name?: string }[],
   subject: string,
   htmlBody: string
 ): Promise<boolean> {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  if (!RESEND_API_KEY) {
-    console.warn("RESEND_API_KEY not configured — skipping email");
-    return false;
-  }
+  const token = await getMsGraphToken();
+  if (!token) return false;
+
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
+    const res = await fetch(graphUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: `GRX10 <${senderEmail}>`,
-        to: toRecipients.map((r) => r.email),
-        subject,
-        html: htmlBody,
+        message: {
+          subject,
+          body: { contentType: "HTML", content: htmlBody },
+          toRecipients: toRecipients.map(r => ({
+            emailAddress: { address: r.email, name: r.name || r.email },
+          })),
+          from: {
+            emailAddress: { address: senderEmail, name: "GRX10" },
+          },
+        },
+        saveToSentItems: false,
       }),
     });
+
     if (!res.ok) {
       const err = await res.text();
-      console.warn(`Resend API failed [${res.status}]: ${err}`);
+      console.warn(`MS Graph sendMail failed [${res.status}]: ${err}`);
       return false;
+    }
+    if (res.status !== 202) {
+      await res.text();
     }
     return true;
   } catch (err) {
