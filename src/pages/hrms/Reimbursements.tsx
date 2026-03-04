@@ -318,6 +318,21 @@ export default function Reimbursements() {
     .filter((r: any) => r.status === "paid")
     .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
+  // Filter logic
+  const filteredRequests = requests.filter((r: any) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q ||
+      (r.vendor_name || "").toLowerCase().includes(q) ||
+      (r.category || "").toLowerCase().includes(q) ||
+      (r.description || "").toLowerCase().includes(q);
+    const dateField = r.expense_date || r.created_at?.split("T")[0] || "";
+    const matchesFrom = !dateFrom || dateField >= dateFrom;
+    const matchesTo = !dateTo || dateField <= dateTo;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
+
+  const hasActiveFilters = searchQuery || dateFrom || dateTo;
+
   return (
     <MainLayout title="My Reimbursements" subtitle="Submit expense bills for reimbursement">
       <div className="space-y-6">
@@ -350,6 +365,32 @@ export default function Reimbursements() {
           ))}
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search vendor, category…"
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
+            <Input type="date" className="w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">To</span>
+            <Input type="date" className="w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); }}>
+              <X className="h-3.5 w-3.5 mr-1" /> Clear
+            </Button>
+          )}
+        </div>
+
         {/* Requests list */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -361,6 +402,13 @@ export default function Reimbursements() {
               <Receipt className="h-10 w-10 opacity-40" />
               <p className="text-sm">No reimbursement requests yet.</p>
               <Button size="sm" variant="outline" onClick={openNew}>Submit your first expense</Button>
+            </CardContent>
+          </Card>
+        ) : filteredRequests.length === 0 ? (
+          <Card className="border-border/50 bg-card/60">
+            <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+              <Search className="h-10 w-10 opacity-40" />
+              <p className="text-sm">No requests match your search or filters.</p>
             </CardContent>
           </Card>
         ) : (
