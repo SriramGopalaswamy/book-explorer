@@ -266,6 +266,28 @@ export default function Payroll() {
 
   const [form, setForm] = useState({ profile_id: "", ...defaultForm });
 
+  // Auto-calculate working days & LOP when employee is selected
+  const autoCalc = usePayrollAutoCalc(form.profile_id || null, selectedPeriod);
+
+  // Auto-fill working_days and lop_days when auto-calc data changes
+  useEffect(() => {
+    if (!autoCalc.isLoading && form.profile_id && autoCalc.workingDays > 0) {
+      setForm((prev) => {
+        const next = { ...prev };
+        next.working_days = autoCalc.workingDays;
+        next.lop_days = autoCalc.lopDays;
+        // Recalculate LOP deduction and paid days
+        const gross = next.basic_salary + next.hra + next.transport_allowance + next.other_allowances;
+        next.lop_deduction = next.lop_days > 0 && next.working_days > 0
+          ? Math.round((gross / next.working_days) * next.lop_days)
+          : 0;
+        next.paid_days = Math.max(0, next.working_days - next.lop_days);
+        next.net_pay = gross - next.pf_deduction - next.tax_deduction - next.other_deductions - next.lop_deduction;
+        return next;
+      });
+    }
+  }, [autoCalc.isLoading, autoCalc.workingDays, autoCalc.lopDays, form.profile_id]);
+
   const calcNet = (f: typeof form) => {
     const gross = f.basic_salary + f.hra + f.transport_allowance + f.other_allowances;
     const deductions = f.pf_deduction + f.tax_deduction + f.other_deductions;
