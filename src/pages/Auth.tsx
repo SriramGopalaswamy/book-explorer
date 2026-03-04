@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
