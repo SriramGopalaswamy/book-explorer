@@ -166,7 +166,7 @@ export default function PlatformSimulation() {
   ];
 
   return (
-    <MainLayout title="Sandbox Financial Simulation" subtitle="End-to-end financial workflow simulation engine">
+    <MainLayout title="Sandbox System Simulation" subtitle="End-to-end simulation across Finance, HR, Payroll, Attendance, Leave & Performance">
       {/* Org Selector */}
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -325,8 +325,9 @@ export default function PlatformSimulation() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <Table>
-                        <TableHeader>
+                         <TableHeader>
                           <TableRow>
+                            <TableHead>Module</TableHead>
                             <TableHead>Workflow</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Detail</TableHead>
@@ -336,6 +337,9 @@ export default function PlatformSimulation() {
                         <TableBody>
                           {(lastResult.workflow_details ?? []).map((w: any, i: number) => (
                             <TableRow key={i}>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px]">{w.module ?? "Finance"}</Badge>
+                              </TableCell>
                               <TableCell className="font-mono text-xs text-foreground">{w.workflow}</TableCell>
                               <TableCell>
                                 {w.status === "passed" ? (
