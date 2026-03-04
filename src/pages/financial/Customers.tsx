@@ -211,7 +211,7 @@ export default function Customers() {
           <StatCard title="Total Customers" value={String(customers.length)} icon={<Users className="h-4 w-4" />} />
           <StatCard title="Active" value={String(active)} icon={<Building2 className="h-4 w-4" />} />
           <StatCard title="Inactive" value={String(customers.length - active)} icon={<Users className="h-4 w-4" />} />
-          <StatCard title="Countries" value={String(new Set(customers.map((c) => c.country).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
+          <StatCard title="Countries" value={String(new Set(customers.map((c) => c.country?.trim().toLowerCase()).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
