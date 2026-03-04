@@ -69,6 +69,8 @@ export default function CreditNotes() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingCreditNote, setViewingCreditNote] = useState<CreditNote | null>(null);
   const [editingCreditNote, setEditingCreditNote] = useState<CreditNote | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [editCustomerId, setEditCustomerId] = useState("");
@@ -303,8 +305,8 @@ export default function CreditNotes() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(cn)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
+                          <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setViewingCreditNote(cn); setIsViewDialogOpen(true); }}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
                           {cn.status === "draft" && (
                             <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                           )}
@@ -328,6 +330,54 @@ export default function CreditNotes() {
             <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </div>
         </div>
+
+        {/* View Details Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={(open) => { setIsViewDialogOpen(open); if (!open) setViewingCreditNote(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Credit Note Details</DialogTitle></DialogHeader>
+            {viewingCreditNote && (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Credit Note #</p>
+                    <p className="font-mono font-medium text-sm">{viewingCreditNote.credit_note_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Status</p>
+                    <Badge variant="outline" className={STATUS_COLORS[viewingCreditNote.status] || ""}>
+                      {viewingCreditNote.status.charAt(0).toUpperCase() + viewingCreditNote.status.slice(1)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Customer</p>
+                    <p className="font-medium">{viewingCreditNote.client_name || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Amount</p>
+                    <p className="font-semibold text-primary">{formatCurrency(viewingCreditNote.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Issue Date</p>
+                    <p className="text-sm">{new Date(viewingCreditNote.issue_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Created</p>
+                    <p className="text-sm">{new Date(viewingCreditNote.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  </div>
+                </div>
+                {viewingCreditNote.reason && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
+                    <p className="text-sm bg-muted/30 rounded-lg p-3">{viewingCreditNote.reason}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsViewDialogOpen(false); setViewingCreditNote(null); }}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Dialog — only for draft status */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingCreditNote(null); }}>
