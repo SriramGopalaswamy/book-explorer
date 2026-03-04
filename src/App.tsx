@@ -111,6 +111,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/sandbox/join/:token" element={<ProtectedRoute><SandboxJoin /></ProtectedRoute>} />
 
                 {/* Subscription & Onboarding (protected but exempt from subscription guard) */}
                 <Route path="/subscription/activate" element={<ProtectedRoute><SubscriptionActivate /></ProtectedRoute>} />
