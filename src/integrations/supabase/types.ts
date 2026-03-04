@@ -6927,6 +6927,10 @@ export type Database = {
       run_financial_verification: { Args: { _org_id?: string }; Returns: Json }
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
+      sandbox_force_delete_journal_data: {
+        Args: { _org_id: string }
+        Returns: undefined
+      }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
         Args: { _sandbox_user_id: string }
