@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CountrySelect } from "@/components/ui/country-select";
+import { getPhoneConfig, getTaxConfig, validatePhone, validateTaxNumber } from "@/lib/country-validation";
 import { Badge } from "@/components/ui/badge";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
@@ -47,6 +48,31 @@ export default function Customers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string }>({});
+
+  // Auto-set country code when country changes
+  useEffect(() => {
+    if (form.country) {
+      const config = getPhoneConfig(form.country);
+      if (config.code && !form.phone.startsWith(config.code)) {
+        setForm((prev) => ({ ...prev, phone: config.code + " " }));
+      }
+    }
+  }, [form.country]);
+
+  // Live validation on phone/tax changes
+  useEffect(() => {
+    const newErrors: typeof errors = {};
+    if (form.phone.trim()) {
+      const phoneErr = validatePhone(form.phone, form.country);
+      if (phoneErr) newErrors.phone = phoneErr;
+    }
+    if (form.tax_number.trim()) {
+      const taxErr = validateTaxNumber(form.tax_number, form.country);
+      if (taxErr) newErrors.tax_number = taxErr;
+    }
+    setErrors(newErrors);
+  }, [form.phone, form.tax_number, form.country]);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", user?.id],
@@ -128,6 +154,13 @@ export default function Customers() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) return toast({ title: "Validation Error", description: "Customer name is required.", variant: "destructive" });
+    
+    const phoneErr = validatePhone(form.phone, form.country);
+    if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
+    
+    const taxErr = validateTaxNumber(form.tax_number, form.country);
+    if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
+
     if (editingCustomer) updateMutation.mutate({ id: editingCustomer.id, values: form });
     else createMutation.mutate(form);
   };
@@ -136,14 +169,33 @@ export default function Customers() {
   if (isCheckingRole) return <MainLayout title="Customers"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
   if (!hasFinanceAccess) return <AccessDenied />;
 
+  const phoneConfig = getPhoneConfig(form.country);
+  const taxConfig = getTaxConfig(form.country);
+
   const CustomerForm = (
     <div className="grid gap-4 py-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Label>Customer Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Acme Corp" /></div>
         <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" /></div>
-        <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 99999 00000" /></div>
+        <div>
+          <Label>Phone {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
+          <Input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder={phoneConfig.code ? `${phoneConfig.code} ${"9".repeat(phoneConfig.digits)}` : "+XX XXXXXXXXXX"}
+          />
+          {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+        </div>
         <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
-        <div><Label>Tax / GST Number</Label><Input value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></div>
+        <div>
+          <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"}</Label>
+          <Input
+            value={form.tax_number}
+            onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+            placeholder={taxConfig?.placeholder || "Tax ID"}
+          />
+          {errors.tax_number && <p className="text-xs text-destructive mt-1">{errors.tax_number}</p>}
+        </div>
         <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
         <div><Label>Country</Label><CountrySelect value={form.country} onChange={(val) => setForm({ ...form, country: val })} /></div>
         <div className="col-span-2"><Label>Address</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
