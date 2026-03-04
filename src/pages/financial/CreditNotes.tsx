@@ -331,6 +331,54 @@ export default function CreditNotes() {
           </div>
         </div>
 
+        {/* View Details Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={(open) => { setIsViewDialogOpen(open); if (!open) setViewingCreditNote(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Credit Note Details</DialogTitle></DialogHeader>
+            {viewingCreditNote && (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Credit Note #</p>
+                    <p className="font-mono font-medium text-sm">{viewingCreditNote.credit_note_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Status</p>
+                    <Badge variant="outline" className={STATUS_COLORS[viewingCreditNote.status] || ""}>
+                      {viewingCreditNote.status.charAt(0).toUpperCase() + viewingCreditNote.status.slice(1)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Customer</p>
+                    <p className="font-medium">{viewingCreditNote.client_name || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Amount</p>
+                    <p className="font-semibold text-primary">{formatCurrency(viewingCreditNote.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Issue Date</p>
+                    <p className="text-sm">{new Date(viewingCreditNote.issue_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Created</p>
+                    <p className="text-sm">{new Date(viewingCreditNote.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  </div>
+                </div>
+                {viewingCreditNote.reason && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
+                    <p className="text-sm bg-muted/30 rounded-lg p-3">{viewingCreditNote.reason}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsViewDialogOpen(false); setViewingCreditNote(null); }}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Edit Dialog — only for draft status */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingCreditNote(null); }}>
           <DialogContent className="max-w-md">
