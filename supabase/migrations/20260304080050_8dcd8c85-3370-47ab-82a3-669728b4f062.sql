@@ -1,0 +1,2 @@
+ALTER TABLE public.organizations ADD COLUMN weekend_policy text NOT NULL DEFAULT 'sat_sun';
+COMMENT ON COLUMN public.organizations.weekend_policy IS 'Weekend policy: sat_sun (5-day week), sun_only (6-day week), none (7-day week)';
