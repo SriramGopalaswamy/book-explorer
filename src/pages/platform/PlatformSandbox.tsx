@@ -485,6 +485,74 @@ export default function PlatformSandbox() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Shareable Link Section */}
+            {selectedOrg && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Link2 className="h-4 w-4" />
+                    Team Access Link
+                  </CardTitle>
+                  <CardDescription>
+                    Generate a shareable link so your team can join this sandbox and test workflows using the personas above.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button
+                    onClick={() => generateLink.mutate(selectedOrg)}
+                    disabled={generateLink.isPending}
+                    className="w-full"
+                  >
+                    {generateLink.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : copiedLink ? (
+                      <Check className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    {copiedLink ? "Link Copied!" : "Generate & Copy Invite Link"}
+                  </Button>
+
+                  {/* Active links */}
+                  {(inviteLinks as any[])?.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs font-medium text-muted-foreground">Active Links</p>
+                      {(inviteLinks as any[]).map((link: any) => (
+                        <div key={link.id} className="flex items-center justify-between p-2 rounded border border-border text-xs">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <code className="text-muted-foreground truncate">
+                              /sandbox/join/{link.token.slice(0, 12)}...
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  `${window.location.origin}/sandbox/join/${link.token}`
+                                );
+                                toast.success("Link copied");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive h-6 text-xs"
+                            onClick={() => revokeLink.mutate(link.id)}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           )}
         </div>
       </div>
