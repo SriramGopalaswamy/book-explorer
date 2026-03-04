@@ -69,22 +69,12 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
           .gte("date", periodStart)
           .lte("date", periodEnd),
 
-        // 3. Get rejected leave requests for this employee in this period
-        supabase
-          .from("leave_requests")
-          .select("leave_type, days, from_date, to_date")
-          .eq("profile_id", profileId)
-          .eq("status", "rejected")
-          .lte("from_date", periodEnd)
-          .gte("to_date", periodStart),
-
-        // 4. Get approved unpaid/LOP leaves for this employee in this period
+        // 3. Get all approved leave requests for this employee in this period
         supabase
           .from("leave_requests")
           .select("leave_type, days, from_date, to_date")
           .eq("profile_id", profileId)
           .eq("status", "approved")
-          .in("leave_type", ["unpaid", "loss_of_pay", "lop"])
           .lte("from_date", periodEnd)
           .gte("to_date", periodStart),
       ]);
