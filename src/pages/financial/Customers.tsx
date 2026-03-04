@@ -198,7 +198,11 @@ export default function Customers() {
     <div className="grid gap-4 py-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Label>Customer Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Acme Corp" /></div>
-        <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" /></div>
+        <div>
+          <Label>Email *</Label>
+          <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" />
+          {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+        </div>
         <div>
           <Label>Phone * {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
           <Input
