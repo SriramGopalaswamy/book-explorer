@@ -149,6 +149,12 @@ export default function Invoicing() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
+    inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
+
   const filteredInvoices = invoices.filter((inv) => {
     const matchesSearch = !searchQuery ||
       inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -214,11 +220,7 @@ export default function Invoicing() {
     );
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
-  const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
-    inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv))
