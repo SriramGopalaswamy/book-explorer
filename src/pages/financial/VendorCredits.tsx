@@ -281,9 +281,9 @@ export default function VendorCredits() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
+                Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 6 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
               ) : pagination.paginatedItems.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   {hasActiveFilters ? "No vendor credits match your filters." : "No vendor credits yet."}
                 </TableCell></TableRow>
               ) : pagination.paginatedItems.map((vc) => {
@@ -294,6 +294,7 @@ export default function VendorCredits() {
                     <TableCell className="font-medium">{vc.vendor_name}</TableCell>
                     <TableCell className="font-semibold">{formatCurrency(vc.amount)}</TableCell>
                     <TableCell className="text-sm">{new Date(vc.issue_date).toLocaleDateString("en-IN")}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={vc.reason || "—"}>{vc.reason || "—"}</TableCell>
                     <TableCell><Badge variant="outline" className={STATUS_COLORS[vc.status] || ""}>{vc.status.charAt(0).toUpperCase() + vc.status.slice(1)}</Badge></TableCell>
                     <TableCell>
                       <DropdownMenu>
