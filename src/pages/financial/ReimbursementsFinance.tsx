@@ -15,6 +15,8 @@ import {
   Eye,
   Building2,
   AlertCircle,
+  Search,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -79,6 +81,11 @@ export default function ReimbursementsFinance() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   // Approve dialog form
   const [financeNotes, setFinanceNotes] = useState("");
   const [classifyCategory, setClassifyCategory] = useState("");
@@ -98,6 +105,23 @@ export default function ReimbursementsFinance() {
     enabled: !!user,
   });
 
+  // Filter helper
+  const filterItems = (items: any[]) => items.filter((r: any) => {
+    const q = searchQuery.toLowerCase();
+    const employeeName = r.profiles?.full_name || "";
+    const matchesSearch = !q ||
+      employeeName.toLowerCase().includes(q) ||
+      (r.vendor_name || "").toLowerCase().includes(q) ||
+      (r.category || "").toLowerCase().includes(q) ||
+      (r.description || "").toLowerCase().includes(q);
+    const dateField = r.expense_date || r.created_at?.split("T")[0] || "";
+    const matchesFrom = !dateFrom || dateField >= dateFrom;
+    const matchesTo = !dateTo || dateField <= dateTo;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
+
+  const hasActiveFilters = searchQuery || dateFrom || dateTo;
+
   const inbox = allRequests.filter((r: any) =>
     r.status === "manager_approved" || r.status === "pending_finance"
   );
@@ -105,6 +129,10 @@ export default function ReimbursementsFinance() {
     r.status === "paid" || r.status === "finance_rejected"
   );
   const allPending = allRequests.filter((r: any) => r.status === "pending_manager");
+
+  const filteredInbox = filterItems(inbox);
+  const filteredHistory = filterItems(history);
+  const filteredAll = filterItems(allRequests);
 
   const totalInbox = inbox.reduce((s: number, r: any) => s + Number(r.amount), 0);
   const totalPaid = history
@@ -355,6 +383,32 @@ export default function ReimbursementsFinance() {
           ))}
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search employee, vendor, category…"
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
+            <Input type="date" className="w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">To</span>
+            <Input type="date" className="w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); }}>
+              <X className="h-3.5 w-3.5 mr-1" /> Clear
+            </Button>
+          )}
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
@@ -370,11 +424,11 @@ export default function ReimbursementsFinance() {
             </TabsList>
 
             <TabsContent value="inbox" className="mt-4">
-              {inbox.length === 0 ? (
-                <EmptyState icon={Receipt} message="No reimbursements waiting for finance approval." />
+              {filteredInbox.length === 0 ? (
+                <EmptyState icon={Receipt} message={inbox.length === 0 ? "No reimbursements waiting for finance approval." : "No results match your search or filters."} />
               ) : (
                 <div className="space-y-3">
-                  {inbox.map((item: any) => (
+                  {filteredInbox.map((item: any) => (
                     <ReimbursementCard key={item.id} item={item} showActions />
                   ))}
                 </div>
@@ -382,11 +436,11 @@ export default function ReimbursementsFinance() {
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">
-              {history.length === 0 ? (
-                <EmptyState icon={Clock} message="No processed reimbursements yet." />
+              {filteredHistory.length === 0 ? (
+                <EmptyState icon={Clock} message={history.length === 0 ? "No processed reimbursements yet." : "No results match your search or filters."} />
               ) : (
                 <div className="space-y-3">
-                  {history.map((item: any) => (
+                  {filteredHistory.map((item: any) => (
                     <ReimbursementCard key={item.id} item={item} />
                   ))}
                 </div>
@@ -394,11 +448,15 @@ export default function ReimbursementsFinance() {
             </TabsContent>
 
             <TabsContent value="all" className="mt-4">
-              <div className="space-y-3">
-                {allRequests.map((item: any) => (
-                  <ReimbursementCard key={item.id} item={item} />
-                ))}
-              </div>
+              {filteredAll.length === 0 ? (
+                <EmptyState icon={Receipt} message="No results match your search or filters." />
+              ) : (
+                <div className="space-y-3">
+                  {filteredAll.map((item: any) => (
+                    <ReimbursementCard key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}
