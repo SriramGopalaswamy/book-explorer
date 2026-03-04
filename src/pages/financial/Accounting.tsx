@@ -282,11 +282,6 @@ export default function Accounting() {
     >
       <div className="space-y-6 animate-fade-in">
         <OnboardingBanner />
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            All-time ledger totals (from General Ledger) · Dashboard shows current month only
-          </span>
-        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Revenue"
