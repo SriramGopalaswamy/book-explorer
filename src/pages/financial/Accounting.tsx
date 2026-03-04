@@ -296,7 +296,7 @@ export default function Accounting() {
             icon={<ArrowDownRight className="h-4 w-4" />}
           />
           <StatCard
-            title="Net Income (All-time)"
+            title="Net Income"
             value={formatAmount(netIncome)}
             change={{ value: totalRevenue > 0 ? `${((netIncome / totalRevenue) * 100).toFixed(1)}% margin` : "0%", type: netIncome >= 0 ? "increase" : "decrease" }}
             icon={<TrendingUp className="h-4 w-4" />}
