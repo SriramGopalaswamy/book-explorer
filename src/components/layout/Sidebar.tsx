@@ -414,6 +414,7 @@ export function Sidebar() {
                   { name: "System Health", path: "/platform/health", icon: Activity },
                   { name: "Actions", path: "/platform/actions", icon: Zap },
                   { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
+                  { name: "Simulation", path: "/platform/simulation", icon: Zap },
                   { name: "Audit Console", path: "/platform/audit", icon: ClipboardList },
                 ]}
                 sectionId="platform"
