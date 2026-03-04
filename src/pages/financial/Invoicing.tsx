@@ -713,7 +713,8 @@ export default function Invoicing() {
                 </TableHeader>
                 <TableBody>
                   {pagination.paginatedItems.map((invoice) => {
-                    const statusConfig = getStatusConfig(invoice.status);
+                    const displayStatus = isEffectivelyOverdue(invoice) ? "overdue" : invoice.status;
+                    const statusConfig = getStatusConfig(displayStatus);
                     const StatusIcon = statusConfig.icon;
                     return (
                       <TableRow key={invoice.id} className="cursor-pointer hover:bg-secondary/50">
