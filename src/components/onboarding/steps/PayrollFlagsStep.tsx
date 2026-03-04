@@ -40,6 +40,19 @@ export function PayrollFlagsStep({ data, onChange }: Props) {
             </Select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Weekend Policy</Label>
+            <p className="text-xs text-muted-foreground">Used to auto-calculate working days for payroll</p>
+            <Select value={(data as any).weekend_policy || "sat_sun"} onValueChange={(v) => onChange({ weekend_policy: v } as any)}>
+              <SelectTrigger><SelectValue placeholder="Select weekend policy" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sat_sun">5-day week (Sat & Sun off)</SelectItem>
+                <SelectItem value="sun_only">6-day week (Only Sun off)</SelectItem>
+                <SelectItem value="none">7-day week (No weekends)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { key: "pf_applicable", label: "Provident Fund (PF)", desc: "EPF contributions" },
