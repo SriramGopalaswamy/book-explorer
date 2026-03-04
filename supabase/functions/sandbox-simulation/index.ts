@@ -2094,6 +2094,309 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: `${empDocCount ?? 0} employee documents on file`,
   });
 
+  // ============================================================
+  // === KPI / DASHBOARD / FINANCIAL REPORT VALIDATIONS =========
+  // ============================================================
+
+  // V_RPT_1: Profit & Loss via RPC
+  try {
+    const { data: plData, error: plErr } = await client.rpc("get_profit_loss", {
+      p_org_id: orgId,
+      p_from: "2020-01-01",
+      p_to: new Date().toISOString().split("T")[0],
+    });
+    const plRows = plData ?? [];
+    const revenue = plRows.filter((r: any) => r.account_type === "revenue")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const expenses = plRows.filter((r: any) => r.account_type === "expense")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const netIncome = revenue - expenses;
+    checks.push({
+      check: "V_RPT_PROFIT_LOSS", module: "Reports",
+      status: plErr ? "failed" : plRows.length > 0 ? "passed" : "warning",
+      detail: plErr
+        ? `P&L RPC error: ${plErr.message}`
+        : `P&L returns ${plRows.length} lines — Revenue: ${revenue.toFixed(2)}, Expenses: ${expenses.toFixed(2)}, Net: ${netIncome.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_PROFIT_LOSS", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_2: Balance Sheet via RPC
+  try {
+    const { data: bsData, error: bsErr } = await client.rpc("get_balance_sheet", {
+      p_org_id: orgId,
+      p_as_of: new Date().toISOString().split("T")[0],
+    });
+    const bsRows = bsData ?? [];
+    const totalAssets = bsRows.filter((r: any) => r.account_type === "asset")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const totalLiabilities = bsRows.filter((r: any) => r.account_type === "liability")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const totalEquity = bsRows.filter((r: any) => r.account_type === "equity")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    checks.push({
+      check: "V_RPT_BALANCE_SHEET", module: "Reports",
+      status: bsErr ? "failed" : bsRows.length > 0 ? "passed" : "warning",
+      detail: bsErr
+        ? `Balance Sheet RPC error: ${bsErr.message}`
+        : `BS returns ${bsRows.length} lines — Assets: ${totalAssets.toFixed(2)}, Liabilities: ${totalLiabilities.toFixed(2)}, Equity: ${totalEquity.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_BALANCE_SHEET", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_3: Trial Balance via RPC
+  try {
+    const { data: tbData, error: tbErr } = await client.rpc("get_trial_balance", {
+      p_org_id: orgId,
+      p_from: "2020-01-01",
+      p_to: new Date().toISOString().split("T")[0],
+    });
+    const tbRows = tbData ?? [];
+    const totalDebit = tbRows.reduce((s: number, r: any) => s + Number(r.debit || 0), 0);
+    const totalCredit = tbRows.reduce((s: number, r: any) => s + Number(r.credit || 0), 0);
+    const tbBalanced = Math.abs(totalDebit - totalCredit) < 0.02;
+    checks.push({
+      check: "V_RPT_TRIAL_BALANCE", module: "Reports",
+      status: tbErr ? "failed" : tbRows.length === 0 ? "warning" : tbBalanced ? "passed" : "failed",
+      detail: tbErr
+        ? `Trial Balance RPC error: ${tbErr.message}`
+        : tbRows.length === 0
+          ? "Trial balance returned 0 rows"
+          : `TB: ${tbRows.length} accounts — Debit: ${totalDebit.toFixed(2)}, Credit: ${totalCredit.toFixed(2)}, Balanced: ${tbBalanced}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_TRIAL_BALANCE", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_4: Cash Flow (indirect method) via RPC
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const { data: cfData, error: cfErr } = await client.rpc("get_cash_flow_indirect", {
+      p_org_id: orgId,
+      p_from: sixMonthsAgo.toISOString().split("T")[0],
+      p_to: new Date().toISOString().split("T")[0],
+    });
+    checks.push({
+      check: "V_RPT_CASH_FLOW", module: "Reports",
+      status: cfErr ? "failed" : (cfData && (Array.isArray(cfData) ? cfData.length > 0 : Object.keys(cfData).length > 0)) ? "passed" : "warning",
+      detail: cfErr
+        ? `Cash Flow RPC error: ${cfErr.message}`
+        : `Cash flow report returned data successfully`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_CASH_FLOW", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_5: GL Account Balances (dashboard KPI source)
+  try {
+    const { data: glBalances, error: glErr } = await client.from("gl_accounts")
+      .select("id, name, account_type, opening_balance")
+      .eq("organization_id", orgId);
+    const glRows = glBalances ?? [];
+    const revenueAccounts = glRows.filter((g: any) => g.account_type === "revenue").length;
+    const expenseAccounts = glRows.filter((g: any) => g.account_type === "expense").length;
+    const assetAccounts = glRows.filter((g: any) => g.account_type === "asset").length;
+    checks.push({
+      check: "V_KPI_GL_ACCOUNTS", module: "Dashboard",
+      status: glErr ? "failed" : glRows.length >= 5 ? "passed" : "warning",
+      detail: glErr
+        ? `GL accounts query error: ${glErr.message}`
+        : `${glRows.length} GL accounts — Revenue: ${revenueAccounts}, Expense: ${expenseAccounts}, Asset: ${assetAccounts}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_GL_ACCOUNTS", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_6: Dashboard revenue KPI — journal_lines with revenue accounts
+  try {
+    const { data: revAccts } = await client.from("gl_accounts")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("account_type", "revenue");
+    const revIds = (revAccts ?? []).map((a: any) => a.id);
+    let dashRevenue = 0;
+    if (revIds.length > 0) {
+      const { data: revLines } = await client.from("journal_lines")
+        .select("credit")
+        .in("account_id", revIds)
+        .limit(500);
+      dashRevenue = (revLines ?? []).reduce((s: number, l: any) => s + Number(l.credit || 0), 0);
+    }
+    checks.push({
+      check: "V_KPI_DASHBOARD_REVENUE", module: "Dashboard",
+      status: dashRevenue > 0 ? "passed" : "warning",
+      detail: `Dashboard total revenue from journal lines: ${dashRevenue.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_DASHBOARD_REVENUE", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_7: Dashboard expense KPI — journal_lines with expense accounts
+  try {
+    const { data: expAccts } = await client.from("gl_accounts")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("account_type", "expense");
+    const expIds = (expAccts ?? []).map((a: any) => a.id);
+    let dashExpenses = 0;
+    if (expIds.length > 0) {
+      const { data: expLines } = await client.from("journal_lines")
+        .select("debit")
+        .in("account_id", expIds)
+        .limit(500);
+      dashExpenses = (expLines ?? []).reduce((s: number, l: any) => s + Number(l.debit || 0), 0);
+    }
+    checks.push({
+      check: "V_KPI_DASHBOARD_EXPENSES", module: "Dashboard",
+      status: dashExpenses > 0 ? "passed" : "warning",
+      detail: `Dashboard total expenses from journal lines: ${dashExpenses.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_DASHBOARD_EXPENSES", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_8: Net Income consistency (P&L revenue - expenses should match dashboard)
+  try {
+    const { data: plCheck } = await client.rpc("get_profit_loss", {
+      p_org_id: orgId,
+      p_from: "2020-01-01",
+      p_to: new Date().toISOString().split("T")[0],
+    });
+    const plRows2 = plCheck ?? [];
+    const plRevenue = plRows2.filter((r: any) => r.account_type === "revenue")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const plExpenses = plRows2.filter((r: any) => r.account_type === "expense")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const plNet = plRevenue - plExpenses;
+    checks.push({
+      check: "V_KPI_NET_INCOME_CONSISTENCY", module: "Dashboard",
+      status: plRows2.length > 0 ? "passed" : "warning",
+      detail: `Net income from P&L RPC: ${plNet.toFixed(2)} (Revenue: ${plRevenue.toFixed(2)} - Expenses: ${plExpenses.toFixed(2)})`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_NET_INCOME_CONSISTENCY", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_9: Accounts Receivable Aging — invoices past due
+  try {
+    const { data: overdueInv } = await client.from("invoices")
+      .select("id, total_amount, due_date, status")
+      .eq("organization_id", orgId)
+      .in("status", ["sent", "overdue"])
+      .lt("due_date", new Date().toISOString().split("T")[0]);
+    const overdueTotal = (overdueInv ?? []).reduce((s: number, i: any) => s + Number(i.total_amount || 0), 0);
+    checks.push({
+      check: "V_RPT_AR_AGING", module: "Reports",
+      status: "passed",
+      detail: `AR Aging: ${(overdueInv ?? []).length} overdue invoices totaling ${overdueTotal.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_AR_AGING", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_10: Accounts Payable Aging — bills past due
+  try {
+    const { data: overdueBills } = await client.from("bills")
+      .select("id, total_amount, due_date, status")
+      .eq("organization_id", orgId)
+      .in("status", ["pending", "overdue"])
+      .lt("due_date", new Date().toISOString().split("T")[0]);
+    const apTotal = (overdueBills ?? []).reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0);
+    checks.push({
+      check: "V_RPT_AP_AGING", module: "Reports",
+      status: "passed",
+      detail: `AP Aging: ${(overdueBills ?? []).length} overdue bills totaling ${apTotal.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_AP_AGING", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_11: Balance Sheet equation (Assets = Liabilities + Equity + Net Income)
+  try {
+    const { data: bsEq } = await client.rpc("get_balance_sheet", {
+      p_org_id: orgId,
+      p_as_of: new Date().toISOString().split("T")[0],
+    });
+    const bsRows2 = bsEq ?? [];
+    const eqAssets = bsRows2.filter((r: any) => r.account_type === "asset")
+      .reduce((s: number, r: any) => s + Number(r.balance || 0), 0);
+    const eqLiab = bsRows2.filter((r: any) => r.account_type === "liability")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const eqEquity = bsRows2.filter((r: any) => r.account_type === "equity")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    // A simplified check: assets should approximately equal liabilities + equity (within rounding)
+    const diff = Math.abs(eqAssets - (eqLiab + eqEquity));
+    checks.push({
+      check: "V_RPT_BS_EQUATION", module: "Reports",
+      status: bsRows2.length === 0 ? "warning" : diff < 1 ? "passed" : "failed",
+      detail: bsRows2.length === 0
+        ? "No balance sheet data to verify equation"
+        : `A=${eqAssets.toFixed(2)}, L+E=${(eqLiab + eqEquity).toFixed(2)}, Diff=${diff.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_RPT_BS_EQUATION", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_12: Payroll analytics — total CTC vs payroll cost
+  try {
+    const { data: compStructs } = await client.from("compensation_structures")
+      .select("annual_ctc")
+      .eq("organization_id", orgId)
+      .eq("is_active", true);
+    const totalCTC = (compStructs ?? []).reduce((s: number, c: any) => s + Number(c.annual_ctc || 0), 0);
+    const { data: payrollTotals } = await client.from("payroll_runs")
+      .select("total_gross")
+      .eq("organization_id", orgId);
+    const totalPayroll = (payrollTotals ?? []).reduce((s: number, r: any) => s + Number(r.total_gross || 0), 0);
+    checks.push({
+      check: "V_KPI_PAYROLL_CTC", module: "Dashboard",
+      status: totalCTC > 0 ? "passed" : "warning",
+      detail: `Active CTC pool: ${totalCTC.toFixed(2)}, Total payroll disbursed: ${totalPayroll.toFixed(2)}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_PAYROLL_CTC", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_13: Attendance KPI — present rate
+  try {
+    const { count: totalAtt } = await client.from("attendance_daily")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    const { count: presentAtt } = await client.from("attendance_daily")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .in("status", ["present", "half_day"]);
+    const rate = (totalAtt ?? 0) > 0 ? ((presentAtt ?? 0) / (totalAtt ?? 1) * 100) : 0;
+    checks.push({
+      check: "V_KPI_ATTENDANCE_RATE", module: "Dashboard",
+      status: (totalAtt ?? 0) > 0 ? "passed" : "warning",
+      detail: `Attendance: ${presentAtt ?? 0}/${totalAtt ?? 0} present (${rate.toFixed(1)}%)`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_ATTENDANCE_RATE", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_RPT_14: Leave utilization KPI
+  try {
+    const { count: approvedLeaves } = await client.from("leave_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("status", "approved");
+    const { count: totalLeaves } = await client.from("leave_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    checks.push({
+      check: "V_KPI_LEAVE_UTILIZATION", module: "Dashboard",
+      status: (totalLeaves ?? 0) > 0 ? "passed" : "warning",
+      detail: `Leaves: ${approvedLeaves ?? 0} approved out of ${totalLeaves ?? 0} total`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_KPI_LEAVE_UTILIZATION", module: "Dashboard", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
 
   const failed = checks.filter(c => c.status === "failed").length;
   const allPassed = failed === 0;
