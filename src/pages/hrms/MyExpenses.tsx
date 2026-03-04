@@ -192,13 +192,27 @@ export default function MyExpenses() {
           ) : pagination.paginatedItems.length === 0 ? (
             <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
           ) : pagination.paginatedItems.map((e) => (
-            <TableRow key={e.id}>
+            <TableRow key={e.id} className="group">
               <TableCell><Badge variant="outline">{e.category}</Badge></TableCell>
               <TableCell className="text-sm max-w-[200px] truncate">{e.description || "—"}</TableCell>
               <TableCell className="font-semibold">{formatCurrency(e.amount)}</TableCell>
               <TableCell className="text-sm">{new Date(e.expense_date).toLocaleDateString("en-IN")}</TableCell>
               <TableCell>{renderReceiptButton(e.receipt_url)}</TableCell>
-              <TableCell><Badge variant="outline" className={statusColors[e.status] ?? ""}>{statusLabels[e.status] || e.status}</Badge></TableCell>
+              <TableCell>
+                <div className="flex flex-col gap-1">
+                  <Badge variant="outline" className={statusColors[e.status] ?? ""}>{statusLabels[e.status] || e.status}</Badge>
+                  {e.reviewer_notes && (e.status === "rejected" || e.status === "approved") && (
+                    <div className={cn(
+                      "text-xs mt-1 px-2 py-1.5 rounded-md border",
+                      e.status === "rejected"
+                        ? "bg-destructive/10 text-destructive border-destructive/20"
+                        : "bg-success/10 text-success border-success/20"
+                    )}>
+                      <span className="font-medium">Manager: </span>{e.reviewer_notes}
+                    </div>
+                  )}
+                </div>
+              </TableCell>
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
