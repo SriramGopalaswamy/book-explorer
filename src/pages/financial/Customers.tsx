@@ -68,11 +68,19 @@ export default function Customers() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      const taxErr = validateTaxNumber(form.tax_number, form.country);
-      if (taxErr) newErrors.tax_number = taxErr;
+      // Check 12-char alphanumeric rule
+      if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) {
+        newErrors.tax_number = "Must be exactly 12 alphanumeric characters";
+      } else {
+        const taxErr = validateTaxNumber(form.tax_number, form.country);
+        if (taxErr) newErrors.tax_number = taxErr;
+      }
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      newErrors.email = "Invalid email format";
     }
     setErrors(newErrors);
-  }, [form.phone, form.tax_number, form.country]);
+  }, [form.phone, form.tax_number, form.country, form.email]);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", user?.id],
