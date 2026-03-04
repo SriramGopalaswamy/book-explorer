@@ -54,7 +54,7 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
       const periodEnd = `${payPeriod}-${String(totalCalendarDays).padStart(2, "0")}`;
 
       // Fetch org weekend policy, holidays, and leave requests in parallel
-      const [orgRes, holidaysRes, rejectedLeavesRes, unpaidLeavesRes] = await Promise.all([
+      const [orgRes, holidaysRes, approvedLeavesRes] = await Promise.all([
         // 1. Get weekend policy from organizations table
         supabase
           .from("organizations")
