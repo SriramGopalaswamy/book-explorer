@@ -154,9 +154,23 @@ export default function Customers() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) return toast({ title: "Validation Error", description: "Customer name is required.", variant: "destructive" });
+    if (!form.email.trim()) return toast({ title: "Validation Error", description: "Email is required.", variant: "destructive" });
     
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email.trim())) return toast({ title: "Validation Error", description: "Please enter a valid email address.", variant: "destructive" });
+    
+    if (!form.phone.trim()) return toast({ title: "Validation Error", description: "Phone number is required.", variant: "destructive" });
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
+    
+    if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "GST / Tax Number is required.", variant: "destructive" });
+    
+    // GST validation: must be exactly 12 alphanumeric characters (user requirement)
+    const gstRaw = form.tax_number.trim();
+    if (!/^[A-Za-z0-9]{12}$/.test(gstRaw)) {
+      return toast({ title: "Invalid GST Number", description: "GST Number must be exactly 12 alphanumeric characters.", variant: "destructive" });
+    }
     
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
