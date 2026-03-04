@@ -95,7 +95,7 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
 
       const workingDays = totalCalendarDays - weekendDays - uniqueHolidays;
 
-      // Calculate LOP days
+      // Calculate LOP days from all approved leaves
       const lopBreakdown: { type: string; days: number }[] = [];
 
       // Helper: calculate overlapping days within the pay period
@@ -106,27 +106,17 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
         return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       };
 
-      // Rejected leaves → LOP
-      let rejectedLopDays = 0;
-      (rejectedLeavesRes.data || []).forEach((lr: any) => {
+      // All approved leaves → LOP
+      let totalApprovedLeaveDays = 0;
+      (approvedLeavesRes.data || []).forEach((lr: any) => {
         const days = overlapDays(lr.from_date, lr.to_date);
-        rejectedLopDays += days;
+        totalApprovedLeaveDays += days;
       });
-      if (rejectedLopDays > 0) {
-        lopBreakdown.push({ type: "Rejected leaves", days: rejectedLopDays });
+      if (totalApprovedLeaveDays > 0) {
+        lopBreakdown.push({ type: "Approved leaves", days: totalApprovedLeaveDays });
       }
 
-      // Approved unpaid/LOP leaves → LOP
-      let unpaidLopDays = 0;
-      (unpaidLeavesRes.data || []).forEach((lr: any) => {
-        const days = overlapDays(lr.from_date, lr.to_date);
-        unpaidLopDays += days;
-      });
-      if (unpaidLopDays > 0) {
-        lopBreakdown.push({ type: "Unpaid leaves", days: unpaidLopDays });
-      }
-
-      const totalLopDays = rejectedLopDays + unpaidLopDays;
+      const totalLopDays = totalApprovedLeaveDays;
 
       return {
         workingDays,
