@@ -206,7 +206,7 @@ export default function CreditNotes() {
           <StatCard title="Total Credit Notes" value={String(creditNotes.length)} icon={<FileX className="h-4 w-4" />} />
           <StatCard title="Draft" value={String(creditNotes.filter((cn) => cn.status === "draft").length)} icon={<FileX className="h-4 w-4" />} />
           <StatCard title="Issued" value={String(creditNotes.filter((cn) => cn.status === "issued").length)} icon={<FileX className="h-4 w-4" />} />
-          <StatCard title="Total Value" value={formatCurrency(creditNotes.reduce((s, cn) => s + Number(cn.amount), 0))} icon={<FileX className="h-4 w-4" />} />
+          <StatCard title="Total Value" value={formatCurrency(creditNotes.filter((cn) => cn.status === "issued" || cn.status === "applied").reduce((s, cn) => s + Number(cn.amount), 0))} icon={<FileX className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
