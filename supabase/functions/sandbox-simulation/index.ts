@@ -94,6 +94,24 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
   if (jdErr) console.warn("Force delete journal data:", jdErr.message);
 
+  // Clean up previously seeded sandbox simulation users
+  const { data: simProfiles } = await client.from("profiles")
+    .select("id, email")
+    .eq("organization_id", orgId)
+    .like("email", "%@sandbox-sim.local");
+  for (const sp of (simProfiles ?? [])) {
+    try {
+      // Delete compensation structures first (FK)
+      await client.from("compensation_structures").delete().eq("profile_id", sp.id);
+      // Delete profile (will cascade)
+      await client.from("profiles").delete().eq("id", sp.id);
+      // Delete auth user
+      await client.auth.admin.deleteUser(sp.id);
+    } catch (e) {
+      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
+    }
+  }
+
   // Clear existing transactional data (order matters for FK constraints)
   // journal_entries and journal_lines already handled above
   const orgScopedTables = [
@@ -105,7 +123,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "asset_depreciation_entries",
     "invoices", "bills",
     "bank_transactions", "expenses", "credit_notes",
-    "financial_records", "assets", "audit_logs"
+    "financial_records", "assets", "audit_logs",
+    "compensation_structures",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -309,17 +328,98 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.attendance_shifts = shiftErr ? 0 : 1;
 
   // ===== SEED SANDBOX PROFILES (employees) =====
-  // Check if profiles already exist in this org
   const { data: existingProfiles } = await client.from("profiles")
     .select("id").eq("organization_id", orgId);
 
-  if ((existingProfiles ?? []).length === 0) {
-    // Create simulated employee profiles using the current user's auth
-    // Since we can't create auth users, we seed profiles for the existing user
-    // and note that HR workflows will use whatever profiles exist
-    console.log("No profiles found in sandbox org — HR workflows will be skipped unless profiles are added via onboarding");
+  const targetEmployeeCount = 8;
+  let seededProfiles = (existingProfiles ?? []).length;
+
+  if (seededProfiles < targetEmployeeCount) {
+    const employeeSeeds = [
+      { name: "Arjun Mehta", dept: "Engineering", designation: "Senior Developer", code: "SIM-EMP-001", salary: 95000 },
+      { name: "Priya Sharma", dept: "Finance", designation: "Finance Manager", code: "SIM-EMP-002", salary: 85000 },
+      { name: "Rahul Verma", dept: "Operations", designation: "Operations Lead", code: "SIM-EMP-003", salary: 72000 },
+      { name: "Sneha Iyer", dept: "HR", designation: "HR Executive", code: "SIM-EMP-004", salary: 60000 },
+      { name: "Vikram Singh", dept: "Engineering", designation: "Tech Lead", code: "SIM-EMP-005", salary: 110000 },
+      { name: "Ananya Reddy", dept: "Marketing", designation: "Marketing Analyst", code: "SIM-EMP-006", salary: 55000 },
+      { name: "Karan Patel", dept: "Sales", designation: "Sales Executive", code: "SIM-EMP-007", salary: 65000 },
+      { name: "Deepika Nair", dept: "Engineering", designation: "QA Engineer", code: "SIM-EMP-008", salary: 68000 },
+    ];
+
+    // Only create employees we're missing
+    const toCreate = employeeSeeds.slice(seededProfiles);
+
+    for (const emp of toCreate) {
+      try {
+        const email = `${emp.code.toLowerCase()}@sandbox-sim.local`;
+        const tempPassword = crypto.randomUUID() + "Aa1!";
+
+        // Create auth user (triggers handle_new_user which creates a profile)
+        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { full_name: emp.name },
+        });
+
+        if (createErr) {
+          console.warn(`Failed to create user ${emp.name}:`, createErr.message);
+          continue;
+        }
+
+        // Update the auto-created profile with employee details
+        const { error: updateErr } = await client.from("profiles").update({
+          organization_id: orgId,
+          full_name: emp.name,
+          department: emp.dept,
+          designation: emp.designation,
+          employee_code: emp.code,
+          employment_status: "active",
+          date_of_joining: "2024-06-01",
+          role: "employee",
+        }).eq("id", newUser.user.id);
+
+        if (updateErr) {
+          console.warn(`Failed to update profile for ${emp.name}:`, updateErr.message);
+        } else {
+          seededProfiles++;
+        }
+      } catch (e) {
+        console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
+      }
+    }
   }
-  summary.profiles = (existingProfiles ?? []).length;
+  summary.profiles = seededProfiles;
+
+  // ===== SEED COMPENSATION STRUCTURES for seeded profiles =====
+  const { data: seededProfileList } = await client.from("profiles")
+    .select("id, full_name, employee_code")
+    .eq("organization_id", orgId);
+
+  const salaryMap: Record<string, number> = {
+    "SIM-EMP-001": 95000, "SIM-EMP-002": 85000, "SIM-EMP-003": 72000, "SIM-EMP-004": 60000,
+    "SIM-EMP-005": 110000, "SIM-EMP-006": 55000, "SIM-EMP-007": 65000, "SIM-EMP-008": 68000,
+  };
+  let compCount = 0;
+  for (const p of (seededProfileList ?? [])) {
+    const basic = salaryMap[p.employee_code] ?? 50000;
+    const annualCTC = Math.round(basic * 12 * 1.55);
+    // Check if comp structure already exists
+    const { data: existingComp } = await client.from("compensation_structures")
+      .select("id").eq("profile_id", p.id).eq("effective_from", "2024-06-01").maybeSingle();
+    if (!existingComp) {
+      const { error: compErr } = await client.from("compensation_structures").insert({
+        profile_id: p.id, organization_id: orgId,
+        annual_ctc: annualCTC, created_by: userId,
+        effective_from: "2024-06-01", is_active: true,
+      });
+      if (!compErr) compCount++;
+      else console.warn(`Comp structure for ${p.full_name}:`, compErr.message);
+    } else {
+      compCount++;
+    }
+  }
+  summary.compensation_structures = compCount;
 
   return {
     success: true,
