@@ -77,18 +77,26 @@ function maybeConvertExcelSerial(value: string): string {
  */
 function maybeConvertExcelTime(value: string): string {
   const trimmed = value.trim();
+  if (!trimmed) return trimmed;
 
   // Already looks like a time (HH:mm or HH:mm:ss) — return as-is
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed;
 
-  // Excel time serial: fractional number between 0 and 1 (e.g. 0.375 = 09:00)
+  // Excel time serial: fractional number (e.g. 0.375 = 09:00, or datetime serial like 45689.375)
   const num = Number(trimmed);
-  if (!isNaN(num) && num >= 0 && num < 1 && trimmed.includes(".")) {
-    const totalMinutes = Math.round(num * 24 * 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  if (!isNaN(num) && trimmed.includes(".")) {
+    // Extract fractional part (time portion) from any Excel serial
+    const fraction = num % 1;
+    if (fraction > 0) {
+      const totalMinutes = Math.round(fraction * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+    }
   }
+
+  // Pure integer that could be Excel serial without time — skip
+  if (!isNaN(num) && !trimmed.includes(".") && !trimmed.includes(":")) return trimmed;
 
   // DateTime string like "1899-12-30T09:00:00.000Z" or "2026-02-01 09:00:00" — extract time
   const dtMatch = trimmed.match(/(\d{1,2}:\d{2}(:\d{2})?)/);
