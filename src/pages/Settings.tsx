@@ -32,6 +32,7 @@ import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@/hooks/useOnboardingCompliance";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface UserWithRole {
   user_id: string;
