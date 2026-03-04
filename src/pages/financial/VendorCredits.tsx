@@ -68,6 +68,7 @@ export default function VendorCredits() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCredit, setEditingCredit] = useState<VendorCredit | null>(null);
+  const [viewingCredit, setViewingCredit] = useState<VendorCredit | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [editVendorId, setEditVendorId] = useState("");
   const [form, setForm] = useState({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
@@ -300,7 +301,7 @@ export default function VendorCredits() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(vc)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setViewingCredit(vc)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
                           {vc.status === "draft" && (
                             <DropdownMenuItem onClick={() => handleEdit(vc)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                           )}
@@ -359,7 +360,54 @@ export default function VendorCredits() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* View Details Dialog */}
+        <Dialog open={!!viewingCredit} onOpenChange={(open) => { if (!open) setViewingCredit(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Vendor Credit Details</DialogTitle></DialogHeader>
+            {viewingCredit && (
+              <div className="grid gap-3 py-2">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Credit Number</p>
+                    <p className="font-mono font-medium">{viewingCredit.vendor_credit_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant="outline" className={STATUS_COLORS[viewingCredit.status] || ""}>
+                      {viewingCredit.status.charAt(0).toUpperCase() + viewingCredit.status.slice(1)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Vendor Name</p>
+                    <p className="font-medium">{viewingCredit.vendor_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Amount</p>
+                    <p className="font-semibold">{formatCurrency(viewingCredit.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Issue Date</p>
+                    <p>{new Date(viewingCredit.issue_date).toLocaleDateString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Created At</p>
+                    <p>{new Date(viewingCredit.created_at).toLocaleDateString("en-IN")}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Reason</p>
+                  <p className="text-sm mt-0.5">{viewingCredit.reason || "—"}</p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingCredit(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
 }
+
