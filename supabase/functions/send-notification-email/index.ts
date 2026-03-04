@@ -8,32 +8,55 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const senderEmail = "admin@grx10.com";
+const defaultSenderEmail = "admin@grx10.com";
 
-// Cache MS Graph access token to avoid re-fetching on every email
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
+// Per-org token cache: orgId -> { token, expiresAt }
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getMsGraphToken(): Promise<string | null> {
-  if (cachedToken && Date.now() < tokenExpiresAt - 60000) return cachedToken;
+// Global fallback token cache
+let globalToken: string | null = null;
+let globalTokenExpiresAt = 0;
 
-  const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
-  const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
-  const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+interface OrgOAuthCreds {
+  tenant_id: string;
+  client_id: string;
+  client_secret: string;
+  sender_email: string;
+}
 
-  if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
-    console.warn("Azure credentials not configured — skipping email");
+async function getOrgOAuthCreds(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string
+): Promise<OrgOAuthCreds | null> {
+  try {
+    const { data, error } = await supabase
+      .from("organization_oauth_configs")
+      .select("tenant_id, client_id, client_secret, sender_email")
+      .eq("organization_id", organizationId)
+      .eq("provider", "microsoft")
+      .maybeSingle();
+    if (error || !data) return null;
+    if (!data.tenant_id || !data.client_id || !data.client_secret) return null;
+    return data as OrgOAuthCreds;
+  } catch {
     return null;
   }
+}
+
+async function getMsGraphToken(creds: { tenantId: string; clientId: string; clientSecret: string }, cacheKey: string): Promise<string | null> {
+  const cached = cacheKey === "__global__"
+    ? (globalToken && Date.now() < globalTokenExpiresAt - 60000 ? globalToken : null)
+    : (() => { const c = tokenCache.get(cacheKey); return c && Date.now() < c.expiresAt - 60000 ? c.token : null; })();
+  if (cached) return cached;
 
   try {
-    const tokenUrl = `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`;
+    const tokenUrl = `https://login.microsoftonline.com/${creds.tenantId}/oauth2/v2.0/token`;
     const res = await fetch(tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: AZURE_CLIENT_ID,
-        client_secret: AZURE_CLIENT_SECRET,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
         scope: "https://graph.microsoft.com/.default",
         grant_type: "client_credentials",
       }),
@@ -46,22 +69,57 @@ async function getMsGraphToken(): Promise<string | null> {
     }
 
     const data = await res.json();
-    cachedToken = data.access_token;
-    tokenExpiresAt = Date.now() + (data.expires_in * 1000);
-    return cachedToken;
+    const token = data.access_token;
+    const expiresAt = Date.now() + (data.expires_in * 1000);
+
+    if (cacheKey === "__global__") {
+      globalToken = token;
+      globalTokenExpiresAt = expiresAt;
+    } else {
+      tokenCache.set(cacheKey, { token, expiresAt });
+    }
+    return token;
   } catch (err) {
     console.warn("getMsGraphToken exception:", err);
     return null;
   }
 }
 
-// Send email via Microsoft Graph API (MS 365)
-async function sendEmail(
+// Resolve credentials: org-specific first, then global fallback
+async function resolveCredsAndSend(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string | null,
   toRecipients: { email: string; name?: string }[],
   subject: string,
   htmlBody: string
 ): Promise<boolean> {
-  const token = await getMsGraphToken();
+  let senderEmail = defaultSenderEmail;
+  let creds: { tenantId: string; clientId: string; clientSecret: string } | null = null;
+  let cacheKey = "__global__";
+
+  // Try org-specific credentials first
+  if (organizationId) {
+    const orgCreds = await getOrgOAuthCreds(supabase, organizationId);
+    if (orgCreds) {
+      creds = { tenantId: orgCreds.tenant_id, clientId: orgCreds.client_id, clientSecret: orgCreds.client_secret };
+      senderEmail = orgCreds.sender_email || defaultSenderEmail;
+      cacheKey = organizationId;
+    }
+  }
+
+  // Fallback to global env vars
+  if (!creds) {
+    const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
+    const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
+    const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+    if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
+      console.warn("No Azure credentials available — skipping email");
+      return false;
+    }
+    creds = { tenantId: AZURE_TENANT_ID, clientId: AZURE_CLIENT_ID, clientSecret: AZURE_CLIENT_SECRET };
+  }
+
+  const token = await getMsGraphToken(creds, cacheKey);
   if (!token) return false;
 
   try {
@@ -92,15 +150,29 @@ async function sendEmail(
       console.warn(`MS Graph sendMail failed [${res.status}]: ${err}`);
       return false;
     }
-    // MS Graph returns 202 Accepted with no body on success
     if (res.status !== 202) {
-      await res.text(); // consume body
+      await res.text();
     }
     return true;
   } catch (err) {
     console.warn("sendEmail exception:", err);
     return false;
   }
+}
+
+// Backward-compatible wrapper — calls without org context use global creds
+async function sendEmail(
+  toRecipients: { email: string; name?: string }[],
+  subject: string,
+  htmlBody: string,
+  supabaseClient?: ReturnType<typeof createClient>,
+  organizationId?: string | null
+): Promise<boolean> {
+  if (supabaseClient && organizationId) {
+    return resolveCredsAndSend(supabaseClient, organizationId, toRecipients, subject, htmlBody);
+  }
+  // Global fallback (no org context)
+  return resolveCredsAndSend(null as any, null, toRecipients, subject, htmlBody);
 }
 
 // Helper to insert in-app notifications — always runs, never throws
