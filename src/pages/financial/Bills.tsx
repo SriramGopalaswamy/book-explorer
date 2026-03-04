@@ -1008,7 +1008,7 @@ export default function Bills() {
                   </SelectTrigger>
                   <SelectContent>
                     {TDS_SECTIONS.map((s) => (
-                      <SelectItem key={s.code || "none"} value={s.code}>
+                      <SelectItem key={s.code || "none"} value={s.code || "none"}>
                         {s.label}{s.rate > 0 ? ` (${s.rate}%)` : ""}
                       </SelectItem>
                     ))}
