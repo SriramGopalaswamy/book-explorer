@@ -2189,6 +2189,85 @@ export type Database = {
           },
         ]
       }
+      compensation_revision_requests: {
+        Row: {
+          created_at: string
+          current_ctc: number
+          effective_from: string
+          id: string
+          organization_id: string
+          profile_id: string
+          proposed_components: Json | null
+          proposed_ctc: number
+          requested_by: string
+          requested_by_role: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          revision_reason: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_ctc?: number
+          effective_from: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          proposed_components?: Json | null
+          proposed_ctc: number
+          requested_by: string
+          requested_by_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          revision_reason: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_ctc?: number
+          effective_from?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          proposed_components?: Json | null
+          proposed_ctc?: number
+          requested_by?: string
+          requested_by_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          revision_reason?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_revision_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compensation_structures: {
         Row: {
           annual_ctc: number

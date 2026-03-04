@@ -22,6 +22,7 @@ import {
   Wallet,
   AlertTriangle,
   UserCog,
+  IndianRupee,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -77,6 +78,11 @@ import {
   useReviewChangeRequest,
   type ProfileChangeRequest,
 } from "@/hooks/useProfileChangeRequests";
+import {
+  useCompensationRevisionRequests,
+  useReviewRevisionRequest,
+  type CompensationRevisionRequest,
+} from "@/hooks/useCompensationRevisions";
 
 // ─── Profile Change Request hooks ─────────────────────────────────────────────
 
@@ -2386,6 +2392,76 @@ function PendingProfileChanges() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function PendingCompRevisions({ requests }: { requests: CompensationRevisionRequest[] }) {
+  const reviewMutation = useReviewRevisionRequest();
+  const [notes, setNotes] = useState("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  if (requests.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+        <IndianRupee className="h-8 w-8 opacity-30" />
+        <p className="text-sm">No pending compensation revision requests.</p>
+      </div>
+    );
+  }
+
+  const formatCurrency = (v: number) => `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
+
+  return (
+    <div className="space-y-3">
+      {requests.map((r) => {
+        const changePct = Number(r.current_ctc) > 0 ? (((Number(r.proposed_ctc) - Number(r.current_ctc)) / Number(r.current_ctc)) * 100).toFixed(1) : "N/A";
+        return (
+          <Card key={r.id} className="border-border/50 bg-card/60">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-sm">{r.profiles?.full_name || "Employee"}</span>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Pending</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p>{r.profiles?.department} · {r.profiles?.job_title}</p>
+                    <p>Current: {formatCurrency(Number(r.current_ctc))} → Proposed: <span className="font-semibold text-foreground">{formatCurrency(Number(r.proposed_ctc))}</span> ({changePct}%)</p>
+                    <p>Reason: {r.revision_reason} · Effective: {fmtDate(r.effective_from)} · By: {r.requester?.full_name} ({r.requested_by_role})</p>
+                  </div>
+                  {reviewingId === r.id && (
+                    <div className="mt-2">
+                      <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {reviewingId !== r.id ? (
+                    <Button size="sm" variant="outline" onClick={() => { setReviewingId(r.id); setNotes(""); }}>
+                      <Eye className="h-3.5 w-3.5 mr-1" /> Review
+                    </Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" className="border-green-500/40 text-green-400 hover:bg-green-500/10"
+                        disabled={reviewMutation.isPending}
+                        onClick={() => reviewMutation.mutate({ id: r.id, status: "approved", reviewer_notes: notes }, { onSuccess: () => setReviewingId(null) })}>
+                        <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                        disabled={reviewMutation.isPending}
+                        onClick={() => reviewMutation.mutate({ id: r.id, status: "rejected", reviewer_notes: notes }, { onSuccess: () => setReviewingId(null) })}>
+                        <X className="h-3.5 w-3.5 mr-1" /> Reject
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ManagerInbox() {
   const { data: leaves = [] } = useDirectReportsLeaves();
   const { data: corrections = [] } = useDirectReportsCorrectionsPending();
@@ -2400,6 +2476,8 @@ export default function ManagerInbox() {
   const isHRRole = currentRole === "hr" || currentRole === "admin";
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
+  const { data: allCompRevisions = [] } = useCompensationRevisionRequests("pending");
+  const pendingCompRevisions = allCompRevisions;
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -2408,7 +2486,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0) + (isFinanceRole ? pendingFinanceDisputes.length : 0);
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0) + (isFinanceRole ? pendingFinanceDisputes.length + pendingCompRevisions.length : 0);
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -2528,6 +2606,17 @@ export default function ManagerInbox() {
                 {pendingFinanceDisputes.length > 0 && (
                   <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                     {pendingFinanceDisputes.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            {isFinanceRole && (
+              <TabsTrigger value="comp-revisions" className="gap-2">
+                <IndianRupee className="h-4 w-4" />
+                Comp Revisions
+                {pendingCompRevisions.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                    {pendingCompRevisions.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -2760,6 +2849,23 @@ export default function ManagerInbox() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Comp Revisions (Finance) ── */}
+          {isFinanceRole && (
+            <TabsContent value="comp-revisions">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <IndianRupee className="h-4 w-4 text-primary" />
+                    Pending Compensation Revisions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <PendingCompRevisions requests={pendingCompRevisions} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {/* ── Profile Changes ── */}
           <TabsContent value="profile-changes">
