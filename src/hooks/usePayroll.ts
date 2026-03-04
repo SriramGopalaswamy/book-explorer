@@ -276,6 +276,11 @@ export function useProcessPayroll() {
         throw error;
       }
 
+      // Check RPC-level errors
+      if (data?.processed === 0 && data?.skipped > 0) {
+        throw new Error("All selected records were already processed.");
+      }
+
       return data;
     },
     onSuccess: () => {
