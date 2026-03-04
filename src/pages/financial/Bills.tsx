@@ -485,11 +485,15 @@ export default function Bills() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      console.log("[Bills] Attempting status update:", { id, status });
       const { data, error } = await supabase.from("bills").update({ status }).eq("id", id).select();
       console.log("[Bills] Update status result:", { id, status, data, error });
       if (error) {
         console.error("[Bills] Update error details:", JSON.stringify(error));
-        throw error;
+        // Check if the error is from a trigger (journal posting)
+        const errMsg = error.message || error.details || JSON.stringify(error);
+        console.error("[Bills] Full error:", errMsg);
+        throw new Error(`Failed to update bill status: ${errMsg}`);
       }
       if (!data || data.length === 0) {
         const { data: billCheck } = await supabase.from("bills").select("id, organization_id, user_id, status").eq("id", id).single();
@@ -506,7 +510,10 @@ export default function Bills() {
         }).catch((err) => console.warn("Failed to send bill notification:", err));
       }
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      console.error("[Bills] Mutation error:", e);
+      toast.error(e.message || "Failed to update bill status");
+    },
   });
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
