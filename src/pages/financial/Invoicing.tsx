@@ -56,6 +56,8 @@ import {
   Trash2,
   Download,
   Settings2,
+  Search,
+  Filter,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -490,11 +492,42 @@ export default function Invoicing() {
           <StatCard title="Draft Invoices" value={draftCount.toString()} icon={<Clock className="h-4 w-4" />} />
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-between">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search by invoice #, client..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Invoices Table */}
         <div className="rounded-xl border bg-card shadow-card">
           <div className="flex items-center justify-between border-b p-6">
             <div>
-              <h3 className="text-lg font-semibold text-foreground">All Invoices</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {statusFilter !== "all" ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Invoices` : "All Invoices"}
+                {searchQuery && <span className="text-muted-foreground font-normal text-sm ml-2">({filteredInvoices.length} results)</span>}
+              </h3>
               <p className="text-sm text-muted-foreground">Manage and track all your invoices</p>
             </div>
             <div className="flex items-center gap-2">
