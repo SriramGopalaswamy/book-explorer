@@ -78,6 +78,7 @@ import PlatformSandbox from "./pages/platform/PlatformSandbox";
 import PlatformSimulation from "./pages/platform/PlatformSimulation";
 import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
 import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
+import PlatformDbInspector from "./pages/platform/PlatformDbInspector";
 
 // Profile
 import Profile from "./pages/Profile";
@@ -172,6 +173,7 @@ const App = () => (
                 <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/simulation" element={<ProtectedRoute><PlatformRoute><PlatformSimulation /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/subscription-keys" element={<ProtectedRoute><PlatformRoute><PlatformSubscriptionKeys /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/db-inspector" element={<ProtectedRoute><PlatformRoute><PlatformDbInspector /></PlatformRoute></ProtectedRoute>} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
