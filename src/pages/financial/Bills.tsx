@@ -706,7 +706,7 @@ export default function Bills() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => { closeDialog(); setDialogOpen(true); }} className="gap-2 shrink-0">
+          <Button onClick={openDialog} className="gap-2 shrink-0">
             <ScanLine className="h-4 w-4" />
             Scan / Add Bill
           </Button>
@@ -724,7 +724,7 @@ export default function Bills() {
                 <Receipt className="h-12 w-12 opacity-30" />
                 <p className="text-sm font-medium">No bills found</p>
                 <p className="text-xs">Scan a vendor bill or invoice to get started</p>
-                <Button size="sm" variant="outline" onClick={() => { closeDialog(); setDialogOpen(true); }} className="mt-1">
+                <Button size="sm" variant="outline" onClick={openDialog} className="mt-1">
                   <ScanLine className="h-3.5 w-3.5 mr-1.5" /> Scan Bill
                 </Button>
               </div>
