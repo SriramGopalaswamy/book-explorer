@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
@@ -56,6 +56,7 @@ import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalytics
 import { InvestmentDeclarationPortal } from "@/components/payroll/InvestmentDeclarationPortal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
+import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
 import { toast } from "sonner";
 
 const staggerContainer = {
@@ -265,6 +266,28 @@ export default function Payroll() {
 
   const [form, setForm] = useState({ profile_id: "", ...defaultForm });
 
+  // Auto-calculate working days & LOP when employee is selected
+  const autoCalc = usePayrollAutoCalc(form.profile_id || null, selectedPeriod);
+
+  // Auto-fill working_days and lop_days when auto-calc data changes
+  useEffect(() => {
+    if (!autoCalc.isLoading && form.profile_id && autoCalc.workingDays > 0) {
+      setForm((prev) => {
+        const next = { ...prev };
+        next.working_days = autoCalc.workingDays;
+        next.lop_days = autoCalc.lopDays;
+        // Recalculate LOP deduction and paid days
+        const gross = next.basic_salary + next.hra + next.transport_allowance + next.other_allowances;
+        next.lop_deduction = next.lop_days > 0 && next.working_days > 0
+          ? Math.round((gross / next.working_days) * next.lop_days)
+          : 0;
+        next.paid_days = Math.max(0, next.working_days - next.lop_days);
+        next.net_pay = gross - next.pf_deduction - next.tax_deduction - next.other_deductions - next.lop_deduction;
+        return next;
+      });
+    }
+  }, [autoCalc.isLoading, autoCalc.workingDays, autoCalc.lopDays, form.profile_id]);
+
   const calcNet = (f: typeof form) => {
     const gross = f.basic_salary + f.hra + f.transport_allowance + f.other_allowances;
     const deductions = f.pf_deduction + f.tax_deduction + f.other_deductions;
@@ -416,7 +439,24 @@ export default function Payroll() {
         </div>
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-amber-600">Loss of Pay (LOP)</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-amber-600">Loss of Pay (LOP)</p>
+          {autoCalc.isLoading && form.profile_id && (
+            <span className="text-xs text-muted-foreground animate-pulse">Calculating…</span>
+          )}
+        </div>
+        {!autoCalc.isLoading && form.profile_id && autoCalc.workingDays > 0 && (
+          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+            <p>{autoCalc.totalCalendarDays} calendar days − {autoCalc.weekendDays} weekends − {autoCalc.holidays} holidays = <strong className="text-foreground">{autoCalc.workingDays} working days</strong></p>
+            {autoCalc.lopBreakdown.length > 0 ? (
+              autoCalc.lopBreakdown.map((b, i) => (
+                <p key={i}>{b.type}: <strong className="text-foreground">{b.days} day{b.days !== 1 ? "s" : ""}</strong></p>
+              ))
+            ) : (
+              <p>No LOP leaves found for this period</p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1">
             <Label className="text-xs">Working Days</Label>
