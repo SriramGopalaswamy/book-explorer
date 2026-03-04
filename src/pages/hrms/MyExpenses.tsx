@@ -141,14 +141,17 @@ export default function MyExpenses() {
   const approvedAmount = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
   const paidAmount = expenses.filter(e => e.status === "paid").reduce((s, e) => s + e.amount, 0);
 
-  const pendingExpenses = expenses.filter(e => e.status === "pending");
-  const approvedExpenses = expenses.filter(e => e.status === "approved");
-  const paidExpenses = expenses.filter(e => e.status === "paid");
+  const matchesSearch = (e: Expense) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return e.category.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
+  };
 
-  const allFiltered = expenses.filter((e) =>
-    e.category.toLowerCase().includes(search.toLowerCase()) ||
-    (e.description ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const allFiltered = expenses.filter(matchesSearch);
+  const pendingExpenses = expenses.filter(e => e.status === "pending" && matchesSearch(e));
+  const approvedExpenses = expenses.filter(e => e.status === "approved" && matchesSearch(e));
+  const paidExpenses = expenses.filter(e => e.status === "paid" && matchesSearch(e));
+
   const allPagination = usePagination(allFiltered, 10);
   const pendingPagination = usePagination(pendingExpenses, 10);
   const approvedPagination = usePagination(approvedExpenses, 10);
