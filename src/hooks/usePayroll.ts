@@ -133,7 +133,10 @@ export function useMyPayrollRecords() {
 }
 
 export function usePayrollStats(payPeriod?: string) {
-  const { data: records = [] } = usePayrollRecords(payPeriod);
+  const { data: allRecords = [] } = usePayrollRecords(payPeriod);
+
+  // Exclude superseded records from all stats
+  const records = allRecords.filter((r) => r.status !== "superseded");
 
   return {
     totalPayroll: records.reduce((sum, r) => sum + Number(r.net_pay), 0),
