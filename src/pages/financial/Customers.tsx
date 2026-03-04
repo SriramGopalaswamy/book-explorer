@@ -169,14 +169,33 @@ export default function Customers() {
   if (isCheckingRole) return <MainLayout title="Customers"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
   if (!hasFinanceAccess) return <AccessDenied />;
 
+  const phoneConfig = getPhoneConfig(form.country);
+  const taxConfig = getTaxConfig(form.country);
+
   const CustomerForm = (
     <div className="grid gap-4 py-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Label>Customer Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Acme Corp" /></div>
         <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" /></div>
-        <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 99999 00000" /></div>
+        <div>
+          <Label>Phone {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
+          <Input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder={phoneConfig.code ? `${phoneConfig.code} ${"9".repeat(phoneConfig.digits)}` : "+XX XXXXXXXXXX"}
+          />
+          {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+        </div>
         <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
-        <div><Label>Tax / GST Number</Label><Input value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></div>
+        <div>
+          <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"}</Label>
+          <Input
+            value={form.tax_number}
+            onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+            placeholder={taxConfig?.placeholder || "Tax ID"}
+          />
+          {errors.tax_number && <p className="text-xs text-destructive mt-1">{errors.tax_number}</p>}
+        </div>
         <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
         <div><Label>Country</Label><CountrySelect value={form.country} onChange={(val) => setForm({ ...form, country: val })} /></div>
         <div className="col-span-2"><Label>Address</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
