@@ -65,13 +65,6 @@ export default function PlatformDbInspector() {
   const fetchData = async (action = "full") => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("db-inspector", {
-        body: null,
-        headers: {},
-      });
-
-      // The edge function uses query params but functions.invoke uses POST body
-      // Let's call it with the action in body instead
       const resp = await supabase.functions.invoke("db-inspector?action=" + action);
 
       if (resp.error) throw new Error(resp.error.message || "Failed to fetch");
