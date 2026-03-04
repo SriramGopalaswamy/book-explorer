@@ -20,9 +20,32 @@ export interface CompensationRevisionRequest {
   reviewer_notes: string | null;
   created_at: string;
   updated_at: string;
-  // Joined
   profiles?: { full_name: string | null; department: string | null; job_title: string | null } | null;
   requester?: { full_name: string | null } | null;
+}
+
+async function enrichWithProfiles(data: any[]): Promise<CompensationRevisionRequest[]> {
+  if (!data || data.length === 0) return [];
+  const profileIds = [...new Set(data.map((r: any) => r.profile_id))];
+  const requesterIds = [...new Set(data.map((r: any) => r.requested_by))];
+  const allIds = [...new Set([...profileIds, ...requesterIds])];
+
+  let nameMap: Record<string, { full_name: string | null; department: string | null; job_title: string | null }> = {};
+  if (allIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, department, job_title")
+      .in("id", allIds);
+    if (profiles) {
+      nameMap = Object.fromEntries(profiles.map((p) => [p.id, p]));
+    }
+  }
+
+  return data.map((r: any) => ({
+    ...r,
+    profiles: nameMap[r.profile_id] || null,
+    requester: { full_name: nameMap[r.requested_by]?.full_name || "Unknown" },
+  })) as CompensationRevisionRequest[];
 }
 
 export function useCompensationRevisionRequests(filter?: "pending" | "all") {
@@ -32,35 +55,13 @@ export function useCompensationRevisionRequests(filter?: "pending" | "all") {
     queryKey: ["compensation-revision-requests", user?.id, filter],
     queryFn: async () => {
       if (!user) return [];
-      let query = supabase
-        .from("compensation_revision_requests" as any)
-        .select("*, profiles!compensation_revision_requests_profile_id_fkey(full_name, department, job_title)")
+      let query = (supabase.from("compensation_revision_requests" as any) as any)
+        .select("*")
         .order("created_at", { ascending: false });
-
-      if (filter === "pending") {
-        query = query.eq("status", "pending");
-      }
-
+      if (filter === "pending") query = query.eq("status", "pending");
       const { data, error } = await query;
       if (error) throw error;
-
-      // Fetch requester names
-      const requesterIds = [...new Set((data || []).map((r: any) => r.requested_by))];
-      let requesterMap: Record<string, string> = {};
-      if (requesterIds.length > 0) {
-        const { data: requesters } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", requesterIds);
-        if (requesters) {
-          requesterMap = Object.fromEntries(requesters.map((r) => [r.id, r.full_name || "Unknown"]));
-        }
-      }
-
-      return (data || []).map((r: any) => ({
-        ...r,
-        requester: { full_name: requesterMap[r.requested_by] || "Unknown" },
-      })) as CompensationRevisionRequest[];
+      return enrichWithProfiles(data || []);
     },
     enabled: !!user,
   });
@@ -73,13 +74,12 @@ export function useMyTeamRevisionRequests() {
     queryKey: ["my-team-revision-requests", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("compensation_revision_requests" as any)
-        .select("*, profiles!compensation_revision_requests_profile_id_fkey(full_name, department, job_title)")
+      const { data, error } = await (supabase.from("compensation_revision_requests" as any) as any)
+        .select("*")
         .eq("requested_by", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as CompensationRevisionRequest[];
+      return enrichWithProfiles(data || []);
     },
     enabled: !!user,
   });
@@ -100,7 +100,7 @@ export function useCreateRevisionRequest() {
       requested_by_role: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("compensation_revision_requests" as any).insert({
+      const { error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
         profile_id: data.profile_id,
         requested_by: user.id,
         requested_by_role: data.requested_by_role,
@@ -130,8 +130,7 @@ export function useReviewRevisionRequest() {
   return useMutation({
     mutationFn: async (data: { id: string; status: "approved" | "rejected"; reviewer_notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase
-        .from("compensation_revision_requests" as any)
+      const { error } = await (supabase.from("compensation_revision_requests" as any) as any)
         .update({
           status: data.status,
           reviewed_by: user.id,
@@ -147,7 +146,7 @@ export function useReviewRevisionRequest() {
       toast({
         title: variables.status === "approved" ? "Revision Approved" : "Revision Rejected",
         description: variables.status === "approved"
-          ? "The compensation revision has been approved. Please create the salary revision from the employee's Compensation tab."
+          ? "Approved. Create the salary revision from the employee's Compensation tab."
           : "The revision request has been rejected.",
       });
     },
