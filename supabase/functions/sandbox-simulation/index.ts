@@ -119,8 +119,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const { data } = await client.from("vendors").insert({
       name, organization_id: orgId, user_id: userId,
       email: `${name.toLowerCase().replace(/\s+/g, ".")}@sandbox.sim`,
-      status: "active", source: "sandbox_simulation",
-      gstin: `29AABCT${Math.floor(1000 + Math.random() * 9000)}K1Z${Math.floor(1 + Math.random() * 9)}`,
+      status: "active",
+      tax_number: `29AABCT${Math.floor(1000 + Math.random() * 9000)}K1Z${Math.floor(1 + Math.random() * 9)}`,
     }).select("id").single();
     if (data) vendors.push(data.id);
   }
@@ -137,7 +137,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const { data } = await client.from("customers").insert({
       name, organization_id: orgId, user_id: userId,
       email: `billing@${name.toLowerCase().replace(/\s+/g, "")}.sim`,
-      status: "active", source: "sandbox_simulation",
+      status: "active",
       tax_number: `27AADCS${Math.floor(1000 + Math.random() * 9000)}H1Z${Math.floor(1 + Math.random() * 9)}`,
     }).select("id").single();
     if (data) customers.push(data.id);
@@ -234,12 +234,12 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const amount = Math.round(10000 + Math.random() * 490000);
       const taxAmount = Math.round(amount * 0.18);
       const { error } = await client.from("invoices").insert({
-        invoice_number: invNum, customer_id: cust.id, customer_name: cust.name,
-        organization_id: orgId, user_id: userId, amount, tax_amount: taxAmount,
+        invoice_number: invNum, customer_id: cust.id, client_name: cust.name,
+        client_email: `billing@${cust.name.toLowerCase().replace(/\s+/g, "")}.sim`,
+        organization_id: orgId, user_id: userId, amount,
         total_amount: amount + taxAmount, status: "draft",
-        issue_date: new Date().toISOString().split("T")[0],
+        invoice_date: new Date().toISOString().split("T")[0],
         due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-        source: "sandbox_simulation",
       });
       results.push({
         workflow: `Invoice: ${invNum}`, status: error ? "failed" : "passed",
@@ -265,7 +265,6 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         organization_id: orgId, user_id: userId, amount, tax_amount: taxAmount,
         total_amount: amount + taxAmount, status: "draft",
         bill_date: new Date().toISOString().split("T")[0],
-        source: "sandbox_simulation",
       });
       results.push({
         workflow: `Bill: ${billNum}`, status: error ? "failed" : "passed",
@@ -291,11 +290,10 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const amount = Math.round(20000 + Math.random() * 300000);
         const entryNum = `SIM-JE-${Date.now()}-${i}`;
         const { data: je, error: jeErr } = await client.from("journal_entries").insert({
-          entry_number: entryNum, organization_id: orgId, user_id: userId,
+          document_sequence_number: entryNum, organization_id: orgId, created_by: userId,
           entry_date: new Date().toISOString().split("T")[0],
-          description: `Simulation journal entry #${i + 1}`,
-          status: "draft", source: "sandbox_simulation",
-          total_debit: amount, total_credit: amount,
+          memo: `Simulation journal entry #${i + 1}`,
+          status: "draft", source_type: "sandbox_simulation",
         }).select("id").single();
         if (jeErr) throw jeErr;
 
@@ -319,8 +317,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { error } = await client.from("expenses").insert({
         description: `Simulation expense - ${categories[i]}`, amount,
         category: categories[i], organization_id: orgId, user_id: userId,
-        status: "pending", date: new Date().toISOString().split("T")[0],
-        source: "sandbox_simulation",
+        status: "pending", expense_date: new Date().toISOString().split("T")[0],
       });
       results.push({
         workflow: `Expense: ${categories[i]}`, status: error ? "failed" : "passed",
@@ -341,8 +338,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const { error } = await client.from("financial_records").insert({
           type: types[i], amount, description: `Simulation ${types[i]} record`,
           category: "simulation", organization_id: orgId, user_id: userId,
-          status: "draft", record_date: new Date().toISOString().split("T")[0],
-          source: "sandbox_simulation",
+          record_date: new Date().toISOString().split("T")[0],
         });
         results.push({
           workflow: `Financial record: ${types[i]}`, status: error ? "failed" : "passed",
@@ -394,12 +390,12 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           case "invoice": {
             const { error } = await client.from("invoices").insert({
               invoice_number: `STRESS-${userIdx}-${Date.now()}`,
-              customer_name: `Stress Customer ${userIdx}`,
+              client_name: `Stress Customer ${userIdx}`,
+              client_email: `stress${userIdx}@sandbox.sim`,
               organization_id: orgId, user_id: userId,
-              amount: 10000, tax_amount: 1800, total_amount: 11800,
-              status: "draft", issue_date: new Date().toISOString().split("T")[0],
+              amount: 10000, total_amount: 11800,
+              status: "draft", invoice_date: new Date().toISOString().split("T")[0],
               due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-              source: "sandbox_simulation",
             });
             if (error) throw error;
             break;
@@ -408,8 +404,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             const { error } = await client.from("expenses").insert({
               description: `Stress expense user ${userIdx}`, amount: 5000 + userIdx * 100,
               category: "Stress Test", organization_id: orgId, user_id: userId,
-              status: "pending", date: new Date().toISOString().split("T")[0],
-              source: "sandbox_simulation",
+              status: "pending", expense_date: new Date().toISOString().split("T")[0],
             });
             if (error) throw error;
             break;
@@ -419,11 +414,11 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
               .select("id").eq("organization_id", orgId).limit(2);
             if (accounts && accounts.length >= 2) {
               const { data: je, error: jeErr } = await client.from("journal_entries").insert({
-                entry_number: `STRESS-JE-${userIdx}-${Date.now()}`,
-                organization_id: orgId, user_id: userId,
+                document_sequence_number: `STRESS-JE-${userIdx}-${Date.now()}`,
+                organization_id: orgId, created_by: userId,
                 entry_date: new Date().toISOString().split("T")[0],
-                description: `Stress test journal ${userIdx}`, status: "draft",
-                source: "sandbox_simulation", total_debit: 10000, total_credit: 10000,
+                memo: `Stress test journal ${userIdx}`, status: "draft",
+                source_type: "sandbox_simulation",
               }).select("id").single();
               if (jeErr) throw jeErr;
               await client.from("journal_lines").insert([
@@ -440,7 +435,6 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
               organization_id: orgId, user_id: userId,
               amount: 8000, tax_amount: 1440, total_amount: 9440,
               status: "draft", bill_date: new Date().toISOString().split("T")[0],
-              source: "sandbox_simulation",
             });
             if (error) throw error;
             break;
@@ -490,12 +484,12 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const dupInvNum = `CHAOS-DUP-${Date.now()}`;
   for (let i = 0; i < 3; i++) {
     const { error } = await client.from("invoices").insert({
-      invoice_number: dupInvNum, customer_name: "Chaos Test Customer",
+      invoice_number: dupInvNum, client_name: "Chaos Test Customer",
+      client_email: "chaos@sandbox.sim",
       organization_id: orgId, user_id: userId,
-      amount: 10000, tax_amount: 1800, total_amount: 11800,
-      status: "draft", issue_date: new Date().toISOString().split("T")[0],
+      amount: 10000, total_amount: 11800,
+      status: "draft", invoice_date: new Date().toISOString().split("T")[0],
       due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-      source: "sandbox_simulation",
     });
     if (i === 0) {
       results.push({ test: "Duplicate invoice - first insert", status: error ? "anomaly" : "passed", detail: error?.message ?? "First insert succeeded" });
@@ -513,8 +507,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const { error: negErr } = await client.from("expenses").insert({
     description: "Chaos: negative amount", amount: -5000,
     category: "Chaos Test", organization_id: orgId, user_id: userId,
-    status: "pending", date: new Date().toISOString().split("T")[0],
-    source: "sandbox_simulation",
+    status: "pending", expense_date: new Date().toISOString().split("T")[0],
   });
   results.push({
     test: "Negative expense amount",
@@ -527,11 +520,11 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     .select("id").eq("organization_id", orgId).limit(2);
   if (accounts && accounts.length >= 2) {
     const { data: je } = await client.from("journal_entries").insert({
-      entry_number: `CHAOS-IMBAL-${Date.now()}`,
-      organization_id: orgId, user_id: userId,
+      document_sequence_number: `CHAOS-IMBAL-${Date.now()}`,
+      organization_id: orgId, created_by: userId,
       entry_date: new Date().toISOString().split("T")[0],
-      description: "Chaos: imbalanced journal", status: "draft",
-      source: "sandbox_simulation", total_debit: 10000, total_credit: 5000,
+      memo: "Chaos: imbalanced journal", status: "draft",
+      source_type: "sandbox_simulation",
     }).select("id").single();
     if (je) {
       await client.from("journal_lines").insert([
@@ -551,8 +544,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     client.from("financial_records").insert({
       type: "expense", amount: 100 + i, description: `Rapid-fire #${i}`,
       category: "chaos", organization_id: orgId, user_id: userId,
-      status: "draft", record_date: new Date().toISOString().split("T")[0],
-      source: "sandbox_simulation",
+      record_date: new Date().toISOString().split("T")[0],
     })
   );
   const rapidResults = await Promise.allSettled(rapidTasks);
