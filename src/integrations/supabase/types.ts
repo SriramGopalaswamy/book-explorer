@@ -4635,6 +4635,62 @@ export type Database = {
           },
         ]
       }
+      organization_oauth_configs: {
+        Row: {
+          client_id: string
+          client_secret: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_verified: boolean | null
+          organization_id: string
+          provider: string
+          scopes: string[] | null
+          sender_email: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          client_id: string
+          client_secret: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean | null
+          organization_id: string
+          provider: string
+          scopes?: string[] | null
+          sender_email?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          client_secret?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean | null
+          organization_id?: string
+          provider?: string
+          scopes?: string[] | null
+          sender_email?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_oauth_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_roles: {
         Row: {
           created_at: string | null
