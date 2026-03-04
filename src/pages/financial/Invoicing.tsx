@@ -690,8 +690,12 @@ export default function Invoicing() {
           ) : invoices.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold text-foreground">No invoices yet</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Create your first invoice to get started</p>
+              <h3 className="mt-4 text-lg font-semibold text-foreground">
+                {searchQuery || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {searchQuery || statusFilter !== "all" ? "Try adjusting your search or filter criteria" : "Create your first invoice to get started"}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
