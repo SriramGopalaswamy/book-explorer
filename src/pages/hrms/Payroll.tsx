@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
@@ -56,6 +56,7 @@ import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalytics
 import { InvestmentDeclarationPortal } from "@/components/payroll/InvestmentDeclarationPortal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
+import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
 import { toast } from "sonner";
 
 const staggerContainer = {
