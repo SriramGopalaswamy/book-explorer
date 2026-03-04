@@ -1101,11 +1101,19 @@ export default function Bills() {
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button
-              onClick={() => saveMutation.mutate()}
+              variant="secondary"
+              onClick={() => { setForm(f => ({ ...f, status: "draft" })); setTimeout(() => saveMutation.mutate(), 0); }}
               disabled={saveMutation.isPending || uploading || extracting}
               className="gap-2"
             >
-              {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
+              {saveMutation.isPending && form.status === "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><FileText className="h-4 w-4" /> Save as Draft</>}
+            </Button>
+            <Button
+              onClick={() => { setForm(f => ({ ...f, status: "received" })); setTimeout(() => saveMutation.mutate(), 0); }}
+              disabled={saveMutation.isPending || uploading || extracting}
+              className="gap-2"
+            >
+              {saveMutation.isPending && form.status !== "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
             </Button>
           </DialogFooter>
         </DialogContent>
