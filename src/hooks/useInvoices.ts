@@ -239,6 +239,14 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      // Fetch current version for optimistic locking
+      const { data: current, error: fetchErr } = await supabase
+        .from("invoices")
+        .select("version")
+        .eq("id", data.id)
+        .single();
+      if (fetchErr) throw fetchErr;
+
       const { error: invoiceError } = await supabase
         .from("invoices")
         .update({
@@ -258,7 +266,8 @@ export function useUpdateInvoice() {
           notes: data.notes || null,
           customer_gstin: data.customer_gstin || null,
         } as any)
-        .eq("id", data.id);
+        .eq("id", data.id)
+        .eq("version", (current as any)?.version ?? 1);
       if (invoiceError) throw invoiceError;
 
       // Delete old items and reinsert
