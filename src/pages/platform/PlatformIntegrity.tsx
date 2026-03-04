@@ -108,10 +108,35 @@ export default function PlatformIntegrity() {
       if (error) throw error;
       if (!data) throw new Error("No data returned from verification engine");
 
-      const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as VerificationResult;
-      if (!parsed.checks || !Array.isArray(parsed.checks)) {
+      const raw = typeof data === 'string' ? JSON.parse(data) : data;
+      
+      // The RPC may return either { checks: [...] } or a flat array of check objects
+      let parsed: VerificationResult;
+      if (Array.isArray(raw)) {
+        // Transform flat array into expected structure
+        const checks = raw.filter((c: any) => c.id !== "SUMMARY").map((c: any) => ({
+          id: c.id,
+          category: c.category,
+          severity: c.severity as VerificationCheck["severity"],
+          status: c.status as VerificationCheck["status"],
+          detail: c.message || c.detail || "",
+          auto_fix_possible: c.auto_fix_possible ?? false,
+        }));
+        const hasFail = checks.some((c: VerificationCheck) => c.status === "FAIL");
+        const hasCritFail = checks.some((c: VerificationCheck) => c.status === "FAIL" && c.severity === "CRITICAL");
+        parsed = {
+          engine_status: hasCritFail ? "BLOCKED" : hasFail ? "DEGRADED" : "OPERATIONAL",
+          run_at: new Date().toISOString(),
+          org_filter: null,
+          total_checks: checks.length,
+          checks,
+        };
+      } else if (raw.checks && Array.isArray(raw.checks)) {
+        parsed = raw as VerificationResult;
+      } else {
         throw new Error("Invalid response structure: missing checks array");
       }
+
       setResult(parsed);
 
       // Expand all categories by default
