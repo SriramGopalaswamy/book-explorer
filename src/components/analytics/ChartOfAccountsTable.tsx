@@ -190,7 +190,7 @@ export function ChartOfAccountsTable() {
                           <TableCell className="text-sm text-muted-foreground">{a.description || "—"}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(Number(a.current_balance))}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
