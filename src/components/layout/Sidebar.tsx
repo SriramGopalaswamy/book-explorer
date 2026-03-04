@@ -50,6 +50,7 @@ import {
   FlaskConical,
   Activity,
   ClipboardList,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -416,6 +417,7 @@ export function Sidebar() {
                   { name: "Sandbox", path: "/platform/sandbox", icon: FlaskConical },
                   { name: "Simulation", path: "/platform/simulation", icon: Zap },
                   { name: "Audit Console", path: "/platform/audit", icon: ClipboardList },
+                  { name: "DB Inspector", path: "/platform/db-inspector", icon: Database },
                 ]}
                 sectionId="platform"
                 collapsed={collapsed}
