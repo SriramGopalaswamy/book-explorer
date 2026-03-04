@@ -36,6 +36,17 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
+
+// Display bulk-uploaded times correctly — they are stored as UTC representing local clock times
+const formatStoredTime = (timestamp: string | null): string => {
+  if (!timestamp) return "—";
+  const d = new Date(timestamp);
+  const hours = d.getUTCHours();
+  const minutes = d.getUTCMinutes();
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const h12 = hours % 12 || 12;
+  return `${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`;
+};
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
