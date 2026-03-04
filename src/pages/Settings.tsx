@@ -292,6 +292,7 @@ function BrandingSection() {
 // ─── Payroll Configuration Section ────────────────────────────────────────────
 function PayrollConfigSection() {
   const { compliance, upsert } = useOnboardingCompliance();
+  const { data: org } = useUserOrganization();
   const [local, setLocal] = useState({
     payroll_enabled: false,
     payroll_frequency: "",
@@ -299,28 +300,54 @@ function PayrollConfigSection() {
     esi_applicable: false,
     professional_tax_applicable: false,
     gratuity_applicable: false,
+    weekend_policy: "sat_sun",
   });
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (compliance && !initialized) {
-      setLocal({
+      setLocal((prev) => ({
+        ...prev,
         payroll_enabled: compliance.payroll_enabled ?? false,
         payroll_frequency: compliance.payroll_frequency || "",
         pf_applicable: compliance.pf_applicable ?? false,
         esi_applicable: compliance.esi_applicable ?? false,
         professional_tax_applicable: compliance.professional_tax_applicable ?? false,
         gratuity_applicable: compliance.gratuity_applicable ?? false,
-      });
+      }));
       setInitialized(true);
     }
   }, [compliance, initialized]);
 
+  // Fetch weekend_policy from organizations table
+  useEffect(() => {
+    if (org?.organizationId) {
+      supabase
+        .from("organizations")
+        .select("weekend_policy")
+        .eq("id", org.organizationId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data && (data as any).weekend_policy) {
+            setLocal((prev) => ({ ...prev, weekend_policy: (data as any).weekend_policy }));
+          }
+        });
+    }
+  }, [org?.organizationId]);
+
   async function handleSave() {
     setSaving(true);
     try {
-      await upsert.mutateAsync(local);
+      const { weekend_policy, ...complianceData } = local;
+      await upsert.mutateAsync(complianceData);
+      // Save weekend_policy to organizations table
+      if (org?.organizationId) {
+        await supabase
+          .from("organizations")
+          .update({ weekend_policy } as any)
+          .eq("id", org.organizationId);
+      }
       toast.success("Payroll configuration saved");
     } catch (err: any) {
       toast.error(err.message || "Failed to save");
