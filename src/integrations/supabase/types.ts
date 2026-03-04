@@ -5977,6 +5977,95 @@ export type Database = {
           },
         ]
       }
+      simulation_runs: {
+        Row: {
+          chaos_test_results: Json | null
+          completed_at: string | null
+          concurrent_users_simulated: number | null
+          created_at: string | null
+          errors: Json | null
+          id: string
+          initiated_by: string
+          report_html: string | null
+          report_json: Json | null
+          run_type: string
+          sandbox_org_id: string
+          seed_summary: Json | null
+          started_at: string | null
+          status: string
+          stress_test_results: Json | null
+          total_execution_time_ms: number | null
+          total_records_created: number | null
+          updated_at: string | null
+          validation_details: Json | null
+          validation_passed: boolean | null
+          workflow_details: Json | null
+          workflows_executed: number | null
+          workflows_failed: number | null
+          workflows_passed: number | null
+        }
+        Insert: {
+          chaos_test_results?: Json | null
+          completed_at?: string | null
+          concurrent_users_simulated?: number | null
+          created_at?: string | null
+          errors?: Json | null
+          id?: string
+          initiated_by: string
+          report_html?: string | null
+          report_json?: Json | null
+          run_type?: string
+          sandbox_org_id: string
+          seed_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          stress_test_results?: Json | null
+          total_execution_time_ms?: number | null
+          total_records_created?: number | null
+          updated_at?: string | null
+          validation_details?: Json | null
+          validation_passed?: boolean | null
+          workflow_details?: Json | null
+          workflows_executed?: number | null
+          workflows_failed?: number | null
+          workflows_passed?: number | null
+        }
+        Update: {
+          chaos_test_results?: Json | null
+          completed_at?: string | null
+          concurrent_users_simulated?: number | null
+          created_at?: string | null
+          errors?: Json | null
+          id?: string
+          initiated_by?: string
+          report_html?: string | null
+          report_json?: Json | null
+          run_type?: string
+          sandbox_org_id?: string
+          seed_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          stress_test_results?: Json | null
+          total_execution_time_ms?: number | null
+          total_records_created?: number | null
+          updated_at?: string | null
+          validation_details?: Json | null
+          validation_passed?: boolean | null
+          workflow_details?: Json | null
+          workflows_executed?: number | null
+          workflows_failed?: number | null
+          workflows_passed?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_runs_sandbox_org_id_fkey"
+            columns: ["sandbox_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subledger_reconciliation_log: {
         Row: {
           created_at: string
