@@ -1075,7 +1075,264 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     results.push({ workflow: "Audit log", module: "Governance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart12 });
   }
 
-  const passed = results.filter(r => r.status === "passed").length;
+  // ===== QUOTES WORKFLOWS =====
+  const createdQuoteIds: string[] = [];
+  for (let i = 0; i < Math.min(3, (customers ?? []).length); i++) {
+    const wfStart = Date.now();
+    const cust = customers[i];
+    try {
+      const quoteNum = `SIM-QT-${Date.now()}-${i}`;
+      const amount = Math.round(15000 + Math.random() * 300000);
+      const gst = Math.round(amount * 0.18);
+      const { data: qt, error } = await client.from("quotes").insert({
+        quote_number: quoteNum, customer_id: cust.id, client_name: cust.name,
+        client_email: `billing@${cust.name.toLowerCase().replace(/\s+/g, "")}.sim`,
+        organization_id: orgId, user_id: userId, amount, subtotal: amount,
+        total_amount: amount + gst, cgst_total: Math.round(gst / 2), sgst_total: Math.round(gst / 2),
+        igst_total: 0, status: "draft",
+        due_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+      }).select("id").single();
+      if (qt) createdQuoteIds.push(qt.id);
+      results.push({
+        workflow: `Quote: ${quoteNum}`, module: "Quotes",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + gst).toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Quote #${i + 1}`, module: "Quotes", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // Quote lifecycle: draft → sent
+  if (createdQuoteIds.length > 0) {
+    const wfStart = Date.now();
+    const { error } = await client.from("quotes").update({ status: "sent" }).eq("id", createdQuoteIds[0]);
+    results.push({
+      workflow: "Quote lifecycle: draft → sent", module: "Quotes",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Status transition validated",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+  // Quote lifecycle: sent → accepted
+  if (createdQuoteIds.length > 1) {
+    const wfStart = Date.now();
+    await client.from("quotes").update({ status: "sent" }).eq("id", createdQuoteIds[1]);
+    const { error } = await client.from("quotes").update({ status: "accepted" }).eq("id", createdQuoteIds[1]);
+    results.push({
+      workflow: "Quote lifecycle: sent → accepted", module: "Quotes",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Quote accepted by customer",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== CREDIT NOTES WORKFLOWS =====
+  for (let i = 0; i < Math.min(2, (customers ?? []).length); i++) {
+    const wfStart = Date.now();
+    const cust = customers[i];
+    try {
+      const cnNum = `SIM-CN-${Date.now()}-${i}`;
+      const amount = Math.round(2000 + Math.random() * 50000);
+      const { error } = await client.from("credit_notes").insert({
+        credit_note_number: cnNum, customer_id: cust.id, client_name: cust.name,
+        organization_id: orgId, user_id: userId, amount,
+        reason: `Simulation credit — goods returned (batch #${i + 1})`,
+        status: i === 0 ? "draft" : "issued",
+      });
+      results.push({
+        workflow: `Credit Note: ${cnNum}`, module: "Credit Notes",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? `₹${amount.toLocaleString()} for ${cust.name}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Credit Note #${i + 1}`, module: "Credit Notes", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== VENDOR CREDITS WORKFLOWS =====
+  for (let i = 0; i < Math.min(2, (vendors ?? []).length); i++) {
+    const wfStart = Date.now();
+    const v = vendors[i];
+    try {
+      const vcNum = `SIM-VC-${Date.now()}-${i}`;
+      const amount = Math.round(3000 + Math.random() * 80000);
+      const { error } = await client.from("vendor_credits").insert({
+        vendor_credit_number: vcNum, vendor_id: v.id, vendor_name: v.name,
+        organization_id: orgId, user_id: userId, amount,
+        reason: `Vendor credit — defective goods return (batch #${i + 1})`,
+        status: i === 0 ? "draft" : "applied",
+      });
+      results.push({
+        workflow: `Vendor Credit: ${vcNum}`, module: "Vendor Credits",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? `₹${amount.toLocaleString()} from ${v.name}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Vendor Credit #${i + 1}`, module: "Vendor Credits", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== FULL INVOICE LIFECYCLE: sent → paid =====
+  if (createdInvoiceIds.length >= 3) {
+    const wfStart = Date.now();
+    await client.from("invoices").update({ status: "sent" }).eq("id", createdInvoiceIds[2]);
+    const { error } = await client.from("invoices").update({ status: "paid" }).eq("id", createdInvoiceIds[2]);
+    results.push({
+      workflow: "Invoice lifecycle: sent → paid", module: "Finance",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Full invoice lifecycle completed",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== FULL BILL LIFECYCLE: approved → paid =====
+  if (createdBillIds.length >= 1) {
+    const wfStart = Date.now();
+    const { error } = await client.from("bills").update({ status: "paid" }).eq("id", createdBillIds[0]);
+    results.push({
+      workflow: "Bill lifecycle: approved → paid", module: "Finance",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Full bill lifecycle completed",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== EXPENSE LIFECYCLE: pending → approved =====
+  {
+    const wfStart = Date.now();
+    const { data: pendingExp } = await client.from("expenses")
+      .select("id").eq("organization_id", orgId).eq("status", "pending").limit(1).single();
+    if (pendingExp) {
+      const { error } = await client.from("expenses").update({ status: "approved" }).eq("id", pendingExp.id);
+      results.push({
+        workflow: "Expense lifecycle: pending → approved", module: "Finance",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? "Expense approval validated",
+        duration_ms: Date.now() - wfStart,
+      });
+    }
+  }
+
+  // ===== INVESTMENT DECLARATIONS =====
+  for (let i = 0; i < Math.min(2, profileList.length); i++) {
+    const wfStart = Date.now();
+    const profile = profileList[i];
+    const sections = ["80C", "80D", "HRA", "80G"];
+    try {
+      const { error } = await client.from("investment_declarations").insert({
+        profile_id: profile.id, organization_id: orgId,
+        financial_year: "2025-26",
+        section_type: sections[i % sections.length],
+        declared_amount: Math.round(50000 + Math.random() * 100000),
+        status: "submitted",
+      });
+      results.push({
+        workflow: `Investment Declaration: ${profile.full_name} (${sections[i % sections.length]})`,
+        module: "HR", status: error ? "failed" : "passed",
+        detail: error?.message ?? "Tax declaration submitted",
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Investment declaration #${i + 1}`, module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== NOTIFICATIONS =====
+  const notifTypes = ["leave_approved", "payroll_processed", "expense_approved", "memo_published"];
+  for (let i = 0; i < Math.min(notifTypes.length, profileList.length); i++) {
+    const wfStart = Date.now();
+    try {
+      const { error } = await client.from("notifications").insert({
+        user_id: profileList[i].id, organization_id: orgId,
+        title: `Simulation notification: ${notifTypes[i]}`,
+        message: `This is a test notification for the ${notifTypes[i]} event.`,
+        type: notifTypes[i], read: false,
+      });
+      results.push({
+        workflow: `Notification: ${notifTypes[i]}`, module: "Notifications",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? `Sent to ${profileList[i].full_name}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: `Notification #${i + 1}`, module: "Notifications", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ===== EMPLOYEE DOCUMENTS =====
+  if (profileList.length > 0) {
+    const docTypes = ["offer_letter", "id_proof", "address_proof", "payslip"];
+    for (let i = 0; i < Math.min(docTypes.length, profileList.length); i++) {
+      const wfStart = Date.now();
+      try {
+        const { error } = await client.from("employee_documents").insert({
+          profile_id: profileList[i].id, organization_id: orgId,
+          document_type: docTypes[i],
+          document_name: `SIM_${docTypes[i]}_${profileList[i].full_name?.replace(/\s/g, "_")}.pdf`,
+          file_path: `sandbox/${orgId}/${docTypes[i]}/${Date.now()}.pdf`,
+          file_size: Math.round(50000 + Math.random() * 500000),
+          mime_type: "application/pdf",
+          uploaded_by: userId,
+        });
+        results.push({
+          workflow: `Employee Doc: ${docTypes[i]} for ${profileList[i].full_name}`,
+          module: "HR", status: error ? "failed" : "passed",
+          detail: error?.message ?? "Document record created",
+          duration_ms: Date.now() - wfStart,
+        });
+      } catch (e) {
+        results.push({ workflow: `Employee doc #${i + 1}`, module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      }
+    }
+  }
+
+  // ===== HOLIDAYS VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { count, error } = await client.from("holidays")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    results.push({
+      workflow: "Holidays: verify seeded data", module: "HR",
+      status: (count ?? 0) >= 5 ? "passed" : "failed",
+      detail: error?.message ?? `${count ?? 0} holidays found (expected ≥5)`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== BUDGET VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { count, error } = await client.from("budgets")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    results.push({
+      workflow: "Budgets: verify seeded data", module: "Finance",
+      status: (count ?? 0) > 0 ? "passed" : "failed",
+      detail: error?.message ?? `${count ?? 0} budget entries found`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== USER ROLES VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { count, error } = await client.from("user_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    results.push({
+      workflow: "User Roles: verify assignment", module: "Governance",
+      status: (count ?? 0) >= 5 ? "passed" : "failed",
+      detail: error?.message ?? `${count ?? 0} role assignments found`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+
   const failed = results.filter(r => r.status === "failed").length;
 
   const modules = [...new Set(results.map(r => r.module))];
