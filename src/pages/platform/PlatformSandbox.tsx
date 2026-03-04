@@ -238,6 +238,48 @@ export default function PlatformSandbox() {
     }
   };
 
+  // Generate shareable invite link
+  const generateLink = useMutation({
+    mutationFn: async (orgId: string) => {
+      const { data, error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .insert({
+          sandbox_org_id: orgId,
+          created_by: user?.id,
+          label: "Team testing link",
+        })
+        .select("token")
+        .single();
+      if (error) throw error;
+      return (data as any).token as string;
+    },
+    onSuccess: (token) => {
+      const link = `${window.location.origin}/sandbox/join/${token}`;
+      navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+      queryClient.invalidateQueries({ queryKey: ["sandbox-invite-links", selectedOrg] });
+      toast.success("Invite link copied to clipboard!");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Revoke invite link
+  const revokeLink = useMutation({
+    mutationFn: async (linkId: string) => {
+      const { error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .update({ is_active: false })
+        .eq("id", linkId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sandbox-invite-links", selectedOrg] });
+      toast.success("Invite link revoked");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return (
     <MainLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
       {/* Active Impersonation Banner */}
