@@ -75,6 +75,7 @@ import PlatformHealth from "./pages/platform/PlatformHealth";
 import PlatformActions from "./pages/platform/PlatformActions";
 import PlatformAudit from "./pages/platform/PlatformAudit";
 import PlatformSandbox from "./pages/platform/PlatformSandbox";
+import PlatformSimulation from "./pages/platform/PlatformSimulation";
 import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
 import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
 
