@@ -486,20 +486,38 @@ export default function Bills() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       console.log("[Bills] Attempting status update:", { id, status });
-      const { data, error } = await supabase.from("bills").update({ status }).eq("id", id).select();
-      console.log("[Bills] Update status result:", { id, status, data, error });
+      
+      // First verify the bill exists and we can read it
+      const { data: currentBill, error: readError } = await supabase
+        .from("bills")
+        .select("id, status, organization_id, bill_number, bill_date")
+        .eq("id", id)
+        .single();
+      
+      if (readError) {
+        console.error("[Bills] Cannot read bill:", readError);
+        throw new Error(`Cannot access bill: ${readError.message}`);
+      }
+      
+      console.log("[Bills] Current bill state:", currentBill);
+      
+      const { data, error } = await supabase
+        .from("bills")
+        .update({ status })
+        .eq("id", id)
+        .select();
+      
+      console.log("[Bills] Update result:", { data, error });
+      
       if (error) {
-        console.error("[Bills] Update error details:", JSON.stringify(error));
-        // Check if the error is from a trigger (journal posting)
-        const errMsg = error.message || error.details || JSON.stringify(error);
-        console.error("[Bills] Full error:", errMsg);
-        throw new Error(`Failed to update bill status: ${errMsg}`);
+        console.error("[Bills] Update error:", JSON.stringify(error));
+        const errMsg = error.message || error.details || error.hint || JSON.stringify(error);
+        throw new Error(`Failed to update bill: ${errMsg}`);
       }
       if (!data || data.length === 0) {
-        const { data: billCheck } = await supabase.from("bills").select("id, organization_id, user_id, status").eq("id", id).single();
-        console.log("[Bills] Bill exists check:", billCheck);
-        throw new Error("Update failed — could not change bill status. This may be a permissions issue.");
+        throw new Error("Update failed — bill status did not change. This may be a permissions issue.");
       }
+      return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
