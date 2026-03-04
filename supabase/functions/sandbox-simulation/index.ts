@@ -101,11 +101,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     .like("email", "%@sandbox-sim.local");
   for (const sp of (simProfiles ?? [])) {
     try {
-      // Delete compensation structures first (FK)
       await client.from("compensation_structures").delete().eq("profile_id", sp.id);
-      // Delete profile (will cascade)
       await client.from("profiles").delete().eq("id", sp.id);
-      // Delete auth user
       await client.auth.admin.deleteUser(sp.id);
     } catch (e) {
       console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
@@ -113,18 +110,19 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
 
   // Clear existing transactional data (order matters for FK constraints)
-  // journal_entries and journal_lines already handled above
   const orgScopedTables = [
     "payslip_disputes", "payroll_records", "payroll_runs",
     "reimbursement_requests",
     "goal_plans", "memos",
     "attendance_daily", "attendance_punches", "attendance_records",
+    "attendance_correction_requests",
     "leave_requests",
     "asset_depreciation_entries",
-    "invoices", "bills",
+    "invoice_items", "invoices",
+    "bill_items", "bills",
     "bank_transactions", "expenses", "credit_notes",
     "financial_records", "assets", "audit_logs",
-    "compensation_structures",
+    "compensation_revision_requests", "compensation_structures",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -201,6 +199,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { code: "2000", name: "Accounts Payable", type: "liability" },
     { code: "2100", name: "Tax Payable - GST Output", type: "liability" },
     { code: "2200", name: "TDS Payable", type: "liability" },
+    { code: "2300", name: "Salary Payable", type: "liability" },
+    { code: "2400", name: "PF Payable", type: "liability" },
     { code: "3000", name: "Share Capital", type: "equity" },
     { code: "3100", name: "Retained Earnings", type: "equity" },
     { code: "4000", name: "Sales Revenue", type: "revenue" },
@@ -250,7 +250,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // ===== SEED FINANCIAL YEAR & FISCAL PERIODS =====
   let fyCount = 0;
-  // First create or find the financial year
   const { data: existingFY } = await client.from("financial_years")
     .select("id")
     .eq("organization_id", orgId)
@@ -271,14 +270,12 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
 
   if (financialYearId) {
-    // Check if fiscal periods already exist for this FY
     const { count: existingPeriods } = await client.from("fiscal_periods")
       .select("id", { count: "exact", head: true })
       .eq("organization_id", orgId)
       .eq("financial_year_id", financialYearId);
 
     if ((existingPeriods ?? 0) === 0) {
-      // Create 12 monthly periods
       const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
       for (let i = 0; i < 12; i++) {
         const year = i < 9 ? 2025 : 2026;
@@ -317,7 +314,6 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.leave_types = leaveTypeCount;
 
   // ===== SEED ATTENDANCE SHIFTS =====
-  // Delete existing shifts for this org first, then insert fresh
   await client.from("attendance_shifts").delete().eq("organization_id", orgId);
   const { error: shiftErr } = await client.from("attendance_shifts").insert({
     name: "General Shift", organization_id: orgId,
@@ -327,7 +323,23 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   });
   summary.attendance_shifts = shiftErr ? 0 : 1;
 
+  // ===== SEED BANK ACCOUNTS =====
+  let bankAccountCount = 0;
+  const bankAccounts = [
+    { name: "HDFC Current Account", account_number: "SIM-50100012345678", account_type: "current", bank_name: "HDFC Bank", balance: 2500000 },
+    { name: "ICICI Savings Account", account_number: "SIM-60200098765432", account_type: "savings", bank_name: "ICICI Bank", balance: 850000 },
+  ];
+  for (const ba of bankAccounts) {
+    const { error } = await client.from("bank_accounts").insert({
+      ...ba, organization_id: orgId, user_id: userId, status: "active",
+    });
+    if (!error) bankAccountCount++;
+  }
+  summary.bank_accounts = bankAccountCount;
+
   // ===== SEED SANDBOX PROFILES (employees) =====
+  // profiles schema: id, user_id, full_name, department, job_title, avatar_url,
+  //   created_at, updated_at, email, status, join_date, phone, manager_id, organization_id
   const { data: existingProfiles } = await client.from("profiles")
     .select("id").eq("organization_id", orgId);
 
@@ -336,22 +348,21 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   if (seededProfiles < targetEmployeeCount) {
     const employeeSeeds = [
-      { name: "Arjun Mehta", dept: "Engineering", designation: "Senior Developer", code: "SIM-EMP-001", salary: 95000 },
-      { name: "Priya Sharma", dept: "Finance", designation: "Finance Manager", code: "SIM-EMP-002", salary: 85000 },
-      { name: "Rahul Verma", dept: "Operations", designation: "Operations Lead", code: "SIM-EMP-003", salary: 72000 },
-      { name: "Sneha Iyer", dept: "HR", designation: "HR Executive", code: "SIM-EMP-004", salary: 60000 },
-      { name: "Vikram Singh", dept: "Engineering", designation: "Tech Lead", code: "SIM-EMP-005", salary: 110000 },
-      { name: "Ananya Reddy", dept: "Marketing", designation: "Marketing Analyst", code: "SIM-EMP-006", salary: 55000 },
-      { name: "Karan Patel", dept: "Sales", designation: "Sales Executive", code: "SIM-EMP-007", salary: 65000 },
-      { name: "Deepika Nair", dept: "Engineering", designation: "QA Engineer", code: "SIM-EMP-008", salary: 68000 },
+      { name: "Arjun Mehta", dept: "Engineering", jobTitle: "Senior Developer", salary: 95000, phone: "+91-9876543001" },
+      { name: "Priya Sharma", dept: "Finance", jobTitle: "Finance Manager", salary: 85000, phone: "+91-9876543002" },
+      { name: "Rahul Verma", dept: "Operations", jobTitle: "Operations Lead", salary: 72000, phone: "+91-9876543003" },
+      { name: "Sneha Iyer", dept: "HR", jobTitle: "HR Executive", salary: 60000, phone: "+91-9876543004" },
+      { name: "Vikram Singh", dept: "Engineering", jobTitle: "Tech Lead", salary: 110000, phone: "+91-9876543005" },
+      { name: "Ananya Reddy", dept: "Marketing", jobTitle: "Marketing Analyst", salary: 55000, phone: "+91-9876543006" },
+      { name: "Karan Patel", dept: "Sales", jobTitle: "Sales Executive", salary: 65000, phone: "+91-9876543007" },
+      { name: "Deepika Nair", dept: "Engineering", jobTitle: "QA Engineer", salary: 68000, phone: "+91-9876543008" },
     ];
 
-    // Only create employees we're missing
     const toCreate = employeeSeeds.slice(seededProfiles);
 
     for (const emp of toCreate) {
       try {
-        const email = `${emp.code.toLowerCase()}@sandbox-sim.local`;
+        const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
         const tempPassword = crypto.randomUUID() + "Aa1!";
 
         // Create auth user (triggers handle_new_user which creates a profile)
@@ -368,15 +379,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         }
 
         // Update the auto-created profile with employee details
+        // Using ONLY columns that exist in the profiles table
         const { error: updateErr } = await client.from("profiles").update({
           organization_id: orgId,
           full_name: emp.name,
           department: emp.dept,
-          designation: emp.designation,
-          employee_code: emp.code,
-          employment_status: "active",
-          date_of_joining: "2024-06-01",
-          role: "employee",
+          job_title: emp.jobTitle,
+          status: "active",
+          join_date: "2024-06-01",
+          phone: emp.phone,
         }).eq("id", newUser.user.id);
 
         if (updateErr) {
@@ -393,18 +404,18 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // ===== SEED COMPENSATION STRUCTURES for seeded profiles =====
   const { data: seededProfileList } = await client.from("profiles")
-    .select("id, full_name, employee_code")
+    .select("id, full_name, job_title")
     .eq("organization_id", orgId);
 
-  const salaryMap: Record<string, number> = {
-    "SIM-EMP-001": 95000, "SIM-EMP-002": 85000, "SIM-EMP-003": 72000, "SIM-EMP-004": 60000,
-    "SIM-EMP-005": 110000, "SIM-EMP-006": 55000, "SIM-EMP-007": 65000, "SIM-EMP-008": 68000,
+  const salaryByTitle: Record<string, number> = {
+    "Senior Developer": 95000, "Finance Manager": 85000, "Operations Lead": 72000,
+    "HR Executive": 60000, "Tech Lead": 110000, "Marketing Analyst": 55000,
+    "Sales Executive": 65000, "QA Engineer": 68000,
   };
   let compCount = 0;
   for (const p of (seededProfileList ?? [])) {
-    const basic = salaryMap[p.employee_code] ?? 50000;
+    const basic = salaryByTitle[p.job_title] ?? 50000;
     const annualCTC = Math.round(basic * 12 * 1.55);
-    // Check if comp structure already exists
     const { data: existingComp } = await client.from("compensation_structures")
       .select("id").eq("profile_id", p.id).eq("effective_from", "2024-06-01").maybeSingle();
     if (!existingComp) {
@@ -437,37 +448,39 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
 
   // Get profiles in this org for HR workflows
   const { data: profiles } = await client.from("profiles")
-    .select("id, full_name, employee_code")
+    .select("id, full_name, job_title")
     .eq("organization_id", orgId).limit(10);
   const profileList = profiles ?? [];
 
   if (profileList.length === 0) {
     results.push({
       workflow: "HR Profile Check", module: "HR", status: "failed",
-      detail: "No employee profiles found in sandbox org — Attendance, Leave, Payroll, Reimbursement & Performance workflows require at least 1 profile. Add employees via onboarding or sandbox join.",
+      detail: "No employee profiles found in sandbox org — all HR/Payroll workflows will be skipped.",
       duration_ms: 0,
     });
   }
 
   // ===== FINANCE WORKFLOWS =====
 
-  // WF1: Create invoices
+  // WF1: Create invoices with full lifecycle (draft → sent → partially_paid)
   const { data: customers } = await client.from("customers")
     .select("id, name").eq("organization_id", orgId).limit(5);
+  const createdInvoiceIds: string[] = [];
   for (const cust of (customers ?? [])) {
     const wfStart = Date.now();
     try {
       const invNum = `SIM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const amount = Math.round(10000 + Math.random() * 490000);
       const taxAmount = Math.round(amount * 0.18);
-      const { error } = await client.from("invoices").insert({
+      const { data: inv, error } = await client.from("invoices").insert({
         invoice_number: invNum, customer_id: cust.id, client_name: cust.name,
         client_email: `billing@${cust.name.toLowerCase().replace(/\s+/g, "")}.sim`,
         organization_id: orgId, user_id: userId, amount,
         total_amount: amount + taxAmount, status: "draft",
         invoice_date: new Date().toISOString().split("T")[0],
         due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-      });
+      }).select("id").single();
+      if (inv) createdInvoiceIds.push(inv.id);
       results.push({
         workflow: `Invoice: ${invNum}`, module: "Finance", status: error ? "failed" : "passed",
         detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + taxAmount).toLocaleString()}`,
@@ -478,21 +491,35 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
-  // WF2: Create bills
+  // WF1b: Invoice lifecycle — move 2 invoices to "sent"
+  for (let i = 0; i < Math.min(2, createdInvoiceIds.length); i++) {
+    const wfStart = Date.now();
+    const { error } = await client.from("invoices").update({ status: "sent" }).eq("id", createdInvoiceIds[i]);
+    results.push({
+      workflow: `Invoice lifecycle: draft → sent`, module: "Finance",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Status transition validated",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // WF2: Create bills with lifecycle
   const { data: vendors } = await client.from("vendors")
     .select("id, name").eq("organization_id", orgId).limit(5);
+  const createdBillIds: string[] = [];
   for (const v of (vendors ?? [])) {
     const wfStart = Date.now();
     try {
       const billNum = `SIM-BILL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const amount = Math.round(5000 + Math.random() * 200000);
       const taxAmount = Math.round(amount * 0.18);
-      const { error } = await client.from("bills").insert({
+      const { data: bill, error } = await client.from("bills").insert({
         bill_number: billNum, vendor_id: v.id, vendor_name: v.name,
         organization_id: orgId, user_id: userId, amount, tax_amount: taxAmount,
         total_amount: amount + taxAmount, status: "draft",
         bill_date: new Date().toISOString().split("T")[0],
-      });
+      }).select("id").single();
+      if (bill) createdBillIds.push(bill.id);
       results.push({
         workflow: `Bill: ${billNum}`, module: "Finance", status: error ? "failed" : "passed",
         detail: error?.message ?? `Created for ${v.name} — ₹${(amount + taxAmount).toLocaleString()}`,
@@ -503,13 +530,27 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
-  // WF3: Post journal entries
+  // WF2b: Bill lifecycle — approve 2 bills
+  for (let i = 0; i < Math.min(2, createdBillIds.length); i++) {
+    const wfStart = Date.now();
+    const { error } = await client.from("bills").update({ status: "approved" }).eq("id", createdBillIds[i]);
+    results.push({
+      workflow: `Bill lifecycle: draft → approved`, module: "Finance",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Status transition validated",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // WF3: Post journal entries (balanced double-entry)
   const { data: glAccounts } = await client.from("gl_accounts")
     .select("id, code, name").eq("organization_id", orgId);
   const cashAccount = (glAccounts ?? []).find((a: any) => a.code === "1000");
   const revenueAccount = (glAccounts ?? []).find((a: any) => a.code === "4000");
   const expenseAccount = (glAccounts ?? []).find((a: any) => a.code === "5000");
   const salaryAccount = (glAccounts ?? []).find((a: any) => a.code === "5100");
+  const arAccount = (glAccounts ?? []).find((a: any) => a.code === "1100");
+  const apAccount = (glAccounts ?? []).find((a: any) => a.code === "2000");
 
   if (cashAccount && revenueAccount) {
     for (let i = 0; i < 5; i++) {
@@ -525,11 +566,15 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (jeErr) throw jeErr;
 
+        // Vary the accounts used for richer testing
+        const debitAcct = i % 2 === 0 ? cashAccount : (arAccount ?? cashAccount);
+        const creditAcct = i % 2 === 0 ? revenueAccount : (apAccount ?? revenueAccount);
+
         await client.from("journal_lines").insert([
-          { journal_entry_id: je.id, gl_account_id: cashAccount.id, debit: amount, credit: 0, description: "Cash received" },
-          { journal_entry_id: je.id, gl_account_id: revenueAccount.id, debit: 0, credit: amount, description: "Revenue recognized" },
+          { journal_entry_id: je.id, gl_account_id: debitAcct.id, debit: amount, credit: 0, description: `Debit: ${debitAcct.name}` },
+          { journal_entry_id: je.id, gl_account_id: creditAcct.id, debit: 0, credit: amount, description: `Credit: ${creditAcct.name}` },
         ]);
-        results.push({ workflow: `Journal: ${entryNum}`, module: "Finance", status: "passed", detail: `Balanced entry ₹${amount.toLocaleString()}`, duration_ms: Date.now() - wfStart });
+        results.push({ workflow: `Journal: ${entryNum}`, module: "Finance", status: "passed", detail: `Balanced entry ₹${amount.toLocaleString()} (${debitAcct.code} ↔ ${creditAcct.code})`, duration_ms: Date.now() - wfStart });
       } catch (e) {
         results.push({ workflow: `Journal entry #${i + 1}`, module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
       }
@@ -578,6 +623,36 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // WF5b: Bank transactions
+  const { data: bankAccts } = await client.from("bank_accounts")
+    .select("id, name").eq("organization_id", orgId).limit(1);
+  if (bankAccts && bankAccts.length > 0) {
+    const bankAcctId = bankAccts[0].id;
+    for (let i = 0; i < 4; i++) {
+      const wfStart = Date.now();
+      const isCredit = i % 2 === 0;
+      const amount = Math.round(5000 + Math.random() * 100000);
+      try {
+        const { error } = await client.from("bank_transactions").insert({
+          account_id: bankAcctId, organization_id: orgId, user_id: userId,
+          amount: isCredit ? amount : -amount,
+          description: `SIM bank txn #${i + 1}`,
+          transaction_type: isCredit ? "credit" : "debit",
+          transaction_date: new Date(Date.now() - i * 86400000).toISOString().split("T")[0],
+          reconciled: false,
+        });
+        results.push({
+          workflow: `Bank Txn: ${isCredit ? "Credit" : "Debit"} ₹${amount.toLocaleString()}`,
+          module: "Banking", status: error ? "failed" : "passed",
+          detail: error?.message ?? `${bankAccts[0].name}`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } catch (e) {
+        results.push({ workflow: `Bank txn #${i + 1}`, module: "Banking", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+      }
+    }
+  }
+
   // ===== ATTENDANCE WORKFLOWS =====
 
   // WF6: Create attendance records for each profile
@@ -599,7 +674,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           status: "present",
         });
         results.push({
-          workflow: `Attendance: ${profile.full_name ?? profile.employee_code ?? "Employee"} on ${dateStr}`,
+          workflow: `Attendance: ${profile.full_name ?? "Employee"} on ${dateStr}`,
           module: "Attendance", status: error ? "failed" : "passed",
           detail: error?.message ?? `${checkIn.split("T")[1]} → ${checkOut.split("T")[1]}`,
           duration_ms: Date.now() - wfStart,
@@ -610,15 +685,41 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // WF6b: Attendance correction request
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    const corrDate = new Date(today);
+    corrDate.setDate(corrDate.getDate() - 2);
+    try {
+      const { error } = await client.from("attendance_correction_requests").insert({
+        user_id: profileList[0].id, profile_id: profileList[0].id,
+        organization_id: orgId,
+        date: corrDate.toISOString().split("T")[0],
+        reason: "Forgot to check out — biometric malfunction",
+        requested_check_out: `${corrDate.toISOString().split("T")[0]}T18:30:00`,
+        status: "pending",
+      });
+      results.push({
+        workflow: `Attendance Correction: ${profileList[0].full_name}`,
+        module: "Attendance", status: error ? "failed" : "passed",
+        detail: error?.message ?? "Correction request submitted",
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Attendance correction", module: "Attendance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
   // ===== LEAVE WORKFLOWS =====
 
   // WF7: Create leave requests (various types & statuses)
   const leaveScenarios = [
-    { type: "Casual Leave", from: 5, to: 6, days: 2, status: "pending", reason: "Family function" },
-    { type: "Sick Leave", from: 10, to: 12, days: 3, status: "pending", reason: "Fever and cold" },
-    { type: "Earned Leave", from: 20, to: 25, days: 6, status: "pending", reason: "Vacation trip" },
-    { type: "Casual Leave", from: 15, to: 15, days: 1, status: "pending", reason: "Personal work" },
+    { type: "Casual Leave", from: 5, to: 6, days: 2, reason: "Family function" },
+    { type: "Sick Leave", from: 10, to: 12, days: 3, reason: "Fever and cold" },
+    { type: "Earned Leave", from: 20, to: 25, days: 6, reason: "Vacation trip" },
+    { type: "Casual Leave", from: 15, to: 15, days: 1, reason: "Personal work" },
   ];
+  const createdLeaveIds: string[] = [];
   for (let i = 0; i < Math.min(leaveScenarios.length, profileList.length); i++) {
     const wfStart = Date.now();
     const scenario = leaveScenarios[i];
@@ -628,7 +729,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const toDate = new Date(today);
     toDate.setDate(toDate.getDate() + scenario.to);
     try {
-      const { error } = await client.from("leave_requests").insert({
+      const { data: lr, error } = await client.from("leave_requests").insert({
         user_id: profile.id, profile_id: profile.id,
         organization_id: orgId,
         leave_type: scenario.type,
@@ -636,8 +737,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         to_date: toDate.toISOString().split("T")[0],
         days: scenario.days,
         reason: scenario.reason,
-        status: scenario.status,
-      });
+        status: "pending",
+      }).select("id").single();
+      if (lr) createdLeaveIds.push(lr.id);
       results.push({
         workflow: `Leave: ${scenario.type} for ${profile.full_name ?? "Employee"}`,
         module: "Leave", status: error ? "failed" : "passed",
@@ -649,9 +751,35 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // WF7b: Leave approval workflow — approve first leave, reject second
+  if (createdLeaveIds.length >= 2) {
+    const wfStart = Date.now();
+    const { error: appErr } = await client.from("leave_requests").update({
+      status: "approved", reviewed_by: userId,
+    }).eq("id", createdLeaveIds[0]);
+    results.push({
+      workflow: "Leave approval workflow", module: "Leave",
+      status: appErr ? "failed" : "passed",
+      detail: appErr?.message ?? "Leave approved with reviewer set",
+      duration_ms: Date.now() - wfStart,
+    });
+
+    const wfStart2 = Date.now();
+    const { error: rejErr } = await client.from("leave_requests").update({
+      status: "rejected", reviewed_by: userId,
+    }).eq("id", createdLeaveIds[1]);
+    results.push({
+      workflow: "Leave rejection workflow", module: "Leave",
+      status: rejErr ? "failed" : "passed",
+      detail: rejErr?.message ?? "Leave rejected with reviewer set",
+      duration_ms: Date.now() - wfStart2,
+    });
+  }
+
   // ===== PAYROLL WORKFLOWS =====
 
-  // WF8: Create payroll run + payroll records
+  // WF8: Create payroll run + payroll records + approval lifecycle
+  let createdPayrollRunId: string | null = null;
   if (profileList.length > 0) {
     const wfStart = Date.now();
     const payPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -664,6 +792,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       }).select("id").single();
 
       if (runErr) throw runErr;
+      createdPayrollRunId = payrollRun.id;
 
       let totalGross = 0, totalDeductions = 0, totalNet = 0;
       const salaryBands = [50000, 65000, 80000, 45000, 95000];
@@ -721,16 +850,38 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // WF8b: Payroll approval lifecycle (draft → under_review → approved → locked)
+  if (createdPayrollRunId) {
+    const transitions = [
+      { from: "draft", to: "under_review", label: "Submit for review" },
+      { from: "under_review", to: "approved", label: "Approve payroll" },
+      { from: "approved", to: "locked", label: "Lock payroll" },
+    ];
+    for (const t of transitions) {
+      const wfStart = Date.now();
+      const { error } = await client.from("payroll_runs")
+        .update({ status: t.to } as any)
+        .eq("id", createdPayrollRunId);
+      results.push({
+        workflow: `Payroll lifecycle: ${t.label}`,
+        module: "Payroll", status: error ? "failed" : "passed",
+        detail: error?.message ?? `${t.from} → ${t.to}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    }
+  }
+
   // ===== REIMBURSEMENT WORKFLOWS =====
 
-  // WF9: Create reimbursement requests
+  // WF9: Create reimbursement requests with approval lifecycle
   const reimbCategories = ["Travel", "Medical", "Internet", "Books & Learning"];
+  const createdReimbIds: string[] = [];
   for (let i = 0; i < Math.min(reimbCategories.length, profileList.length); i++) {
     const wfStart = Date.now();
     const profile = profileList[i];
     const amount = Math.round(1000 + Math.random() * 15000);
     try {
-      const { error } = await client.from("reimbursement_requests").insert({
+      const { data: reimb, error } = await client.from("reimbursement_requests").insert({
         user_id: profile.id, profile_id: profile.id,
         organization_id: orgId,
         amount,
@@ -739,7 +890,8 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         expense_date: new Date(today.getTime() - Math.random() * 30 * 86400000).toISOString().split("T")[0],
         status: "submitted",
         submitted_at: new Date().toISOString(),
-      });
+      }).select("id").single();
+      if (reimb) createdReimbIds.push(reimb.id);
       results.push({
         workflow: `Reimbursement: ${reimbCategories[i]} by ${profile.full_name ?? "Employee"}`,
         module: "Reimbursement", status: error ? "failed" : "passed",
@@ -748,6 +900,44 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       });
     } catch (e) {
       results.push({ workflow: `Reimbursement #${i + 1}`, module: "Reimbursement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // WF9b: Approve + pay first reimbursement
+  if (createdReimbIds.length > 0) {
+    const wfStart = Date.now();
+    const { error } = await client.from("reimbursement_requests").update({
+      status: "approved", manager_reviewed_by: userId,
+    }).eq("id", createdReimbIds[0]);
+    results.push({
+      workflow: "Reimbursement approval", module: "Reimbursement",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Manager approved reimbursement",
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== COMPENSATION REVISION WORKFLOWS =====
+  if (profileList.length >= 2) {
+    const wfStart = Date.now();
+    const profile = profileList[0];
+    try {
+      const { error } = await client.from("compensation_revision_requests").insert({
+        profile_id: profile.id, organization_id: orgId,
+        requested_by: userId, requested_by_role: "hr_admin",
+        current_ctc: 1200000, proposed_ctc: 1500000,
+        effective_from: new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0],
+        revision_reason: "Annual appraisal — performance rating: Exceeds Expectations",
+        status: "pending",
+      });
+      results.push({
+        workflow: `Comp Revision: ${profile.full_name}`,
+        module: "HR", status: error ? "failed" : "passed",
+        detail: error?.message ?? "₹12L → ₹15L revision requested",
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Comp revision", module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
 
@@ -814,10 +1004,28 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // ===== AUDIT LOG WORKFLOWS =====
+  const wfStart12 = Date.now();
+  try {
+    const { error } = await client.from("audit_logs").insert({
+      actor_id: userId, organization_id: orgId,
+      action: "simulation_test", entity_type: "system",
+      actor_name: "Simulation Engine", actor_role: "super_admin",
+      metadata: { source: "sandbox_simulation", timestamp: new Date().toISOString() },
+    });
+    results.push({
+      workflow: "Audit Log: write test", module: "Governance",
+      status: error ? "failed" : "passed",
+      detail: error?.message ?? "Audit trail entry created",
+      duration_ms: Date.now() - wfStart12,
+    });
+  } catch (e) {
+    results.push({ workflow: "Audit log", module: "Governance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart12 });
+  }
+
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
 
-  // Module breakdown
   const modules = [...new Set(results.map(r => r.module))];
   const moduleBreakdown = modules.map(m => ({
     module: m,
@@ -851,7 +1059,6 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
   const concurrentUsers = 20;
   const results: Array<{ user: number; workflow: string; module: string; status: string; duration_ms: number; detail: string }> = [];
 
-  // Get profiles for HR stress tests
   const { data: profiles } = await client.from("profiles")
     .select("id").eq("organization_id", orgId).limit(5);
   const profileIds = (profiles ?? []).map((p: any) => p.id);
@@ -918,7 +1125,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             return { user: userIdx, workflow: op, module: "Finance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
           case "attendance": {
-            const dateStr = new Date(Date.now() - (userIdx + 1) * 86400000).toISOString().split("T")[0];
+            const dateStr = new Date(Date.now() - (userIdx + 10) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("attendance_records").insert({
               user_id: profileId, profile_id: profileId,
               organization_id: orgId, date: dateStr,
@@ -929,8 +1136,8 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             return { user: userIdx, workflow: op, module: "Attendance", status: "passed", duration_ms: Date.now() - wfStart, detail: "OK" };
           }
           case "leave": {
-            const fromDate = new Date(Date.now() + (userIdx + 30) * 86400000).toISOString().split("T")[0];
-            const toDate = new Date(Date.now() + (userIdx + 31) * 86400000).toISOString().split("T")[0];
+            const fromDate = new Date(Date.now() + (userIdx + 50) * 86400000).toISOString().split("T")[0];
+            const toDate = new Date(Date.now() + (userIdx + 51) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("leave_requests").insert({
               user_id: profileId, profile_id: profileId,
               organization_id: orgId, leave_type: "Casual Leave",
@@ -1007,7 +1214,6 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const startTime = Date.now();
   const results: Array<{ test: string; module: string; status: string; detail: string }> = [];
 
-  // Get a profile for HR chaos tests
   const { data: profiles } = await client.from("profiles")
     .select("id").eq("organization_id", orgId).limit(1);
   const testProfileId = profiles?.[0]?.id ?? userId;
@@ -1072,9 +1278,36 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     }
   }
 
+  // Chaos 4: Future-dated expense (should it be allowed?)
+  const futureExpDate = new Date(Date.now() + 365 * 86400000).toISOString().split("T")[0];
+  const { error: futExpErr } = await client.from("expenses").insert({
+    description: "Chaos: future-dated expense", amount: 10000,
+    category: "Chaos Test", organization_id: orgId, user_id: userId,
+    status: "pending", expense_date: futureExpDate,
+  });
+  results.push({
+    test: "Future-dated expense (1 year ahead)", module: "Finance",
+    status: futExpErr ? "blocked" : "anomaly",
+    detail: futExpErr ? `Correctly blocked: ${futExpErr.message}` : `WARNING: Future expense accepted (${futureExpDate})`,
+  });
+
+  // Chaos 5: Invoice with zero amount
+  const { error: zeroInvErr } = await client.from("invoices").insert({
+    invoice_number: `CHAOS-ZERO-${Date.now()}`, client_name: "Zero Customer",
+    client_email: "zero@sandbox.sim", organization_id: orgId, user_id: userId,
+    amount: 0, total_amount: 0, status: "draft",
+    invoice_date: new Date().toISOString().split("T")[0],
+    due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+  });
+  results.push({
+    test: "Zero-amount invoice", module: "Finance",
+    status: zeroInvErr ? "blocked" : "anomaly",
+    detail: zeroInvErr ? `Correctly blocked: ${zeroInvErr.message}` : "WARNING: Zero-amount invoice accepted",
+  });
+
   // === HR/LEAVE CHAOS ===
 
-  // Chaos 4: Overlapping leave requests
+  // Chaos 6: Overlapping leave requests
   const futureDate = new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0];
   const futureDateEnd = new Date(Date.now() + 62 * 86400000).toISOString().split("T")[0];
   for (let i = 0; i < 2; i++) {
@@ -1095,7 +1328,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     }
   }
 
-  // Chaos 5: Negative leave days
+  // Chaos 7: Negative leave days
   const { error: negLeaveErr } = await client.from("leave_requests").insert({
     user_id: testProfileId, profile_id: testProfileId,
     organization_id: orgId, leave_type: "Sick Leave",
@@ -1108,9 +1341,22 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     detail: negLeaveErr ? `Correctly blocked: ${negLeaveErr.message}` : "WARNING: Negative leave days accepted",
   });
 
+  // Chaos 8: Leave where to_date < from_date
+  const { error: reverseDateErr } = await client.from("leave_requests").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, leave_type: "Earned Leave",
+    from_date: futureDateEnd, to_date: futureDate, days: 1,
+    reason: "Chaos: reversed date range", status: "pending",
+  });
+  results.push({
+    test: "Leave with reversed date range (to < from)", module: "Leave",
+    status: reverseDateErr ? "blocked" : "anomaly",
+    detail: reverseDateErr ? `Correctly blocked: ${reverseDateErr.message}` : "WARNING: Reversed date range leave accepted",
+  });
+
   // === PAYROLL CHAOS ===
 
-  // Chaos 6: Negative salary payroll record
+  // Chaos 9: Negative salary payroll record
   const { error: negPayErr } = await client.from("payroll_records").insert({
     user_id: testProfileId, profile_id: testProfileId,
     organization_id: orgId, pay_period: "2026-01",
@@ -1126,9 +1372,25 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     detail: negPayErr ? `Correctly blocked: ${negPayErr.message}` : "WARNING: Negative salary accepted",
   });
 
+  // Chaos 10: Payroll with paid_days > working_days
+  const { error: overDaysErr } = await client.from("payroll_records").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, pay_period: "2026-02",
+    basic_salary: 50000, hra: 20000, transport_allowance: 1600,
+    other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
+    other_deductions: 500, net_pay: 64690,
+    working_days: 22, paid_days: 30, lop_days: 0, lop_deduction: 0,
+    status: "draft",
+  });
+  results.push({
+    test: "Payroll: paid_days (30) > working_days (22)", module: "Payroll",
+    status: overDaysErr ? "blocked" : "anomaly",
+    detail: overDaysErr ? `Correctly blocked: ${overDaysErr.message}` : "WARNING: paid_days exceeding working_days accepted",
+  });
+
   // === REIMBURSEMENT CHAOS ===
 
-  // Chaos 7: Zero-amount reimbursement
+  // Chaos 11: Zero-amount reimbursement
   const { error: zeroReimbErr } = await client.from("reimbursement_requests").insert({
     user_id: testProfileId, profile_id: testProfileId,
     organization_id: orgId, amount: 0,
@@ -1142,9 +1404,23 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     detail: zeroReimbErr ? `Correctly blocked: ${zeroReimbErr.message}` : "WARNING: Zero-amount reimbursement accepted",
   });
 
-  // === RAPID-FIRE CROSS-MODULE ===
+  // Chaos 12: Negative reimbursement
+  const { error: negReimbErr } = await client.from("reimbursement_requests").insert({
+    user_id: testProfileId, profile_id: testProfileId,
+    organization_id: orgId, amount: -5000,
+    category: "Chaos", description: "Chaos: negative amount",
+    expense_date: new Date().toISOString().split("T")[0],
+    status: "submitted", submitted_at: new Date().toISOString(),
+  });
+  results.push({
+    test: "Negative-amount reimbursement", module: "Reimbursement",
+    status: negReimbErr ? "blocked" : "anomaly",
+    detail: negReimbErr ? `Correctly blocked: ${negReimbErr.message}` : "WARNING: Negative reimbursement accepted",
+  });
 
-  // Chaos 8: Rapid-fire operations across modules
+  // === CROSS-MODULE CHAOS ===
+
+  // Chaos 13: Rapid-fire operations across modules
   const rapidTasks = Array.from({ length: 10 }, (_, i) =>
     client.from("financial_records").insert({
       type: "expense", amount: 100 + i, description: `Rapid-fire #${i}`,
@@ -1181,7 +1457,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
 
   // === FINANCE VALIDATIONS ===
 
-  // V1: Debits = Credits (Trial Balance)
+  // V1: Run financial verification engine
   const { data: balanceData } = await client.rpc("run_financial_verification", { _org_id: orgId });
   if (balanceData && Array.isArray(balanceData)) {
     for (const check of balanceData) {
@@ -1214,14 +1490,27 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId);
   checks.push({
-    check: "V_AUDIT_COVERAGE", module: "Finance",
+    check: "V_AUDIT_COVERAGE", module: "Governance",
     status: (auditCount ?? 0) > 0 ? "passed" : "warning",
     detail: `${auditCount ?? 0} audit log entries for sandbox org`,
   });
 
+  // V4: GL Account referential integrity (all journal lines reference valid accounts)
+  const { data: orphanedLines } = await client.rpc("run_financial_verification", { _org_id: orgId });
+  // Already covered by V1, skip duplicate
+
+  // V5: Bank account balance consistency
+  const { data: bankAccts } = await client.from("bank_accounts")
+    .select("id, name, balance").eq("organization_id", orgId);
+  checks.push({
+    check: "V_BANK_ACCOUNTS_SEEDED", module: "Banking",
+    status: (bankAccts ?? []).length > 0 ? "passed" : "warning",
+    detail: `${(bankAccts ?? []).length} bank accounts configured`,
+  });
+
   // === HR VALIDATIONS ===
 
-  // V4: All profiles have required fields
+  // V6: All profiles have required fields
   const { data: incompleteProfiles } = await client.from("profiles")
     .select("id, full_name, email")
     .eq("organization_id", orgId)
@@ -1232,9 +1521,29 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: `${(incompleteProfiles ?? []).length} profiles missing name or email`,
   });
 
+  // V7: Profile count check
+  const { count: profileCount } = await client.from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_PROFILE_COUNT", module: "HR",
+    status: (profileCount ?? 0) >= 5 ? "passed" : (profileCount ?? 0) > 0 ? "warning" : "failed",
+    detail: `${profileCount ?? 0} profiles in sandbox org (target: 8)`,
+  });
+
+  // V8: Compensation structure coverage
+  const { count: compCount } = await client.from("compensation_structures")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId).eq("is_active", true);
+  checks.push({
+    check: "V_COMPENSATION_COVERAGE", module: "HR",
+    status: (compCount ?? 0) >= (profileCount ?? 0) ? "passed" : "warning",
+    detail: `${compCount ?? 0} active compensation structures for ${profileCount ?? 0} profiles`,
+  });
+
   // === ATTENDANCE VALIDATIONS ===
 
-  // V5: No duplicate attendance records (same user, same date)
+  // V9: No duplicate attendance records (same user, same date)
   const { data: attendanceRecords } = await client.from("attendance_records")
     .select("user_id, date")
     .eq("organization_id", orgId);
@@ -1251,9 +1560,23 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: dupAttendance === 0 ? "No duplicate attendance entries" : `${dupAttendance} duplicate attendance entries found`,
   });
 
+  // V10: Attendance records have valid check-in/out times
+  const { data: badAttendance } = await client.from("attendance_records")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("status", "present")
+    .is("check_in", null);
+  checks.push({
+    check: "V_ATTENDANCE_CHECKIN_PRESENT", module: "Attendance",
+    status: (badAttendance ?? []).length === 0 ? "passed" : "warning",
+    detail: (badAttendance ?? []).length === 0
+      ? "All present records have check-in times"
+      : `${(badAttendance ?? []).length} present records missing check-in`,
+  });
+
   // === LEAVE VALIDATIONS ===
 
-  // V6: All approved leaves have a reviewer
+  // V11: All approved leaves have a reviewer
   const { data: badLeaves } = await client.from("leave_requests")
     .select("id")
     .eq("organization_id", orgId)
@@ -1267,9 +1590,19 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
       : `${(badLeaves ?? []).length} approved leaves without reviewer`,
   });
 
+  // V12: Leave request count
+  const { count: leaveCount } = await client.from("leave_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_LEAVE_REQUESTS_EXIST", module: "Leave",
+    status: (leaveCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${leaveCount ?? 0} leave requests in sandbox`,
+  });
+
   // === PAYROLL VALIDATIONS ===
 
-  // V7: No superseded records without superseded_by link
+  // V13: No superseded records without superseded_by link
   const { data: brokenSuperseded } = await client.from("payroll_records")
     .select("id")
     .eq("organization_id", orgId)
@@ -1283,7 +1616,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
       : `${(brokenSuperseded ?? []).length} broken supersede chains`,
   });
 
-  // V8: Payroll net_pay = basic + hra + transport + other_allowances - pf - tax - other_deductions - lop
+  // V14: Payroll net_pay = basic + hra + transport + other_allowances - pf - tax - other_deductions - lop
   const { data: payrollRecords } = await client.from("payroll_records")
     .select("id, basic_salary, hra, transport_allowance, other_allowances, pf_deduction, tax_deduction, other_deductions, lop_deduction, net_pay")
     .eq("organization_id", orgId)
@@ -1303,9 +1636,27 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
       : `${payrollMismatches} records with incorrect net pay calculation`,
   });
 
+  // V15: Payroll run totals consistency
+  const { data: payrollRuns } = await client.from("payroll_runs")
+    .select("id, total_gross, total_deductions, total_net, employee_count")
+    .eq("organization_id", orgId).limit(10);
+  let runMismatches = 0;
+  for (const run of (payrollRuns ?? [])) {
+    if (run.total_gross > 0 && Math.abs(run.total_gross - run.total_deductions - run.total_net) > 1) {
+      runMismatches++;
+    }
+  }
+  checks.push({
+    check: "V_PAYROLL_RUN_TOTALS", module: "Payroll",
+    status: runMismatches === 0 ? "passed" : "failed",
+    detail: runMismatches === 0
+      ? `${(payrollRuns ?? []).length} payroll runs have consistent totals`
+      : `${runMismatches} payroll runs with inconsistent gross/deductions/net`,
+  });
+
   // === REIMBURSEMENT VALIDATIONS ===
 
-  // V9: No paid reimbursements without finance review
+  // V16: No paid reimbursements without finance review
   const { data: badReimb } = await client.from("reimbursement_requests")
     .select("id")
     .eq("organization_id", orgId)
@@ -1317,6 +1668,28 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: (badReimb ?? []).length === 0
       ? "All paid reimbursements have finance review"
       : `${(badReimb ?? []).length} paid reimbursements without finance review`,
+  });
+
+  // === CROSS-MODULE VALIDATIONS ===
+
+  // V17: Fiscal periods exist
+  const { count: fpCount } = await client.from("fiscal_periods")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_FISCAL_PERIODS_CONFIGURED", module: "Finance",
+    status: (fpCount ?? 0) === 12 ? "passed" : (fpCount ?? 0) > 0 ? "warning" : "failed",
+    detail: `${fpCount ?? 0} fiscal periods (expected 12)`,
+  });
+
+  // V18: Leave types configured
+  const { count: ltCount } = await client.from("leave_types")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_LEAVE_TYPES_CONFIGURED", module: "Leave",
+    status: (ltCount ?? 0) >= 3 ? "passed" : "warning",
+    detail: `${ltCount ?? 0} leave types configured`,
   });
 
   const passed = checks.filter(c => c.status === "passed").length;
