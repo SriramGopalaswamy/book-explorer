@@ -48,7 +48,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
-import { useProfitAndLoss } from "@/hooks/useCanonicalViews";
+import { financialRecordSchema } from "@/lib/validation-schemas";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -290,15 +290,15 @@ export default function Accounting() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Total Revenue (All-time)"
+            title="Total Revenue"
             value={formatAmount(totalRevenue)}
-            change={{ value: pnl?.details.filter(d => d.section === "Revenue").length ? `${pnl.details.filter(d => d.section === "Revenue").length} accounts` : "0", type: "increase" }}
+            change={{ value: `${revenueCount} entries`, type: "increase" }}
             icon={<Wallet className="h-4 w-4" />}
           />
           <StatCard
-            title="Total Expenses (All-time)"
+            title="Total Expenses"
             value={formatAmount(totalExpenses)}
-            change={{ value: pnl?.details.filter(d => d.section === "Expense").length ? `${pnl.details.filter(d => d.section === "Expense").length} accounts` : "0", type: "decrease" }}
+            change={{ value: `${expenseCount} entries`, type: "decrease" }}
             icon={<ArrowDownRight className="h-4 w-4" />}
           />
           <StatCard
