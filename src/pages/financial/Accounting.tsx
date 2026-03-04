@@ -141,11 +141,12 @@ export default function Accounting() {
 
   const pagination = usePagination(filteredRecords, 10);
 
-  // Use journal_lines (canonical source) for stat cards — matches integrity badge
-  const { data: pnl } = useProfitAndLoss();
-  const totalRevenue = pnl?.summary.revenue || 0;
-  const totalExpenses = pnl?.summary.expenses || 0;
-  const netIncome = pnl?.summary.netIncome || 0;
+  // Compute KPIs from the same records shown in the table
+  const totalRevenue = records.filter(r => r.type === "revenue").reduce((sum, r) => sum + r.amount, 0);
+  const totalExpenses = records.filter(r => r.type === "expense").reduce((sum, r) => sum + r.amount, 0);
+  const netIncome = totalRevenue - totalExpenses;
+  const revenueCount = records.filter(r => r.type === "revenue").length;
+  const expenseCount = records.filter(r => r.type === "expense").length;
 
   // Show loading state while checking permissions
   if (isCheckingRole) {
