@@ -33,7 +33,7 @@ function countWeekendDays(year: number, month: number, policy: string): number {
  * Auto-calculates working days and LOP days for a given employee + pay period.
  * 
  * Working Days = Calendar days - Weekend days - Holidays
- * LOP Days = Rejected leaves (within period) + Approved 'unpaid'/'loss_of_pay' leaves
+ * LOP Days = Total approved leaves (within period)
  */
 export function usePayrollAutoCalc(profileId: string | null, payPeriod: string): AutoCalcResult {
   const { user } = useAuth();
