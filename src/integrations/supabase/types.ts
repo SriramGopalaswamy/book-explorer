@@ -4781,6 +4781,7 @@ export type Database = {
           slug: string | null
           status: string
           updated_at: string
+          weekend_policy: string
         }
         Insert: {
           auto_reset_enabled?: boolean
@@ -4798,6 +4799,7 @@ export type Database = {
           slug?: string | null
           status?: string
           updated_at?: string
+          weekend_policy?: string
         }
         Update: {
           auto_reset_enabled?: boolean
@@ -4815,6 +4817,7 @@ export type Database = {
           slug?: string | null
           status?: string
           updated_at?: string
+          weekend_policy?: string
         }
         Relationships: []
       }
