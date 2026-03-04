@@ -201,13 +201,19 @@ export default function Invoicing() {
     );
   }
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
+    inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
+
   const totalOutstanding = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue")
+    .filter((inv) => inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv))
     .reduce((sum, inv) => sum + Number(inv.amount), 0);
   const totalPaid = invoices
     .filter((inv) => inv.status === "paid")
     .reduce((sum, inv) => sum + Number(inv.amount), 0);
-  const overdueCount = invoices.filter((inv) => inv.status === "overdue").length;
+  const overdueCount = invoices.filter((inv) => inv.status === "overdue" || isEffectivelyOverdue(inv)).length;
   const draftCount = invoices.filter((inv) => inv.status === "draft").length;
 
   const updateLineItem = (index: number, field: keyof LineItem, value: string) => {
