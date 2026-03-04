@@ -6789,6 +6789,7 @@ export type Database = {
         Args: { _calibration?: Json; _force?: boolean; _org_id: string }
         Returns: Json
       }
+      inspect_database_structure: { Args: never; Returns: Json }
       is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_finance: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
