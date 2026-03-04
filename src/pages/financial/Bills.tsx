@@ -993,7 +993,7 @@ export default function Bills() {
               <div className="space-y-1.5">
                 <Label>TDS Section</Label>
                 <Select
-                  value={form.tds_section}
+                  value={form.tds_section || "none"}
                   onValueChange={(v) => {
                     const actualCode = v === "none" ? "" : v;
                     const section = TDS_SECTIONS.find((s) => s.code === actualCode);
