@@ -301,7 +301,7 @@ export default function VendorCredits() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                          <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(vc)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setViewingCredit(vc)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
                           {vc.status === "draft" && (
                             <DropdownMenuItem onClick={() => handleEdit(vc)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                           )}
