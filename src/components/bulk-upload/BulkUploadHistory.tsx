@@ -89,16 +89,31 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     );
   }
 
-  if (history.length === 0) return null;
-
   const moduleLabel = (m: string) => {
     const labels: Record<string, string> = {
       payroll: "Payroll",
       attendance: "Attendance",
       roles: "Roles",
+      holidays: "Holidays",
+      expenses: "Expenses",
+      users: "Users",
     };
     return labels[m] || m;
   };
+
+  if (history.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <History className="h-4 w-4 text-primary" />
+            Upload History
+          </CardTitle>
+          <CardDescription>No bulk uploads recorded yet{module ? ` for ${moduleLabel(module)}` : ""}.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
