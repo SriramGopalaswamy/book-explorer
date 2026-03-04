@@ -508,15 +508,13 @@ export default function Payroll() {
     const num = parseFloat(val) || 0;
     setForm((prev) => {
       const next = { ...prev, [key]: num };
-      // Auto-calc LOP deduction and paid days
-      if (key === "lop_days" || key === "working_days") {
-        const gross = next.basic_salary + next.hra + next.transport_allowance + next.other_allowances;
-        next.lop_deduction = next.lop_days > 0 && next.working_days > 0
-          ? Math.round((gross / next.working_days) * next.lop_days)
-          : 0;
-        next.paid_days = Math.max(0, next.working_days - next.lop_days);
-      }
-      next.net_pay = calcNet(next);
+      // Recalculate LOP deduction and paid days whenever any field changes
+      const gross = next.basic_salary + next.hra + next.transport_allowance + next.other_allowances;
+      next.lop_deduction = next.lop_days > 0 && next.working_days > 0
+        ? Math.round((gross / next.working_days) * next.lop_days)
+        : 0;
+      next.paid_days = Math.max(0, next.working_days - next.lop_days);
+      next.net_pay = gross - next.pf_deduction - next.tax_deduction - next.other_deductions - next.lop_deduction;
       return next;
     });
   };
@@ -874,6 +872,7 @@ export default function Payroll() {
                             <TableHead className="text-right">Basic</TableHead>
                             <TableHead className="text-right">Allowances</TableHead>
                             <TableHead className="text-right">Deductions</TableHead>
+                            <TableHead className="text-right">LOP</TableHead>
                             <TableHead className="text-right">Net Pay</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-10"></TableHead>
@@ -883,6 +882,8 @@ export default function Payroll() {
                           {pagination.paginatedItems.map((r) => {
                             const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
                             const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
+                            const lopDeduct = Number(r.lop_deduction) || 0;
+                            const lopDays = Number(r.lop_days) || 0;
                             return (
                               <TableRow
                                 key={r.id}
@@ -905,6 +906,15 @@ export default function Payroll() {
                                 <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
                                 <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
                                 <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                                <TableCell className="text-right">
+                                  {lopDays > 0 ? (
+                                    <span className="text-amber-600">
+                                      {lopDays}d / -{formatCurrency(lopDeduct)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>

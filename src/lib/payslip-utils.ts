@@ -94,8 +94,18 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
   ];
 
   const lopDays = Number(record.lop_days) || 0;
-  const lopDeduction = Number(record.lop_deduction) || 0;
-  if (lopDeduction > 0) {
+  let lopDeduction = Number(record.lop_deduction) || 0;
+  
+  // If LOP days exist but deduction wasn't stored, calculate it
+  if (lopDays > 0 && lopDeduction === 0) {
+    const gross = earnings.reduce((s, e) => s + e.amount, 0);
+    const wd = Number(record.working_days) || 0;
+    if (wd > 0) {
+      lopDeduction = Math.round((gross / wd) * lopDays);
+    }
+  }
+  
+  if (lopDays > 0) {
     deductions.push({ label: `Loss of Pay (${lopDays} days)`, amount: lopDeduction });
   }
 
