@@ -93,19 +93,52 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const summary: Record<string, number> = {};
 
   // Clear existing transactional data (order matters for FK constraints)
-  const tablesToClear = [
-    "asset_depreciation_entries", "journal_lines", "journal_entries",
-    "invoice_items", "invoices", "bill_items", "bills",
+  // Tables WITH organization_id column
+  const orgScopedTables = [
+    "asset_depreciation_entries", "journal_entries",
+    "invoices", "bills",
     "bank_transactions", "expenses", "credit_notes",
     "financial_records", "attendance_records", "leave_requests",
     "payroll_records", "assets", "audit_logs"
   ];
 
-  for (const table of tablesToClear) {
+  // First delete child tables that lack organization_id (use parent FK)
+  // journal_lines → via journal_entries
+  const { data: jeIds } = await client.from("journal_entries")
+    .select("id").eq("organization_id", orgId);
+  if (jeIds && jeIds.length > 0) {
+    const ids = jeIds.map((j: any) => j.id);
+    for (let i = 0; i < ids.length; i += 50) {
+      await client.from("journal_lines").delete().in("journal_entry_id", ids.slice(i, i + 50));
+    }
+  }
+
+  // invoice_items → via invoices
+  const { data: invIds } = await client.from("invoices")
+    .select("id").eq("organization_id", orgId);
+  if (invIds && invIds.length > 0) {
+    const ids = invIds.map((i: any) => i.id);
+    for (let i = 0; i < ids.length; i += 50) {
+      await client.from("invoice_items").delete().in("invoice_id", ids.slice(i, i + 50));
+    }
+  }
+
+  // bill_items → via bills
+  const { data: billIds } = await client.from("bills")
+    .select("id").eq("organization_id", orgId);
+  if (billIds && billIds.length > 0) {
+    const ids = billIds.map((b: any) => b.id);
+    for (let i = 0; i < ids.length; i += 50) {
+      await client.from("bill_items").delete().in("bill_id", ids.slice(i, i + 50));
+    }
+  }
+
+  // Now clear org-scoped tables
+  for (const table of orgScopedTables) {
     try {
       const { error } = await client.from(table).delete().eq("organization_id", orgId);
       if (error) console.warn(`Clear ${table}:`, error.message);
-    } catch (_) { /* table may not exist or have different schema */ }
+    } catch (_) { /* table may not exist */ }
   }
 
   // Seed Vendors
