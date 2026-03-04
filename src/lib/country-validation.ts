@@ -122,12 +122,9 @@ export function validatePhone(phone: string, country: string): string | null {
   
   if (digits.length === 0) return "Enter a valid phone number";
   
-  // Allow a range of ±2 digits for flexibility across countries
-  const minDigits = Math.max(config.digits - 2, 7);
-  const maxDigits = config.digits + 2;
-  
-  if (digits.length < minDigits || digits.length > maxDigits) {
-    return `${country || "Phone"} requires ${config.label} (${config.digits} digits). Got ${digits.length}.`;
+  // Strict validation: exact digit count required
+  if (digits.length !== config.digits) {
+    return `${country || "Phone"} requires exactly ${config.digits} digits after country code (${config.code}). Got ${digits.length}.`;
   }
   return null;
 }
