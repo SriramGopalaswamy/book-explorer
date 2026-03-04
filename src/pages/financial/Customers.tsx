@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CountrySelect } from "@/components/ui/country-select";
+import { getPhoneConfig, getTaxConfig, validatePhone, validateTaxNumber } from "@/lib/country-validation";
 import { Badge } from "@/components/ui/badge";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
@@ -47,6 +48,31 @@ export default function Customers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string }>({});
+
+  // Auto-set country code when country changes
+  useEffect(() => {
+    if (form.country) {
+      const config = getPhoneConfig(form.country);
+      if (config.code && !form.phone.startsWith(config.code)) {
+        setForm((prev) => ({ ...prev, phone: config.code + " " }));
+      }
+    }
+  }, [form.country]);
+
+  // Live validation on phone/tax changes
+  useEffect(() => {
+    const newErrors: typeof errors = {};
+    if (form.phone.trim()) {
+      const phoneErr = validatePhone(form.phone, form.country);
+      if (phoneErr) newErrors.phone = phoneErr;
+    }
+    if (form.tax_number.trim()) {
+      const taxErr = validateTaxNumber(form.tax_number, form.country);
+      if (taxErr) newErrors.tax_number = taxErr;
+    }
+    setErrors(newErrors);
+  }, [form.phone, form.tax_number, form.country]);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", user?.id],
@@ -128,6 +154,13 @@ export default function Customers() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) return toast({ title: "Validation Error", description: "Customer name is required.", variant: "destructive" });
+    
+    const phoneErr = validatePhone(form.phone, form.country);
+    if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
+    
+    const taxErr = validateTaxNumber(form.tax_number, form.country);
+    if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
+
     if (editingCustomer) updateMutation.mutate({ id: editingCustomer.id, values: form });
     else createMutation.mutate(form);
   };
