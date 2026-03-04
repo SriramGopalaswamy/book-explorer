@@ -8,32 +8,55 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const senderEmail = "admin@grx10.com";
+const defaultSenderEmail = "admin@grx10.com";
 
-// Cache MS Graph access token to avoid re-fetching on every email
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
+// Per-org token cache: orgId -> { token, expiresAt }
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getMsGraphToken(): Promise<string | null> {
-  if (cachedToken && Date.now() < tokenExpiresAt - 60000) return cachedToken;
+// Global fallback token cache
+let globalToken: string | null = null;
+let globalTokenExpiresAt = 0;
 
-  const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
-  const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
-  const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+interface OrgOAuthCreds {
+  tenant_id: string;
+  client_id: string;
+  client_secret: string;
+  sender_email: string;
+}
 
-  if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
-    console.warn("Azure credentials not configured — skipping email");
+async function getOrgOAuthCreds(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string
+): Promise<OrgOAuthCreds | null> {
+  try {
+    const { data, error } = await supabase
+      .from("organization_oauth_configs")
+      .select("tenant_id, client_id, client_secret, sender_email")
+      .eq("organization_id", organizationId)
+      .eq("provider", "microsoft")
+      .maybeSingle();
+    if (error || !data) return null;
+    if (!data.tenant_id || !data.client_id || !data.client_secret) return null;
+    return data as OrgOAuthCreds;
+  } catch {
     return null;
   }
+}
+
+async function getMsGraphToken(creds: { tenantId: string; clientId: string; clientSecret: string }, cacheKey: string): Promise<string | null> {
+  const cached = cacheKey === "__global__"
+    ? (globalToken && Date.now() < globalTokenExpiresAt - 60000 ? globalToken : null)
+    : (() => { const c = tokenCache.get(cacheKey); return c && Date.now() < c.expiresAt - 60000 ? c.token : null; })();
+  if (cached) return cached;
 
   try {
-    const tokenUrl = `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`;
+    const tokenUrl = `https://login.microsoftonline.com/${creds.tenantId}/oauth2/v2.0/token`;
     const res = await fetch(tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: AZURE_CLIENT_ID,
-        client_secret: AZURE_CLIENT_SECRET,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
         scope: "https://graph.microsoft.com/.default",
         grant_type: "client_credentials",
       }),
@@ -46,22 +69,57 @@ async function getMsGraphToken(): Promise<string | null> {
     }
 
     const data = await res.json();
-    cachedToken = data.access_token;
-    tokenExpiresAt = Date.now() + (data.expires_in * 1000);
-    return cachedToken;
+    const token = data.access_token;
+    const expiresAt = Date.now() + (data.expires_in * 1000);
+
+    if (cacheKey === "__global__") {
+      globalToken = token;
+      globalTokenExpiresAt = expiresAt;
+    } else {
+      tokenCache.set(cacheKey, { token, expiresAt });
+    }
+    return token;
   } catch (err) {
     console.warn("getMsGraphToken exception:", err);
     return null;
   }
 }
 
-// Send email via Microsoft Graph API (MS 365)
-async function sendEmail(
+// Resolve credentials: org-specific first, then global fallback
+async function resolveCredsAndSend(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string | null,
   toRecipients: { email: string; name?: string }[],
   subject: string,
   htmlBody: string
 ): Promise<boolean> {
-  const token = await getMsGraphToken();
+  let senderEmail = defaultSenderEmail;
+  let creds: { tenantId: string; clientId: string; clientSecret: string } | null = null;
+  let cacheKey = "__global__";
+
+  // Try org-specific credentials first
+  if (organizationId) {
+    const orgCreds = await getOrgOAuthCreds(supabase, organizationId);
+    if (orgCreds) {
+      creds = { tenantId: orgCreds.tenant_id, clientId: orgCreds.client_id, clientSecret: orgCreds.client_secret };
+      senderEmail = orgCreds.sender_email || defaultSenderEmail;
+      cacheKey = organizationId;
+    }
+  }
+
+  // Fallback to global env vars
+  if (!creds) {
+    const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID");
+    const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID");
+    const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET");
+    if (!AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
+      console.warn("No Azure credentials available — skipping email");
+      return false;
+    }
+    creds = { tenantId: AZURE_TENANT_ID, clientId: AZURE_CLIENT_ID, clientSecret: AZURE_CLIENT_SECRET };
+  }
+
+  const token = await getMsGraphToken(creds, cacheKey);
   if (!token) return false;
 
   try {
@@ -92,15 +150,29 @@ async function sendEmail(
       console.warn(`MS Graph sendMail failed [${res.status}]: ${err}`);
       return false;
     }
-    // MS Graph returns 202 Accepted with no body on success
     if (res.status !== 202) {
-      await res.text(); // consume body
+      await res.text();
     }
     return true;
   } catch (err) {
     console.warn("sendEmail exception:", err);
     return false;
   }
+}
+
+// Backward-compatible wrapper — calls without org context use global creds
+async function sendEmail(
+  toRecipients: { email: string; name?: string }[],
+  subject: string,
+  htmlBody: string,
+  supabaseClient?: ReturnType<typeof createClient>,
+  organizationId?: string | null
+): Promise<boolean> {
+  if (supabaseClient && organizationId) {
+    return resolveCredsAndSend(supabaseClient, organizationId, toRecipients, subject, htmlBody);
+  }
+  // Global fallback (no org context)
+  return resolveCredsAndSend(null as any, null, toRecipients, subject, htmlBody);
 }
 
 // Helper to insert in-app notifications — always runs, never throws
@@ -165,11 +237,14 @@ Deno.serve(async (req) => {
 
   let type: string;
   let payload: Record<string, unknown>;
+  let requestOrgId: string | null = null;
 
   try {
     const body = await req.json();
     type = body.type;
     payload = body.payload;
+    // Accept organization_id at top level or inside payload
+    requestOrgId = body.organization_id || (payload as any)?.organization_id || null;
   } catch (err) {
     console.error("Failed to parse request body:", err);
     return new Response(
@@ -177,6 +252,32 @@ Deno.serve(async (req) => {
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
+
+  // If no org_id from payload, try to resolve from auth token
+  if (!requestOrgId) {
+    try {
+      const authHeader = req.headers.get("authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: userData } = await supabase.auth.getUser(token);
+        if (userData?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id")
+            .eq("user_id", userData.user.id)
+            .maybeSingle();
+          if (profile?.organization_id) requestOrgId = profile.organization_id;
+        }
+      }
+    } catch { /* non-critical */ }
+  }
+
+  // Scoped send helper that automatically includes org context
+  const send = (
+    toRecipients: { email: string; name?: string }[],
+    subject: string,
+    htmlBody: string
+  ) => sendEmail(toRecipients, subject, htmlBody, supabase, requestOrgId);
 
   try {
 
@@ -187,7 +288,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "to_email is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const htmlBody = emailTemplate("#3498db", "🧪", subject || "Test Notification", "This is a test email from GRX10 system.", tableRow("Message", String(message || "Hello! The email notification system is working correctly.")));
-      const sent = await sendEmail([{ email: String(to_email), name: String(to_name || to_email) }], String(subject || "🧪 Test Notification from GRX10"), htmlBody);
+      const sent = await send([{ email: String(to_email), name: String(to_name || to_email) }], String(subject || "🧪 Test Notification from GRX10"), htmlBody);
       return new Response(JSON.stringify({ success: true, email_sent: sent }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -225,7 +326,7 @@ Deno.serve(async (req) => {
           const htmlBody = emailTemplate("#e94560", "📢", `New Memo: ${memo.title}`, `From ${memo.author_name} · ${memo.department} · Priority: ${memo.priority}`, tableRow("Content", memo.excerpt || memo.content || "No content"));
           const recipients = recipientEmails.map((email: string) => ({ email }));
           for (let i = 0; i < recipients.length; i += 50) {
-            await sendEmail(recipients.slice(i, i + 50), `📢 New Memo: ${memo.title}`, htmlBody);
+            await send(recipients.slice(i, i + 50), `📢 New Memo: ${memo.title}`, htmlBody);
           }
         }
       } catch (emailErr) {
@@ -280,11 +381,11 @@ Deno.serve(async (req) => {
       try {
         if (manager?.email) {
           const htmlBody = emailTemplate("#f5a623", "🗓️", `Leave Request from ${employeeName}`, "Requires your approval", leaveRows, "Please log in to <strong>GRX10</strong> to approve or reject this request.");
-          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `🗓️ Leave Request from ${employeeName} — Approval Required`, htmlBody);
+          await send([{ email: manager.email, name: manager.full_name || undefined }], `🗓️ Leave Request from ${employeeName} — Approval Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Leave Request Submitted", `Hi ${employeeName}, your leave request has been submitted and is pending approval.`, leaveRows);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Leave Request Submitted — Awaiting Approval`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `📋 Leave Request Submitted — Awaiting Approval`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("leave_request_created: email send failed (in-app notifications already created):", emailErr);
@@ -344,11 +445,11 @@ Deno.serve(async (req) => {
       try {
         if (employeeEmail) {
           const htmlBody = emailTemplate(statusColor, statusIcon, `Leave Request ${statusText}`, `Hi ${employeeName}, your leave request has been ${decision}.`, leaveRows);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `${statusIcon} Leave Request ${statusText} — ${employeeName}`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `${statusIcon} Leave Request ${statusText} — ${employeeName}`, htmlBody);
         }
         if (manager?.email && manager.email !== employeeEmail) {
           const htmlBody = emailTemplate(statusColor, statusIcon, `Leave ${statusText} — ${employeeName}`, `This confirms you ${decision} ${employeeName}'s leave request.`, leaveRows);
-          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`, htmlBody);
+          await send([{ email: manager.email, name: manager.full_name || undefined }], `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("leave_request_decided: email send failed (in-app notifications already created):", emailErr);
@@ -401,11 +502,11 @@ Deno.serve(async (req) => {
       try {
         if (manager?.email) {
           const htmlBody = emailTemplate("#9b59b6", "📋", `Attendance Correction from ${employeeName}`, "Requires your review", correctionRows, "Please log in to <strong>GRX10</strong> to approve or reject this request.");
-          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `📋 Correction Request from ${employeeName} — Review Required`, htmlBody);
+          await send([{ email: manager.email, name: manager.full_name || undefined }], `📋 Correction Request from ${employeeName} — Review Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Correction Request Submitted", `Hi ${employeeName}, your attendance correction has been submitted.`, correctionRows);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Correction Request Submitted`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `📋 Correction Request Submitted`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("correction_request_created: email send failed (in-app notifications already created):", emailErr);
@@ -462,7 +563,7 @@ Deno.serve(async (req) => {
           const color = isApproved ? "#27ae60" : "#e74c3c";
           const icon = isApproved ? "✅" : "❌";
           const htmlBody = emailTemplate(color, icon, `Attendance Correction ${statusText}`, `Hi ${employeeName}`, rows);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Attendance Correction ${statusText}`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `${icon} Attendance Correction ${statusText}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("correction_request_decided: email send failed:", emailErr);
@@ -517,11 +618,11 @@ Deno.serve(async (req) => {
 
         if (manager?.email) {
           const htmlBody = emailTemplate("#f5a623", "💸", `Reimbursement Request from ${employeeName}`, "Requires your approval", rows, "Please log in to GRX10 Manager Inbox to approve or reject this claim.");
-          await sendEmail([{ email: manager.email, name: manager.full_name || undefined }], `💸 Reimbursement Request from ${employeeName} — Approval Required`, htmlBody);
+          await send([{ email: manager.email, name: manager.full_name || undefined }], `💸 Reimbursement Request from ${employeeName} — Approval Required`, htmlBody);
         }
         if (employeeEmail) {
           const htmlBody = emailTemplate("#3498db", "📋", "Reimbursement Submitted", `Hi ${employeeName}, your claim has been submitted.`, rows, "Your manager will review and approve shortly.");
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_submitted: email send failed:", emailErr);
@@ -598,7 +699,7 @@ Deno.serve(async (req) => {
             ? "Your claim is now with the Finance team for final approval and payment processing."
             : "Please contact your manager if you have questions.";
           const htmlBody = emailTemplate(color, icon, `Reimbursement ${statusText}`, `Hi ${employeeName}`, rows, footer);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_manager_decided: email send failed:", emailErr);
@@ -655,7 +756,7 @@ Deno.serve(async (req) => {
             ? "Your reimbursement has been processed. Please check with Finance for payment details."
             : "Please contact the Finance team if you have any questions.";
           const htmlBody = emailTemplate(color, icon, `Reimbursement ${statusText}`, `Hi ${employeeName}`, rows, footer);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
         console.warn("reimbursement_finance_decided: email send failed:", emailErr);
@@ -692,7 +793,7 @@ Deno.serve(async (req) => {
         if (creatorProfile?.email) {
           const rows = [tableRow("Invoice", invoice.invoice_number, true), tableRow("Client", invoice.client_name), tableRow("Amount", amountStr, true), tableRow("Status", statusLabel, true)].join("");
           const htmlBody = emailTemplate(color, icon, `Invoice ${statusLabel}`, `Invoice ${invoice.invoice_number} status update`, rows);
-          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Invoice ${invoice.invoice_number} — ${statusLabel}`, htmlBody);
+          await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Invoice ${invoice.invoice_number} — ${statusLabel}`, htmlBody);
         }
 
         // Email the customer when invoice is sent
@@ -713,7 +814,7 @@ Deno.serve(async (req) => {
             customerRows,
             `Please arrange payment by <strong>${dueDateStr}</strong>. If you have any questions, please contact us.`
           );
-          await sendEmail(
+          await send(
             [{ email: invoice.client_email, name: invoice.client_name || undefined }],
             `📄 Invoice ${invoice.invoice_number} — ${amountStr} Due`,
             customerHtml
@@ -750,7 +851,7 @@ Deno.serve(async (req) => {
         if (creatorProfile?.email) {
           const rows = [tableRow("Bill", bill.bill_number, true), tableRow("Vendor", bill.vendor_name), tableRow("Amount", amountStr, true), tableRow("Status", statusLabel, true)].join("");
           const htmlBody = emailTemplate(color, icon, `Bill ${statusLabel}`, `Bill ${bill.bill_number} status update`, rows);
-          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Bill ${bill.bill_number} — ${statusLabel}`, htmlBody);
+          await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Bill ${bill.bill_number} — ${statusLabel}`, htmlBody);
         }
       } catch (err) {
         console.error("bill_status_changed error:", err);
@@ -777,7 +878,7 @@ Deno.serve(async (req) => {
         if (creatorProfile?.email) {
           const rows = [tableRow("Asset", asset.name, true), tableRow("Tag", asset.asset_tag), tableRow("Category", asset.category), tableRow("Purchase Price", amountStr, true)].join("");
           const htmlBody = emailTemplate("#3498db", "🏷️", "New Asset Registered", `Asset ${asset.asset_tag} has been added to the register`, rows);
-          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🏷️ New Asset Registered — ${asset.name}`, htmlBody);
+          await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🏷️ New Asset Registered — ${asset.name}`, htmlBody);
         }
       } catch (err) {
         console.error("asset_registered error:", err);
@@ -824,7 +925,7 @@ Deno.serve(async (req) => {
         if (creatorProfile?.email) {
           const rows = [tableRow("Asset", asset.name, true), tableRow("Tag", asset.asset_tag), tableRow("Book Value", bvStr), tableRow("Disposal Price", dispStr), tableRow("Method", asset.disposal_method || "—")].join("");
           const htmlBody = emailTemplate("#e74c3c", "🗑️", "Asset Disposed", `${asset.name} has been removed from the asset register`, rows);
-          await sendEmail([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🗑️ Asset Disposed — ${asset.name}`, htmlBody);
+          await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🗑️ Asset Disposed — ${asset.name}`, htmlBody);
         }
       } catch (err) {
         console.error("asset_disposed error:", err);
@@ -850,7 +951,7 @@ Deno.serve(async (req) => {
         if (authorProfile?.email) {
           const rows = [tableRow("Title", memo.title, true), tableRow("Subject", memo.subject || "—"), tableRow("Status", "Pending Approval", true)].join("");
           const htmlBody = emailTemplate("#3498db", "📋", "Memo Submitted", `Hi ${authorName}, your memo has been submitted for approval.`, rows, "Your manager will review it shortly.");
-          await sendEmail([{ email: authorProfile.email, name: authorName }], `📋 Memo Submitted — Awaiting Approval`, htmlBody);
+          await send([{ email: authorProfile.email, name: authorName }], `📋 Memo Submitted — Awaiting Approval`, htmlBody);
         }
 
         // Notify manager
@@ -862,7 +963,7 @@ Deno.serve(async (req) => {
           if (mgr?.email) {
             const rows = [tableRow("Title", memo.title, true), tableRow("Subject", memo.subject || "—"), tableRow("Author", authorName), tableRow("Content Preview", memo.excerpt || memo.content?.substring(0, 150) || "—")].join("");
             const htmlBody = emailTemplate("#f5a623", "📝", `Memo Pending Approval`, `${authorName} submitted a memo for your review`, rows, "Please log in to <strong>GRX10</strong> to approve or reject this memo.");
-            await sendEmail([{ email: mgr.email, name: mgr.full_name || undefined }], `📝 Memo from ${authorName} — Approval Required`, htmlBody);
+            await send([{ email: mgr.email, name: mgr.full_name || undefined }], `📝 Memo from ${authorName} — Approval Required`, htmlBody);
           }
         }
       } catch (err) {
@@ -897,7 +998,7 @@ Deno.serve(async (req) => {
         if (authorProfile?.email) {
           const rows = [tableRow("Title", memo.title, true), tableRow("Status", "Approved & Published", true), tableRow("Reviewed by", reviewerName), ...(memo.reviewer_notes ? [tableRow("Reviewer Notes", memo.reviewer_notes)] : [])].join("");
           const htmlBody = emailTemplate("#27ae60", "✅", "Memo Approved & Published", `Hi ${authorName}, your memo has been approved.`, rows, "Your memo is now published and visible to recipients.");
-          await sendEmail([{ email: authorProfile.email, name: authorName }], `✅ Memo Approved — "${memo.title}"`, htmlBody);
+          await send([{ email: authorProfile.email, name: authorName }], `✅ Memo Approved — "${memo.title}"`, htmlBody);
         }
       } catch (err) {
         console.error("memo_approved error:", err);
@@ -931,7 +1032,7 @@ Deno.serve(async (req) => {
           const rows = [tableRow("Title", memo.title, true), tableRow("Status", "Rejected", true), tableRow("Reviewed by", reviewerName), ...(memo.reviewer_notes ? [tableRow("Reason", memo.reviewer_notes)] : [])].join("");
           const extraBlock = memo.reviewer_notes ? `<div style="margin-top: 16px; padding: 12px; background: #fef2f2; border-left: 4px solid #e74c3c; border-radius: 4px;"><strong>Reviewer Feedback:</strong> ${memo.reviewer_notes}</div>` : "";
           const htmlBody = emailTemplate("#e74c3c", "❌", "Memo Rejected", `Hi ${authorName}, your memo was not approved.`, rows, "You may revise and resubmit the memo.", extraBlock);
-          await sendEmail([{ email: authorProfile.email, name: authorName }], `❌ Memo Rejected — "${memo.title}"`, htmlBody);
+          await send([{ email: authorProfile.email, name: authorName }], `❌ Memo Rejected — "${memo.title}"`, htmlBody);
         }
       } catch (err) {
         console.error("memo_rejected error:", err);
@@ -1005,7 +1106,7 @@ Deno.serve(async (req) => {
             const hrEmails = hrProfiles.filter((h: any) => h.email).map((h: any) => ({ email: h.email, name: h.full_name || undefined }));
             if (hrEmails.length > 0) {
               const htmlBody = emailTemplate(statusColor, statusIcon, `Payslip Dispute Forwarded — ${employeeName}`, "Requires HR review", rows, "Please log in to <strong>GRX10</strong> to review this dispute.");
-              await sendEmail(hrEmails, `${statusIcon} Payslip Dispute Forwarded for HR Review — ${employeeName}`, htmlBody);
+              await send(hrEmails, `${statusIcon} Payslip Dispute Forwarded for HR Review — ${employeeName}`, htmlBody);
             }
           }
         }
@@ -1016,7 +1117,7 @@ Deno.serve(async (req) => {
             ? `<div style="margin-top: 16px; padding: 12px; background: ${isForwarded ? "#eff6ff" : "#fef2f2"}; border-left: 4px solid ${statusColor}; border-radius: 4px;"><strong>Manager's Notes:</strong> ${reviewer_notes}</div>`
             : "";
           const htmlBody = emailTemplate(statusColor, statusIcon, `Payslip Dispute ${statusText}`, `Hi ${employeeName}, your payslip dispute has been reviewed.`, rows, undefined, extraBlock);
-          await sendEmail([{ email: employeeEmail, name: employeeName }], `${statusIcon} Payslip Dispute ${statusText} — ${dispute.pay_period}`, htmlBody);
+          await send([{ email: employeeEmail, name: employeeName }], `${statusIcon} Payslip Dispute ${statusText} — ${dispute.pay_period}`, htmlBody);
         }
       } catch (err) {
         console.error("payslip_dispute_reviewed error:", err);
