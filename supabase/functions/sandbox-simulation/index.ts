@@ -94,6 +94,24 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
   if (jdErr) console.warn("Force delete journal data:", jdErr.message);
 
+  // Clean up previously seeded sandbox simulation users
+  const { data: simProfiles } = await client.from("profiles")
+    .select("id, email")
+    .eq("organization_id", orgId)
+    .like("email", "%@sandbox-sim.local");
+  for (const sp of (simProfiles ?? [])) {
+    try {
+      // Delete compensation structures first (FK)
+      await client.from("compensation_structures").delete().eq("profile_id", sp.id);
+      // Delete profile (will cascade)
+      await client.from("profiles").delete().eq("id", sp.id);
+      // Delete auth user
+      await client.auth.admin.deleteUser(sp.id);
+    } catch (e) {
+      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
+    }
+  }
+
   // Clear existing transactional data (order matters for FK constraints)
   // journal_entries and journal_lines already handled above
   const orgScopedTables = [
@@ -105,7 +123,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "asset_depreciation_entries",
     "invoices", "bills",
     "bank_transactions", "expenses", "credit_notes",
-    "financial_records", "assets", "audit_logs"
+    "financial_records", "assets", "audit_logs",
+    "compensation_structures",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
