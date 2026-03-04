@@ -280,7 +280,7 @@ export default function CreditNotes() {
               <TableRow>
                 <TableHead>Credit Note #</TableHead><TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead><TableHead>Issue Date</TableHead>
-                <TableHead>Status</TableHead><TableHead className="w-12"></TableHead>
+                <TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
