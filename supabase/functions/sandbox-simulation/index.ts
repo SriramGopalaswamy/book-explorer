@@ -113,16 +113,19 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const orgScopedTables = [
     "payslip_disputes", "payroll_records", "payroll_runs",
     "reimbursement_requests",
-    "goal_plans", "memos",
+    "goal_plans", "memos", "notifications",
     "attendance_daily", "attendance_punches", "attendance_records",
     "attendance_correction_requests",
-    "leave_requests",
+    "leave_requests", "investment_declarations", "employee_documents",
     "asset_depreciation_entries",
+    "quote_items", "quotes",
     "invoice_items", "invoices",
     "bill_items", "bills",
-    "bank_transactions", "expenses", "credit_notes",
+    "vendor_credits", "credit_notes",
+    "bank_transactions", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
     "compensation_revision_requests", "compensation_structures",
+    "holidays", "user_roles",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
