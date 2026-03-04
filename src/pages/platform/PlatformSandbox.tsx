@@ -23,6 +23,9 @@ import {
   Users,
   Loader2,
   AlertTriangle,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface SandboxOrg {
@@ -90,6 +93,7 @@ export default function PlatformSandbox() {
 
   const [newSandboxName, setNewSandboxName] = useState("");
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [activeImpersonation, setActiveImpersonation] = useState<{
     orgId: string;
     orgName: string;
@@ -99,6 +103,23 @@ export default function PlatformSandbox() {
 
   const { data: sandboxOrgs, isLoading: orgsLoading } = useSandboxOrgs();
   const { data: sandboxUsers, isLoading: usersLoading } = useSandboxUsers(selectedOrg);
+
+  // Fetch invite links for selected org
+  const { data: inviteLinks } = useQuery({
+    queryKey: ["sandbox-invite-links", selectedOrg],
+    queryFn: async () => {
+      if (!selectedOrg) return [];
+      const { data, error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .select("*")
+        .eq("sandbox_org_id", selectedOrg)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!selectedOrg,
+  });
 
   // Create sandbox org
   const createSandbox = useMutation({
@@ -216,6 +237,48 @@ export default function PlatformSandbox() {
       toast.error(err.message);
     }
   };
+
+  // Generate shareable invite link
+  const generateLink = useMutation({
+    mutationFn: async (orgId: string) => {
+      const { data, error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .insert({
+          sandbox_org_id: orgId,
+          created_by: user?.id,
+          label: "Team testing link",
+        })
+        .select("token")
+        .single();
+      if (error) throw error;
+      return (data as any).token as string;
+    },
+    onSuccess: (token) => {
+      const link = `${window.location.origin}/sandbox/join/${token}`;
+      navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+      queryClient.invalidateQueries({ queryKey: ["sandbox-invite-links", selectedOrg] });
+      toast.success("Invite link copied to clipboard!");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Revoke invite link
+  const revokeLink = useMutation({
+    mutationFn: async (linkId: string) => {
+      const { error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .update({ is_active: false })
+        .eq("id", linkId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sandbox-invite-links", selectedOrg] });
+      toast.success("Invite link revoked");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <MainLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
@@ -354,6 +417,7 @@ export default function PlatformSandbox() {
               </CardContent>
             </Card>
           ) : (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -422,6 +486,75 @@ export default function PlatformSandbox() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Shareable Link Section */}
+            {selectedOrg && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Link2 className="h-4 w-4" />
+                    Team Access Link
+                  </CardTitle>
+                  <CardDescription>
+                    Generate a shareable link so your team can join this sandbox and test workflows using the personas above.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button
+                    onClick={() => generateLink.mutate(selectedOrg)}
+                    disabled={generateLink.isPending}
+                    className="w-full"
+                  >
+                    {generateLink.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : copiedLink ? (
+                      <Check className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    {copiedLink ? "Link Copied!" : "Generate & Copy Invite Link"}
+                  </Button>
+
+                  {/* Active links */}
+                  {(inviteLinks as any[])?.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs font-medium text-muted-foreground">Active Links</p>
+                      {(inviteLinks as any[]).map((link: any) => (
+                        <div key={link.id} className="flex items-center justify-between p-2 rounded border border-border text-xs">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <code className="text-muted-foreground truncate">
+                              /sandbox/join/{link.token.slice(0, 12)}...
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  `${window.location.origin}/sandbox/join/${link.token}`
+                                );
+                                toast.success("Link copied");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive h-6 text-xs"
+                            onClick={() => revokeLink.mutate(link.id)}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            </>
           )}
         </div>
       </div>
