@@ -80,6 +80,9 @@ import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
 import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
 import PlatformDbInspector from "./pages/platform/PlatformDbInspector";
 
+// Sandbox
+import SandboxJoin from "./pages/sandbox/SandboxJoin";
+
 // Profile
 import Profile from "./pages/Profile";
 
