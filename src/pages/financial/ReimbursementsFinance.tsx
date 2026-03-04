@@ -81,6 +81,11 @@ export default function ReimbursementsFinance() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   // Approve dialog form
   const [financeNotes, setFinanceNotes] = useState("");
   const [classifyCategory, setClassifyCategory] = useState("");
