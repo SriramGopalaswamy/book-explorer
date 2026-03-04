@@ -2542,6 +2542,7 @@ export default function ManagerInbox() {
                   </span>
                 )}
               </TabsTrigger>
+            )}
             <TabsTrigger value="profile-changes" className="gap-2">
               <UserCog className="h-4 w-4" />
               Profile Changes
