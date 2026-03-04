@@ -408,5 +408,6 @@ export default function VendorCredits() {
         </Dialog>
       </div>
     </MainLayout>
+  );
 }
 
