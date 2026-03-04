@@ -240,7 +240,7 @@ export function useUpdateInvoice() {
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
       // Fetch current version for optimistic locking
-      const { data: current, error: fetchErr } = await supabase
+      const { data: current, error: fetchErr } = await (supabase as any)
         .from("invoices")
         .select("version")
         .eq("id", data.id)
