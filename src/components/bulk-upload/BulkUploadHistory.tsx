@@ -89,6 +89,18 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     );
   }
 
+  const moduleLabel = (m: string) => {
+    const labels: Record<string, string> = {
+      payroll: "Payroll",
+      attendance: "Attendance",
+      roles: "Roles",
+      holidays: "Holidays",
+      expenses: "Expenses",
+      users: "Users",
+    };
+    return labels[m] || m;
+  };
+
   if (history.length === 0) {
     return (
       <Card>
@@ -102,15 +114,6 @@ export function BulkUploadHistory({ module }: { module?: string }) {
       </Card>
     );
   }
-
-  const moduleLabel = (m: string) => {
-    const labels: Record<string, string> = {
-      payroll: "Payroll",
-      attendance: "Attendance",
-      roles: "Roles",
-    };
-    return labels[m] || m;
-  };
 
   return (
     <Card>
