@@ -33,7 +33,7 @@ function countWeekendDays(year: number, month: number, policy: string): number {
  * Auto-calculates working days and LOP days for a given employee + pay period.
  * 
  * Working Days = Calendar days - Weekend days - Holidays
- * LOP Days = Rejected leaves (within period) + Approved 'unpaid'/'loss_of_pay' leaves
+ * LOP Days = Total approved leaves (within period)
  */
 export function usePayrollAutoCalc(profileId: string | null, payPeriod: string): AutoCalcResult {
   const { user } = useAuth();
@@ -54,7 +54,7 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
       const periodEnd = `${payPeriod}-${String(totalCalendarDays).padStart(2, "0")}`;
 
       // Fetch org weekend policy, holidays, and leave requests in parallel
-      const [orgRes, holidaysRes, rejectedLeavesRes, unpaidLeavesRes] = await Promise.all([
+      const [orgRes, holidaysRes, approvedLeavesRes] = await Promise.all([
         // 1. Get weekend policy from organizations table
         supabase
           .from("organizations")
@@ -69,22 +69,12 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
           .gte("date", periodStart)
           .lte("date", periodEnd),
 
-        // 3. Get rejected leave requests for this employee in this period
-        supabase
-          .from("leave_requests")
-          .select("leave_type, days, from_date, to_date")
-          .eq("profile_id", profileId)
-          .eq("status", "rejected")
-          .lte("from_date", periodEnd)
-          .gte("to_date", periodStart),
-
-        // 4. Get approved unpaid/LOP leaves for this employee in this period
+        // 3. Get all approved leave requests for this employee in this period
         supabase
           .from("leave_requests")
           .select("leave_type, days, from_date, to_date")
           .eq("profile_id", profileId)
           .eq("status", "approved")
-          .in("leave_type", ["unpaid", "loss_of_pay", "lop"])
           .lte("from_date", periodEnd)
           .gte("to_date", periodStart),
       ]);
@@ -105,7 +95,7 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
 
       const workingDays = totalCalendarDays - weekendDays - uniqueHolidays;
 
-      // Calculate LOP days
+      // Calculate LOP days from all approved leaves
       const lopBreakdown: { type: string; days: number }[] = [];
 
       // Helper: calculate overlapping days within the pay period
@@ -116,27 +106,17 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
         return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       };
 
-      // Rejected leaves → LOP
-      let rejectedLopDays = 0;
-      (rejectedLeavesRes.data || []).forEach((lr: any) => {
+      // All approved leaves → LOP
+      let totalApprovedLeaveDays = 0;
+      (approvedLeavesRes.data || []).forEach((lr: any) => {
         const days = overlapDays(lr.from_date, lr.to_date);
-        rejectedLopDays += days;
+        totalApprovedLeaveDays += days;
       });
-      if (rejectedLopDays > 0) {
-        lopBreakdown.push({ type: "Rejected leaves", days: rejectedLopDays });
+      if (totalApprovedLeaveDays > 0) {
+        lopBreakdown.push({ type: "Approved leaves", days: totalApprovedLeaveDays });
       }
 
-      // Approved unpaid/LOP leaves → LOP
-      let unpaidLopDays = 0;
-      (unpaidLeavesRes.data || []).forEach((lr: any) => {
-        const days = overlapDays(lr.from_date, lr.to_date);
-        unpaidLopDays += days;
-      });
-      if (unpaidLopDays > 0) {
-        lopBreakdown.push({ type: "Unpaid leaves", days: unpaidLopDays });
-      }
-
-      const totalLopDays = rejectedLopDays + unpaidLopDays;
+      const totalLopDays = totalApprovedLeaveDays;
 
       return {
         workingDays,
