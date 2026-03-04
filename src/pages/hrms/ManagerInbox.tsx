@@ -22,6 +22,7 @@ import {
   Wallet,
   AlertTriangle,
   UserCog,
+  IndianRupee,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -2400,6 +2401,8 @@ export default function ManagerInbox() {
   const isHRRole = currentRole === "hr" || currentRole === "admin";
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
+  const { data: allCompRevisions = [] } = useCompensationRevisionRequests("pending");
+  const pendingCompRevisions = allCompRevisions;
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
