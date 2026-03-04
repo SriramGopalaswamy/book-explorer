@@ -383,6 +383,32 @@ export default function ReimbursementsFinance() {
           ))}
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search employee, vendor, category…"
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
+            <Input type="date" className="w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">To</span>
+            <Input type="date" className="w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo(""); }}>
+              <X className="h-3.5 w-3.5 mr-1" /> Clear
+            </Button>
+          )}
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
@@ -398,11 +424,11 @@ export default function ReimbursementsFinance() {
             </TabsList>
 
             <TabsContent value="inbox" className="mt-4">
-              {inbox.length === 0 ? (
-                <EmptyState icon={Receipt} message="No reimbursements waiting for finance approval." />
+              {filteredInbox.length === 0 ? (
+                <EmptyState icon={Receipt} message={inbox.length === 0 ? "No reimbursements waiting for finance approval." : "No results match your search or filters."} />
               ) : (
                 <div className="space-y-3">
-                  {inbox.map((item: any) => (
+                  {filteredInbox.map((item: any) => (
                     <ReimbursementCard key={item.id} item={item} showActions />
                   ))}
                 </div>
@@ -410,11 +436,11 @@ export default function ReimbursementsFinance() {
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">
-              {history.length === 0 ? (
-                <EmptyState icon={Clock} message="No processed reimbursements yet." />
+              {filteredHistory.length === 0 ? (
+                <EmptyState icon={Clock} message={history.length === 0 ? "No processed reimbursements yet." : "No results match your search or filters."} />
               ) : (
                 <div className="space-y-3">
-                  {history.map((item: any) => (
+                  {filteredHistory.map((item: any) => (
                     <ReimbursementCard key={item.id} item={item} />
                   ))}
                 </div>
@@ -422,11 +448,15 @@ export default function ReimbursementsFinance() {
             </TabsContent>
 
             <TabsContent value="all" className="mt-4">
-              <div className="space-y-3">
-                {allRequests.map((item: any) => (
-                  <ReimbursementCard key={item.id} item={item} />
-                ))}
-              </div>
+              {filteredAll.length === 0 ? (
+                <EmptyState icon={Receipt} message="No results match your search or filters." />
+              ) : (
+                <div className="space-y-3">
+                  {filteredAll.map((item: any) => (
+                    <ReimbursementCard key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}
