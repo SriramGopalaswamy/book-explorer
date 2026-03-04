@@ -417,6 +417,7 @@ export default function PlatformSandbox() {
               </CardContent>
             </Card>
           ) : (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -553,6 +554,7 @@ export default function PlatformSandbox() {
                 </CardContent>
               </Card>
             )}
+            </>
           )}
         </div>
       </div>
