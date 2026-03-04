@@ -142,6 +142,23 @@ export default function Auth() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        toast.error(result.error.message || "Failed to sign in with Google");
+        setIsGoogleLoading(false);
+      }
+      // If redirected, page will navigate away
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-dark p-4">
       <div className="w-full max-w-md">
