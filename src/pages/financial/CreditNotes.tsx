@@ -69,6 +69,8 @@ export default function CreditNotes() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingCreditNote, setViewingCreditNote] = useState<CreditNote | null>(null);
   const [editingCreditNote, setEditingCreditNote] = useState<CreditNote | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [editCustomerId, setEditCustomerId] = useState("");
