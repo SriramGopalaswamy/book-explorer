@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil, Filter, X } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil, Filter, X, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -303,7 +303,8 @@ export default function CreditNotes() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(cn)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
                           {cn.status === "draft" && (
                             <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                           )}
