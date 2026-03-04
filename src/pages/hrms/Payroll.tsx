@@ -58,6 +58,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
 import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -117,15 +118,40 @@ function PayrollHRDisputes() {
   const { data: disputes = [], isLoading } = usePendingPayslipDisputes("hr");
   const reviewDispute = useHRReviewDispute();
   const [notes, setNotes] = useState("");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [action, setAction] = useState<"forward" | "reject" | null>(null);
+  const [selected, setSelected] = useState<PayslipDispute | null>(null);
+  const [payslipData, setPayslipData] = useState<any>(null);
+  const [loadingPayslip, setLoadingPayslip] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"forward" | "reject" | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const periodLabel = (p: string) => { const [y, m] = p.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return `${months[parseInt(m)-1]} ${y}`; };
+  const fmtCurrency = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const handleSubmit = (disputeId: string) => {
-    if (!action) return;
-    reviewDispute.mutate({ disputeId, action, notes: notes || undefined }, {
-      onSuccess: () => { setActiveId(null); setAction(null); setNotes(""); },
+  const openReview = async (dispute: PayslipDispute) => {
+    setSelected(dispute);
+    setNotes("");
+    setPendingAction(null);
+    setConfirmOpen(false);
+    setPayslipData(null);
+    setLoadingPayslip(true);
+    try {
+      let data: any = null;
+      if (dispute.payroll_record_id) {
+        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("id", dispute.payroll_record_id).maybeSingle();
+        if (!res.error && res.data) data = res.data;
+      }
+      if (!data && dispute.profile_id && dispute.pay_period) {
+        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("profile_id", dispute.profile_id).eq("pay_period", dispute.pay_period).order("version", { ascending: false }).limit(1).maybeSingle();
+        if (!res.error && res.data) data = res.data;
+      }
+      if (data) setPayslipData(data);
+    } catch (err) { console.warn("Failed to fetch payroll record:", err); }
+    finally { setLoadingPayslip(false); }
+  };
+
+  const handleSubmit = () => {
+    if (!selected || !pendingAction) return;
+    reviewDispute.mutate({ disputeId: selected.id, action: pendingAction, notes: notes || undefined }, {
+      onSuccess: () => { setConfirmOpen(false); setSelected(null); },
     });
   };
 
@@ -133,38 +159,64 @@ function PayrollHRDisputes() {
   if (disputes.length === 0) return <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3"><ShieldAlert className="h-10 w-10 opacity-40" /><p className="text-sm">No payslip disputes pending HR approval.</p></div>;
 
   return (
-    <div className="space-y-3">
-      {disputes.map((d) => (
-        <div key={d.id} className="rounded-lg border border-border/50 bg-card/60 p-4 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="font-medium text-sm">{d.profiles?.full_name || "Unknown"}</p>
-              <p className="text-sm text-muted-foreground">{periodLabel(d.pay_period)} · {DISPUTE_CATEGORIES.find(c => c.value === d.dispute_category)?.label || d.dispute_category}</p>
-              <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
-              {d.manager_notes && <p className="text-xs text-muted-foreground mt-1"><strong>Manager:</strong> {d.manager_notes}</p>}
-            </div>
-            {activeId !== d.id ? (
-              <div className="flex gap-2 shrink-0">
-                <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => { setActiveId(d.id); setAction("reject"); setNotes(""); }}><X className="h-3.5 w-3.5 mr-1" /> Reject</Button>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { setActiveId(d.id); setAction("forward"); setNotes(""); }}><CheckCircle className="h-3.5 w-3.5 mr-1" /> Forward to Finance</Button>
+    <>
+      <div className="space-y-3">
+        {disputes.map((d) => (
+          <div key={d.id} className="rounded-lg border border-border/50 bg-card/60 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-medium text-sm">{d.profiles?.full_name || "Unknown"}</p>
+                <p className="text-sm text-muted-foreground">{periodLabel(d.pay_period)} · {DISPUTE_CATEGORIES.find(c => c.value === d.dispute_category)?.label || d.dispute_category}</p>
+                <p className="text-xs text-muted-foreground mt-1 italic">"{d.description}"</p>
+                {d.manager_notes && <p className="text-xs text-muted-foreground mt-1"><strong>Manager:</strong> {d.manager_notes}</p>}
               </div>
-            ) : null}
+              <Button size="sm" variant="outline" onClick={() => openReview(d)} className="shrink-0">
+                <Eye className="h-3.5 w-3.5 mr-1" /> Review
+              </Button>
+            </div>
           </div>
-          {activeId === d.id && (
-            <div className="space-y-2 border-t border-border/50 pt-3">
-              <Label className="text-xs">{action === "reject" ? "Rejection Reason" : "Notes for Finance"}</Label>
-              <Input placeholder={action === "reject" ? "Explain why…" : "Any context…"} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setActiveId(null); setAction(null); }}>Cancel</Button>
-                <Button size="sm" onClick={() => handleSubmit(d.id)} disabled={reviewDispute.isPending} className={action === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
-                  {reviewDispute.isPending ? "Saving…" : action === "forward" ? "Forward" : "Reject"}
-                </Button>
-              </div>
+        ))}
+      </div>
+
+      {selected && (
+        <Dialog open onOpenChange={(v) => { if (!v) { setSelected(null); setConfirmOpen(false); } }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-amber-500" />
+                HR Payslip Dispute Review
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 py-2">
+              <DisputeInfoSection dispute={selected} />
+              <PayslipSummarySection loading={loadingPayslip} payslipData={payslipData} fmtCurrency={fmtCurrency} />
+              {!confirmOpen ? (
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+                  <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => { setPendingAction("reject"); setConfirmOpen(true); }}>
+                    <X className="h-4 w-4 mr-1" /> Reject
+                  </Button>
+                  <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { setPendingAction("forward"); setConfirmOpen(true); }}>
+                    <CheckCircle className="h-4 w-4 mr-1" /> Forward to Finance
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 border-t border-border/50 pt-4">
+                  <Label>{pendingAction === "reject" ? "Rejection Reason" : "Notes for Finance"}</Label>
+                  <Input placeholder={pendingAction === "reject" ? "Explain why…" : "Any context…"} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setConfirmOpen(false)}>Back</Button>
+                    <Button size="sm" onClick={handleSubmit} disabled={reviewDispute.isPending} className={pendingAction === "forward" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
+                      {reviewDispute.isPending ? "Saving…" : pendingAction === "forward" ? "Forward to Finance" : "Reject"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 
