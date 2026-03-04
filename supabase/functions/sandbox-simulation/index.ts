@@ -2001,7 +2001,97 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: `${ltCount ?? 0} leave types configured`,
   });
 
-  const passed = checks.filter(c => c.status === "passed").length;
+  // === QUOTES VALIDATIONS ===
+  const { count: quoteCount } = await client.from("quotes")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_QUOTES_EXIST", module: "Quotes",
+    status: (quoteCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${quoteCount ?? 0} quotes in sandbox`,
+  });
+
+  // === CREDIT NOTES VALIDATIONS ===
+  const { count: cnCount } = await client.from("credit_notes")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_CREDIT_NOTES_EXIST", module: "Credit Notes",
+    status: (cnCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${cnCount ?? 0} credit notes in sandbox`,
+  });
+
+  // === VENDOR CREDITS VALIDATIONS ===
+  const { count: vcCount } = await client.from("vendor_credits")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_VENDOR_CREDITS_EXIST", module: "Vendor Credits",
+    status: (vcCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${vcCount ?? 0} vendor credits in sandbox`,
+  });
+
+  // === HOLIDAYS VALIDATIONS ===
+  const { count: holidayCount } = await client.from("holidays")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_HOLIDAYS_CONFIGURED", module: "HR",
+    status: (holidayCount ?? 0) >= 5 ? "passed" : "warning",
+    detail: `${holidayCount ?? 0} holidays configured (expected ≥5)`,
+  });
+
+  // === USER ROLES VALIDATIONS ===
+  const { count: roleAssignments } = await client.from("user_roles")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_USER_ROLES_ASSIGNED", module: "Governance",
+    status: (roleAssignments ?? 0) >= 5 ? "passed" : "warning",
+    detail: `${roleAssignments ?? 0} role assignments (expected ≥5 for seeded employees)`,
+  });
+
+  // === BUDGET VALIDATIONS ===
+  const { count: budgetCount } = await client.from("budgets")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_BUDGETS_EXIST", module: "Finance",
+    status: (budgetCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${budgetCount ?? 0} budget entries configured`,
+  });
+
+  // === NOTIFICATION VALIDATIONS ===
+  const { count: notifCount } = await client.from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_NOTIFICATIONS_DELIVERED", module: "Notifications",
+    status: (notifCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${notifCount ?? 0} notifications in sandbox`,
+  });
+
+  // === INVESTMENT DECLARATION VALIDATIONS ===
+  const { count: invDeclCount } = await client.from("investment_declarations")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_INVESTMENT_DECLARATIONS", module: "HR",
+    status: (invDeclCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${invDeclCount ?? 0} investment declarations submitted`,
+  });
+
+  // === EMPLOYEE DOCUMENTS VALIDATIONS ===
+  const { count: empDocCount } = await client.from("employee_documents")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId);
+  checks.push({
+    check: "V_EMPLOYEE_DOCUMENTS", module: "HR",
+    status: (empDocCount ?? 0) > 0 ? "passed" : "warning",
+    detail: `${empDocCount ?? 0} employee documents on file`,
+  });
+
+
   const failed = checks.filter(c => c.status === "failed").length;
   const allPassed = failed === 0;
 
