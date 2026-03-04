@@ -486,9 +486,15 @@ export default function Bills() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { data, error } = await supabase.from("bills").update({ status }).eq("id", id).select();
-      if (error) throw error;
+      console.log("[Bills] Update status result:", { id, status, data, error });
+      if (error) {
+        console.error("[Bills] Update error details:", JSON.stringify(error));
+        throw error;
+      }
       if (!data || data.length === 0) {
-        throw new Error("Permission denied. Only Finance or Admin users can update bill status.");
+        const { data: billCheck } = await supabase.from("bills").select("id, organization_id, user_id, status").eq("id", id).single();
+        console.log("[Bills] Bill exists check:", billCheck);
+        throw new Error("Update failed — could not change bill status. This may be a permissions issue.");
       }
     },
     onSuccess: (_, variables) => {
