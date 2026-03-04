@@ -402,7 +402,19 @@ function PayrollConfigSection() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Weekend Policy</Label>
+                <p className="text-xs text-muted-foreground">Controls how working days are calculated for payroll</p>
+                <Select value={local.weekend_policy} onValueChange={(v) => setLocal((p) => ({ ...p, weekend_policy: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select weekend policy" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sat_sun">5-day week (Sat & Sun off)</SelectItem>
+                    <SelectItem value="sun_only">6-day week (Only Sun off)</SelectItem>
+                    <SelectItem value="none">7-day week (No weekends)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
                 {flags.map(({ key, label, desc }) => (
                   <div key={key} className="flex items-center justify-between rounded-lg border border-border p-3">
                     <div>
