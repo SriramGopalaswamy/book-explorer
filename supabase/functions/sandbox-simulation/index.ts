@@ -384,13 +384,21 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   let compCount = 0;
   for (const p of (seededProfileList ?? [])) {
     const basic = salaryMap[p.employee_code] ?? 50000;
-    const annualCTC = basic * 12 * 1.55; // ~55% overhead
-    const { error: compErr } = await client.from("compensation_structures").upsert({
-      profile_id: p.id, organization_id: orgId,
-      annual_ctc: annualCTC, monthly_gross: basic * 1.55,
-      effective_from: "2024-06-01", status: "active",
-    }, { onConflict: "profile_id,effective_from" });
-    if (!compErr) compCount++;
+    const annualCTC = Math.round(basic * 12 * 1.55);
+    // Check if comp structure already exists
+    const { data: existingComp } = await client.from("compensation_structures")
+      .select("id").eq("profile_id", p.id).eq("effective_from", "2024-06-01").maybeSingle();
+    if (!existingComp) {
+      const { error: compErr } = await client.from("compensation_structures").insert({
+        profile_id: p.id, organization_id: orgId,
+        annual_ctc: annualCTC, created_by: userId,
+        effective_from: "2024-06-01", is_active: true,
+      });
+      if (!compErr) compCount++;
+      else console.warn(`Comp structure for ${p.full_name}:`, compErr.message);
+    } else {
+      compCount++;
+    }
   }
   summary.compensation_structures = compCount;
 
