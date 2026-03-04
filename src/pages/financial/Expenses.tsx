@@ -113,10 +113,35 @@ export default function Expenses() {
 
   const markPaidMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Update expense status to paid
       const { error } = await supabase.from("expenses").update({ status: "paid", reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
+
+      // Fetch the expense details to create a financial_records entry
+      const { data: expense, error: fetchErr } = await supabase.from("expenses").select("*").eq("id", id).single();
+      if (fetchErr || !expense) {
+        console.warn("Could not fetch expense to sync to financial_records:", fetchErr);
+        return;
+      }
+
+      // Create corresponding entry in financial_records so it shows in Accounting
+      const { error: frError } = await supabase.from("financial_records").insert({
+        type: "expense",
+        category: expense.category,
+        amount: Number(expense.amount),
+        description: expense.description || `Expense: ${expense.category}`,
+        record_date: expense.expense_date,
+        user_id: user!.id,
+      });
+      if (frError) console.warn("Failed to sync expense to financial_records:", frError);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); toast({ title: "Expense marked as Paid" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-records"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
+      toast({ title: "Expense marked as Paid" });
+    },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
