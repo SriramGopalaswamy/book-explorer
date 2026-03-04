@@ -277,9 +277,11 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
           });
           if (historyErr) {
             console.error("[BulkUpload] Failed to log upload history:", historyErr.message, historyErr);
+            toast.warning("Upload succeeded but history logging failed. Check permissions.");
           }
         } catch (histErr: any) {
           console.error("[BulkUpload] History insert exception:", histErr);
+          toast.warning("Upload succeeded but history logging failed.");
         }
         qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
       }
