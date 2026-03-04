@@ -206,7 +206,7 @@ export default function VendorCredits() {
           <StatCard title="Total Vendor Credits" value={String(vendorCredits.length)} icon={<Receipt className="h-4 w-4" />} />
           <StatCard title="Draft" value={String(vendorCredits.filter((vc) => vc.status === "draft").length)} icon={<Receipt className="h-4 w-4" />} />
           <StatCard title="Issued" value={String(vendorCredits.filter((vc) => vc.status === "issued").length)} icon={<Receipt className="h-4 w-4" />} />
-          <StatCard title="Total Value" value={formatCurrency(vendorCredits.reduce((s, vc) => s + Number(vc.amount), 0))} icon={<Receipt className="h-4 w-4" />} />
+          <StatCard title="Total Value" value={formatCurrency(vendorCredits.filter((vc) => vc.status === "issued" || vc.status === "applied").reduce((s, vc) => s + Number(vc.amount), 0))} icon={<Receipt className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
