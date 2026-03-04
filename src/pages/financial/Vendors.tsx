@@ -165,10 +165,22 @@ export default function Vendors() {
           <Label>Phone <span className="text-destructive">*</span> {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
           <Input
             value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value;
+              const codePrefix = phoneConfig.code ? phoneConfig.code + " " : "";
+              if (codePrefix && !val.startsWith(phoneConfig.code)) {
+                return;
+              }
+              const afterCode = val.slice(codePrefix.length);
+              const digitsOnly = afterCode.replace(/\D/g, "");
+              const capped = digitsOnly.slice(0, phoneConfig.digits);
+              setForm({ ...form, phone: codePrefix + capped });
+            }}
             placeholder={phoneConfig.code ? `${phoneConfig.code} ${"9".repeat(phoneConfig.digits)}` : "+XX XXXXXXXXXX"}
+            maxLength={(phoneConfig.code?.length || 0) + 1 + phoneConfig.digits}
           />
           {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+          {form.phone.trim() && !errors.phone && <p className="text-xs text-muted-foreground mt-1">Exactly {phoneConfig.digits} digits required</p>}
         </div>
         <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
         <div>
