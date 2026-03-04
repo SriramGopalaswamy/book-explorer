@@ -105,6 +105,23 @@ export default function ReimbursementsFinance() {
     enabled: !!user,
   });
 
+  // Filter helper
+  const filterItems = (items: any[]) => items.filter((r: any) => {
+    const q = searchQuery.toLowerCase();
+    const employeeName = r.profiles?.full_name || "";
+    const matchesSearch = !q ||
+      employeeName.toLowerCase().includes(q) ||
+      (r.vendor_name || "").toLowerCase().includes(q) ||
+      (r.category || "").toLowerCase().includes(q) ||
+      (r.description || "").toLowerCase().includes(q);
+    const dateField = r.expense_date || r.created_at?.split("T")[0] || "";
+    const matchesFrom = !dateFrom || dateField >= dateFrom;
+    const matchesTo = !dateTo || dateField <= dateTo;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
+
+  const hasActiveFilters = searchQuery || dateFrom || dateTo;
+
   const inbox = allRequests.filter((r: any) =>
     r.status === "manager_approved" || r.status === "pending_finance"
   );
@@ -112,6 +129,10 @@ export default function ReimbursementsFinance() {
     r.status === "paid" || r.status === "finance_rejected"
   );
   const allPending = allRequests.filter((r: any) => r.status === "pending_manager");
+
+  const filteredInbox = filterItems(inbox);
+  const filteredHistory = filterItems(history);
+  const filteredAll = filterItems(allRequests);
 
   const totalInbox = inbox.reduce((s: number, r: any) => s + Number(r.amount), 0);
   const totalPaid = history
