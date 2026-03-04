@@ -505,8 +505,7 @@ export default function Bills() {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const closeDialog = () => {
-    setDialogOpen(false);
+  const resetForm = () => {
     setForm({ ...EMPTY_FORM });
     setLineItems([{ description: "", quantity: 1, rate: 0, amount: 0 }]);
     setUploadedFile(null);
@@ -514,6 +513,16 @@ export default function Bills() {
     setAiConfidence(undefined);
     setAiWarnings([]);
     setTaxBreakdown([]);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    resetForm();
+  };
+
+  const openDialog = () => {
+    resetForm();
+    setDialogOpen(true);
   };
 
   const openPreview = async (bill: any) => {
