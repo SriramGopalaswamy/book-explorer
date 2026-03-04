@@ -90,29 +90,25 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const startTime = Date.now();
   const summary: Record<string, number> = {};
 
+  // Use the SECURITY DEFINER function to force-delete journal data (bypasses immutability triggers)
+  const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
+  if (jdErr) console.warn("Force delete journal data:", jdErr.message);
+
   // Clear existing transactional data (order matters for FK constraints)
+  // journal_entries and journal_lines already handled above
   const orgScopedTables = [
     "payslip_disputes", "payroll_records", "payroll_runs",
     "reimbursement_requests",
     "goal_plans", "memos",
     "attendance_daily", "attendance_punches", "attendance_records",
     "leave_requests",
-    "asset_depreciation_entries", "journal_entries",
+    "asset_depreciation_entries",
     "invoices", "bills",
     "bank_transactions", "expenses", "credit_notes",
     "financial_records", "assets", "audit_logs"
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
-  const { data: jeIds } = await client.from("journal_entries")
-    .select("id").eq("organization_id", orgId);
-  if (jeIds && jeIds.length > 0) {
-    const ids = jeIds.map((j: any) => j.id);
-    for (let i = 0; i < ids.length; i += 50) {
-      await client.from("journal_lines").delete().in("journal_entry_id", ids.slice(i, i + 50));
-    }
-  }
-
   const { data: invIds } = await client.from("invoices")
     .select("id").eq("organization_id", orgId);
   if (invIds && invIds.length > 0) {
@@ -233,37 +229,97 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.assets = assetCount;
 
-  // ===== SEED FISCAL PERIOD =====
-  const { error: fpError } = await client.from("fiscal_periods").insert({
-    organization_id: orgId, name: "FY 2025-26",
-    start_date: "2025-04-01", end_date: "2026-03-31",
-    status: "open",
-  });
-  summary.fiscal_periods = fpError ? 0 : 1;
+  // ===== SEED FINANCIAL YEAR & FISCAL PERIODS =====
+  let fyCount = 0;
+  // First create or find the financial year
+  const { data: existingFY } = await client.from("financial_years")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("start_date", "2025-04-01")
+    .maybeSingle();
+
+  let financialYearId = existingFY?.id;
+  if (!financialYearId) {
+    const { data: newFY, error: fyErr } = await client.from("financial_years").insert({
+      organization_id: orgId, start_date: "2025-04-01", end_date: "2026-03-31", is_active: true,
+    }).select("id").single();
+    if (!fyErr && newFY) {
+      financialYearId = newFY.id;
+      fyCount = 1;
+    }
+  } else {
+    fyCount = 1;
+  }
+
+  if (financialYearId) {
+    // Check if fiscal periods already exist for this FY
+    const { count: existingPeriods } = await client.from("fiscal_periods")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("financial_year_id", financialYearId);
+
+    if ((existingPeriods ?? 0) === 0) {
+      // Create 12 monthly periods
+      const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+      for (let i = 0; i < 12; i++) {
+        const year = i < 9 ? 2025 : 2026;
+        const month = i < 9 ? i + 4 : i - 8;
+        const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+        const endDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, "0")}-${endDay}`;
+
+        await client.from("fiscal_periods").insert({
+          organization_id: orgId,
+          financial_year_id: financialYearId,
+          period_name: `${months[i]} ${year}`,
+          period_number: i + 1,
+          start_date: startDate,
+          end_date: endDate,
+          status: "open",
+        });
+      }
+    }
+  }
+  summary.fiscal_year = fyCount;
 
   // ===== SEED LEAVE TYPES =====
   const leaveTypes = [
-    { name: "Casual Leave", code: "CL", default_days: 12, color: "#3b82f6", icon: "☀️", is_active: true },
-    { name: "Sick Leave", code: "SL", default_days: 10, color: "#ef4444", icon: "🏥", is_active: true },
-    { name: "Earned Leave", code: "EL", default_days: 15, color: "#10b981", icon: "📅", is_active: true },
+    { key: "CL", label: "Casual Leave", default_days: 12, color: "#3b82f6", icon: "☀️", is_active: true, sort_order: 1 },
+    { key: "SL", label: "Sick Leave", default_days: 10, color: "#ef4444", icon: "🏥", is_active: true, sort_order: 2 },
+    { key: "EL", label: "Earned Leave", default_days: 15, color: "#10b981", icon: "📅", is_active: true, sort_order: 3 },
   ];
   let leaveTypeCount = 0;
   for (const lt of leaveTypes) {
     const { error } = await client.from("leave_types").upsert({
       ...lt, organization_id: orgId,
-    }, { onConflict: "code,organization_id" });
+    }, { onConflict: "organization_id,key" });
     if (!error) leaveTypeCount++;
   }
   summary.leave_types = leaveTypeCount;
 
   // ===== SEED ATTENDANCE SHIFTS =====
-  const { error: shiftErr } = await client.from("attendance_shifts").upsert({
+  // Delete existing shifts for this org first, then insert fresh
+  await client.from("attendance_shifts").delete().eq("organization_id", orgId);
+  const { error: shiftErr } = await client.from("attendance_shifts").insert({
     name: "General Shift", organization_id: orgId,
     start_time: "09:00", end_time: "18:00",
     full_day_minutes: 480, min_half_day_minutes: 240,
     grace_minutes: 15, ot_after_minutes: 540, is_default: true,
-  }, { onConflict: "name,organization_id" });
+  });
   summary.attendance_shifts = shiftErr ? 0 : 1;
+
+  // ===== SEED SANDBOX PROFILES (employees) =====
+  // Check if profiles already exist in this org
+  const { data: existingProfiles } = await client.from("profiles")
+    .select("id").eq("organization_id", orgId);
+
+  if ((existingProfiles ?? []).length === 0) {
+    // Create simulated employee profiles using the current user's auth
+    // Since we can't create auth users, we seed profiles for the existing user
+    // and note that HR workflows will use whatever profiles exist
+    console.log("No profiles found in sandbox org — HR workflows will be skipped unless profiles are added via onboarding");
+  }
+  summary.profiles = (existingProfiles ?? []).length;
 
   return {
     success: true,
@@ -284,6 +340,14 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     .select("id, full_name, employee_code")
     .eq("organization_id", orgId).limit(10);
   const profileList = profiles ?? [];
+
+  if (profileList.length === 0) {
+    results.push({
+      workflow: "HR Profile Check", module: "HR", status: "failed",
+      detail: "No employee profiles found in sandbox org — Attendance, Leave, Payroll, Reimbursement & Performance workflows require at least 1 profile. Add employees via onboarding or sandbox join.",
+      duration_ms: 0,
+    });
+  }
 
   // ===== FINANCE WORKFLOWS =====
 
