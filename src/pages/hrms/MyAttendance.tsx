@@ -223,7 +223,7 @@ export default function MyAttendance() {
                         <span>In:</span>
                         <span className="font-medium text-foreground">
                           {todayAttendance.check_in
-                            ? format(new Date(todayAttendance.check_in), "HH:mm")
+                            ? formatStoredTime(todayAttendance.check_in)
                             : "—"}
                         </span>
                       </div>
@@ -232,7 +232,7 @@ export default function MyAttendance() {
                         <span>Out:</span>
                         <span className="font-medium text-foreground">
                           {todayAttendance.check_out
-                            ? format(new Date(todayAttendance.check_out), "HH:mm")
+                            ? formatStoredTime(todayAttendance.check_out)
                             : "—"}
                         </span>
                       </div>
