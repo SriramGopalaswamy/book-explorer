@@ -341,6 +341,14 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     .eq("organization_id", orgId).limit(10);
   const profileList = profiles ?? [];
 
+  if (profileList.length === 0) {
+    results.push({
+      workflow: "HR Profile Check", module: "HR", status: "failed",
+      detail: "No employee profiles found in sandbox org — Attendance, Leave, Payroll, Reimbursement & Performance workflows require at least 1 profile. Add employees via onboarding or sandbox join.",
+      duration_ms: 0,
+    });
+  }
+
   // ===== FINANCE WORKFLOWS =====
 
   // WF1: Create invoices
