@@ -78,6 +78,11 @@ import {
   useReviewChangeRequest,
   type ProfileChangeRequest,
 } from "@/hooks/useProfileChangeRequests";
+import {
+  useCompensationRevisionRequests,
+  useReviewRevisionRequest,
+  type CompensationRevisionRequest,
+} from "@/hooks/useCompensationRevisions";
 
 // ─── Profile Change Request hooks ─────────────────────────────────────────────
 
