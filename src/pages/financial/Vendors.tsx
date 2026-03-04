@@ -197,7 +197,7 @@ export default function Vendors() {
           <StatCard title="Total Vendors" value={String(vendors.length)} icon={<Truck className="h-4 w-4" />} />
           <StatCard title="Active" value={String(vendors.filter((v) => v.status === "active").length)} icon={<Building2 className="h-4 w-4" />} />
           <StatCard title="Inactive" value={String(vendors.filter((v) => v.status !== "active").length)} icon={<Building2 className="h-4 w-4" />} />
-          <StatCard title="Countries" value={String(new Set(vendors.map((v) => v.country).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
+          <StatCard title="Countries" value={String(new Set(vendors.map((v) => v.country?.trim().toLowerCase()).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
