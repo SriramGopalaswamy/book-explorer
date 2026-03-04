@@ -872,6 +872,7 @@ export default function Payroll() {
                             <TableHead className="text-right">Basic</TableHead>
                             <TableHead className="text-right">Allowances</TableHead>
                             <TableHead className="text-right">Deductions</TableHead>
+                            <TableHead className="text-right">LOP</TableHead>
                             <TableHead className="text-right">Net Pay</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-10"></TableHead>
