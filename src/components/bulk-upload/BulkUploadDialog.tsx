@@ -245,38 +245,50 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     setUploading(true);
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      const result = await config.onUpload(validRows);
+      let result: { success: number; errors: string[]; created?: number; updated?: number };
+      
+      try {
+        result = await config.onUpload(validRows);
+      } catch (uploadErr: any) {
+        console.error("[BulkUpload] onUpload threw:", uploadErr);
+        result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+      }
 
-      // Log to bulk_upload_history
+      // Always log to bulk_upload_history, even on partial/full failure
       if (user) {
-        // Fetch user's organization_id for correct tenant isolation
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("organization_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
 
-        const orgId = profile?.organization_id || "00000000-0000-0000-0000-000000000001";
+          const orgId = profile?.organization_id || "00000000-0000-0000-0000-000000000001";
 
-        const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
-          module: config.module,
-          file_name: fileName,
-          total_rows: parsedRows.length,
-          successful_rows: result.success,
-          failed_rows: result.errors.length + errorCount,
-          errors: result.errors.slice(0, 50),
-          uploaded_by: user.id,
-          organization_id: orgId,
-        });
-        if (historyErr) {
-          console.error("Failed to log upload history:", historyErr.message);
+          const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
+            module: config.module,
+            file_name: fileName,
+            total_rows: parsedRows.length,
+            successful_rows: result.success,
+            failed_rows: result.errors.length + errorCount,
+            errors: result.errors.slice(0, 50),
+            uploaded_by: user.id,
+            organization_id: orgId,
+          });
+          if (historyErr) {
+            console.error("[BulkUpload] Failed to log upload history:", historyErr.message, historyErr);
+          }
+        } catch (histErr: any) {
+          console.error("[BulkUpload] History insert exception:", histErr);
         }
         qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
       }
 
       setUploadSummary(result);
 
-      if (result.errors.length > 0) {
+      if (result.success === 0 && result.errors.length > 0) {
+        toast.error(`Upload failed: ${result.errors.length} error(s)`);
+      } else if (result.errors.length > 0) {
         toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
       } else {
         toast.success(`Successfully uploaded ${result.success} rows`);
