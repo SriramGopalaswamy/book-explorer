@@ -36,6 +36,17 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
+
+// Display bulk-uploaded times correctly — they are stored as UTC representing local clock times
+const formatStoredTime = (timestamp: string | null): string => {
+  if (!timestamp) return "—";
+  const d = new Date(timestamp);
+  const hours = d.getUTCHours();
+  const minutes = d.getUTCMinutes();
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const h12 = hours % 12 || 12;
+  return `${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`;
+};
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -212,7 +223,7 @@ export default function MyAttendance() {
                         <span>In:</span>
                         <span className="font-medium text-foreground">
                           {todayAttendance.check_in
-                            ? format(new Date(todayAttendance.check_in), "HH:mm")
+                            ? formatStoredTime(todayAttendance.check_in)
                             : "—"}
                         </span>
                       </div>
@@ -221,7 +232,7 @@ export default function MyAttendance() {
                         <span>Out:</span>
                         <span className="font-medium text-foreground">
                           {todayAttendance.check_out
-                            ? format(new Date(todayAttendance.check_out), "HH:mm")
+                            ? formatStoredTime(todayAttendance.check_out)
                             : "—"}
                         </span>
                       </div>
@@ -304,10 +315,10 @@ export default function MyAttendance() {
                               {format(new Date(rec.date), "EEE, MMM d")}
                             </TableCell>
                             <TableCell>
-                              {rec.check_in ? format(new Date(rec.check_in), "HH:mm") : "—"}
+                              {formatStoredTime(rec.check_in)}
                             </TableCell>
                             <TableCell>
-                              {rec.check_out ? format(new Date(rec.check_out), "HH:mm") : "—"}
+                              {formatStoredTime(rec.check_out)}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">{duration}</TableCell>
                             <TableCell>
