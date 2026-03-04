@@ -158,11 +158,11 @@ export default function PlatformSimulation() {
 
   const actions = [
     { key: "reset_and_seed", label: "Reset Sandbox", icon: RotateCcw, variant: "outline" as const, desc: "Clear data & seed fresh master data" },
-    { key: "run_workflows", label: "Run Workflows", icon: Play, variant: "outline" as const, desc: "Execute accounting workflow library" },
-    { key: "run_stress_test", label: "Stress Test", icon: Zap, variant: "outline" as const, desc: "20 concurrent users simulation" },
-    { key: "run_chaos_test", label: "Chaos Test", icon: Bug, variant: "outline" as const, desc: "Duplicate/invalid data scenarios" },
-    { key: "run_validation", label: "Validate Integrity", icon: Shield, variant: "outline" as const, desc: "Full accounting integrity check" },
-    { key: "run_full_simulation", label: "Run Full Simulation", icon: FlaskConical, variant: "default" as const, desc: "Complete end-to-end simulation" },
+    { key: "run_workflows", label: "Run Workflows", icon: Play, variant: "outline" as const, desc: "Finance, HR, Payroll, Leave, Attendance" },
+    { key: "run_stress_test", label: "Stress Test", icon: Zap, variant: "outline" as const, desc: "20 concurrent users across all modules" },
+    { key: "run_chaos_test", label: "Chaos Test", icon: Bug, variant: "outline" as const, desc: "Invalid data across all modules" },
+    { key: "run_validation", label: "Validate Integrity", icon: Shield, variant: "outline" as const, desc: "Full system integrity check" },
+    { key: "run_full_simulation", label: "Run Full Simulation", icon: FlaskConical, variant: "default" as const, desc: "Complete end-to-end all-module simulation" },
   ];
 
   return (
