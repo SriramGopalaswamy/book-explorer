@@ -42,6 +42,7 @@ type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [isMsLoading, setIsMsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
