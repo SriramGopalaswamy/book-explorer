@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil, Filter, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,11 +37,36 @@ interface CreditNote {
 
 const formatCurrency = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${n.toLocaleString("en-IN")}`;
 
+// Valid status transitions: current → allowed next statuses
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  draft:   ["issued", "void"],
+  issued:  ["applied", "void"],
+  applied: [],       // terminal
+  void:    [],       // terminal
+};
+
+// Statuses allowed when creating new records
+const CREATE_STATUSES = ["draft", "issued"];
+
+// For edit dialog: allowed statuses based on current
+const getEditStatuses = (current: string): string[] => {
+  const transitions = ALLOWED_TRANSITIONS[current] || [];
+  return [current, ...transitions];
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground border-border",
+  issued: "bg-blue-500/15 text-blue-500 border-blue-500/30",
+  applied: "bg-green-500/15 text-green-500 border-green-500/30",
+  void: "bg-destructive/15 text-destructive border-destructive/30",
+};
+
 export default function CreditNotes() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCreditNote, setEditingCreditNote] = useState<CreditNote | null>(null);
@@ -114,6 +139,15 @@ export default function CreditNotes() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const handleStatusChange = (cn: CreditNote, newStatus: string) => {
+    const allowed = ALLOWED_TRANSITIONS[cn.status] || [];
+    if (!allowed.includes(newStatus)) {
+      toast({ title: "Invalid Transition", description: `Cannot change from "${cn.status}" to "${newStatus}".`, variant: "destructive" });
+      return;
+    }
+    statusMutation.mutate({ id: cn.id, status: newStatus });
+  };
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingCreditNote) throw new Error("No credit note selected");
@@ -153,8 +187,14 @@ export default function CreditNotes() {
     setIsEditDialogOpen(true);
   };
 
-  const filtered = creditNotes.filter((cn) => cn.client_name.toLowerCase().includes(search.toLowerCase()) || cn.credit_note_number.toLowerCase().includes(search.toLowerCase()));
+  const filtered = creditNotes.filter((cn) => {
+    const matchesSearch = cn.client_name.toLowerCase().includes(search.toLowerCase()) || cn.credit_note_number.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || cn.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
   const pagination = usePagination(filtered, 10);
+
+  const hasActiveFilters = search || statusFilter !== "all";
 
   if (isCheckingRole) return <MainLayout title="Credit Notes"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
   if (!hasFinanceAccess) return <AccessDenied />;
@@ -162,16 +202,37 @@ export default function CreditNotes() {
   return (
     <MainLayout title="Credit Notes" subtitle="Issue credit notes against registered customers">
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="Total Credit Notes" value={String(creditNotes.length)} icon={<FileX className="h-4 w-4" />} />
           <StatCard title="Draft" value={String(creditNotes.filter((cn) => cn.status === "draft").length)} icon={<FileX className="h-4 w-4" />} />
+          <StatCard title="Issued" value={String(creditNotes.filter((cn) => cn.status === "issued").length)} icon={<FileX className="h-4 w-4" />} />
           <StatCard title="Total Value" value={formatCurrency(creditNotes.reduce((s, cn) => s + Number(cn.amount), 0))} icon={<FileX className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search credit notes..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search credit notes..." value={search} onChange={(e) => { setSearch(e.target.value); pagination.setPage(1); }} />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); pagination.setPage(1); }}>
+              <SelectTrigger className="w-[140px] h-9 text-sm">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="issued">Issued</SelectItem>
+                <SelectItem value="applied">Applied</SelectItem>
+                <SelectItem value="void">Void</SelectItem>
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("all"); pagination.setPage(1); }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+            )}
           </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Credit Note</Button></DialogTrigger>
@@ -197,10 +258,9 @@ export default function CreditNotes() {
                   <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="issued">Issued</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="applied">Applied</SelectItem>
-                      <SelectItem value="void">Void</SelectItem>
+                      {CREATE_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -227,29 +287,39 @@ export default function CreditNotes() {
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
               ) : pagination.paginatedItems.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No credit notes yet.</TableCell></TableRow>
-              ) : pagination.paginatedItems.map((cn) => (
-                <TableRow key={cn.id}>
-                  <TableCell className="font-mono text-sm">{cn.credit_note_number}</TableCell>
-                  <TableCell className="font-medium">{cn.client_name}</TableCell>
-                  <TableCell className="font-semibold">{formatCurrency(cn.amount)}</TableCell>
-                  <TableCell className="text-sm">{new Date(cn.issue_date).toLocaleDateString("en-IN")}</TableCell>
-                  <TableCell><Badge variant="outline">{cn.status}</Badge></TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
-                        {cn.status !== "issued" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "issued" })}>Mark as Issued</DropdownMenuItem>}
-                        {cn.status !== "applied" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "applied" })}>Mark as Applied</DropdownMenuItem>}
-                        {cn.status !== "void" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "void" })}>Mark as Void</DropdownMenuItem>}
-                        {cn.status !== "draft" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: cn.id, status: "draft" })}>Revert to Draft</DropdownMenuItem>}
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(cn.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  {hasActiveFilters ? "No credit notes match your filters." : "No credit notes yet."}
+                </TableCell></TableRow>
+              ) : pagination.paginatedItems.map((cn) => {
+                const allowedNext = ALLOWED_TRANSITIONS[cn.status] || [];
+                return (
+                  <TableRow key={cn.id}>
+                    <TableCell className="font-mono text-sm">{cn.credit_note_number}</TableCell>
+                    <TableCell className="font-medium">{cn.client_name}</TableCell>
+                    <TableCell className="font-semibold">{formatCurrency(cn.amount)}</TableCell>
+                    <TableCell className="text-sm">{new Date(cn.issue_date).toLocaleDateString("en-IN")}</TableCell>
+                    <TableCell><Badge variant="outline" className={STATUS_COLORS[cn.status] || ""}>{cn.status.charAt(0).toUpperCase() + cn.status.slice(1)}</Badge></TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {cn.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
+                          )}
+                          {allowedNext.map((s) => (
+                            <DropdownMenuItem key={s} onClick={() => handleStatusChange(cn, s)}>
+                              Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
+                            </DropdownMenuItem>
+                          ))}
+                          {cn.status === "draft" && (
+                            <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(cn.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           <div className="p-4">
@@ -257,7 +327,7 @@ export default function CreditNotes() {
           </div>
         </div>
 
-        {/* Edit Dialog */}
+        {/* Edit Dialog — only for draft status */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingCreditNote(null); }}>
           <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>Edit Credit Note</DialogTitle></DialogHeader>
@@ -281,10 +351,9 @@ export default function CreditNotes() {
                 <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="issued">Issued</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="applied">Applied</SelectItem>
-                    <SelectItem value="void">Void</SelectItem>
+                    {getEditStatuses(editingCreditNote?.status || "draft").map((s) => (
+                      <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
