@@ -305,8 +305,8 @@ export default function CreditNotes() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(cn)}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
+                          <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setViewingCreditNote(cn); setIsViewDialogOpen(true); }}><Eye className="h-4 w-4 mr-2" />View Details</DropdownMenuItem>
                           {cn.status === "draft" && (
                             <DropdownMenuItem onClick={() => handleEdit(cn)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                           )}
