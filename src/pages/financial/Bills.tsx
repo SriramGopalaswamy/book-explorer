@@ -995,10 +995,11 @@ export default function Bills() {
                 <Select
                   value={form.tds_section}
                   onValueChange={(v) => {
-                    const section = TDS_SECTIONS.find((s) => s.code === v);
+                    const actualCode = v === "none" ? "" : v;
+                    const section = TDS_SECTIONS.find((s) => s.code === actualCode);
                     setForm((p) => ({
                       ...p,
-                      tds_section: v,
+                      tds_section: actualCode,
                       tds_rate: section ? String(section.rate) : "",
                     }));
                   }}
