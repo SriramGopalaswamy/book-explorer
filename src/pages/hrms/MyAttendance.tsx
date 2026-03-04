@@ -315,10 +315,10 @@ export default function MyAttendance() {
                               {format(new Date(rec.date), "EEE, MMM d")}
                             </TableCell>
                             <TableCell>
-                              {rec.check_in ? format(new Date(rec.check_in), "HH:mm") : "—"}
+                              {formatStoredTime(rec.check_in)}
                             </TableCell>
                             <TableCell>
-                              {rec.check_out ? format(new Date(rec.check_out), "HH:mm") : "—"}
+                              {formatStoredTime(rec.check_out)}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">{duration}</TableCell>
                             <TableCell>
