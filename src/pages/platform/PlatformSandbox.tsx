@@ -93,6 +93,7 @@ export default function PlatformSandbox() {
 
   const [newSandboxName, setNewSandboxName] = useState("");
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [activeImpersonation, setActiveImpersonation] = useState<{
     orgId: string;
     orgName: string;
@@ -102,6 +103,23 @@ export default function PlatformSandbox() {
 
   const { data: sandboxOrgs, isLoading: orgsLoading } = useSandboxOrgs();
   const { data: sandboxUsers, isLoading: usersLoading } = useSandboxUsers(selectedOrg);
+
+  // Fetch invite links for selected org
+  const { data: inviteLinks } = useQuery({
+    queryKey: ["sandbox-invite-links", selectedOrg],
+    queryFn: async () => {
+      if (!selectedOrg) return [];
+      const { data, error } = await supabase
+        .from("sandbox_invite_links" as any)
+        .select("*")
+        .eq("sandbox_org_id", selectedOrg)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!selectedOrg,
+  });
 
   // Create sandbox org
   const createSandbox = useMutation({
