@@ -49,7 +49,6 @@ import {
 } from "lucide-react";
 import { useFinancialRecords, useAddFinancialRecord, useUpdateFinancialRecord, useDeleteFinancialRecord, type FinancialRecord } from "@/hooks/useFinancialData";
 import { financialRecordSchema } from "@/lib/validation-schemas";
-import { financialRecordSchema } from "@/lib/validation-schemas";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useIsFinance } from "@/hooks/useRoles";
