@@ -68,6 +68,7 @@ export default function VendorCredits() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCredit, setEditingCredit] = useState<VendorCredit | null>(null);
+  const [viewingCredit, setViewingCredit] = useState<VendorCredit | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [editVendorId, setEditVendorId] = useState("");
   const [form, setForm] = useState({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
