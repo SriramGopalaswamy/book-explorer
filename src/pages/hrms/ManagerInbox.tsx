@@ -1406,8 +1406,33 @@ function PendingHRDisputes() {
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Department</p>
                         <p className="font-medium">{payslipData.profiles?.department || "—"}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Designation</p>
+                        <p className="font-medium">{payslipData.profiles?.job_title || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <Badge variant="outline" className="text-xs capitalize">{payslipData.status}</Badge>
+                      </div>
+                      {Number(payslipData.working_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Working Days</p>
+                          <p className="font-medium">{payslipData.working_days}</p>
+                        </div>
+                      )}
+                      {Number(payslipData.paid_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Days</p>
+                          <p className="font-medium">
+                            {payslipData.paid_days}
+                            {Number(payslipData.lop_days) > 0 && <span className="text-amber-500 ml-1">(LOP: {payslipData.lop_days})</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Earnings */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Earnings</h5>
                         <div className="space-y-1 text-sm">
@@ -1422,8 +1447,16 @@ function PendingHRDisputes() {
                               <span className="font-medium">{fmtCurrency(e.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-green-600">
+                            <span>Total Earnings</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.basic_salary) + Number(payslipData.hra) +
+                              Number(payslipData.transport_allowance) + Number(payslipData.other_allowances)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
+                      {/* Deductions */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Deductions</h5>
                         <div className="space-y-1 text-sm">
@@ -1431,15 +1464,25 @@ function PendingHRDisputes() {
                             { label: "PF", amount: Number(payslipData.pf_deduction) },
                             { label: "TDS", amount: Number(payslipData.tax_deduction) },
                             { label: "Other", amount: Number(payslipData.other_deductions) },
+                            ...(Number(payslipData.lop_deduction) > 0 ? [{ label: `LOP (${payslipData.lop_days}d)`, amount: Number(payslipData.lop_deduction) }] : []),
                           ].filter(d => d.amount > 0).map(d => (
                             <div key={d.label} className="flex justify-between">
                               <span className="text-muted-foreground">{d.label}</span>
                               <span className="font-medium">{fmtCurrency(d.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-destructive">
+                            <span>Total Deductions</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.pf_deduction) + Number(payslipData.tax_deduction) +
+                              Number(payslipData.other_deductions) + (Number(payslipData.lop_deduction) || 0)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Net Pay */}
                     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex justify-between items-center">
                       <span className="font-semibold">Net Pay</span>
                       <span className="text-xl font-bold text-primary">{fmtCurrency(Number(payslipData.net_pay))}</span>
@@ -1677,8 +1720,33 @@ function PendingFinanceDisputes() {
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Department</p>
                         <p className="font-medium">{payslipData.profiles?.department || "—"}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Designation</p>
+                        <p className="font-medium">{payslipData.profiles?.job_title || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <Badge variant="outline" className="text-xs capitalize">{payslipData.status}</Badge>
+                      </div>
+                      {Number(payslipData.working_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Working Days</p>
+                          <p className="font-medium">{payslipData.working_days}</p>
+                        </div>
+                      )}
+                      {Number(payslipData.paid_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Days</p>
+                          <p className="font-medium">
+                            {payslipData.paid_days}
+                            {Number(payslipData.lop_days) > 0 && <span className="text-amber-500 ml-1">(LOP: {payslipData.lop_days})</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Earnings */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Earnings</h5>
                         <div className="space-y-1 text-sm">
@@ -1693,8 +1761,16 @@ function PendingFinanceDisputes() {
                               <span className="font-medium">{fmtCurrency(e.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-green-600">
+                            <span>Total Earnings</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.basic_salary) + Number(payslipData.hra) +
+                              Number(payslipData.transport_allowance) + Number(payslipData.other_allowances)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
+                      {/* Deductions */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Deductions</h5>
                         <div className="space-y-1 text-sm">
@@ -1702,15 +1778,25 @@ function PendingFinanceDisputes() {
                             { label: "PF", amount: Number(payslipData.pf_deduction) },
                             { label: "TDS", amount: Number(payslipData.tax_deduction) },
                             { label: "Other", amount: Number(payslipData.other_deductions) },
+                            ...(Number(payslipData.lop_deduction) > 0 ? [{ label: `LOP (${payslipData.lop_days}d)`, amount: Number(payslipData.lop_deduction) }] : []),
                           ].filter(d => d.amount > 0).map(d => (
                             <div key={d.label} className="flex justify-between">
                               <span className="text-muted-foreground">{d.label}</span>
                               <span className="font-medium">{fmtCurrency(d.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-destructive">
+                            <span>Total Deductions</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.pf_deduction) + Number(payslipData.tax_deduction) +
+                              Number(payslipData.other_deductions) + (Number(payslipData.lop_deduction) || 0)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Net Pay */}
                     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex justify-between items-center">
                       <span className="font-semibold">Net Pay</span>
                       <span className="text-xl font-bold text-primary">{fmtCurrency(Number(payslipData.net_pay))}</span>
