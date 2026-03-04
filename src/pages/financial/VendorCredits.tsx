@@ -276,7 +276,7 @@ export default function VendorCredits() {
               <TableRow>
                 <TableHead>Credit #</TableHead><TableHead>Vendor</TableHead>
                 <TableHead>Amount</TableHead><TableHead>Issue Date</TableHead>
-                <TableHead>Status</TableHead><TableHead className="w-12"></TableHead>
+                <TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
