@@ -48,7 +48,7 @@ export default function Customers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string }>({});
+  const [errors, setErrors] = useState<{ phone?: string; tax_number?: string; email?: string }>({});
 
   // Auto-set country code when country changes
   useEffect(() => {
@@ -68,11 +68,19 @@ export default function Customers() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      const taxErr = validateTaxNumber(form.tax_number, form.country);
-      if (taxErr) newErrors.tax_number = taxErr;
+      // Check 12-char alphanumeric rule
+      if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) {
+        newErrors.tax_number = "Must be exactly 12 alphanumeric characters";
+      } else {
+        const taxErr = validateTaxNumber(form.tax_number, form.country);
+        if (taxErr) newErrors.tax_number = taxErr;
+      }
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      newErrors.email = "Invalid email format";
     }
     setErrors(newErrors);
-  }, [form.phone, form.tax_number, form.country]);
+  }, [form.phone, form.tax_number, form.country, form.email]);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", user?.id],
@@ -154,9 +162,23 @@ export default function Customers() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) return toast({ title: "Validation Error", description: "Customer name is required.", variant: "destructive" });
+    if (!form.email.trim()) return toast({ title: "Validation Error", description: "Email is required.", variant: "destructive" });
     
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email.trim())) return toast({ title: "Validation Error", description: "Please enter a valid email address.", variant: "destructive" });
+    
+    if (!form.phone.trim()) return toast({ title: "Validation Error", description: "Phone number is required.", variant: "destructive" });
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
+    
+    if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "GST / Tax Number is required.", variant: "destructive" });
+    
+    // GST validation: must be exactly 12 alphanumeric characters (user requirement)
+    const gstRaw = form.tax_number.trim();
+    if (!/^[A-Za-z0-9]{12}$/.test(gstRaw)) {
+      return toast({ title: "Invalid GST Number", description: "GST Number must be exactly 12 alphanumeric characters.", variant: "destructive" });
+    }
     
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
@@ -176,9 +198,13 @@ export default function Customers() {
     <div className="grid gap-4 py-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2"><Label>Customer Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Acme Corp" /></div>
-        <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" /></div>
         <div>
-          <Label>Phone {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
+          <Label>Email *</Label>
+          <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="billing@acme.com" />
+          {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+        </div>
+        <div>
+          <Label>Phone * {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
           <Input
             value={form.phone}
             onChange={(e) => {
@@ -203,7 +229,7 @@ export default function Customers() {
         </div>
         <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
         <div>
-          <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"}</Label>
+          <Label>{taxConfig ? taxConfig.label : "GST / Tax Number"} *</Label>
           <Input
             value={form.tax_number}
             onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
