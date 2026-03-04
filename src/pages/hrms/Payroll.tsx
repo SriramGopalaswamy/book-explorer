@@ -439,7 +439,24 @@ export default function Payroll() {
         </div>
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-amber-600">Loss of Pay (LOP)</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-amber-600">Loss of Pay (LOP)</p>
+          {autoCalc.isLoading && form.profile_id && (
+            <span className="text-xs text-muted-foreground animate-pulse">Calculating…</span>
+          )}
+        </div>
+        {!autoCalc.isLoading && form.profile_id && autoCalc.workingDays > 0 && (
+          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+            <p>{autoCalc.totalCalendarDays} calendar days − {autoCalc.weekendDays} weekends − {autoCalc.holidays} holidays = <strong className="text-foreground">{autoCalc.workingDays} working days</strong></p>
+            {autoCalc.lopBreakdown.length > 0 ? (
+              autoCalc.lopBreakdown.map((b, i) => (
+                <p key={i}>{b.type}: <strong className="text-foreground">{b.days} day{b.days !== 1 ? "s" : ""}</strong></p>
+              ))
+            ) : (
+              <p>No LOP leaves found for this period</p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1">
             <Label className="text-xs">Working Days</Label>
