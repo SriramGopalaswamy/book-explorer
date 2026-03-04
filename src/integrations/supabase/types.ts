@@ -5879,6 +5879,47 @@ export type Database = {
           },
         ]
       }
+      sandbox_invite_links: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          sandbox_org_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          sandbox_org_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          sandbox_org_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sandbox_invite_links_sandbox_org_id_fkey"
+            columns: ["sandbox_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sandbox_users: {
         Row: {
           created_at: string
@@ -6819,6 +6860,10 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      join_sandbox_via_token: {
+        Args: { _sandbox_user_id: string; _token: string }
+        Returns: Json
+      }
       next_document_sequence: {
         Args: { _doc_type: string; _org_id: string }
         Returns: string
