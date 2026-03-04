@@ -16,6 +16,8 @@ import {
   FileText,
   Eye,
   ExternalLink,
+  Search,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -96,6 +98,11 @@ export default function Reimbursements() {
   });
   const [aiExtracted, setAiExtracted] = useState(false);
   const [aiRawData, setAiRawData] = useState<any>(null);
+
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Fetch own reimbursements
   const { data: requests = [], isLoading } = useQuery({
@@ -358,7 +365,7 @@ export default function Reimbursements() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {requests.map((item: any, i: number) => {
+            {filteredRequests.map((item: any, i: number) => {
               const sc = statusConfig(item.status);
               const Icon = sc.icon;
               return (
