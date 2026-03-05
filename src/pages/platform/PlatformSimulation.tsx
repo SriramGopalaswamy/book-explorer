@@ -304,18 +304,82 @@ export default function PlatformSimulation() {
                 ))}
               </div>
 
-              {/* Progress */}
-              {isRunning && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Running: {PHASE_LABELS[activePhase ?? ""]?.label ?? activePhase}
-                    </span>
-                  </div>
-                  <Progress value={phaseProgress} className="h-2" />
-                </div>
-              )}
+              {/* Progress Tracker */}
+              <AnimatePresence>
+                {isRunning && activePhase && SIMULATION_PHASES[activePhase] && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-6 rounded-xl border border-border bg-muted/30 overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-5 w-5">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        </div>
+                        <span className="font-semibold text-sm text-foreground">
+                          {PHASE_LABELS[activePhase]?.label ?? activePhase}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="font-mono text-xs tabular-nums">
+                          {(elapsedMs / 1000).toFixed(1)}s
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          Step {currentStep + 1} / {SIMULATION_PHASES[activePhase].steps.length}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Overall progress bar */}
+                    <div className="px-5 pt-3">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-primary"
+                          initial={{ width: "0%" }}
+                          animate={{
+                            width: `${((currentStep + 1) / SIMULATION_PHASES[activePhase].steps.length) * 100}%`,
+                          }}
+                          transition={{ duration: 0.6, ease: "easeInOut" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step list */}
+                    <div className="px-5 py-3 space-y-1.5">
+                      {SIMULATION_PHASES[activePhase].steps.map((step, idx) => {
+                        const isCompleted = completedSteps.includes(idx);
+                        const isCurrent = idx === currentStep;
+                        const isPending = !isCompleted && !isCurrent;
+                        return (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`flex items-center gap-3 py-1.5 px-3 rounded-md text-sm transition-colors ${
+                              isCurrent ? "bg-primary/10 text-foreground" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/40"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                            ) : isCurrent ? (
+                              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                            ) : (
+                              <div className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/20" />
+                            )}
+                            <span className={`${isCurrent ? "font-medium" : ""}`}>
+                              {step}
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
 
