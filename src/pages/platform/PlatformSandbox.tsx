@@ -26,6 +26,15 @@ import {
   Link2,
   Copy,
   Check,
+  Database,
+  FileText,
+  Receipt,
+  UserCheck,
+  CalendarDays,
+  Briefcase,
+  Target,
+  Landmark,
+  Package,
 } from "lucide-react";
 
 interface SandboxOrg {
