@@ -811,6 +811,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 // ========== WORKFLOW SIMULATION ==========
 async function runWorkflowSimulation(client: any, orgId: string, userId: string, runId?: string) {
   const startTime = Date.now();
+  const today = new Date();
   const results: Array<{ workflow: string; module: string; status: string; detail: string; duration_ms: number }> = [];
 
   // Get profiles in this org for HR workflows
