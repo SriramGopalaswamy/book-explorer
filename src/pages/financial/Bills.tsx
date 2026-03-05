@@ -955,8 +955,9 @@ export default function Bills() {
                 <Label>Vendor GST / Tax Number</Label>
                 <Input
                   value={form.vendor_tax_number}
-                  onChange={(e) => setForm((p) => ({ ...p, vendor_tax_number: e.target.value }))}
-                  placeholder="e.g. 22ABCDE1234F1Z5"
+                  onChange={(e) => setForm((p) => ({ ...p, vendor_tax_number: e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) }))}
+                  placeholder="e.g. ABCDE1234F12"
+                  maxLength={12}
                 />
               </div>
 
