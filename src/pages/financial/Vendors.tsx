@@ -192,8 +192,9 @@ export default function Vendors() {
           <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"} <span className="text-destructive">*</span></Label>
           <Input
             value={form.tax_number}
-            onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+            onChange={(e) => setForm({ ...form, tax_number: e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })}
             placeholder={taxConfig?.placeholder || "Tax ID"}
+            maxLength={12}
           />
           {errors.tax_number && <p className="text-xs text-destructive mt-1">{errors.tax_number}</p>}
         </div>
