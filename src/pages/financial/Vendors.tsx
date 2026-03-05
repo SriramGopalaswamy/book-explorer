@@ -70,8 +70,12 @@ export default function Vendors() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      const taxErr = validateTaxNumber(form.tax_number, form.country);
-      if (taxErr) newErrors.tax_number = taxErr;
+      if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) {
+        newErrors.tax_number = "Must be exactly 12 alphanumeric characters";
+      } else {
+        const taxErr = validateTaxNumber(form.tax_number, form.country);
+        if (taxErr) newErrors.tax_number = taxErr;
+      }
     }
     setErrors(newErrors);
   }, [form.email, form.phone, form.tax_number, form.country]);
