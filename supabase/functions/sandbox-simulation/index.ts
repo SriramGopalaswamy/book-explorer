@@ -1893,8 +1893,8 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           organization_id: orgId, created_by: userId,
           entry_date: "2025-04-01",
           memo: "Opening balance: Share capital + Retained earnings",
-          status: "draft", source_type: "opening_balance",
-          is_posted: false,
+          status: "posted", source_type: "opening_balance",
+          is_posted: true,
         }).select("id").single();
         if (obJE) {
           await client.from("journal_lines").insert([
@@ -1902,8 +1902,6 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
             { journal_entry_id: obJE.id, gl_account_id: capitalAcct.id, debit: 0, credit: 500000, description: "Share capital" },
             { journal_entry_id: obJE.id, gl_account_id: retainedAcct.id, debit: 0, credit: 500000, description: "Retained earnings" },
           ]);
-          // Post after lines are inserted so balance trigger validates correctly
-          await client.from("journal_entries").update({ is_posted: true, status: "posted" }).eq("id", obJE.id);
         }
         results.push({
           workflow: "CFO: Opening balance equity entry", module: "Finance",
