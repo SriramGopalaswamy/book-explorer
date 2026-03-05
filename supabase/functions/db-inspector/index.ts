@@ -100,6 +100,24 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Generate SQL dump
+    if (action === "dump") {
+      const tables = data.tables || [];
+      const relations = data.relations || [];
+
+      // Generate DDL from introspection data
+      const sqlDump = await generateSqlDump(adminClient, tables, relations);
+
+      return new Response(sqlDump, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/sql",
+          "Content-Disposition": `attachment; filename="db-dump-${new Date().toISOString().slice(0, 10)}.sql"`,
+        },
+      });
+    }
+
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
