@@ -544,6 +544,47 @@ export default function PlatformSandbox() {
               </CardContent>
             </Card>
 
+            {/* Seeding Summary */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Seeding Summary
+                </CardTitle>
+                <CardDescription>
+                  Data seeded into this sandbox tenant across all modules.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {seedingLoading ? (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !seedingSummary?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No seeding data found. Run a simulation to populate this sandbox.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {seedingSummary.map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="flex items-center gap-2.5 p-3 rounded-lg border border-border bg-muted/30"
+                      >
+                        <div className="text-muted-foreground shrink-0">{stat.icon}</div>
+                        <div className="min-w-0">
+                          <p className="text-lg font-semibold text-foreground leading-tight">
+                            {stat.count !== null ? stat.count : "—"}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Shareable Link Section */}
             {selectedOrg && (
               <Card className="mt-4">
