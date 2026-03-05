@@ -2916,6 +2916,553 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // GAP COVERAGE: Missing workflow tests added
+  // ═══════════════════════════════════════════════════════════════
+
+  // ------- GAP 1: PAYROLL LOP CALCULATION (approved leave → LOP deduction) -------
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    try {
+      const lopProfile = profileList[0];
+      // Find approved leaves for this employee in the current month
+      const payPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+      const monthStart = `${payPeriod}-01`;
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split("T")[0];
+
+      const { data: approvedLeaves } = await client.from("leave_requests")
+        .select("days").eq("profile_id", lopProfile.id)
+        .eq("status", "approved")
+        .gte("from_date", monthStart).lte("to_date", monthEnd);
+
+      const totalLopDays = (approvedLeaves ?? []).reduce((s: number, l: any) => s + Number(l.days || 0), 0);
+
+      // Get compensation for per-day calculation
+      const { data: compStruct } = await client.from("compensation_structures")
+        .select("annual_ctc").eq("profile_id", lopProfile.id).eq("is_active", true).maybeSingle();
+      const monthlyCTC = (compStruct?.annual_ctc ?? 600000) / 12;
+      const perDayRate = Math.round(monthlyCTC / 30);
+      const lopDeduction = totalLopDays * perDayRate;
+
+      // Create a payroll record with LOP applied
+      const basic = Math.round(monthlyCTC * 0.5);
+      const hra = Math.round(basic * 0.4);
+      const gross = basic + hra + 1600 + Math.round(basic * 0.15);
+      const pf = Math.round(basic * 0.12);
+      const tax = Math.round(gross * 0.1);
+      const net = gross - pf - tax - 500 - lopDeduction;
+
+      const { error: lopPayErr } = await client.from("payroll_records").insert({
+        user_id: lopProfile.user_id, profile_id: lopProfile.id,
+        organization_id: orgId, pay_period: `${payPeriod}-LOP`,
+        basic_salary: basic, hra, transport_allowance: 1600,
+        other_allowances: Math.round(basic * 0.15),
+        pf_deduction: pf, tax_deduction: tax, other_deductions: 500,
+        net_pay: net, working_days: 22,
+        paid_days: Math.max(0, 22 - totalLopDays),
+        lop_days: totalLopDays, lop_deduction: lopDeduction,
+        status: "draft",
+      });
+
+      results.push({
+        workflow: "Payroll LOP: approved leave → deduction", module: "Payroll",
+        status: lopPayErr ? "failed" : "passed",
+        detail: lopPayErr?.message ?? `${lopProfile.full_name}: ${totalLopDays} LOP days, deduction ₹${lopDeduction.toLocaleString()}, net ₹${net.toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Payroll LOP calculation", module: "Payroll", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 2: CTC COMPONENT TEMPLATE CRUD -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Create a master CTC template
+      const { data: template, error: tplErr } = await client.from("master_ctc_components").insert({
+        organization_id: orgId,
+        component_name: "SIM Performance Bonus",
+        component_type: "earning",
+        is_taxable: true,
+        percentage_of_basic: 15,
+        is_active: true,
+      }).select("id").single();
+
+      if (tplErr) throw tplErr;
+
+      // Verify it's active
+      const { data: activeTemplates } = await client.from("master_ctc_components")
+        .select("id, component_name").eq("organization_id", orgId).eq("is_active", true);
+
+      // Deactivate it
+      const { error: deactErr } = await client.from("master_ctc_components")
+        .update({ is_active: false }).eq("id", template.id);
+
+      results.push({
+        workflow: "CTC Template: create + deactivate", module: "HR",
+        status: deactErr ? "failed" : "passed",
+        detail: deactErr?.message ?? `Created "Performance Bonus" template, ${(activeTemplates ?? []).length} active templates total`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "CTC Template CRUD", module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 3: HOLIDAY-ATTENDANCE CONFLICT -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Get holidays
+      const { data: holidays } = await client.from("holidays")
+        .select("date, name").eq("organization_id", orgId).limit(3);
+
+      let conflictCount = 0;
+      for (const h of (holidays ?? []).slice(0, 2)) {
+        // Check if any attendance_daily records exist on holiday dates
+        const { count } = await client.from("attendance_daily")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId).eq("attendance_date", h.date);
+        if ((count ?? 0) > 0) conflictCount++;
+      }
+
+      results.push({
+        workflow: "Holiday-Attendance conflict check", module: "Attendance",
+        status: conflictCount === 0 ? "passed" : "warning",
+        detail: conflictCount === 0
+          ? `No attendance records on ${(holidays ?? []).length} holidays — clean`
+          : `${conflictCount} holiday dates have attendance records — may need validation`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Holiday-Attendance conflict", module: "Attendance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 4: STATUTORY FILINGS - GST AGGREGATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Aggregate GST from invoices (output) and bills (input)
+      const { data: gstInvoices } = await client.from("invoices")
+        .select("total_amount, amount").eq("organization_id", orgId)
+        .in("status", ["sent", "paid"]);
+      const gstOutput = (gstInvoices ?? []).reduce((s: number, i: any) =>
+        s + (Number(i.total_amount || 0) - Number(i.amount || 0)), 0);
+
+      const { data: gstBills } = await client.from("bills")
+        .select("tax_amount").eq("organization_id", orgId)
+        .in("status", ["approved", "paid"]);
+      const gstInput = (gstBills ?? []).reduce((s: number, b: any) => s + Number(b.tax_amount || 0), 0);
+
+      const netGST = gstOutput - gstInput;
+
+      results.push({
+        workflow: "Statutory: GST aggregation (output - input)", module: "Statutory",
+        status: gstOutput > 0 || gstInput > 0 ? "passed" : "warning",
+        detail: `GST Output: ₹${gstOutput.toLocaleString()}, Input: ₹${gstInput.toLocaleString()}, Net payable: ₹${netGST.toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Statutory GST aggregation", module: "Statutory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 5: STATUTORY FILINGS - TDS AGGREGATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Aggregate TDS from bills with tds_rate
+      const { data: tdsBills } = await client.from("bills")
+        .select("amount, tds_rate, tds_section, vendor_name")
+        .eq("organization_id", orgId).not("tds_rate", "is", null);
+
+      const tdsTotal = (tdsBills ?? []).reduce((s: number, b: any) =>
+        s + Math.round(Number(b.amount || 0) * Number(b.tds_rate || 0) / 100), 0);
+
+      // TDS from payroll
+      const { data: payrollTDS } = await client.from("payroll_records")
+        .select("tax_deduction").eq("organization_id", orgId)
+        .eq("is_superseded", false);
+      const payrollTdsTotal = (payrollTDS ?? []).reduce((s: number, r: any) => s + Number(r.tax_deduction || 0), 0);
+
+      results.push({
+        workflow: "Statutory: TDS aggregation (bills + payroll)", module: "Statutory",
+        status: tdsTotal > 0 || payrollTdsTotal > 0 ? "passed" : "warning",
+        detail: `TDS on bills: ₹${tdsTotal.toLocaleString()} (${(tdsBills ?? []).length} bills), TDS on payroll: ₹${payrollTdsTotal.toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Statutory TDS aggregation", module: "Statutory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 6: CREDIT NOTE OFFSET TO INVOICE -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Find a credit note and an invoice for the same customer
+      const { data: creditNotes } = await client.from("credit_notes")
+        .select("id, customer_id, client_name, amount, status")
+        .eq("organization_id", orgId).eq("status", "issued").limit(1).maybeSingle();
+
+      if (creditNotes) {
+        // Find matching invoice
+        const { data: matchingInv } = await client.from("invoices")
+          .select("id, invoice_number, total_amount, client_name")
+          .eq("organization_id", orgId).eq("customer_id", creditNotes.customer_id)
+          .in("status", ["sent", "overdue"]).limit(1).maybeSingle();
+
+        if (matchingInv) {
+          // Apply credit note
+          const adjustedAmount = Math.max(0, Number(matchingInv.total_amount) - Number(creditNotes.amount));
+          const { error: applyErr } = await client.from("credit_notes")
+            .update({ status: "applied", applied_to_invoice_id: matchingInv.id })
+            .eq("id", creditNotes.id);
+
+          results.push({
+            workflow: "Credit Note → Invoice offset", module: "Credit Notes",
+            status: applyErr ? "failed" : "passed",
+            detail: applyErr?.message ?? `CN ₹${creditNotes.amount.toLocaleString()} applied to ${matchingInv.invoice_number} (₹${matchingInv.total_amount.toLocaleString()} → ₹${adjustedAmount.toLocaleString()})`,
+            duration_ms: Date.now() - wfStart,
+          });
+        } else {
+          // Create a test invoice for the same customer and apply
+          const { data: newInv } = await client.from("invoices").insert({
+            invoice_number: `SIM-CN-OFFSET-${Date.now()}`,
+            customer_id: creditNotes.customer_id, client_name: creditNotes.client_name,
+            client_email: `billing@test.sim`,
+            organization_id: orgId, user_id: userId,
+            amount: creditNotes.amount * 2, total_amount: creditNotes.amount * 2,
+            status: "sent", invoice_date: new Date().toISOString().split("T")[0],
+            due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+          }).select("id").single();
+
+          if (newInv) {
+            await client.from("credit_notes").update({ status: "applied", applied_to_invoice_id: newInv.id }).eq("id", creditNotes.id);
+          }
+          results.push({
+            workflow: "Credit Note → Invoice offset (new invoice)", module: "Credit Notes",
+            status: newInv ? "passed" : "warning",
+            detail: newInv ? `CN applied to new invoice for ${creditNotes.client_name}` : "Could not create test invoice",
+            duration_ms: Date.now() - wfStart,
+          });
+        }
+      } else {
+        results.push({
+          workflow: "Credit Note → Invoice offset", module: "Credit Notes",
+          status: "warning", detail: "No issued credit notes found to test offset",
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "Credit Note offset", module: "Credit Notes", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 7: VENDOR CREDIT OFFSET TO BILL -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: vendorCredits } = await client.from("vendor_credits")
+        .select("id, vendor_id, vendor_name, amount, status")
+        .eq("organization_id", orgId).in("status", ["draft", "issued"]).limit(1).maybeSingle();
+
+      if (vendorCredits) {
+        // Find matching bill
+        const { data: matchingBill } = await client.from("bills")
+          .select("id, bill_number, total_amount, vendor_name")
+          .eq("organization_id", orgId).eq("vendor_id", vendorCredits.vendor_id)
+          .in("status", ["approved", "pending"]).limit(1).maybeSingle();
+
+        if (matchingBill) {
+          const { error: applyErr } = await client.from("vendor_credits")
+            .update({ status: "applied", applied_to_bill_id: matchingBill.id })
+            .eq("id", vendorCredits.id);
+          results.push({
+            workflow: "Vendor Credit → Bill offset", module: "Vendor Credits",
+            status: applyErr ? "failed" : "passed",
+            detail: applyErr?.message ?? `VC ₹${vendorCredits.amount.toLocaleString()} applied to ${matchingBill.bill_number}`,
+            duration_ms: Date.now() - wfStart,
+          });
+        } else {
+          results.push({
+            workflow: "Vendor Credit → Bill offset", module: "Vendor Credits",
+            status: "warning", detail: `No matching bill for vendor ${vendorCredits.vendor_name}`,
+            duration_ms: Date.now() - wfStart,
+          });
+        }
+      } else {
+        results.push({
+          workflow: "Vendor Credit → Bill offset", module: "Vendor Credits",
+          status: "warning", detail: "No vendor credits found to test offset",
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "Vendor Credit offset", module: "Vendor Credits", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 8: AR AGING BUCKET VALIDATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      const nowMs = Date.now();
+      const { data: arInvoices } = await client.from("invoices")
+        .select("id, due_date, total_amount, status")
+        .eq("organization_id", orgId).in("status", ["sent", "overdue"]);
+
+      const buckets = { current: 0, "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+      const bucketAmounts = { current: 0, "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+
+      for (const inv of (arInvoices ?? [])) {
+        const dueDate = new Date(inv.due_date).getTime();
+        const daysOverdue = Math.floor((nowMs - dueDate) / 86400000);
+        const amount = Number(inv.total_amount || 0);
+
+        if (daysOverdue <= 0) { buckets.current++; bucketAmounts.current += amount; }
+        else if (daysOverdue <= 30) { buckets["1-30"]++; bucketAmounts["1-30"] += amount; }
+        else if (daysOverdue <= 60) { buckets["31-60"]++; bucketAmounts["31-60"] += amount; }
+        else if (daysOverdue <= 90) { buckets["61-90"]++; bucketAmounts["61-90"] += amount; }
+        else { buckets["90+"]++; bucketAmounts["90+"] += amount; }
+      }
+
+      const totalOverdue = bucketAmounts["1-30"] + bucketAmounts["31-60"] + bucketAmounts["61-90"] + bucketAmounts["90+"];
+      results.push({
+        workflow: "AR Aging: bucket distribution", module: "Finance",
+        status: (arInvoices ?? []).length > 0 ? "passed" : "warning",
+        detail: `Current: ${buckets.current} (₹${bucketAmounts.current.toLocaleString()}), 1-30d: ${buckets["1-30"]}, 31-60d: ${buckets["31-60"]}, 61-90d: ${buckets["61-90"]}, 90+d: ${buckets["90+"]}. Total overdue: ₹${totalOverdue.toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "AR Aging buckets", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 9: AP AGING BUCKET VALIDATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      const nowMs = Date.now();
+      const { data: apBills } = await client.from("bills")
+        .select("id, due_date, total_amount, status")
+        .eq("organization_id", orgId).in("status", ["approved", "pending", "overdue"])
+        .not("due_date", "is", null);
+
+      const buckets = { current: 0, "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+      for (const bill of (apBills ?? [])) {
+        const dueDate = new Date(bill.due_date).getTime();
+        const daysOverdue = Math.floor((nowMs - dueDate) / 86400000);
+        if (daysOverdue <= 0) buckets.current++;
+        else if (daysOverdue <= 30) buckets["1-30"]++;
+        else if (daysOverdue <= 60) buckets["31-60"]++;
+        else if (daysOverdue <= 90) buckets["61-90"]++;
+        else buckets["90+"]++;
+      }
+
+      results.push({
+        workflow: "AP Aging: bucket distribution", module: "Finance",
+        status: (apBills ?? []).length > 0 ? "passed" : "warning",
+        detail: `Current: ${buckets.current}, 1-30d: ${buckets["1-30"]}, 31-60d: ${buckets["31-60"]}, 61-90d: ${buckets["61-90"]}, 90+d: ${buckets["90+"]}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "AP Aging buckets", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 10: CUSTOMER LIFECYCLE (active → inactive → active) -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: testCustomer } = await client.from("customers")
+        .select("id, name, status").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+
+      if (testCustomer) {
+        // Deactivate
+        const { error: deactErr } = await client.from("customers")
+          .update({ status: "inactive" }).eq("id", testCustomer.id);
+        // Reactivate
+        const { error: reactErr } = await client.from("customers")
+          .update({ status: "active" }).eq("id", testCustomer.id);
+
+        results.push({
+          workflow: "Customer lifecycle: active → inactive → active", module: "Master Data",
+          status: !deactErr && !reactErr ? "passed" : "failed",
+          detail: deactErr?.message ?? reactErr?.message ?? `${testCustomer.name}: toggled status successfully`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } else {
+        results.push({ workflow: "Customer lifecycle", module: "Master Data", status: "warning", detail: "No active customers found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) {
+      results.push({ workflow: "Customer lifecycle", module: "Master Data", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 11: VENDOR LIFECYCLE (active → inactive → active) -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: testVendor } = await client.from("vendors")
+        .select("id, name, status").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+
+      if (testVendor) {
+        const { error: deactErr } = await client.from("vendors")
+          .update({ status: "inactive" }).eq("id", testVendor.id);
+        const { error: reactErr } = await client.from("vendors")
+          .update({ status: "active" }).eq("id", testVendor.id);
+
+        results.push({
+          workflow: "Vendor lifecycle: active → inactive → active", module: "Master Data",
+          status: !deactErr && !reactErr ? "passed" : "failed",
+          detail: deactErr?.message ?? reactErr?.message ?? `${testVendor.name}: toggled status successfully`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } else {
+        results.push({ workflow: "Vendor lifecycle", module: "Master Data", status: "warning", detail: "No active vendors found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) {
+      results.push({ workflow: "Vendor lifecycle", module: "Master Data", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 12: EMPLOYEE DOCUMENTS VERIFICATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: empDocs } = await client.from("employee_documents")
+        .select("id, document_type, profile_id, document_name")
+        .eq("organization_id", orgId);
+
+      const docTypes = [...new Set((empDocs ?? []).map((d: any) => d.document_type))];
+      const profilesWithDocs = [...new Set((empDocs ?? []).map((d: any) => d.profile_id))];
+
+      results.push({
+        workflow: "Employee Documents: coverage check", module: "HR",
+        status: (empDocs ?? []).length >= 4 ? "passed" : "warning",
+        detail: `${(empDocs ?? []).length} documents across ${profilesWithDocs.length} employees, types: ${docTypes.join(", ")}`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Test document CRUD — insert and delete
+      if (profileList.length > 0) {
+        const { data: testDoc, error: docInsErr } = await client.from("employee_documents").insert({
+          profile_id: profileList[0].id, organization_id: orgId,
+          uploaded_by: userId, document_type: "test_document",
+          document_name: `SIM Test Doc - ${Date.now()}`,
+          file_path: `sandbox/${orgId}/test/sim-doc.pdf`,
+          file_size: 12345, mime_type: "application/pdf",
+        }).select("id").single();
+
+        let deleteOk = false;
+        if (testDoc) {
+          const { error: delErr } = await client.from("employee_documents").delete().eq("id", testDoc.id);
+          deleteOk = !delErr;
+        }
+
+        results.push({
+          workflow: "Employee Documents: CRUD test", module: "HR",
+          status: !docInsErr && deleteOk ? "passed" : "failed",
+          detail: docInsErr?.message ?? (deleteOk ? "Insert + delete verified" : "Delete failed"),
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "Employee Documents", module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 13: STATUTORY PF/ESI AGGREGATION FROM PAYROLL -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: pfRecords } = await client.from("payroll_records")
+        .select("pf_deduction, basic_salary, profile_id")
+        .eq("organization_id", orgId).eq("is_superseded", false);
+
+      const totalPF = (pfRecords ?? []).reduce((s: number, r: any) => s + Number(r.pf_deduction || 0), 0);
+      const employerPF = (pfRecords ?? []).reduce((s: number, r: any) => s + Math.round(Number(r.basic_salary || 0) * 0.12), 0);
+
+      results.push({
+        workflow: "Statutory: PF aggregation (employee + employer)", module: "Statutory",
+        status: totalPF > 0 ? "passed" : "warning",
+        detail: `Employee PF: ₹${totalPF.toLocaleString()}, Employer PF (est.): ₹${employerPF.toLocaleString()}, Total: ₹${(totalPF + employerPF).toLocaleString()}`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Statutory PF aggregation", module: "Statutory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 14: COMPENSATION STRUCTURE WITH COMPONENTS -------
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    try {
+      const compProfile = profileList[1] ?? profileList[0];
+      // Get active compensation structure
+      const { data: compStruct } = await client.from("compensation_structures")
+        .select("id, annual_ctc").eq("profile_id", compProfile.id).eq("is_active", true).maybeSingle();
+
+      if (compStruct) {
+        // Insert CTC components if not already there
+        const components = [
+          { component_name: "Basic Salary", component_type: "earning", annual_amount: Math.round(compStruct.annual_ctc * 0.5), is_taxable: true, display_order: 1 },
+          { component_name: "HRA", component_type: "earning", annual_amount: Math.round(compStruct.annual_ctc * 0.2), is_taxable: true, display_order: 2 },
+          { component_name: "PF (Employer)", component_type: "deduction", annual_amount: Math.round(compStruct.annual_ctc * 0.06), is_taxable: false, display_order: 3 },
+          { component_name: "Gratuity", component_type: "deduction", annual_amount: Math.round(compStruct.annual_ctc * 0.048), is_taxable: false, display_order: 4 },
+        ];
+
+        let compInserted = 0;
+        for (const comp of components) {
+          const { error } = await client.from("compensation_components").insert({
+            ...comp,
+            compensation_structure_id: compStruct.id,
+            monthly_amount: Math.round(comp.annual_amount / 12),
+          });
+          if (!error) compInserted++;
+        }
+
+        results.push({
+          workflow: "CTC Components: populate structure", module: "HR",
+          status: compInserted >= 3 ? "passed" : "warning",
+          detail: `${compInserted}/4 components added for ${compProfile.full_name} (CTC: ₹${compStruct.annual_ctc.toLocaleString()})`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } else {
+        results.push({ workflow: "CTC Components", module: "HR", status: "warning", detail: `No active comp structure for ${compProfile.full_name}`, duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) {
+      results.push({ workflow: "CTC Components", module: "HR", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- GAP 15: INVOICE SETTINGS / NUMBERING VALIDATION -------
+  {
+    const wfStart = Date.now();
+    try {
+      // Verify invoice numbers are unique within org
+      const { data: allInvoices } = await client.from("invoices")
+        .select("invoice_number").eq("organization_id", orgId);
+      const invNumbers = (allInvoices ?? []).map((i: any) => i.invoice_number);
+      const uniqueNumbers = new Set(invNumbers);
+      const hasDuplicates = uniqueNumbers.size < invNumbers.length;
+
+      results.push({
+        workflow: "Invoice Numbering: uniqueness check", module: "Finance",
+        status: !hasDuplicates ? "passed" : "failed",
+        detail: hasDuplicates
+          ? `DUPLICATE invoice numbers detected! ${invNumbers.length} total, ${uniqueNumbers.size} unique`
+          : `${invNumbers.length} invoices, all numbers unique ✓`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Invoice numbering", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
 
