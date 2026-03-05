@@ -159,6 +159,7 @@ export default function PlatformSandbox() {
 
   const { data: sandboxOrgs, isLoading: orgsLoading } = useSandboxOrgs();
   const { data: sandboxUsers, isLoading: usersLoading } = useSandboxUsers(selectedOrg);
+  const { data: seedingSummary, isLoading: seedingLoading } = useSeedingSummary(selectedOrg);
 
   // Fetch invite links for selected org
   const { data: inviteLinks } = useQuery({
