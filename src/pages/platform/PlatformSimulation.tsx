@@ -85,14 +85,46 @@ const PHASE_LABELS: Record<string, { label: string; icon: React.ElementType }> =
   run_full_simulation: { label: "Full Simulation", icon: FlaskConical },
 };
 
+const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }> = {
+  reset_and_seed: {
+    steps: ["Clearing existing data...", "Seeding organizations & profiles...", "Creating financial master data...", "Seeding HR & payroll records...", "Building attendance & leave data...", "Finalizing seed..."],
+    durations: [3000, 8000, 10000, 8000, 5000, 2000],
+  },
+  run_workflows: {
+    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
+    durations: [2000, 15000, 10000, 12000, 15000, 8000, 3000],
+  },
+  run_stress_test: {
+    steps: ["Spawning 20 concurrent users...", "Executing parallel operations...", "Measuring throughput & latency...", "Collecting results..."],
+    durations: [3000, 20000, 10000, 2000],
+  },
+  run_chaos_test: {
+    steps: ["Injecting invalid data patterns...", "Testing boundary violations...", "Verifying rejection handling...", "Scoring resilience..."],
+    durations: [5000, 15000, 10000, 3000],
+  },
+  run_validation: {
+    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Generating report..."],
+    durations: [5000, 8000, 8000, 5000, 2000],
+  },
+  run_full_simulation: {
+    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — Integrity validation & reporting..."],
+    durations: [30000, 60000, 30000, 25000, 15000],
+  },
+};
+
 export default function PlatformSimulation() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [activePhase, setActivePhase] = useState<string | null>(null);
-  const [phaseProgress, setPhaseProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [lastResult, setLastResult] = useState<any>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["summary"]));
+  const startTimeRef = useRef<number>(0);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: sandboxOrgs, isLoading: orgsLoading } = useSandboxOrgs();
   const { data: runs } = useSimulationRuns(selectedOrg);
@@ -105,11 +137,45 @@ export default function PlatformSimulation() {
     });
   };
 
+  const stopProgressTracking = useCallback(() => {
+    timeoutsRef.current.forEach(t => clearTimeout(t));
+    timeoutsRef.current = [];
+    if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+    elapsedTimerRef.current = null;
+  }, []);
+
+  const startProgressTracking = useCallback((action: string) => {
+    const phases = SIMULATION_PHASES[action];
+    if (!phases) return;
+    setCurrentStep(0);
+    setCompletedSteps([]);
+    setElapsedMs(0);
+    startTimeRef.current = Date.now();
+
+    let accumulated = 0;
+    for (let i = 0; i < phases.durations.length - 1; i++) {
+      accumulated += phases.durations[i];
+      const nextStep = i + 1;
+      timeoutsRef.current.push(setTimeout(() => {
+        setCompletedSteps(prev => [...prev, nextStep - 1]);
+        setCurrentStep(nextStep);
+      }, accumulated));
+    }
+
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    return () => stopProgressTracking();
+  }, [stopProgressTracking]);
+
   const runSimulation = useMutation({
     mutationFn: async (action: string) => {
       if (!selectedOrg) throw new Error("Select a sandbox environment first");
       setActivePhase(action);
-      setPhaseProgress(10);
+      startProgressTracking(action);
 
       const { data, error } = await supabase.functions.invoke("sandbox-simulation", {
         body: { action, sandbox_org_id: selectedOrg },
@@ -119,15 +185,15 @@ export default function PlatformSimulation() {
       return data;
     },
     onSuccess: (data, action) => {
+      stopProgressTracking();
       setLastResult(data);
-      setPhaseProgress(100);
       setActivePhase(null);
       queryClient.invalidateQueries({ queryKey: ["simulation-runs", selectedOrg] });
       toast.success(`${PHASE_LABELS[action]?.label ?? action} completed successfully`);
     },
     onError: (err: Error) => {
+      stopProgressTracking();
       setActivePhase(null);
-      setPhaseProgress(0);
       toast.error(err.message);
     },
   });
