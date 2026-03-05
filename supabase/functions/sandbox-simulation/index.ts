@@ -1405,15 +1405,17 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
   const results: Array<{ user: number; workflow: string; module: string; status: string; duration_ms: number; detail: string }> = [];
 
   const { data: profiles } = await client.from("profiles")
-    .select("id").eq("organization_id", orgId).limit(5);
-  const profileIds = (profiles ?? []).map((p: any) => p.id);
+    .select("id, user_id").eq("organization_id", orgId).limit(5);
+  const profileData = (profiles ?? []).map((p: any) => ({ id: p.id, user_id: p.user_id }));
 
   const tasks = Array.from({ length: concurrentUsers }, (_, userIdx) => {
     return (async () => {
       const wfStart = Date.now();
       const ops = ["invoice", "expense", "journal", "bill", "attendance", "leave", "payroll_record", "reimbursement"];
       const op = ops[userIdx % ops.length];
-      const profileId = profileIds[userIdx % profileIds.length] || userId;
+      const prof = profileData[userIdx % profileData.length] || { id: userId, user_id: userId };
+      const profileId = prof.id;
+      const profileUserId = prof.user_id;
 
       try {
         switch (op) {
