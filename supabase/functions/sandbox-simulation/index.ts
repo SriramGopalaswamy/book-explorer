@@ -1894,6 +1894,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           entry_date: "2025-04-01",
           memo: "Opening balance: Share capital + Retained earnings",
           status: "posted", source_type: "opening_balance",
+          is_posted: true,
         }).select("id").single();
         if (obJE) {
           await client.from("journal_lines").insert([
@@ -3149,7 +3150,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     detail: negErr ? `Correctly blocked: ${negErr.message}` : "WARNING: Negative amount accepted",
   });
 
-  // Chaos 3: Imbalanced journal entry
+  // Chaos 3: Imbalanced journal entry — try to post it (trigger should block)
   const { data: accounts } = await client.from("gl_accounts")
     .select("id").eq("organization_id", orgId).limit(2);
   if (accounts && accounts.length >= 2) {
@@ -3165,10 +3166,16 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
         { journal_entry_id: je.id, gl_account_id: accounts[0].id, debit: 10000, credit: 0 },
         { journal_entry_id: je.id, gl_account_id: accounts[1].id, debit: 0, credit: 5000 },
       ]);
+      // Now try to post the imbalanced entry — trigger should block this
+      const { error: postErr } = await client.from("journal_entries")
+        .update({ is_posted: true, status: "posted" })
+        .eq("id", je.id);
       results.push({
-        test: "Imbalanced journal entry", module: "Finance",
-        status: "anomaly",
-        detail: "WARNING: Imbalanced journal accepted (debit=10000, credit=5000) — needs validation trigger",
+        test: "Imbalanced journal entry (post attempt)", module: "Finance",
+        status: postErr ? "blocked" : "anomaly",
+        detail: postErr
+          ? `Correctly blocked on posting: ${postErr.message}`
+          : "WARNING: Imbalanced journal posted (debit=10000, credit=5000) — validation trigger failed",
       });
     }
   }
