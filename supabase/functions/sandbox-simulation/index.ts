@@ -332,12 +332,12 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED BANK ACCOUNTS =====
   let bankAccountCount = 0;
   const bankAccounts = [
-    { name: "HDFC Current Account", account_number: "SIM-50100012345678", account_type: "current", bank_name: "HDFC Bank", balance: 2500000 },
-    { name: "ICICI Savings Account", account_number: "SIM-60200098765432", account_type: "savings", bank_name: "ICICI Bank", balance: 850000 },
+    { name: "HDFC Current Account", account_number: "SIM-50100012345678", account_type: "Current", bank_name: "HDFC Bank", balance: 2500000 },
+    { name: "ICICI Savings Account", account_number: "SIM-60200098765432", account_type: "Savings", bank_name: "ICICI Bank", balance: 850000 },
   ];
   for (const ba of bankAccounts) {
     const { error } = await client.from("bank_accounts").insert({
-      ...ba, organization_id: orgId, user_id: userId, status: "active",
+      ...ba, organization_id: orgId, user_id: userId, status: "Active",
     });
     if (!error) bankAccountCount++;
   }
@@ -592,7 +592,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       const workMin = 480 + otMin - lateMin;
       const { error } = await client.from("attendance_daily").insert({
         profile_id: p.id, organization_id: orgId,
-        attendance_date: dateStr, status: "present",
+        attendance_date: dateStr, status: "P",
         first_in_time: `09:${String(lateMin).padStart(2, "0")}:00`,
         last_out_time: `18:${String(otMin).padStart(2, "0")}:00`,
         total_work_minutes: workMin, late_minutes: lateMin,
@@ -1202,7 +1202,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         organization_id: orgId,
         month: currentMonth,
         items: goalItems,
-        status: "submitted",
+        status: "draft",
       });
       results.push({
         workflow: `Goal Plan: ${profile.full_name ?? "Employee"} (${currentMonth})`,
@@ -2244,9 +2244,27 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   if (employeeProfile) {
     const wfStart = Date.now();
     try {
-      // Find an existing payroll record for the employee
-      const { data: empPayroll } = await client.from("payroll_records")
+      // Find an existing payroll record for the employee, or create one
+      let empPayroll: any = null;
+      const { data: existingPayroll } = await client.from("payroll_records")
         .select("id, pay_period").eq("profile_id", employeeProfile.id).limit(1).maybeSingle();
+      
+      if (!existingPayroll) {
+        // Create a payroll record for the employee so dispute chain can proceed
+        const empPayPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+        const { data: newPayroll } = await client.from("payroll_records").insert({
+          user_id: employeeActor, profile_id: employeeProfile.id,
+          organization_id: orgId, pay_period: empPayPeriod,
+          basic_salary: 50000, hra: 20000, transport_allowance: 1600,
+          other_allowances: 7500, pf_deduction: 6000, tax_deduction: 5000,
+          other_deductions: 500, net_pay: 67600,
+          working_days: 22, paid_days: 22, lop_days: 0, lop_deduction: 0,
+          status: "draft",
+        }).select("id, pay_period").single();
+        empPayroll = newPayroll;
+      } else {
+        empPayroll = existingPayroll;
+      }
 
       if (empPayroll) {
         const { data: mrDispute, error: dispErr } = await client.from("payslip_disputes").insert({
@@ -3315,18 +3333,27 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     const bsRows2 = bsEq ?? [];
     const eqAssets = bsRows2.filter((r: any) => r.account_type === "asset")
       .reduce((s: number, r: any) => s + Number(r.balance || 0), 0);
+    const eqContraAssets = bsRows2.filter((r: any) => r.account_type === "contra_asset")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const netAssets = eqAssets - eqContraAssets;
     const eqLiab = bsRows2.filter((r: any) => r.account_type === "liability")
       .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
     const eqEquity = bsRows2.filter((r: any) => r.account_type === "equity")
       .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
-    // A simplified check: assets should approximately equal liabilities + equity (within rounding)
-    const diff = Math.abs(eqAssets - (eqLiab + eqEquity));
+    // Include net income (revenue - expenses) in equity side for BS equation
+    const eqRevenue = bsRows2.filter((r: any) => r.account_type === "revenue")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const eqExpenses = bsRows2.filter((r: any) => r.account_type === "expense")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+    const netIncome = eqRevenue - eqExpenses;
+    // A = L + E + Net Income (fundamental accounting equation)
+    const diff = Math.abs(netAssets - (eqLiab + eqEquity + netIncome));
     checks.push({
       check: "V_RPT_BS_EQUATION", module: "Reports",
       status: bsRows2.length === 0 ? "warning" : diff < 1 ? "passed" : "failed",
       detail: bsRows2.length === 0
         ? "No balance sheet data to verify equation"
-        : `A=${eqAssets.toFixed(2)}, L+E=${(eqLiab + eqEquity).toFixed(2)}, Diff=${diff.toFixed(2)}`,
+        : `A=${netAssets.toFixed(2)} (gross ${eqAssets.toFixed(2)} - contra ${eqContraAssets.toFixed(2)}), L+E+NI=${(eqLiab + eqEquity + netIncome).toFixed(2)} (L=${eqLiab.toFixed(2)}, E=${eqEquity.toFixed(2)}, NI=${netIncome.toFixed(2)}), Diff=${diff.toFixed(2)}`,
     });
   } catch (e: any) {
     checks.push({ check: "V_RPT_BS_EQUATION", module: "Reports", status: "failed", detail: `Exception: ${e.message}` });
