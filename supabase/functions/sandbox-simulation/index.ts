@@ -1474,7 +1474,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           case "attendance": {
             const dateStr = new Date(Date.now() - (userIdx + 10) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("attendance_records").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, date: dateStr,
               check_in: `${dateStr}T09:00:00`, check_out: `${dateStr}T18:00:00`,
               status: "present",
@@ -1486,7 +1486,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             const fromDate = new Date(Date.now() + (userIdx + 50) * 86400000).toISOString().split("T")[0];
             const toDate = new Date(Date.now() + (userIdx + 51) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("leave_requests").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, leave_type: "Casual Leave",
               from_date: fromDate, to_date: toDate, days: 2,
               reason: `Stress test leave ${userIdx}`, status: "pending",
@@ -1497,7 +1497,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           case "payroll_record": {
             const payPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
             const { error } = await client.from("payroll_records").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, pay_period: payPeriod,
               basic_salary: 50000, hra: 20000, transport_allowance: 1600,
               other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
@@ -1510,7 +1510,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           }
           case "reimbursement": {
             const { error } = await client.from("reimbursement_requests").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, amount: 2000 + userIdx * 500,
               category: "Travel", description: `Stress reimbursement ${userIdx}`,
               expense_date: new Date().toISOString().split("T")[0],
