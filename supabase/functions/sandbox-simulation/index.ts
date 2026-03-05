@@ -830,6 +830,261 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     summary.closed_fiscal_periods = aprPeriod ? 1 : 0;
   }
 
+  // ===== SEED OPENING BALANCE JOURNAL ENTRIES (Equity injection + Capital) =====
+  let openingJECount = 0;
+  const equityAcct = glAccounts["3000"]; // Share Capital
+  const retainedAcct = glAccounts["3100"]; // Retained Earnings
+  const cashAcct = glAccounts["1000"];
+  const arAcct = glAccounts["1100"];
+  const apAcct = glAccounts["2000"];
+  const fixedAssetAcct = glAccounts["1500"];
+  const accumDepAcct = glAccounts["1510"];
+
+  if (equityAcct && cashAcct && retainedAcct) {
+    // OB-1: Share Capital injection → Cash
+    const { data: obJE1 } = await client.from("journal_entries").insert({
+      document_sequence_number: "SIM-OB-CAPITAL", organization_id: orgId, created_by: userId,
+      entry_date: "2025-04-01", memo: "Opening balance: Share capital injection",
+      status: "posted", source_type: "opening_balance", is_posted: true,
+    }).select("id").single();
+    if (obJE1) {
+      await client.from("journal_lines").insert([
+        { journal_entry_id: obJE1.id, gl_account_id: cashAcct, debit: 5000000, credit: 0, description: "Cash - capital injection" },
+        { journal_entry_id: obJE1.id, gl_account_id: equityAcct, debit: 0, credit: 5000000, description: "Share Capital" },
+      ]);
+      openingJECount++;
+    }
+
+    // OB-2: Retained Earnings from previous year
+    const { data: obJE2 } = await client.from("journal_entries").insert({
+      document_sequence_number: "SIM-OB-RETAINED", organization_id: orgId, created_by: userId,
+      entry_date: "2025-04-01", memo: "Opening balance: Retained earnings from FY2024-25",
+      status: "posted", source_type: "opening_balance", is_posted: true,
+    }).select("id").single();
+    if (obJE2) {
+      await client.from("journal_lines").insert([
+        { journal_entry_id: obJE2.id, gl_account_id: cashAcct, debit: 1200000, credit: 0, description: "Cash - retained earnings" },
+        { journal_entry_id: obJE2.id, gl_account_id: retainedAcct, debit: 0, credit: 1200000, description: "Retained Earnings" },
+      ]);
+      openingJECount++;
+    }
+
+    // OB-3: Fixed assets opening balance
+    if (fixedAssetAcct) {
+      const { data: seededAssetsForOB } = await client.from("assets")
+        .select("purchase_price, accumulated_depreciation").eq("organization_id", orgId);
+      const totalAssetCost = (seededAssetsForOB ?? []).reduce((s: number, a: any) => s + Number(a.purchase_price || 0), 0);
+      const totalAccumDep = (seededAssetsForOB ?? []).reduce((s: number, a: any) => s + Number(a.accumulated_depreciation || 0), 0);
+
+      if (totalAssetCost > 0) {
+        const { data: obJE3 } = await client.from("journal_entries").insert({
+          document_sequence_number: "SIM-OB-FIXED-ASSETS", organization_id: orgId, created_by: userId,
+          entry_date: "2025-04-01", memo: "Opening balance: Fixed assets gross block",
+          status: "posted", source_type: "opening_balance", is_posted: true,
+        }).select("id").single();
+        if (obJE3) {
+          const lines: any[] = [
+            { journal_entry_id: obJE3.id, gl_account_id: fixedAssetAcct, debit: totalAssetCost, credit: 0, description: "Fixed Assets - Gross Block" },
+            { journal_entry_id: obJE3.id, gl_account_id: cashAcct, debit: 0, credit: totalAssetCost, description: "Cash - asset purchases" },
+          ];
+          await client.from("journal_lines").insert(lines);
+          openingJECount++;
+        }
+
+        // OB-4: Accumulated depreciation on fixed assets
+        if (accumDepAcct && totalAccumDep > 0) {
+          const depExpAcctId = glAccounts["5400"];
+          if (depExpAcctId) {
+            const { data: obJE4 } = await client.from("journal_entries").insert({
+              document_sequence_number: "SIM-OB-ACCUM-DEP", organization_id: orgId, created_by: userId,
+              entry_date: "2025-04-01", memo: "Opening balance: Accumulated depreciation",
+              status: "posted", source_type: "opening_balance", is_posted: true,
+            }).select("id").single();
+            if (obJE4) {
+              await client.from("journal_lines").insert([
+                { journal_entry_id: obJE4.id, gl_account_id: depExpAcctId, debit: totalAccumDep, credit: 0, description: "Depreciation expense (prior)" },
+                { journal_entry_id: obJE4.id, gl_account_id: accumDepAcct, debit: 0, credit: totalAccumDep, description: "Accumulated Depreciation" },
+              ]);
+              openingJECount++;
+            }
+          }
+        }
+      }
+    }
+  }
+  summary.opening_balance_jes = openingJECount;
+
+  // ===== SEED AR/AP JOURNAL ENTRIES (for subledger-GL reconciliation) =====
+  // Create posted JEs for the seeded invoices (AR) and bills (AP)
+  let subledgerJECount = 0;
+
+  // Seed invoices with corresponding AR JEs
+  const invoiceSeeds = [
+    { client: "Pinnacle Corp", amount: 150000 },
+    { client: "Nexus Digital", amount: 220000 },
+    { client: "Metro Industries", amount: 95000 },
+    { client: "SwiftPay Fintech", amount: 180000 },
+  ];
+  const seededInvoiceIds: string[] = [];
+  const revenueAcctId = glAccounts["4000"];
+  if (arAcct && revenueAcctId) {
+    for (const inv of invoiceSeeds) {
+      const taxAmt = Math.round(inv.amount * 0.18);
+      const total = inv.amount + taxAmt;
+      const { data: seedInv } = await client.from("invoices").insert({
+        invoice_number: `SIM-SEED-INV-${Date.now()}-${inv.client.substring(0, 3)}`,
+        client_name: inv.client, client_email: `billing@${inv.client.toLowerCase().replace(/\s+/g, "")}.sim`,
+        organization_id: orgId, user_id: userId,
+        amount: inv.amount, total_amount: total, status: "sent",
+        invoice_date: new Date(Date.now() - 15 * 86400000).toISOString().split("T")[0],
+        due_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+      }).select("id").single();
+      if (seedInv) {
+        seededInvoiceIds.push(seedInv.id);
+        // Create corresponding AR JE
+        const { data: arJE } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-AR-JE-${seedInv.id.substring(0, 8)}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: new Date(Date.now() - 15 * 86400000).toISOString().split("T")[0],
+          memo: `AR entry for invoice to ${inv.client}`,
+          status: "posted", source_type: "invoice", is_posted: true,
+        }).select("id").single();
+        if (arJE) {
+          await client.from("journal_lines").insert([
+            { journal_entry_id: arJE.id, gl_account_id: arAcct, debit: total, credit: 0, description: `AR - ${inv.client}` },
+            { journal_entry_id: arJE.id, gl_account_id: revenueAcctId, debit: 0, credit: total, description: `Revenue - ${inv.client}` },
+          ]);
+          subledgerJECount++;
+        }
+      }
+    }
+  }
+
+  // Seed bills with corresponding AP JEs
+  const billSeeds = [
+    { vendor: "Acme Supplies Pvt Ltd", amount: 85000 },
+    { vendor: "CloudHost Services", amount: 120000 },
+    { vendor: "PrintPro India", amount: 45000 },
+  ];
+  const cogsAcctId = glAccounts["5000"];
+  if (apAcct && cogsAcctId) {
+    for (const bill of billSeeds) {
+      const taxAmt = Math.round(bill.amount * 0.18);
+      const total = bill.amount + taxAmt;
+      const { data: seedBill } = await client.from("bills").insert({
+        bill_number: `SIM-SEED-BILL-${Date.now()}-${bill.vendor.substring(0, 3)}`,
+        vendor_name: bill.vendor,
+        organization_id: orgId, user_id: userId,
+        amount: bill.amount, tax_amount: taxAmt, total_amount: total,
+        status: "approved",
+        bill_date: new Date(Date.now() - 20 * 86400000).toISOString().split("T")[0],
+        due_date: new Date(Date.now() + 10 * 86400000).toISOString().split("T")[0],
+      }).select("id").single();
+      if (seedBill) {
+        // Create corresponding AP JE
+        const { data: apJE } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-AP-JE-${seedBill.id.substring(0, 8)}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: new Date(Date.now() - 20 * 86400000).toISOString().split("T")[0],
+          memo: `AP entry for bill from ${bill.vendor}`,
+          status: "posted", source_type: "bill", is_posted: true,
+        }).select("id").single();
+        if (apJE) {
+          await client.from("journal_lines").insert([
+            { journal_entry_id: apJE.id, gl_account_id: cogsAcctId, debit: total, credit: 0, description: `COGS - ${bill.vendor}` },
+            { journal_entry_id: apJE.id, gl_account_id: apAcct, debit: 0, credit: total, description: `AP - ${bill.vendor}` },
+          ]);
+          subledgerJECount++;
+        }
+      }
+    }
+  }
+  summary.subledger_jes = subledgerJECount;
+
+  // ===== SEED ACCRUAL ENTRIES (for period-end accrual testing) =====
+  let accrualCount = 0;
+  const salaryPayableAcct = glAccounts["2300"];
+  const salaryExpAcct = glAccounts["5100"];
+  const rentExpAcct = glAccounts["5200"];
+  if (salaryPayableAcct && salaryExpAcct && cashAcct) {
+    // Accrual: Salary accrued but not yet paid (end of Feb 2026)
+    const { data: accJE1 } = await client.from("journal_entries").insert({
+      document_sequence_number: "SIM-ACCRUAL-SALARY-FEB26", organization_id: orgId, created_by: userId,
+      entry_date: "2026-02-28", memo: "Accrual: Feb 2026 salary expense accrued",
+      status: "posted", source_type: "accrual", is_posted: true,
+    }).select("id").single();
+    if (accJE1) {
+      await client.from("journal_lines").insert([
+        { journal_entry_id: accJE1.id, gl_account_id: salaryExpAcct, debit: 398000, credit: 0, description: "Salary expense accrual Feb 2026" },
+        { journal_entry_id: accJE1.id, gl_account_id: salaryPayableAcct, debit: 0, credit: 398000, description: "Salary payable Feb 2026" },
+      ]);
+      accrualCount++;
+    }
+
+    // Reversal: Salary accrual reversed in Mar 2026 (when actual payment recorded)
+    const { data: accJE2 } = await client.from("journal_entries").insert({
+      document_sequence_number: "SIM-ACCRUAL-REV-SALARY-MAR26", organization_id: orgId, created_by: userId,
+      entry_date: "2026-03-01", memo: "Reversal: Feb salary accrual reversed",
+      status: "posted", source_type: "accrual_reversal", is_posted: true,
+    }).select("id").single();
+    if (accJE2) {
+      await client.from("journal_lines").insert([
+        { journal_entry_id: accJE2.id, gl_account_id: salaryPayableAcct, debit: 398000, credit: 0, description: "Reverse salary payable" },
+        { journal_entry_id: accJE2.id, gl_account_id: salaryExpAcct, debit: 0, credit: 398000, description: "Reverse salary expense accrual" },
+      ]);
+      accrualCount++;
+    }
+  }
+
+  // Rent accrual (for prepaid/accrued pattern)
+  if (rentExpAcct && cashAcct) {
+    const { data: rentAccJE } = await client.from("journal_entries").insert({
+      document_sequence_number: "SIM-ACCRUAL-RENT-FEB26", organization_id: orgId, created_by: userId,
+      entry_date: "2026-02-28", memo: "Accrual: Feb 2026 rent expense",
+      status: "posted", source_type: "accrual", is_posted: true,
+    }).select("id").single();
+    if (rentAccJE) {
+      await client.from("journal_lines").insert([
+        { journal_entry_id: rentAccJE.id, gl_account_id: rentExpAcct, debit: 75000, credit: 0, description: "Rent expense accrual Feb 2026" },
+        { journal_entry_id: rentAccJE.id, gl_account_id: apAcct || cashAcct, debit: 0, credit: 75000, description: "Rent payable Feb 2026" },
+      ]);
+      accrualCount++;
+    }
+  }
+  summary.accrual_entries = accrualCount;
+
+  // ===== SEED AUDIT LOG ENTRIES FOR HR/PAYROLL =====
+  let auditLogCount = 0;
+  const auditEvents = [
+    { action: "create", entity_type: "payroll_run", target_name: "Payroll Dec 2025" },
+    { action: "approve", entity_type: "payroll_run", target_name: "Payroll Dec 2025" },
+    { action: "process", entity_type: "payroll_run", target_name: "Payroll Dec 2025" },
+    { action: "create", entity_type: "leave_request", target_name: "Casual Leave - Arjun Mehta" },
+    { action: "approve", entity_type: "leave_request", target_name: "Casual Leave - Arjun Mehta" },
+    { action: "update", entity_type: "profile", target_name: "Sneha Iyer - phone change" },
+    { action: "create", entity_type: "compensation_revision", target_name: "Vikram Singh - CTC revision" },
+    { action: "approve", entity_type: "compensation_revision", target_name: "Vikram Singh - CTC revision" },
+    { action: "create", entity_type: "expense", target_name: "Travel expense - Karan Patel" },
+    { action: "approve", entity_type: "expense", target_name: "Travel expense - Karan Patel" },
+    { action: "create", entity_type: "attendance_correction", target_name: "Attendance fix - Deepika Nair" },
+    { action: "approve", entity_type: "attendance_correction", target_name: "Attendance fix - Deepika Nair" },
+  ];
+  for (const evt of auditEvents) {
+    const { error } = await client.from("audit_logs").insert({
+      organization_id: orgId, actor_id: userId,
+      actor_name: "System (Simulation)", actor_role: "admin",
+      action: evt.action, entity_type: evt.entity_type,
+      target_name: evt.target_name,
+      metadata: { source: "sandbox_simulation", timestamp: new Date().toISOString() },
+    });
+    if (!error) auditLogCount++;
+  }
+  summary.audit_logs = auditLogCount;
+
+  // ===== SEED PF/ESI STATUTORY DATA (via payroll records metadata) =====
+  // Already seeded in payroll records with pf_deduction field — add org compliance flags
+  // Verified: pf_applicable, esi_applicable already set in organization_compliance seed above
+
   return {
     success: true,
     action: "reset_and_seed",
