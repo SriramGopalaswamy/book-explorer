@@ -96,14 +96,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // Clean up previously seeded sandbox simulation users
   const { data: simProfiles } = await client.from("profiles")
-    .select("id, email")
+    .select("id, user_id, email")
     .eq("organization_id", orgId)
     .like("email", "%@sandbox-sim.local");
   for (const sp of (simProfiles ?? [])) {
     try {
+      await client.from("organization_members").delete().eq("user_id", sp.user_id).eq("organization_id", orgId);
       await client.from("compensation_structures").delete().eq("profile_id", sp.id);
       await client.from("profiles").delete().eq("id", sp.id);
-      await client.auth.admin.deleteUser(sp.id);
+      await client.auth.admin.deleteUser(sp.user_id);
     } catch (e) {
       console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
     }
@@ -125,7 +126,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "bank_transactions", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
     "compensation_revision_requests", "compensation_structures",
-    "holidays", "user_roles",
+     "holidays", "user_roles", "organization_members",
+     "profile_change_requests", "payslip_disputes",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -417,12 +419,13 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         const { error: updateErr } = await client.from("profiles").update({
           organization_id: orgId,
           full_name: emp.name,
+          email: `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`,
           department: emp.dept,
           job_title: emp.jobTitle,
           status: "active",
           join_date: "2024-06-01",
           phone: emp.phone,
-        }).eq("id", userId);
+        }).eq("user_id", userId);
 
         if (updateErr) {
           console.warn(`Failed to update profile for ${emp.name}:`, updateErr.message);
@@ -436,10 +439,21 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.profiles = seededProfiles;
 
-  // ===== SEED USER ROLES for employees =====
+  // ===== SEED ORGANIZATION MEMBERS =====
   const { data: allProfilesList } = await client.from("profiles")
-    .select("id, full_name, department, job_title")
+    .select("id, user_id, full_name, department, job_title")
     .eq("organization_id", orgId);
+
+  let orgMemberCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    const { error } = await client.from("organization_members").upsert({
+      user_id: p.user_id, organization_id: orgId, role: "member",
+    }, { onConflict: "organization_id,user_id" });
+    if (!error) orgMemberCount++;
+  }
+  summary.organization_members = orgMemberCount;
+
+  // ===== SEED USER ROLES for employees =====
 
   // Role mapping based on department/title
   const roleMapping: Record<string, string> = {
@@ -452,7 +466,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const p of (allProfilesList ?? [])) {
     const role = roleMapping[p.job_title] || "employee";
     const { error } = await client.from("user_roles").upsert({
-      user_id: p.id, role, organization_id: orgId,
+      user_id: p.user_id, role, organization_id: orgId,
     }, { onConflict: "user_id,role,organization_id" });
     if (!error) roleCount++;
   }
@@ -521,7 +535,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
 
   // Get profiles in this org for HR workflows
   const { data: profiles } = await client.from("profiles")
-    .select("id, full_name, job_title")
+    .select("id, user_id, full_name, job_title")
     .eq("organization_id", orgId).limit(10);
   const profileList = profiles ?? [];
 
@@ -680,9 +694,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const wfStart = Date.now();
       try {
         const amount = Math.round(10000 + Math.random() * 100000);
-        const types = ["income", "expense", "transfer"];
+        const types = ["revenue", "expense", "expense"];
         const { error } = await client.from("financial_records").insert({
-          type: types[i], amount, description: `Simulation ${types[i]} record`,
+          type: types[i], amount, description: `Simulation ${types[i]} record #${i + 1}`,
           category: "simulation", organization_id: orgId, user_id: userId,
           record_date: new Date().toISOString().split("T")[0],
         });
@@ -741,7 +755,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const checkIn = `${dateStr}T09:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
         const checkOut = `${dateStr}T18:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
         const { error } = await client.from("attendance_records").insert({
-          user_id: profile.id, profile_id: profile.id,
+          user_id: profile.user_id, profile_id: profile.id,
           organization_id: orgId, date: dateStr,
           check_in: checkIn, check_out: checkOut,
           status: "present",
@@ -765,7 +779,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     corrDate.setDate(corrDate.getDate() - 2);
     try {
       const { error } = await client.from("attendance_correction_requests").insert({
-        user_id: profileList[0].id, profile_id: profileList[0].id,
+        user_id: profileList[0].user_id, profile_id: profileList[0].id,
         organization_id: orgId,
         date: corrDate.toISOString().split("T")[0],
         reason: "Forgot to check out — biometric malfunction",
@@ -803,7 +817,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     toDate.setDate(toDate.getDate() + scenario.to);
     try {
       const { data: lr, error } = await client.from("leave_requests").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         leave_type: scenario.type,
         from_date: fromDate.toISOString().split("T")[0],
@@ -883,7 +897,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const netPay = grossPay - pf - tax - otherDeductions;
 
         const { error: recErr } = await client.from("payroll_records").insert({
-          user_id: profile.id, profile_id: profile.id,
+          user_id: profile.user_id, profile_id: profile.id,
           organization_id: orgId, pay_period: payPeriod,
           basic_salary: basic, hra, transport_allowance: transport,
           other_allowances: otherAllowances,
@@ -955,7 +969,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const amount = Math.round(1000 + Math.random() * 15000);
     try {
       const { data: reimb, error } = await client.from("reimbursement_requests").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         amount,
         category: reimbCategories[i],
@@ -1028,7 +1042,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     ];
     try {
       const { error } = await client.from("goal_plans").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         month: currentMonth,
         items: goalItems,
@@ -1268,7 +1282,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     try {
       const { error } = await client.from("notifications").insert({
-        user_id: profileList[i].id, organization_id: orgId,
+        user_id: profileList[i].user_id, organization_id: orgId,
         title: `Simulation notification: ${notifTypes[i]}`,
         message: `This is a test notification for the ${notifTypes[i]} event.`,
         type: notifTypes[i], read: false,
@@ -1353,6 +1367,56 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     });
   }
 
+  // ===== ROLE-BASED ACCESS VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { data: roles } = await client.from("user_roles")
+      .select("user_id, role").eq("organization_id", orgId);
+    const roleTypes = [...new Set((roles ?? []).map((r: any) => r.role))];
+    results.push({
+      workflow: "Role distribution verification", module: "Governance",
+      status: roleTypes.length >= 3 ? "passed" : roleTypes.length > 0 ? "warning" : "failed",
+      detail: `${(roles ?? []).length} assignments across roles: ${roleTypes.join(", ")}`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== ORGANIZATION MEMBERSHIP VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { count } = await client.from("organization_members")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    results.push({
+      workflow: "Org membership verification", module: "Governance",
+      status: (count ?? 0) >= 5 ? "passed" : "failed",
+      detail: `${count ?? 0} org members (expected ≥5 for seeded employees)`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== ATTENDANCE DAILY COMPUTATION =====
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    try {
+      const { error } = await client.from("attendance_daily").insert({
+        profile_id: profileList[0].id, organization_id: orgId,
+        attendance_date: yesterday, status: "present",
+        first_in_time: `${yesterday}T09:05:00`, last_out_time: `${yesterday}T18:15:00`,
+        total_work_minutes: 550, late_minutes: 5, early_exit_minutes: 0, ot_minutes: 70,
+      });
+      results.push({
+        workflow: "Attendance Daily: computed record", module: "Attendance",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? "Daily attendance computation record created",
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Attendance Daily", module: "Attendance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
 
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
@@ -1391,15 +1455,17 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
   const results: Array<{ user: number; workflow: string; module: string; status: string; duration_ms: number; detail: string }> = [];
 
   const { data: profiles } = await client.from("profiles")
-    .select("id").eq("organization_id", orgId).limit(5);
-  const profileIds = (profiles ?? []).map((p: any) => p.id);
+    .select("id, user_id").eq("organization_id", orgId).limit(5);
+  const profileData = (profiles ?? []).map((p: any) => ({ id: p.id, user_id: p.user_id }));
 
   const tasks = Array.from({ length: concurrentUsers }, (_, userIdx) => {
     return (async () => {
       const wfStart = Date.now();
       const ops = ["invoice", "expense", "journal", "bill", "attendance", "leave", "payroll_record", "reimbursement"];
       const op = ops[userIdx % ops.length];
-      const profileId = profileIds[userIdx % profileIds.length] || userId;
+      const prof = profileData[userIdx % profileData.length] || { id: userId, user_id: userId };
+      const profileId = prof.id;
+      const profileUserId = prof.user_id;
 
       try {
         switch (op) {
@@ -1458,7 +1524,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           case "attendance": {
             const dateStr = new Date(Date.now() - (userIdx + 10) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("attendance_records").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, date: dateStr,
               check_in: `${dateStr}T09:00:00`, check_out: `${dateStr}T18:00:00`,
               status: "present",
@@ -1470,7 +1536,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             const fromDate = new Date(Date.now() + (userIdx + 50) * 86400000).toISOString().split("T")[0];
             const toDate = new Date(Date.now() + (userIdx + 51) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("leave_requests").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, leave_type: "Casual Leave",
               from_date: fromDate, to_date: toDate, days: 2,
               reason: `Stress test leave ${userIdx}`, status: "pending",
@@ -1481,7 +1547,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           case "payroll_record": {
             const payPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
             const { error } = await client.from("payroll_records").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, pay_period: payPeriod,
               basic_salary: 50000, hra: 20000, transport_allowance: 1600,
               other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
@@ -1494,7 +1560,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
           }
           case "reimbursement": {
             const { error } = await client.from("reimbursement_requests").insert({
-              user_id: profileId, profile_id: profileId,
+              user_id: profileUserId, profile_id: profileId,
               organization_id: orgId, amount: 2000 + userIdx * 500,
               category: "Travel", description: `Stress reimbursement ${userIdx}`,
               expense_date: new Date().toISOString().split("T")[0],
@@ -1546,8 +1612,9 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const results: Array<{ test: string; module: string; status: string; detail: string }> = [];
 
   const { data: profiles } = await client.from("profiles")
-    .select("id").eq("organization_id", orgId).limit(1);
+    .select("id, user_id").eq("organization_id", orgId).limit(1);
   const testProfileId = profiles?.[0]?.id ?? userId;
+  const testProfileUserId = profiles?.[0]?.user_id ?? userId;
 
   // === FINANCE CHAOS ===
 
@@ -1643,7 +1710,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const futureDateEnd = new Date(Date.now() + 62 * 86400000).toISOString().split("T")[0];
   for (let i = 0; i < 2; i++) {
     const { error } = await client.from("leave_requests").insert({
-      user_id: testProfileId, profile_id: testProfileId,
+      user_id: testProfileUserId, profile_id: testProfileId,
       organization_id: orgId, leave_type: "Casual Leave",
       from_date: futureDate, to_date: futureDateEnd, days: 3,
       reason: `Chaos overlap test #${i + 1}`, status: "pending",
@@ -1661,7 +1728,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 7: Negative leave days
   const { error: negLeaveErr } = await client.from("leave_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, leave_type: "Sick Leave",
     from_date: futureDate, to_date: futureDate, days: -5,
     reason: "Chaos: negative days", status: "pending",
@@ -1674,7 +1741,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 8: Leave where to_date < from_date
   const { error: reverseDateErr } = await client.from("leave_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, leave_type: "Earned Leave",
     from_date: futureDateEnd, to_date: futureDate, days: 1,
     reason: "Chaos: reversed date range", status: "pending",
@@ -1689,7 +1756,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 9: Negative salary payroll record
   const { error: negPayErr } = await client.from("payroll_records").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, pay_period: "2026-01",
     basic_salary: -50000, hra: 0, transport_allowance: 0,
     other_allowances: 0, pf_deduction: 0, tax_deduction: 0,
@@ -1705,7 +1772,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 10: Payroll with paid_days > working_days
   const { error: overDaysErr } = await client.from("payroll_records").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, pay_period: "2026-02",
     basic_salary: 50000, hra: 20000, transport_allowance: 1600,
     other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
@@ -1723,7 +1790,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 11: Zero-amount reimbursement
   const { error: zeroReimbErr } = await client.from("reimbursement_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, amount: 0,
     category: "Chaos", description: "Chaos: zero amount",
     expense_date: new Date().toISOString().split("T")[0],
@@ -1737,7 +1804,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 12: Negative reimbursement
   const { error: negReimbErr } = await client.from("reimbursement_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, amount: -5000,
     category: "Chaos", description: "Chaos: negative amount",
     expense_date: new Date().toISOString().split("T")[0],
@@ -2212,7 +2279,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   // V_RPT_5: GL Account Balances (dashboard KPI source)
   try {
     const { data: glBalances, error: glErr } = await client.from("gl_accounts")
-      .select("id, name, account_type, opening_balance")
+      .select("id, name, account_type")
       .eq("organization_id", orgId);
     const glRows = glBalances ?? [];
     const revenueAccounts = glRows.filter((g: any) => g.account_type === "revenue").length;
