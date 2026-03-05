@@ -96,14 +96,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // Clean up previously seeded sandbox simulation users
   const { data: simProfiles } = await client.from("profiles")
-    .select("id, email")
+    .select("id, user_id, email")
     .eq("organization_id", orgId)
     .like("email", "%@sandbox-sim.local");
   for (const sp of (simProfiles ?? [])) {
     try {
+      await client.from("organization_members").delete().eq("user_id", sp.user_id).eq("organization_id", orgId);
       await client.from("compensation_structures").delete().eq("profile_id", sp.id);
       await client.from("profiles").delete().eq("id", sp.id);
-      await client.auth.admin.deleteUser(sp.id);
+      await client.auth.admin.deleteUser(sp.user_id);
     } catch (e) {
       console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
     }
@@ -125,7 +126,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "bank_transactions", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
     "compensation_revision_requests", "compensation_structures",
-    "holidays", "user_roles",
+     "holidays", "user_roles", "organization_members",
+     "profile_change_requests", "payslip_disputes",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -417,12 +419,13 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         const { error: updateErr } = await client.from("profiles").update({
           organization_id: orgId,
           full_name: emp.name,
+          email: `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`,
           department: emp.dept,
           job_title: emp.jobTitle,
           status: "active",
           join_date: "2024-06-01",
           phone: emp.phone,
-        }).eq("id", userId);
+        }).eq("user_id", userId);
 
         if (updateErr) {
           console.warn(`Failed to update profile for ${emp.name}:`, updateErr.message);
@@ -436,10 +439,21 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.profiles = seededProfiles;
 
-  // ===== SEED USER ROLES for employees =====
+  // ===== SEED ORGANIZATION MEMBERS =====
   const { data: allProfilesList } = await client.from("profiles")
-    .select("id, full_name, department, job_title")
+    .select("id, user_id, full_name, department, job_title")
     .eq("organization_id", orgId);
+
+  let orgMemberCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    const { error } = await client.from("organization_members").upsert({
+      user_id: p.user_id, organization_id: orgId, role: "member",
+    }, { onConflict: "organization_id,user_id" });
+    if (!error) orgMemberCount++;
+  }
+  summary.organization_members = orgMemberCount;
+
+  // ===== SEED USER ROLES for employees =====
 
   // Role mapping based on department/title
   const roleMapping: Record<string, string> = {
@@ -452,7 +466,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const p of (allProfilesList ?? [])) {
     const role = roleMapping[p.job_title] || "employee";
     const { error } = await client.from("user_roles").upsert({
-      user_id: p.id, role, organization_id: orgId,
+      user_id: p.user_id, role, organization_id: orgId,
     }, { onConflict: "user_id,role,organization_id" });
     if (!error) roleCount++;
   }
