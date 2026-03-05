@@ -39,6 +39,7 @@ import {
   Lock,
   RefreshCw,
   Zap,
+  Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
