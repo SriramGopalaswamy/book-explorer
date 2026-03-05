@@ -655,10 +655,23 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         invoice_date: new Date().toISOString().split("T")[0],
         due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
       }).select("id").single();
-      if (inv) createdInvoiceIds.push(inv.id);
+      if (inv) {
+        createdInvoiceIds.push(inv.id);
+        // Gap Fix #5: Seed invoice line items
+        const itemCount = 1 + Math.floor(Math.random() * 3);
+        for (let j = 0; j < itemCount; j++) {
+          const qty = 1 + Math.floor(Math.random() * 10);
+          const rate = Math.round(amount / itemCount / qty);
+          await client.from("invoice_items").insert({
+            invoice_id: inv.id, description: `Service item ${j + 1} for ${cust.name}`,
+            quantity: qty, rate, amount: qty * rate,
+            tax_rate: 18, tax_amount: Math.round(qty * rate * 0.18),
+          });
+        }
+      }
       results.push({
         workflow: `Invoice: ${invNum}`, module: "Finance", status: error ? "failed" : "passed",
-        detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + taxAmount).toLocaleString()}`,
+        detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + taxAmount).toLocaleString()} with line items`,
         duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
