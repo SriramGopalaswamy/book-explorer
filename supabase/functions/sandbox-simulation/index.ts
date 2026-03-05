@@ -1050,7 +1050,6 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   // ===== ATTENDANCE WORKFLOWS =====
 
   // WF6: Create attendance records for each profile
-  const today = new Date();
   for (let dayOffset = 1; dayOffset <= 5; dayOffset++) {
     const date = new Date(today);
     date.setDate(date.getDate() - dayOffset);
