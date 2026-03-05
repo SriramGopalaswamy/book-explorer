@@ -648,6 +648,156 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.budgets = budgetCount;
 
+  // ===== SEED ORGANIZATION COMPLIANCE =====
+  const { error: complianceErr } = await client.from("organization_compliance").upsert({
+    organization_id: orgId,
+    payroll_enabled: true, payroll_frequency: "monthly",
+    pf_applicable: true, esi_applicable: false,
+    professional_tax_applicable: true, gratuity_applicable: false,
+    accounting_method: "accrual", base_currency: "INR",
+    financial_year_start: "April",
+    entity_type: "private_limited", legal_name: "Sandbox Simulation Pvt Ltd",
+    pan: "AABCS1234D", tan: "DELS12345E",
+    gstin: ["29AABCS1234D1ZQ"],
+    registration_type: "regular", filing_frequency: "monthly",
+    einvoice_applicable: false, ewaybill_applicable: false,
+    reverse_charge_applicable: false, itc_eligible: true,
+    state: "Karnataka", pincode: "560001",
+    registered_address: "123 MG Road, Bengaluru",
+    authorized_signatory_name: "Arjun Mehta",
+  }, { onConflict: "organization_id" });
+  summary.organization_compliance = complianceErr ? 0 : 1;
+
+  // ===== SEED GOAL CYCLE CONFIG =====
+  const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  const { error: gccErr } = await client.from("goal_cycle_config").upsert({
+    organization_id: orgId, cycle_month: currentMonthStr,
+    input_start_day: 1, input_deadline_day: 10,
+    scoring_start_day: 25, scoring_deadline_day: 28,
+    is_active: true,
+  }, { onConflict: "organization_id,cycle_month" });
+  summary.goal_cycle_config = gccErr ? 0 : 1;
+
+  // ===== SEED HISTORICAL PAYROLL RUNS (3 months) =====
+  let histPayrollCount = 0;
+  const histMonths = [
+    { period: "2025-12", gross: 385000, ded: 77000, net: 308000 },
+    { period: "2026-01", gross: 392000, ded: 78400, net: 313600 },
+    { period: "2026-02", gross: 398000, ded: 79600, net: 318400 },
+  ];
+  for (const hm of histMonths) {
+    const { data: histRun, error: hrErr } = await client.from("payroll_runs").insert({
+      organization_id: orgId, pay_period: hm.period,
+      generated_by: userId, status: "processed",
+      employee_count: 5, total_gross: hm.gross,
+      total_deductions: hm.ded, total_net: hm.net,
+    }).select("id").single();
+    if (!hrErr && histRun) {
+      histPayrollCount++;
+      // Create payroll records for each historical month
+      for (let pi = 0; pi < Math.min(5, (allProfilesList ?? []).length); pi++) {
+        const p = allProfilesList![pi];
+        const basic = [50000, 65000, 80000, 45000, 95000][pi % 5];
+        const hra = Math.round(basic * 0.4);
+        const gross = basic + hra + 1600 + Math.round(basic * 0.15);
+        const pf = Math.round(basic * 0.12);
+        const tax = Math.round(gross * 0.1);
+        const net = gross - pf - tax - 500;
+        await client.from("payroll_records").insert({
+          user_id: p.user_id, profile_id: p.id,
+          organization_id: orgId, pay_period: hm.period,
+          basic_salary: basic, hra, transport_allowance: 1600,
+          other_allowances: Math.round(basic * 0.15),
+          pf_deduction: pf, tax_deduction: tax, other_deductions: 500,
+          net_pay: net, working_days: 22, paid_days: 22,
+          lop_days: 0, lop_deduction: 0, status: "processed",
+        });
+      }
+    }
+  }
+  summary.historical_payroll_runs = histPayrollCount;
+
+  // ===== SEED DIVERSE ATTENDANCE PATTERNS =====
+  let diverseAttCount = 0;
+  const attStatuses = ["P", "P", "P", "A", "HD", "P", "MIS", "P"];
+  for (let dayOffset = 6; dayOffset <= 15; dayOffset++) {
+    const d = new Date(attToday);
+    d.setDate(d.getDate() - dayOffset);
+    const dateStr = d.toISOString().split("T")[0];
+    for (let pi = 0; pi < Math.min(8, (allProfilesList ?? []).length); pi++) {
+      const p = allProfilesList![pi];
+      const st = attStatuses[(dayOffset + pi) % attStatuses.length];
+      const isPresent = st === "P" || st === "HD";
+      const { error } = await client.from("attendance_daily").insert({
+        profile_id: p.id, organization_id: orgId,
+        attendance_date: dateStr, status: st,
+        first_in_time: isPresent ? "09:05:00" : null,
+        last_out_time: isPresent ? (st === "HD" ? "13:00:00" : "18:10:00") : null,
+        total_work_minutes: st === "P" ? 480 : st === "HD" ? 240 : 0,
+        late_minutes: isPresent ? Math.floor(Math.random() * 15) : 0,
+        early_exit_minutes: 0, ot_minutes: 0,
+      });
+      if (!error) diverseAttCount++;
+    }
+  }
+  summary.diverse_attendance = diverseAttCount;
+
+  // ===== SEED EMPLOYEE DOCUMENTS =====
+  let empDocCount = 0;
+  const docTypes = [
+    { type: "offer_letter", name: "Offer Letter" },
+    { type: "pan_card", name: "PAN Card Copy" },
+    { type: "aadhaar", name: "Aadhaar Card" },
+    { type: "bank_details", name: "Cancelled Cheque" },
+  ];
+  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
+    const p = allProfilesList![pi];
+    for (const doc of docTypes) {
+      const { error } = await client.from("employee_documents").insert({
+        profile_id: p.id, organization_id: orgId,
+        uploaded_by: userId, document_type: doc.type,
+        document_name: `${doc.name} - ${p.full_name}`,
+        file_path: `sandbox/${orgId}/${p.id}/${doc.type}.pdf`,
+        file_size: Math.round(50000 + Math.random() * 200000),
+        mime_type: "application/pdf",
+      });
+      if (!error) empDocCount++;
+    }
+  }
+  summary.employee_documents = empDocCount;
+
+  // ===== SEED INVESTMENT DECLARATIONS =====
+  let invDeclCount = 0;
+  const sections = ["80C", "80D", "80G", "HRA"];
+  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
+    const p = allProfilesList![pi];
+    for (const sec of sections.slice(0, 2 + pi % 2)) {
+      const { error } = await client.from("investment_declarations").insert({
+        profile_id: p.id, organization_id: orgId,
+        financial_year: "2025-2026", section_type: sec,
+        declared_amount: Math.round(20000 + Math.random() * 130000),
+        status: pi < 2 ? "submitted" : "approved",
+        approved_amount: pi < 2 ? null : Math.round(20000 + Math.random() * 100000),
+      });
+      if (!error) invDeclCount++;
+    }
+  }
+  summary.investment_declarations = invDeclCount;
+
+  // ===== CLOSE ONE FISCAL PERIOD (for fiscal-locking test) =====
+  if (financialYearId) {
+    const { data: aprPeriod } = await client.from("fiscal_periods")
+      .select("id").eq("organization_id", orgId)
+      .eq("financial_year_id", financialYearId)
+      .eq("period_number", 1).maybeSingle();
+    if (aprPeriod) {
+      await client.from("fiscal_periods").update({
+        status: "closed", closed_at: new Date().toISOString(), closed_by: userId,
+      }).eq("id", aprPeriod.id);
+    }
+    summary.closed_fiscal_periods = aprPeriod ? 1 : 0;
+  }
+
   return {
     success: true,
     action: "reset_and_seed",
