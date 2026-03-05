@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
 async function resetAndSeed(client: any, orgId: string, userId: string) {
   const startTime = Date.now();
   const summary: Record<string, number> = {};
+  const today = new Date();
 
   // Use the SECURITY DEFINER function to force-delete journal data (bypasses immutability triggers)
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
@@ -1049,7 +1050,6 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   // ===== ATTENDANCE WORKFLOWS =====
 
   // WF6: Create attendance records for each profile
-  const today = new Date();
   for (let dayOffset = 1; dayOffset <= 5; dayOffset++) {
     const date = new Date(today);
     date.setDate(date.getDate() - dayOffset);
