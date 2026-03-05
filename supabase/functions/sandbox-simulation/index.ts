@@ -2222,7 +2222,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     if (revIds.length > 0) {
       const { data: revLines } = await client.from("journal_lines")
         .select("credit")
-        .in("account_id", revIds)
+        .in("gl_account_id", revIds)
         .limit(500);
       dashRevenue = (revLines ?? []).reduce((s: number, l: any) => s + Number(l.credit || 0), 0);
     }
