@@ -1660,7 +1660,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const futureDateEnd = new Date(Date.now() + 62 * 86400000).toISOString().split("T")[0];
   for (let i = 0; i < 2; i++) {
     const { error } = await client.from("leave_requests").insert({
-      user_id: testProfileId, profile_id: testProfileId,
+      user_id: testProfileUserId, profile_id: testProfileId,
       organization_id: orgId, leave_type: "Casual Leave",
       from_date: futureDate, to_date: futureDateEnd, days: 3,
       reason: `Chaos overlap test #${i + 1}`, status: "pending",
@@ -1678,7 +1678,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 7: Negative leave days
   const { error: negLeaveErr } = await client.from("leave_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, leave_type: "Sick Leave",
     from_date: futureDate, to_date: futureDate, days: -5,
     reason: "Chaos: negative days", status: "pending",
@@ -1691,7 +1691,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 8: Leave where to_date < from_date
   const { error: reverseDateErr } = await client.from("leave_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, leave_type: "Earned Leave",
     from_date: futureDateEnd, to_date: futureDate, days: 1,
     reason: "Chaos: reversed date range", status: "pending",
@@ -1706,7 +1706,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 9: Negative salary payroll record
   const { error: negPayErr } = await client.from("payroll_records").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, pay_period: "2026-01",
     basic_salary: -50000, hra: 0, transport_allowance: 0,
     other_allowances: 0, pf_deduction: 0, tax_deduction: 0,
@@ -1722,7 +1722,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 10: Payroll with paid_days > working_days
   const { error: overDaysErr } = await client.from("payroll_records").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, pay_period: "2026-02",
     basic_salary: 50000, hra: 20000, transport_allowance: 1600,
     other_allowances: 7500, pf_deduction: 6000, tax_deduction: 7910,
@@ -1740,7 +1740,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 11: Zero-amount reimbursement
   const { error: zeroReimbErr } = await client.from("reimbursement_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, amount: 0,
     category: "Chaos", description: "Chaos: zero amount",
     expense_date: new Date().toISOString().split("T")[0],
@@ -1754,7 +1754,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
 
   // Chaos 12: Negative reimbursement
   const { error: negReimbErr } = await client.from("reimbursement_requests").insert({
-    user_id: testProfileId, profile_id: testProfileId,
+    user_id: testProfileUserId, profile_id: testProfileId,
     organization_id: orgId, amount: -5000,
     category: "Chaos", description: "Chaos: negative amount",
     expense_date: new Date().toISOString().split("T")[0],
