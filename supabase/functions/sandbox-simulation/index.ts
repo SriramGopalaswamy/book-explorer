@@ -472,23 +472,54 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.organization_members = orgMemberCount;
 
-  // ===== SEED USER ROLES for employees =====
+  // ===== SET MANAGER_ID ON PROFILES (reporting hierarchy) =====
+  // Vikram Singh (Tech Lead) manages: Arjun (Sr Dev), Deepika (QA), Ananya (Marketing)
+  // Rahul Verma (Ops Lead) manages: Karan (Sales)
+  // Sneha Iyer (HR Exec) manages: nobody directly but is HR head
+  // Priya Sharma (Finance Mgr) manages: nobody directly but is Finance head
+  const managerMapping: Record<string, string> = {
+    "Senior Developer": "Tech Lead",
+    "QA Engineer": "Tech Lead",
+    "Marketing Analyst": "Tech Lead",
+    "Sales Executive": "Operations Lead",
+  };
+  const titleToUserId: Record<string, string> = {};
+  for (const p of (allProfilesList ?? [])) {
+    titleToUserId[p.job_title] = p.user_id;
+  }
+  let managerIdSetCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    const managerTitle = managerMapping[p.job_title];
+    if (managerTitle && titleToUserId[managerTitle]) {
+      const { error } = await client.from("profiles")
+        .update({ manager_id: titleToUserId[managerTitle] })
+        .eq("id", p.id);
+      if (!error) managerIdSetCount++;
+    }
+  }
+  console.log(`Set manager_id on ${managerIdSetCount} profiles`);
 
-  // Role mapping based on department/title
-  const roleMapping: Record<string, string> = {
-    "Senior Developer": "admin",     // Gap Fix #1: assign admin role
-    "Finance Manager": "finance",
-    "HR Executive": "hr",
-    "Tech Lead": "manager",
-    "Operations Lead": "manager",
+  // ===== SEED USER ROLES (MULTI-ROLE) for employees =====
+  // Each key actor gets multiple roles to enable cross-role simulation
+  const multiRoleMapping: Record<string, string[]> = {
+    "Senior Developer": ["admin", "manager"],           // Admin who also manages team
+    "Finance Manager":  ["finance", "manager", "payroll"], // Finance head + manager + payroll
+    "HR Executive":     ["hr", "manager", "payroll"],   // HR head + manager + payroll access
+    "Tech Lead":        ["manager"],                     // Pure manager
+    "Operations Lead":  ["manager"],                     // Pure manager
+    "Marketing Analyst": ["employee"],                   // Pure employee
+    "Sales Executive":   ["employee"],                   // Pure employee
+    "QA Engineer":       ["employee"],                   // Pure employee
   };
   let roleCount = 0;
   for (const p of (allProfilesList ?? [])) {
-    const role = roleMapping[p.job_title] || "employee";
-    const { error } = await client.from("user_roles").upsert({
-      user_id: p.user_id, role, organization_id: orgId,
-    }, { onConflict: "user_id,role,organization_id" });
-    if (!error) roleCount++;
+    const roles = multiRoleMapping[p.job_title] || ["employee"];
+    for (const role of roles) {
+      const { error } = await client.from("user_roles").upsert({
+        user_id: p.user_id, role, organization_id: orgId,
+      }, { onConflict: "user_id,role,organization_id" });
+      if (!error) roleCount++;
+    }
   }
   summary.user_roles = roleCount;
 
