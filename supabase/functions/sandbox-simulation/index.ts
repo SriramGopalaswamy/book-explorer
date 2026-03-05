@@ -1562,8 +1562,9 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   const results: Array<{ test: string; module: string; status: string; detail: string }> = [];
 
   const { data: profiles } = await client.from("profiles")
-    .select("id").eq("organization_id", orgId).limit(1);
+    .select("id, user_id").eq("organization_id", orgId).limit(1);
   const testProfileId = profiles?.[0]?.id ?? userId;
+  const testProfileUserId = profiles?.[0]?.user_id ?? userId;
 
   // === FINANCE CHAOS ===
 
