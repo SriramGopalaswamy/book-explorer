@@ -3538,13 +3538,37 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
     detail: `${holidayCount ?? 0} holidays configured (expected ≥5)`,
   });
 
-  // S7: User roles assigned
-  const { count: roleAssignments } = await client.from("user_roles")
+  // S7: User roles assigned (expect ≥10 with multi-role seeding)
+  const { count: roleAssignmentCount } = await client.from("user_roles")
     .select("id", { count: "exact", head: true }).eq("organization_id", orgId);
   checks.push({
     check: "S7_USER_ROLES", module: "Seeding",
-    status: (roleAssignments ?? 0) >= 5 ? "passed" : "warning",
-    detail: `${roleAssignments ?? 0} role assignments`,
+    status: (roleAssignmentCount ?? 0) >= 10 ? "passed" : (roleAssignmentCount ?? 0) >= 5 ? "warning" : "failed",
+    detail: `${roleAssignmentCount ?? 0} role assignments (expected ≥10 with multi-role seeding)`,
+  });
+
+  // S7b: Multi-role coverage — at least 2 users have ≥2 roles
+  const { data: allRoleRows } = await client.from("user_roles")
+    .select("user_id, role").eq("organization_id", orgId);
+  const userRoleBuckets: Record<string, number> = {};
+  for (const r of (allRoleRows ?? [])) {
+    userRoleBuckets[r.user_id] = (userRoleBuckets[r.user_id] || 0) + 1;
+  }
+  const multiRoleUserCount = Object.values(userRoleBuckets).filter(c => c >= 2).length;
+  checks.push({
+    check: "S7b_MULTI_ROLE_COVERAGE", module: "Seeding",
+    status: multiRoleUserCount >= 2 ? "passed" : multiRoleUserCount > 0 ? "warning" : "failed",
+    detail: `${multiRoleUserCount} users have ≥2 roles (expected ≥2 for cross-role simulation)`,
+  });
+
+  // S7c: Manager hierarchy — profiles with manager_id set
+  const { count: managedProfileCount } = await client.from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId).not("manager_id", "is", null);
+  checks.push({
+    check: "S7c_MANAGER_HIERARCHY", module: "Seeding",
+    status: (managedProfileCount ?? 0) >= 3 ? "passed" : (managedProfileCount ?? 0) > 0 ? "warning" : "failed",
+    detail: `${managedProfileCount ?? 0} employees have manager_id set (expected ≥3)`,
   });
 
   // S8: Organization compliance configured
