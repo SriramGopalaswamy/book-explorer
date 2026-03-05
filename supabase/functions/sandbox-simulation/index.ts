@@ -123,9 +123,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "invoice_items", "invoices",
     "bill_items", "bills",
     "vendor_credits", "credit_notes",
-    "bank_transactions", "expenses", "budgets",
+    "bank_transactions", "bank_accounts", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
-    "compensation_revision_requests", "compensation_structures",
+    "compensation_revision_requests", "compensation_components", "compensation_structures",
      "holidays", "user_roles", "organization_members",
      "profile_change_requests", "payslip_disputes",
      "chart_of_accounts",
@@ -306,9 +306,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // ===== SEED LEAVE TYPES =====
   const leaveTypes = [
-    { key: "CL", label: "Casual Leave", default_days: 12, color: "#3b82f6", icon: "☀️", is_active: true, sort_order: 1 },
-    { key: "SL", label: "Sick Leave", default_days: 10, color: "#ef4444", icon: "🏥", is_active: true, sort_order: 2 },
-    { key: "EL", label: "Earned Leave", default_days: 15, color: "#10b981", icon: "📅", is_active: true, sort_order: 3 },
+    { key: "casual", label: "Casual Leave", default_days: 12, color: "#3b82f6", icon: "☀️", is_active: true, sort_order: 1 },
+    { key: "sick", label: "Sick Leave", default_days: 10, color: "#ef4444", icon: "🏥", is_active: true, sort_order: 2 },
+    { key: "earned", label: "Earned Leave", default_days: 15, color: "#10b981", icon: "📅", is_active: true, sort_order: 3 },
   ];
   let leaveTypeCount = 0;
   for (const lt of leaveTypes) {
@@ -531,9 +531,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // ===== GAP FIX #3: SEED LEAVE BALANCES =====
   const leaveBalanceTypes = [
-    { type: "Casual Leave", total: 12 },
-    { type: "Sick Leave", total: 10 },
-    { type: "Earned Leave", total: 15 },
+    { type: "casual", total: 12 },
+    { type: "sick", total: 10 },
+    { type: "earned", total: 15 },
   ];
   let leaveBalCount = 0;
   for (const p of (allProfilesList ?? [])) {
@@ -576,8 +576,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       const { error } = await client.from("attendance_daily").insert({
         profile_id: p.id, organization_id: orgId,
         attendance_date: dateStr, status: "present",
-        first_in_time: `${dateStr}T09:${String(lateMin).padStart(2, "0")}:00`,
-        last_out_time: `${dateStr}T18:${String(otMin).padStart(2, "0")}:00`,
+        first_in_time: `09:${String(lateMin).padStart(2, "0")}:00`,
+        last_out_time: `18:${String(otMin).padStart(2, "0")}:00`,
         total_work_minutes: workMin, late_minutes: lateMin,
         early_exit_minutes: 0, ot_minutes: otMin,
       });
@@ -585,6 +585,30 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
   summary.attendance_daily = attDailyCount;
+
+  // ===== SEED DEPRECIATION ENTRIES =====
+  let depCount = 0;
+  const { data: seededAssets } = await client.from("assets")
+    .select("id, purchase_price, useful_life_months, salvage_value")
+    .eq("organization_id", orgId).eq("status", "active");
+  for (const asset of (seededAssets ?? [])) {
+    const monthlyDep = Math.round((asset.purchase_price - (asset.salvage_value ?? 0)) / asset.useful_life_months);
+    // Seed 3 months of depreciation
+    for (let m = 0; m < 3; m++) {
+      const periodDate = new Date(2025, 4 + m, 1).toISOString().split("T")[0]; // May, Jun, Jul 2025
+      const accDep = monthlyDep * (m + 1);
+      const { error } = await client.from("asset_depreciation_entries").insert({
+        asset_id: asset.id, organization_id: orgId,
+        period_date: periodDate,
+        depreciation_amount: monthlyDep,
+        accumulated_depreciation: accDep,
+        book_value_after: asset.purchase_price - accDep,
+        is_posted: true,
+      });
+      if (!error) depCount++;
+    }
+  }
+  summary.depreciation_entries = depCount;
 
   // ===== SEED BUDGETS =====
   let budgetCount = 0;
@@ -916,10 +940,10 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
 
   // WF7: Create leave requests (various types & statuses)
   const leaveScenarios = [
-    { type: "Casual Leave", from: 5, to: 6, days: 2, reason: "Family function" },
-    { type: "Sick Leave", from: 10, to: 12, days: 3, reason: "Fever and cold" },
-    { type: "Earned Leave", from: 20, to: 25, days: 6, reason: "Vacation trip" },
-    { type: "Casual Leave", from: 15, to: 15, days: 1, reason: "Personal work" },
+    { type: "casual", from: 5, to: 6, days: 2, reason: "Family function" },
+    { type: "sick", from: 10, to: 12, days: 3, reason: "Fever and cold" },
+    { type: "earned", from: 20, to: 25, days: 6, reason: "Vacation trip" },
+    { type: "casual", from: 15, to: 15, days: 1, reason: "Personal work" },
   ];
   const createdLeaveIds: string[] = [];
   for (let i = 0; i < Math.min(leaveScenarios.length, profileList.length); i++) {
@@ -1146,7 +1170,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   // ===== GOAL/PERFORMANCE WORKFLOWS =====
 
   // WF10: Create goal plans
-  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   for (let i = 0; i < Math.min(3, profileList.length); i++) {
     const wfStart = Date.now();
     const profile = profileList[i];
@@ -1530,7 +1554,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { error } = await client.from("attendance_daily").insert({
         profile_id: profileList[0].id, organization_id: orgId,
         attendance_date: yesterday, status: "present",
-        first_in_time: `${yesterday}T09:05:00`, last_out_time: `${yesterday}T18:15:00`,
+        first_in_time: "09:05:00", last_out_time: "18:15:00",
         total_work_minutes: 550, late_minutes: 5, early_exit_minutes: 0, ot_minutes: 70,
       });
       results.push({
@@ -1576,7 +1600,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       // Step 1: Employee submits leave
       const { data: mrLeave, error: mrLeaveErr } = await client.from("leave_requests").insert({
         user_id: employeeActor, profile_id: employeeProfile.id,
-        organization_id: orgId, leave_type: "Casual Leave",
+        organization_id: orgId, leave_type: "casual",
         from_date: leaveFrom, to_date: leaveTo, days: 3,
         reason: "Multi-role test: family event", status: "pending",
       }).select("id").single();
@@ -2090,7 +2114,7 @@ async function runStressTest(client: any, orgId: string, userId: string, runId?:
             const toDate = new Date(Date.now() + (userIdx + 51) * 86400000).toISOString().split("T")[0];
             const { error } = await client.from("leave_requests").insert({
               user_id: profileUserId, profile_id: profileId,
-              organization_id: orgId, leave_type: "Casual Leave",
+              organization_id: orgId, leave_type: "casual",
               from_date: fromDate, to_date: toDate, days: 2,
               reason: `Stress test leave ${userIdx}`, status: "pending",
             });
@@ -2264,7 +2288,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   for (let i = 0; i < 2; i++) {
     const { error } = await client.from("leave_requests").insert({
       user_id: testProfileUserId, profile_id: testProfileId,
-      organization_id: orgId, leave_type: "Casual Leave",
+      organization_id: orgId, leave_type: "casual",
       from_date: futureDate, to_date: futureDateEnd, days: 3,
       reason: `Chaos overlap test #${i + 1}`, status: "pending",
     });
@@ -2282,7 +2306,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   // Chaos 7: Negative leave days
   const { error: negLeaveErr } = await client.from("leave_requests").insert({
     user_id: testProfileUserId, profile_id: testProfileId,
-    organization_id: orgId, leave_type: "Sick Leave",
+    organization_id: orgId, leave_type: "sick",
     from_date: futureDate, to_date: futureDate, days: -5,
     reason: "Chaos: negative days", status: "pending",
   });
@@ -2295,7 +2319,7 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   // Chaos 8: Leave where to_date < from_date
   const { error: reverseDateErr } = await client.from("leave_requests").insert({
     user_id: testProfileUserId, profile_id: testProfileId,
-    organization_id: orgId, leave_type: "Earned Leave",
+    organization_id: orgId, leave_type: "earned",
     from_date: futureDateEnd, to_date: futureDate, days: 1,
     reason: "Chaos: reversed date range", status: "pending",
   });
