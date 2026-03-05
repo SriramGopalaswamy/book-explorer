@@ -539,11 +539,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const p of (allProfilesList ?? [])) {
     for (const lb of leaveBalanceTypes) {
       const usedDays = Math.floor(Math.random() * Math.min(lb.total, 4));
-      const { error } = await client.from("leave_balances").upsert({
+      const { error } = await client.from("leave_balances").insert({
         user_id: p.user_id, profile_id: p.id, organization_id: orgId,
         leave_type: lb.type, total_days: lb.total,
         used_days: usedDays, year: 2026,
-      }, { onConflict: "user_id,leave_type,year" });
+      });
       if (!error) leaveBalCount++;
     }
   }
@@ -552,11 +552,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== GAP FIX #4: SEED CHART OF ACCOUNTS =====
   let coaCount = 0;
   for (const entry of coaEntries) {
-    const { error } = await client.from("chart_of_accounts").upsert({
+    const { error } = await client.from("chart_of_accounts").insert({
       account_code: entry.code, account_name: entry.name, account_type: entry.type,
       organization_id: orgId, user_id: userId, is_active: true,
       opening_balance: 0, current_balance: 0,
-    }, { onConflict: "account_code,organization_id" });
+    });
     if (!error) coaCount++;
   }
   summary.chart_of_accounts = coaCount;
