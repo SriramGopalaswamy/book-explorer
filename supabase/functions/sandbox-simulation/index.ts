@@ -2229,7 +2229,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   // V_RPT_5: GL Account Balances (dashboard KPI source)
   try {
     const { data: glBalances, error: glErr } = await client.from("gl_accounts")
-      .select("id, name, account_type, opening_balance")
+      .select("id, name, account_type")
       .eq("organization_id", orgId);
     const glRows = glBalances ?? [];
     const revenueAccounts = glRows.filter((g: any) => g.account_type === "revenue").length;
