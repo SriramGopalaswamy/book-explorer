@@ -707,10 +707,22 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         total_amount: amount + taxAmount, status: "draft",
         bill_date: new Date().toISOString().split("T")[0],
       }).select("id").single();
-      if (bill) createdBillIds.push(bill.id);
+      if (bill) {
+        createdBillIds.push(bill.id);
+        // Gap Fix #5: Seed bill line items
+        const itemCount = 1 + Math.floor(Math.random() * 2);
+        for (let j = 0; j < itemCount; j++) {
+          const qty = 1 + Math.floor(Math.random() * 5);
+          const rate = Math.round(amount / itemCount / qty);
+          await client.from("bill_items").insert({
+            bill_id: bill.id, description: `Supply item ${j + 1} from ${v.name}`,
+            quantity: qty, rate, amount: qty * rate,
+          });
+        }
+      }
       results.push({
         workflow: `Bill: ${billNum}`, module: "Finance", status: error ? "failed" : "passed",
-        detail: error?.message ?? `Created for ${v.name} — ₹${(amount + taxAmount).toLocaleString()}`,
+        detail: error?.message ?? `Created for ${v.name} — ₹${(amount + taxAmount).toLocaleString()} with line items`,
         duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
@@ -1230,11 +1242,23 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         igst_total: 0, status: "draft",
         due_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
       }).select("id").single();
-      if (qt) createdQuoteIds.push(qt.id);
+      if (qt) {
+        createdQuoteIds.push(qt.id);
+        // Gap Fix #5: Seed quote line items
+        for (let j = 0; j < 2; j++) {
+          const qty = 1 + Math.floor(Math.random() * 5);
+          const rate = Math.round(amount / 2 / qty);
+          await client.from("quote_items").insert({
+            quote_id: qt.id, description: `Quoted item ${j + 1}`,
+            quantity: qty, rate, amount: qty * rate,
+            tax_rate: 18, tax_amount: Math.round(qty * rate * 0.18),
+          });
+        }
+      }
       results.push({
         workflow: `Quote: ${quoteNum}`, module: "Quotes",
         status: error ? "failed" : "passed",
-        detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + gst).toLocaleString()}`,
+        detail: error?.message ?? `Created for ${cust.name} — ₹${(amount + gst).toLocaleString()} with line items`,
         duration_ms: Date.now() - wfStart,
       });
     } catch (e) {
