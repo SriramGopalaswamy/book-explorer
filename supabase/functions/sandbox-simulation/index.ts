@@ -535,7 +535,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
 
   // Get profiles in this org for HR workflows
   const { data: profiles } = await client.from("profiles")
-    .select("id, full_name, job_title")
+    .select("id, user_id, full_name, job_title")
     .eq("organization_id", orgId).limit(10);
   const profileList = profiles ?? [];
 
@@ -694,9 +694,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const wfStart = Date.now();
       try {
         const amount = Math.round(10000 + Math.random() * 100000);
-        const types = ["income", "expense", "transfer"];
+        const types = ["revenue", "expense", "expense"];
         const { error } = await client.from("financial_records").insert({
-          type: types[i], amount, description: `Simulation ${types[i]} record`,
+          type: types[i], amount, description: `Simulation ${types[i]} record #${i + 1}`,
           category: "simulation", organization_id: orgId, user_id: userId,
           record_date: new Date().toISOString().split("T")[0],
         });
