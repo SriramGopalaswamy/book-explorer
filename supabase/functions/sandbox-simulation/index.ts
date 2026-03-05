@@ -417,7 +417,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
         if (!userId) continue;
 
-        const { error: updateErr } = await client.from("profiles").update({
+        const profileData = {
           organization_id: orgId,
           full_name: emp.name,
           email: `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`,
@@ -426,10 +426,27 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           status: "active",
           join_date: "2024-06-01",
           phone: emp.phone,
-        }).eq("user_id", userId);
+        };
 
-        if (updateErr) {
-          console.warn(`Failed to update profile for ${emp.name}:`, updateErr.message);
+        // Check if a profile row exists for this auth user
+        const { data: existingProfile } = await client.from("profiles")
+          .select("id").eq("user_id", userId).maybeSingle();
+
+        let profileErr: any = null;
+        if (existingProfile) {
+          // Profile exists — update it
+          const { error } = await client.from("profiles")
+            .update(profileData).eq("user_id", userId);
+          profileErr = error;
+        } else {
+          // Profile was deleted during reset — re-insert it
+          const { error } = await client.from("profiles")
+            .insert({ ...profileData, id: userId, user_id: userId });
+          profileErr = error;
+        }
+
+        if (profileErr) {
+          console.warn(`Failed to upsert profile for ${emp.name}:`, profileErr.message);
         } else {
           seededProfiles++;
         }
