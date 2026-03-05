@@ -143,6 +143,7 @@ export default function Vendors() {
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
     if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "Tax / GST number is required.", variant: "destructive" });
+    if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) return toast({ title: "Invalid Tax Number", description: "Must be exactly 12 alphanumeric characters.", variant: "destructive" });
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 
