@@ -1336,6 +1336,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   }
 
 
+  const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
 
   const modules = [...new Set(results.map(r => r.module))];
@@ -2398,6 +2399,7 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   }
 
 
+  const passed = checks.filter(c => c.status === "passed").length;
   const failed = checks.filter(c => c.status === "failed").length;
   const allPassed = failed === 0;
 
