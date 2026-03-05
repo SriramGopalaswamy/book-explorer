@@ -87,6 +87,53 @@ function useSandboxUsers(orgId: string | null) {
   });
 }
 
+interface SeedingStat {
+  label: string;
+  icon: React.ReactNode;
+  count: number | null;
+}
+
+/** Fetch seeding summary counts for a sandbox org */
+function useSeedingSummary(orgId: string | null) {
+  return useQuery({
+    queryKey: ["sandbox-seeding-summary", orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+
+      const tables = [
+        { key: "profiles", table: "profiles" as const, label: "Employees", icon: <UserCheck className="h-4 w-4" /> },
+        { key: "invoices", table: "invoices" as const, label: "Invoices", icon: <FileText className="h-4 w-4" /> },
+        { key: "bills", table: "bills" as const, label: "Bills", icon: <Receipt className="h-4 w-4" /> },
+        { key: "expenses", table: "expenses" as const, label: "Expenses", icon: <Briefcase className="h-4 w-4" /> },
+        { key: "journal_entries", table: "journal_entries" as const, label: "Journal Entries", icon: <Database className="h-4 w-4" /> },
+        { key: "gl_accounts", table: "gl_accounts" as const, label: "GL Accounts", icon: <Landmark className="h-4 w-4" /> },
+        { key: "attendance_daily", table: "attendance_daily" as const, label: "Attendance Records", icon: <CalendarDays className="h-4 w-4" /> },
+        { key: "leave_balances", table: "leave_balances" as const, label: "Leave Balances", icon: <CalendarDays className="h-4 w-4" /> },
+        { key: "payroll_runs", table: "payroll_runs" as const, label: "Payroll Runs", icon: <Package className="h-4 w-4" /> },
+        { key: "goal_plans", table: "goal_plans" as const, label: "Goal Plans", icon: <Target className="h-4 w-4" /> },
+        { key: "customers", table: "customers" as const, label: "Customers", icon: <Users className="h-4 w-4" /> },
+        { key: "vendors", table: "vendors" as const, label: "Vendors", icon: <Users className="h-4 w-4" /> },
+        { key: "assets", table: "assets" as const, label: "Assets", icon: <Package className="h-4 w-4" /> },
+        { key: "compensation_structures", table: "compensation_structures" as const, label: "Comp. Structures", icon: <Briefcase className="h-4 w-4" /> },
+      ];
+
+      const results: SeedingStat[] = await Promise.all(
+        tables.map(async (t) => {
+          const { count, error } = await supabase
+            .from(t.table)
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", orgId);
+          return { label: t.label, icon: t.icon, count: error ? null : (count ?? 0) };
+        })
+      );
+
+      return results;
+    },
+    enabled: !!orgId,
+    staleTime: 1000 * 30,
+  });
+}
+
 const ROLE_COLORS: Record<string, string> = {
   admin: "bg-destructive/10 text-destructive border-destructive/20",
   hr: "bg-blue-500/10 text-blue-600 border-blue-500/20",
