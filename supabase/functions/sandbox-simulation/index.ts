@@ -2244,9 +2244,27 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   if (employeeProfile) {
     const wfStart = Date.now();
     try {
-      // Find an existing payroll record for the employee
-      const { data: empPayroll } = await client.from("payroll_records")
+      // Find an existing payroll record for the employee, or create one
+      let empPayroll: any = null;
+      const { data: existingPayroll } = await client.from("payroll_records")
         .select("id, pay_period").eq("profile_id", employeeProfile.id).limit(1).maybeSingle();
+      
+      if (!existingPayroll) {
+        // Create a payroll record for the employee so dispute chain can proceed
+        const empPayPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+        const { data: newPayroll } = await client.from("payroll_records").insert({
+          user_id: employeeActor, profile_id: employeeProfile.id,
+          organization_id: orgId, pay_period: empPayPeriod,
+          basic_salary: 50000, hra: 20000, transport_allowance: 1600,
+          other_allowances: 7500, pf_deduction: 6000, tax_deduction: 5000,
+          other_deductions: 500, net_pay: 67600,
+          working_days: 22, paid_days: 22, lop_days: 0, lop_deduction: 0,
+          status: "draft",
+        }).select("id, pay_period").single();
+        empPayroll = newPayroll;
+      } else {
+        empPayroll = existingPayroll;
+      }
 
       if (empPayroll) {
         const { data: mrDispute, error: dispErr } = await client.from("payslip_disputes").insert({
