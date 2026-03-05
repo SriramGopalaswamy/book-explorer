@@ -1893,7 +1893,8 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           organization_id: orgId, created_by: userId,
           entry_date: "2025-04-01",
           memo: "Opening balance: Share capital + Retained earnings",
-          status: "posted", source_type: "opening_balance",
+          status: "draft", source_type: "opening_balance",
+          is_posted: false,
         }).select("id").single();
         if (obJE) {
           await client.from("journal_lines").insert([
