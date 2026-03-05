@@ -1882,7 +1882,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     try {
       const { error } = await client.from("attendance_daily").insert({
         profile_id: profileList[0].id, organization_id: orgId,
-        attendance_date: yesterday, status: "present",
+        attendance_date: yesterday, status: "P",
         first_in_time: "09:05:00", last_out_time: "18:15:00",
         total_work_minutes: 550, late_minutes: 5, early_exit_minutes: 0, ot_minutes: 70,
       });
