@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,15 +7,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FlaskConical, Play, RotateCcw, Zap, AlertTriangle, Shield,
   Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronRight,
-  FileText, Activity, Bug, Download, Info
+  FileText, Activity, Bug, Download, Info, Terminal
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -85,14 +85,46 @@ const PHASE_LABELS: Record<string, { label: string; icon: React.ElementType }> =
   run_full_simulation: { label: "Full Simulation", icon: FlaskConical },
 };
 
+const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }> = {
+  reset_and_seed: {
+    steps: ["Clearing existing data...", "Seeding organizations & profiles...", "Creating financial master data...", "Seeding HR & payroll records...", "Building attendance & leave data...", "Finalizing seed..."],
+    durations: [3000, 8000, 10000, 8000, 5000, 2000],
+  },
+  run_workflows: {
+    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
+    durations: [2000, 15000, 10000, 12000, 15000, 8000, 3000],
+  },
+  run_stress_test: {
+    steps: ["Spawning 20 concurrent users...", "Executing parallel operations...", "Measuring throughput & latency...", "Collecting results..."],
+    durations: [3000, 20000, 10000, 2000],
+  },
+  run_chaos_test: {
+    steps: ["Injecting invalid data patterns...", "Testing boundary violations...", "Verifying rejection handling...", "Scoring resilience..."],
+    durations: [5000, 15000, 10000, 3000],
+  },
+  run_validation: {
+    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Generating report..."],
+    durations: [5000, 8000, 8000, 5000, 2000],
+  },
+  run_full_simulation: {
+    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — Integrity validation & reporting..."],
+    durations: [30000, 60000, 30000, 25000, 15000],
+  },
+};
+
 export default function PlatformSimulation() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [activePhase, setActivePhase] = useState<string | null>(null);
-  const [phaseProgress, setPhaseProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [lastResult, setLastResult] = useState<any>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["summary"]));
+  const startTimeRef = useRef<number>(0);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: sandboxOrgs, isLoading: orgsLoading } = useSandboxOrgs();
   const { data: runs } = useSimulationRuns(selectedOrg);
@@ -105,11 +137,45 @@ export default function PlatformSimulation() {
     });
   };
 
+  const stopProgressTracking = useCallback(() => {
+    timeoutsRef.current.forEach(t => clearTimeout(t));
+    timeoutsRef.current = [];
+    if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+    elapsedTimerRef.current = null;
+  }, []);
+
+  const startProgressTracking = useCallback((action: string) => {
+    const phases = SIMULATION_PHASES[action];
+    if (!phases) return;
+    setCurrentStep(0);
+    setCompletedSteps([]);
+    setElapsedMs(0);
+    startTimeRef.current = Date.now();
+
+    let accumulated = 0;
+    for (let i = 0; i < phases.durations.length - 1; i++) {
+      accumulated += phases.durations[i];
+      const nextStep = i + 1;
+      timeoutsRef.current.push(setTimeout(() => {
+        setCompletedSteps(prev => [...prev, nextStep - 1]);
+        setCurrentStep(nextStep);
+      }, accumulated));
+    }
+
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    return () => stopProgressTracking();
+  }, [stopProgressTracking]);
+
   const runSimulation = useMutation({
     mutationFn: async (action: string) => {
       if (!selectedOrg) throw new Error("Select a sandbox environment first");
       setActivePhase(action);
-      setPhaseProgress(10);
+      startProgressTracking(action);
 
       const { data, error } = await supabase.functions.invoke("sandbox-simulation", {
         body: { action, sandbox_org_id: selectedOrg },
@@ -119,15 +185,15 @@ export default function PlatformSimulation() {
       return data;
     },
     onSuccess: (data, action) => {
+      stopProgressTracking();
       setLastResult(data);
-      setPhaseProgress(100);
       setActivePhase(null);
       queryClient.invalidateQueries({ queryKey: ["simulation-runs", selectedOrg] });
       toast.success(`${PHASE_LABELS[action]?.label ?? action} completed successfully`);
     },
     onError: (err: Error) => {
+      stopProgressTracking();
       setActivePhase(null);
-      setPhaseProgress(0);
       toast.error(err.message);
     },
   });
@@ -238,18 +304,82 @@ export default function PlatformSimulation() {
                 ))}
               </div>
 
-              {/* Progress */}
-              {isRunning && (
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Running: {PHASE_LABELS[activePhase ?? ""]?.label ?? activePhase}
-                    </span>
-                  </div>
-                  <Progress value={phaseProgress} className="h-2" />
-                </div>
-              )}
+              {/* Progress Tracker */}
+              <AnimatePresence>
+                {isRunning && activePhase && SIMULATION_PHASES[activePhase] && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-6 rounded-xl border border-border bg-muted/30 overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-5 w-5">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        </div>
+                        <span className="font-semibold text-sm text-foreground">
+                          {PHASE_LABELS[activePhase]?.label ?? activePhase}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="font-mono text-xs tabular-nums">
+                          {(elapsedMs / 1000).toFixed(1)}s
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          Step {currentStep + 1} / {SIMULATION_PHASES[activePhase].steps.length}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Overall progress bar */}
+                    <div className="px-5 pt-3">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-primary"
+                          initial={{ width: "0%" }}
+                          animate={{
+                            width: `${((currentStep + 1) / SIMULATION_PHASES[activePhase].steps.length) * 100}%`,
+                          }}
+                          transition={{ duration: 0.6, ease: "easeInOut" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step list */}
+                    <div className="px-5 py-3 space-y-1.5">
+                      {SIMULATION_PHASES[activePhase].steps.map((step, idx) => {
+                        const isCompleted = completedSteps.includes(idx);
+                        const isCurrent = idx === currentStep;
+                        const isPending = !isCompleted && !isCurrent;
+                        return (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`flex items-center gap-3 py-1.5 px-3 rounded-md text-sm transition-colors ${
+                              isCurrent ? "bg-primary/10 text-foreground" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/40"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                            ) : isCurrent ? (
+                              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                            ) : (
+                              <div className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/20" />
+                            )}
+                            <span className={`${isCurrent ? "font-medium" : ""}`}>
+                              {step}
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
 
