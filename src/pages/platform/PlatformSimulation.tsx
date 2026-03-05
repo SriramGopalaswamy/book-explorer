@@ -298,11 +298,11 @@ function ComplianceCoverageCard() {
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Simulation engine validates against internationally recognized audit and control frameworks
+          Simulation engine validates against internationally recognized and Indian statutory audit and control frameworks
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
           {COMPLIANCE_STANDARDS.map(std => {
             const Icon = std.icon;
             return (
