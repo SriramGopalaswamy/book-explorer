@@ -755,7 +755,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const checkIn = `${dateStr}T09:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
         const checkOut = `${dateStr}T18:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00`;
         const { error } = await client.from("attendance_records").insert({
-          user_id: profile.id, profile_id: profile.id,
+          user_id: profile.user_id, profile_id: profile.id,
           organization_id: orgId, date: dateStr,
           check_in: checkIn, check_out: checkOut,
           status: "present",
@@ -779,7 +779,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     corrDate.setDate(corrDate.getDate() - 2);
     try {
       const { error } = await client.from("attendance_correction_requests").insert({
-        user_id: profileList[0].id, profile_id: profileList[0].id,
+        user_id: profileList[0].user_id, profile_id: profileList[0].id,
         organization_id: orgId,
         date: corrDate.toISOString().split("T")[0],
         reason: "Forgot to check out — biometric malfunction",
@@ -817,7 +817,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     toDate.setDate(toDate.getDate() + scenario.to);
     try {
       const { data: lr, error } = await client.from("leave_requests").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         leave_type: scenario.type,
         from_date: fromDate.toISOString().split("T")[0],
@@ -897,7 +897,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         const netPay = grossPay - pf - tax - otherDeductions;
 
         const { error: recErr } = await client.from("payroll_records").insert({
-          user_id: profile.id, profile_id: profile.id,
+          user_id: profile.user_id, profile_id: profile.id,
           organization_id: orgId, pay_period: payPeriod,
           basic_salary: basic, hra, transport_allowance: transport,
           other_allowances: otherAllowances,
@@ -969,7 +969,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const amount = Math.round(1000 + Math.random() * 15000);
     try {
       const { data: reimb, error } = await client.from("reimbursement_requests").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         amount,
         category: reimbCategories[i],
@@ -1042,7 +1042,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     ];
     try {
       const { error } = await client.from("goal_plans").insert({
-        user_id: profile.id, profile_id: profile.id,
+        user_id: profile.user_id, profile_id: profile.id,
         organization_id: orgId,
         month: currentMonth,
         items: goalItems,
