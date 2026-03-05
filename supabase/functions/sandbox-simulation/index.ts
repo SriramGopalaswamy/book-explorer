@@ -3222,6 +3222,118 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     detail: `${rapidPassed}/10 rapid-fire inserts succeeded`,
   });
 
+  // === NEW CHAOS: Duplicate leave for same dates (overlapping) ===
+  const dupLeaveFrom = new Date(Date.now() + 200 * 86400000).toISOString().split("T")[0];
+  const dupLeaveTo = new Date(Date.now() + 202 * 86400000).toISOString().split("T")[0];
+  // First leave (should pass)
+  await client.from("leave_requests").insert({
+    user_id: testProfileUserId, profile_id: testProfileId,
+    organization_id: orgId, leave_type: "casual",
+    from_date: dupLeaveFrom, to_date: dupLeaveTo, days: 3,
+    reason: "Chaos: first overlapping leave", status: "approved", reviewed_by: userId,
+  });
+  // Second overlapping leave (should be blocked)
+  const { error: dupLeaveErr } = await client.from("leave_requests").insert({
+    user_id: testProfileUserId, profile_id: testProfileId,
+    organization_id: orgId, leave_type: "casual",
+    from_date: dupLeaveFrom, to_date: dupLeaveTo, days: 3,
+    reason: "Chaos: duplicate overlapping leave", status: "pending",
+  });
+  results.push({
+    test: "Duplicate overlapping leave for same dates", module: "Leave",
+    status: dupLeaveErr ? "blocked" : "anomaly",
+    detail: dupLeaveErr ? `Correctly blocked: ${dupLeaveErr.message}` : "WARNING: Duplicate overlapping leave accepted — needs trigger",
+  });
+
+  // === NEW CHAOS: Leave exceeding available balance ===
+  const { error: excessLeaveErr } = await client.from("leave_requests").insert({
+    user_id: testProfileUserId, profile_id: testProfileId,
+    organization_id: orgId, leave_type: "casual",
+    from_date: new Date(Date.now() + 250 * 86400000).toISOString().split("T")[0],
+    to_date: new Date(Date.now() + 280 * 86400000).toISOString().split("T")[0],
+    days: 30, reason: "Chaos: exceeds balance", status: "pending",
+  });
+  results.push({
+    test: "Leave days exceeding available balance", module: "Leave",
+    status: excessLeaveErr ? "blocked" : "anomaly",
+    detail: excessLeaveErr ? `Correctly blocked: ${excessLeaveErr.message}` : "WARNING: 30-day leave accepted (likely exceeds balance) — needs validation",
+  });
+
+  // === NEW CHAOS: Expense to closed fiscal period ===
+  {
+    const { data: closedFP } = await client.from("fiscal_periods")
+      .select("start_date").eq("organization_id", orgId).eq("status", "closed").limit(1).maybeSingle();
+    if (closedFP) {
+      const { error: closedExpErr } = await client.from("expenses").insert({
+        description: "Chaos: expense in closed period", amount: 5000,
+        category: "Chaos", organization_id: orgId, user_id: userId,
+        status: "pending", expense_date: closedFP.start_date,
+      });
+      results.push({
+        test: "Expense dated in closed fiscal period", module: "Finance",
+        status: closedExpErr ? "blocked" : "anomaly",
+        detail: closedExpErr ? `Correctly blocked: ${closedExpErr.message}` : "WARNING: Expense in closed fiscal period accepted",
+      });
+    }
+  }
+
+  // === NEW CHAOS: Payroll record for inactive employee ===
+  {
+    // Temporarily deactivate a profile
+    const tempProfile = (profiles ?? [])[0];
+    if (tempProfile) {
+      await client.from("profiles").update({ status: "inactive" }).eq("id", tempProfile.id);
+      const { error: inactivePayErr } = await client.from("payroll_records").insert({
+        user_id: tempProfile.user_id, profile_id: tempProfile.id,
+        organization_id: orgId, pay_period: "2026-04",
+        basic_salary: 50000, hra: 20000, transport_allowance: 1600,
+        other_allowances: 7500, pf_deduction: 6000, tax_deduction: 5000,
+        other_deductions: 500, net_pay: 67600,
+        working_days: 22, paid_days: 22, lop_days: 0, lop_deduction: 0, status: "draft",
+      });
+      results.push({
+        test: "Payroll record for inactive employee", module: "Payroll",
+        status: inactivePayErr ? "blocked" : "anomaly",
+        detail: inactivePayErr ? `Correctly blocked: ${inactivePayErr.message}` : "WARNING: Payroll record created for inactive employee",
+      });
+      // Restore
+      await client.from("profiles").update({ status: "active" }).eq("id", tempProfile.id);
+    }
+  }
+
+  // === NEW CHAOS: Bill with TDS rate > 100% ===
+  const { error: badTdsErr } = await client.from("bills").insert({
+    bill_number: `CHAOS-TDS-${Date.now()}`, vendor_name: "Chaos TDS Vendor",
+    organization_id: orgId, user_id: userId,
+    amount: 10000, tax_amount: 1800, total_amount: 11800,
+    status: "draft", bill_date: new Date().toISOString().split("T")[0],
+    tds_rate: 150, tds_section: "194C",
+  });
+  results.push({
+    test: "Bill with TDS rate > 100%", module: "Finance",
+    status: badTdsErr ? "blocked" : "anomaly",
+    detail: badTdsErr ? `Correctly blocked: ${badTdsErr.message}` : "WARNING: Bill with 150% TDS rate accepted — needs validation",
+  });
+
+  // === NEW CHAOS: Goal plan with weightage > 100 ===
+  {
+    const { error: overWeightErr } = await client.from("goal_plans").insert({
+      user_id: testProfileUserId, profile_id: testProfileId,
+      organization_id: orgId,
+      month: new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0].substring(0, 7) + "-01",
+      items: [
+        { title: "Over-weighted goal 1", target: "100%", weightage: 80 },
+        { title: "Over-weighted goal 2", target: "100%", weightage: 60 },
+      ],
+      status: "draft",
+    });
+    results.push({
+      test: "Goal plan with total weightage > 100", module: "Performance",
+      status: overWeightErr ? "blocked" : "anomaly",
+      detail: overWeightErr ? `Correctly blocked: ${overWeightErr.message}` : "WARNING: Goal plan with 140% total weightage accepted — needs validation",
+    });
+  }
+
   const chaosResults = {
     total_tests: results.length,
     anomalies: results.filter(r => r.status === "anomaly").length,
