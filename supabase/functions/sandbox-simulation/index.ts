@@ -586,6 +586,30 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   }
   summary.attendance_daily = attDailyCount;
 
+  // ===== SEED DEPRECIATION ENTRIES =====
+  let depCount = 0;
+  const { data: seededAssets } = await client.from("assets")
+    .select("id, purchase_price, useful_life_months, salvage_value")
+    .eq("organization_id", orgId).eq("status", "active");
+  for (const asset of (seededAssets ?? [])) {
+    const monthlyDep = Math.round((asset.purchase_price - (asset.salvage_value ?? 0)) / asset.useful_life_months);
+    // Seed 3 months of depreciation
+    for (let m = 0; m < 3; m++) {
+      const periodDate = new Date(2025, 4 + m, 1).toISOString().split("T")[0]; // May, Jun, Jul 2025
+      const accDep = monthlyDep * (m + 1);
+      const { error } = await client.from("asset_depreciation_entries").insert({
+        asset_id: asset.id, organization_id: orgId,
+        period_date: periodDate,
+        depreciation_amount: monthlyDep,
+        accumulated_depreciation: accDep,
+        book_value_after: asset.purchase_price - accDep,
+        is_posted: true,
+      });
+      if (!error) depCount++;
+    }
+  }
+  summary.depreciation_entries = depCount;
+
   // ===== SEED BUDGETS =====
   let budgetCount = 0;
   if (financialYearId) {
