@@ -231,6 +231,10 @@ export default function PlatformDbInspector() {
           <Download className="h-4 w-4 mr-2" />
           Export Report
         </Button>
+        <Button variant="outline" onClick={downloadSqlDump} disabled={dumpLoading}>
+          {dumpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileCode2 className="h-4 w-4 mr-2" />}
+          {dumpLoading ? "Generating Dump…" : "Download SQL Dump"}
+        </Button>
         {inspectedAt && (
           <span className="text-xs text-muted-foreground ml-auto">
             Last inspected: {new Date(inspectedAt).toLocaleString()}
