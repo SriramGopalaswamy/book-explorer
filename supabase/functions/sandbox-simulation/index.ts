@@ -1403,6 +1403,318 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // ===== CFO FINANCE WORKFLOWS =====
+
+  // CFO-1: Bank transaction seeding + reconciliation workflow
+  if (cashAccount) {
+    const wfStart = Date.now();
+    try {
+      const { data: bankAcct } = await client.from("bank_accounts")
+        .select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+      if (bankAcct) {
+        // Seed bank transactions (deposits + withdrawals)
+        const bankTxns = [
+          { desc: "Client payment - Pinnacle Corp", amount: 125000, type: "credit", cat: "Sales Receipt" },
+          { desc: "Vendor payment - Acme Supplies", amount: -45000, type: "debit", cat: "Bill Payment" },
+          { desc: "Salary transfer - Mar batch", amount: -210000, type: "debit", cat: "Payroll" },
+          { desc: "Client payment - Nexus Digital", amount: 87500, type: "credit", cat: "Sales Receipt" },
+          { desc: "Rent payment - Q1", amount: -75000, type: "debit", cat: "Rent" },
+          { desc: "GST refund", amount: 32000, type: "credit", cat: "Tax Refund" },
+          { desc: "Insurance premium", amount: -18500, type: "debit", cat: "Insurance" },
+        ];
+        let txnCount = 0;
+        for (let i = 0; i < bankTxns.length; i++) {
+          const t = bankTxns[i];
+          const txDate = new Date(Date.now() - (bankTxns.length - i) * 3 * 86400000).toISOString().split("T")[0];
+          const { error } = await client.from("bank_transactions").insert({
+            account_id: bankAcct.id, organization_id: orgId, user_id: userId,
+            description: t.desc, amount: Math.abs(t.amount),
+            transaction_type: t.type, category: t.cat,
+            transaction_date: txDate, reconciled: false,
+            reference: `SIM-BT-${Date.now()}-${i}`,
+          });
+          if (!error) txnCount++;
+        }
+        // Reconcile first 3 transactions
+        const { data: unreconciledTxns } = await client.from("bank_transactions")
+          .select("id").eq("account_id", bankAcct.id).eq("reconciled", false).limit(3);
+        let reconciledCount = 0;
+        for (const tx of (unreconciledTxns ?? [])) {
+          const { error } = await client.from("bank_transactions").update({
+            reconciled: true, reconciled_at: new Date().toISOString(),
+            reconcile_status: "matched",
+          }).eq("id", tx.id);
+          if (!error) reconciledCount++;
+        }
+        results.push({
+          workflow: "CFO: Bank transactions + reconciliation", module: "Finance",
+          status: txnCount > 0 ? "passed" : "failed",
+          detail: `${txnCount} bank txns seeded, ${reconciledCount} reconciled`,
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "CFO: Bank reconciliation", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-2: Budget vs Actual variance analysis
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: budgets } = await client.from("budgets")
+        .select("id, account_id, budget_amount, fiscal_period_id")
+        .eq("organization_id", orgId);
+      let varianceChecks = 0;
+      let overBudget = 0;
+      for (const budget of (budgets ?? [])) {
+        // Get actual spend from journal_lines for this account
+        const { data: actuals } = await client.from("journal_lines")
+          .select("debit")
+          .eq("gl_account_id", budget.account_id)
+          .limit(100);
+        const actualSpend = (actuals ?? []).reduce((s: number, l: any) => s + Number(l.debit || 0), 0);
+        if (actualSpend > budget.budget_amount) overBudget++;
+        varianceChecks++;
+      }
+      results.push({
+        workflow: "CFO: Budget vs Actual variance", module: "Finance",
+        status: varianceChecks > 0 ? "passed" : "warning",
+        detail: `${varianceChecks} budget lines checked, ${overBudget} over budget`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "CFO: Budget variance", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-3: Multi-period journal entries (for month-over-month P&L comparison)
+  if (cashAccount && revenueAccount && expenseAccount) {
+    const wfStart = Date.now();
+    try {
+      const months = [
+        { label: "Oct 2025", date: "2025-10-15", revAmt: 180000, expAmt: 95000 },
+        { label: "Nov 2025", date: "2025-11-15", revAmt: 210000, expAmt: 105000 },
+        { label: "Dec 2025", date: "2025-12-15", revAmt: 195000, expAmt: 110000 },
+        { label: "Jan 2026", date: "2026-01-15", revAmt: 225000, expAmt: 115000 },
+        { label: "Feb 2026", date: "2026-02-15", revAmt: 240000, expAmt: 120000 },
+      ];
+      let postedCount = 0;
+      for (const m of months) {
+        // Revenue entry
+        const { data: revJE } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-REV-${m.date}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: m.date, memo: `${m.label} revenue recognition`,
+          status: "posted", source_type: "sandbox_simulation",
+        }).select("id").single();
+        if (revJE) {
+          await client.from("journal_lines").insert([
+            { journal_entry_id: revJE.id, gl_account_id: (arAccount ?? cashAccount).id, debit: m.revAmt, credit: 0, description: `${m.label} - AR/Cash` },
+            { journal_entry_id: revJE.id, gl_account_id: revenueAccount.id, debit: 0, credit: m.revAmt, description: `${m.label} - Revenue` },
+          ]);
+          postedCount++;
+        }
+        // Expense entry
+        const { data: expJE } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-EXP-${m.date}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: m.date, memo: `${m.label} operating expenses`,
+          status: "posted", source_type: "sandbox_simulation",
+        }).select("id").single();
+        if (expJE) {
+          await client.from("journal_lines").insert([
+            { journal_entry_id: expJE.id, gl_account_id: expenseAccount.id, debit: m.expAmt, credit: 0, description: `${m.label} - Operating expenses` },
+            { journal_entry_id: expJE.id, gl_account_id: cashAccount.id, debit: 0, credit: m.expAmt, description: `${m.label} - Cash out` },
+          ]);
+          postedCount++;
+        }
+      }
+      results.push({
+        workflow: "CFO: Multi-period revenue & expense journals", module: "Finance",
+        status: postedCount > 0 ? "passed" : "failed",
+        detail: `${postedCount} historical journal entries posted across 5 months for P&L trend analysis`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "CFO: Multi-period journals", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-4: Overdue invoices (for AR aging dashboard)
+  {
+    const wfStart = Date.now();
+    try {
+      const overdueInvoices = [
+        { days: 15, amount: 45000, customer: "Metro Industries" },
+        { days: 45, amount: 125000, customer: "Bright Future Edu" },
+        { days: 90, amount: 78000, customer: "Urban Spaces Realty" },
+      ];
+      let overdueCount = 0;
+      for (const oi of overdueInvoices) {
+        const dueDate = new Date(Date.now() - oi.days * 86400000).toISOString().split("T")[0];
+        const invoiceDate = new Date(Date.now() - (oi.days + 30) * 86400000).toISOString().split("T")[0];
+        const { error } = await client.from("invoices").insert({
+          invoice_number: `SIM-OD-${Date.now()}-${oi.days}d`,
+          client_name: oi.customer,
+          client_email: `billing@${oi.customer.toLowerCase().replace(/\s+/g, "")}.sim`,
+          organization_id: orgId, user_id: userId,
+          amount: oi.amount, total_amount: Math.round(oi.amount * 1.18),
+          status: "sent", invoice_date: invoiceDate, due_date: dueDate,
+        });
+        if (!error) overdueCount++;
+      }
+      results.push({
+        workflow: "CFO: Overdue invoices for AR aging", module: "Finance",
+        status: overdueCount > 0 ? "passed" : "failed",
+        detail: `${overdueCount} overdue invoices seeded (15d, 45d, 90d buckets)`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "CFO: Overdue invoices", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-5: Overdue bills (for AP aging dashboard)
+  {
+    const wfStart = Date.now();
+    try {
+      const overdueBills = [
+        { days: 10, amount: 32000, vendor: "CloudHost Services" },
+        { days: 60, amount: 95000, vendor: "SecureTech Systems" },
+      ];
+      let obCount = 0;
+      for (const ob of overdueBills) {
+        const dueDate = new Date(Date.now() - ob.days * 86400000).toISOString().split("T")[0];
+        const billDate = new Date(Date.now() - (ob.days + 30) * 86400000).toISOString().split("T")[0];
+        const { error } = await client.from("bills").insert({
+          bill_number: `SIM-OB-${Date.now()}-${ob.days}d`,
+          vendor_name: ob.vendor,
+          organization_id: orgId, user_id: userId,
+          amount: ob.amount, tax_amount: Math.round(ob.amount * 0.18),
+          total_amount: Math.round(ob.amount * 1.18),
+          status: "approved", bill_date: billDate, due_date: dueDate,
+        });
+        if (!error) obCount++;
+      }
+      results.push({
+        workflow: "CFO: Overdue bills for AP aging", module: "Finance",
+        status: obCount > 0 ? "passed" : "failed",
+        detail: `${obCount} overdue bills seeded (10d, 60d buckets)`,
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "CFO: Overdue bills", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-6: Payroll-to-journal posting (salary expense entry)
+  if (salaryAccount && cashAccount) {
+    const wfStart = Date.now();
+    try {
+      const { data: latestRun } = await client.from("payroll_runs")
+        .select("id, total_gross, total_deductions, total_net, pay_period")
+        .eq("organization_id", orgId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (latestRun) {
+        const { data: payJE, error: payJEErr } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-PAY-JE-${latestRun.pay_period}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: new Date().toISOString().split("T")[0],
+          memo: `Payroll posting for ${latestRun.pay_period}`,
+          status: "posted", source_type: "payroll",
+        }).select("id").single();
+        if (payJEErr) throw payJEErr;
+
+        const pfPayable = (glAccounts ?? []).find((a: any) => a.code === "2400");
+        const salaryPayable = (glAccounts ?? []).find((a: any) => a.code === "2300");
+        const lines = [
+          { gl_account_id: salaryAccount.id, debit: latestRun.total_gross, credit: 0, description: "Salary expense" },
+          { gl_account_id: (salaryPayable ?? cashAccount).id, debit: 0, credit: latestRun.total_net, description: "Net salary payable" },
+          { gl_account_id: (pfPayable ?? cashAccount).id, debit: 0, credit: latestRun.total_deductions, description: "Statutory deductions" },
+        ];
+        await client.from("journal_lines").insert(lines.map(l => ({ ...l, journal_entry_id: payJE.id })));
+        results.push({
+          workflow: "CFO: Payroll → Journal posting", module: "Finance",
+          status: "passed",
+          detail: `Payroll ${latestRun.pay_period} posted: Gross ₹${latestRun.total_gross.toLocaleString()} → Salary exp + Payable + PF`,
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "CFO: Payroll journal", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-7: Depreciation journal posting
+  if (glAccounts) {
+    const wfStart = Date.now();
+    try {
+      const depExpAcct = (glAccounts ?? []).find((a: any) => a.code === "5400");
+      const accumDepAcct = (glAccounts ?? []).find((a: any) => a.code === "1510");
+      if (depExpAcct && accumDepAcct) {
+        const { data: depEntries } = await client.from("asset_depreciation_entries")
+          .select("depreciation_amount").eq("organization_id", orgId).eq("is_posted", true);
+        const totalDep = (depEntries ?? []).reduce((s: number, d: any) => s + Number(d.depreciation_amount || 0), 0);
+        if (totalDep > 0) {
+          const { data: depJE } = await client.from("journal_entries").insert({
+            document_sequence_number: `SIM-DEP-JE-${Date.now()}`,
+            organization_id: orgId, created_by: userId,
+            entry_date: new Date().toISOString().split("T")[0],
+            memo: "Monthly depreciation posting",
+            status: "posted", source_type: "depreciation",
+          }).select("id").single();
+          if (depJE) {
+            await client.from("journal_lines").insert([
+              { journal_entry_id: depJE.id, gl_account_id: depExpAcct.id, debit: totalDep, credit: 0, description: "Depreciation expense" },
+              { journal_entry_id: depJE.id, gl_account_id: accumDepAcct.id, debit: 0, credit: totalDep, description: "Accumulated depreciation" },
+            ]);
+          }
+          results.push({
+            workflow: "CFO: Depreciation → Journal posting", module: "Finance",
+            status: "passed",
+            detail: `Total depreciation ₹${totalDep.toLocaleString()} posted to ledger`,
+            duration_ms: Date.now() - wfStart,
+          });
+        }
+      }
+    } catch (e) {
+      results.push({ workflow: "CFO: Depreciation journal", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // CFO-8: Opening balance equity entry (so BS equation works)
+  if (cashAccount && glAccounts) {
+    const wfStart = Date.now();
+    try {
+      const capitalAcct = (glAccounts ?? []).find((a: any) => a.code === "3000");
+      const retainedAcct = (glAccounts ?? []).find((a: any) => a.code === "3100");
+      if (capitalAcct && retainedAcct) {
+        const { data: obJE } = await client.from("journal_entries").insert({
+          document_sequence_number: `SIM-OB-EQUITY-${Date.now()}`,
+          organization_id: orgId, created_by: userId,
+          entry_date: "2025-04-01",
+          memo: "Opening balance: Share capital + Retained earnings",
+          status: "posted", source_type: "opening_balance",
+        }).select("id").single();
+        if (obJE) {
+          await client.from("journal_lines").insert([
+            { journal_entry_id: obJE.id, gl_account_id: cashAccount.id, debit: 1000000, credit: 0, description: "Opening cash balance" },
+            { journal_entry_id: obJE.id, gl_account_id: capitalAcct.id, debit: 0, credit: 500000, description: "Share capital" },
+            { journal_entry_id: obJE.id, gl_account_id: retainedAcct.id, debit: 0, credit: 500000, description: "Retained earnings" },
+          ]);
+        }
+        results.push({
+          workflow: "CFO: Opening balance equity entry", module: "Finance",
+          status: "passed",
+          detail: "Opening balance posted: ₹10L cash = ₹5L capital + ₹5L retained earnings",
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "CFO: Opening balance", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
   // ===== INVESTMENT DECLARATIONS =====
   for (let i = 0; i < Math.min(2, profileList.length); i++) {
     const wfStart = Date.now();
