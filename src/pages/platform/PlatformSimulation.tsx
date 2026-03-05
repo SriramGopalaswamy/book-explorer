@@ -111,6 +111,82 @@ const COMPLIANCE_STANDARDS = [
       { id: "SOC_T7", name: "Data Integrity – Orphan Record Detection", assertion: "CC8.1" },
     ],
   },
+  {
+    code: "SA (ICAI)",
+    name: "Standards on Auditing – India",
+    body: "ICAI (Institute of Chartered Accountants of India)",
+    icon: Scale,
+    color: "text-orange-600",
+    bgColor: "bg-orange-500/10",
+    borderColor: "border-orange-500/30",
+    tests: [
+      { id: "SA_A1", name: "SA 500 – Audit Evidence (JE Existence & Completeness)", assertion: "SA 500" },
+      { id: "SA_A2", name: "SA 240 – Fraud Risk – Unusual JE Detection", assertion: "SA 240" },
+      { id: "SA_A3", name: "SA 700 – Forming Opinion on Financial Statements", assertion: "SA 700" },
+      { id: "SA_A4", name: "SA 315 – Understanding Entity & Risk Assessment", assertion: "SA 315" },
+      { id: "SA_A5", name: "SA 330 – Auditor Response to Assessed Risks", assertion: "SA 330" },
+    ],
+  },
+  {
+    code: "Ind AS",
+    name: "Indian Accounting Standards",
+    body: "MCA / NACAS (IFRS Converged)",
+    icon: BookOpen,
+    color: "text-teal-600",
+    bgColor: "bg-teal-500/10",
+    borderColor: "border-teal-500/30",
+    tests: [
+      { id: "INDAS_1", name: "Ind AS 1 – Financial Statement Presentation", assertion: "Ind AS 1" },
+      { id: "INDAS_16", name: "Ind AS 16 – PPE Depreciation & Book Value", assertion: "Ind AS 16" },
+      { id: "INDAS_18", name: "Ind AS 115 – Revenue Recognition Cut-off", assertion: "Ind AS 115" },
+      { id: "INDAS_37", name: "Ind AS 37 – Provisions & Contingent Liabilities", assertion: "Ind AS 37" },
+    ],
+  },
+  {
+    code: "Co. Act",
+    name: "Companies Act, 2013 & CARO 2020",
+    body: "Ministry of Corporate Affairs, India",
+    icon: ShieldCheck,
+    color: "text-rose-600",
+    bgColor: "bg-rose-500/10",
+    borderColor: "border-rose-500/30",
+    tests: [
+      { id: "COACT_134", name: "§134(5)(e) – ICFR (Internal Financial Controls)", assertion: "§134 / ICFR" },
+      { id: "COACT_143", name: "§143(3) – Auditor's Report Obligations", assertion: "§143(3)" },
+      { id: "COACT_CARO", name: "CARO 2020 – Fixed Asset Physical Verification", assertion: "CARO Cl. 3(i)" },
+      { id: "COACT_AGM", name: "§129 – Financial Statements True & Fair View", assertion: "§129" },
+    ],
+  },
+  {
+    code: "GST",
+    name: "Goods & Services Tax Compliance",
+    body: "CBIC / GST Council, India",
+    icon: Activity,
+    color: "text-indigo-600",
+    bgColor: "bg-indigo-500/10",
+    borderColor: "border-indigo-500/30",
+    tests: [
+      { id: "GST_R1", name: "GSTR-1 ↔ Sales Register Reconciliation", assertion: "Rule 59" },
+      { id: "GST_R3B", name: "GSTR-3B ↔ Books ITC Matching", assertion: "Rule 36(4)" },
+      { id: "GST_EINV", name: "E-Invoice IRN Generation Validation", assertion: "Notfn 13/2020" },
+      { id: "GST_HSN", name: "HSN Code Classification Accuracy", assertion: "Section 37" },
+    ],
+  },
+  {
+    code: "IT Act",
+    name: "Income Tax Act, 1961 – TDS/TCS",
+    body: "CBDT / Income Tax Department, India",
+    icon: Lock,
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-500/10",
+    borderColor: "border-cyan-500/30",
+    tests: [
+      { id: "ITA_192", name: "§192 – TDS on Salary Computation", assertion: "§192" },
+      { id: "ITA_194", name: "§194C/J/H – Vendor TDS Deduction", assertion: "§194" },
+      { id: "ITA_26Q", name: "Form 26Q – Quarterly TDS Return Tie-out", assertion: "Rule 31A" },
+      { id: "ITA_PF", name: "PF/ESI Statutory Remittance Verification", assertion: "EPF Act §38" },
+    ],
+  },
 ];
 
 const ALL_STANDARD_TESTS = COMPLIANCE_STANDARDS.flatMap(s =>
@@ -128,7 +204,7 @@ const WORKFLOW_CATEGORIES = [
 
 function categorizeWorkflow(name: string): string {
   const n = name.toUpperCase();
-  if (n.startsWith("ISA_") || n.startsWith("SOX_") || n.startsWith("SOC_") || n.startsWith("COSO_") || n.includes("AUDIT") || n.includes("COMPLIANCE")) return "compliance";
+  if (n.startsWith("ISA_") || n.startsWith("SOX_") || n.startsWith("SOC_") || n.startsWith("COSO_") || n.startsWith("SA_") || n.startsWith("INDAS_") || n.startsWith("COACT_") || n.startsWith("GST_") || n.startsWith("ITA_") || n.includes("AUDIT") || n.includes("COMPLIANCE")) return "compliance";
   if (n.includes("PAYROLL") || n.includes("LOP") || n.includes("CTC") || n.includes("COMPENSATION") || n.includes("TDS") || n.includes("PF_") || n.includes("ESI_") || n.includes("STATUTORY")) return "payroll";
   if (n.includes("EMPLOYEE") || n.includes("LEAVE") || n.includes("ATTENDANCE") || n.includes("HOLIDAY") || n.includes("DOCUMENT") || n.includes("HR_")) return "hr";
   if (n.includes("STRESS") || n.includes("CHAOS") || n.includes("CONCURRENT")) return "operations";
@@ -185,8 +261,8 @@ const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }
     durations: [3000, 8000, 10000, 8000, 5000, 2000],
   },
   run_workflows: {
-    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running ISA / SOX / SOC compliance checks...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
-    durations: [2000, 15000, 10000, 12000, 10000, 15000, 8000, 3000],
+    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running ISA / SA(ICAI) / Ind AS compliance checks...", "Running SOX / ICFR / Co. Act governance checks...", "Running GST & IT Act statutory checks...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
+    durations: [2000, 15000, 10000, 12000, 8000, 8000, 6000, 15000, 8000, 3000],
   },
   run_stress_test: {
     steps: ["Spawning 20 concurrent users...", "Executing parallel operations...", "Measuring throughput & latency...", "Collecting results..."],
@@ -197,11 +273,11 @@ const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }
     durations: [5000, 15000, 10000, 3000],
   },
   run_validation: {
-    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Running ISA assertion checks...", "Running SOX/SOC control checks...", "Generating report..."],
-    durations: [5000, 8000, 8000, 5000, 5000, 5000, 2000],
+    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Running ISA / SA(ICAI) assertion checks...", "Running SOX/SOC / ICFR control checks...", "Running GST/IT Act statutory checks...", "Generating report..."],
+    durations: [5000, 8000, 8000, 5000, 5000, 5000, 4000, 2000],
   },
   run_full_simulation: {
-    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — ISA/SOX/COSO/SOC integrity validation..."],
+    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — ISA/COSO/SOX/SOC + SA(ICAI)/Ind AS/Co.Act/GST/IT Act validation..."],
     durations: [30000, 60000, 30000, 25000, 15000],
   },
 };
@@ -222,11 +298,11 @@ function ComplianceCoverageCard() {
           </Badge>
         </div>
         <CardDescription className="text-xs">
-          Simulation engine validates against internationally recognized audit and control frameworks
+          Simulation engine validates against internationally recognized and Indian statutory audit and control frameworks
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
           {COMPLIANCE_STANDARDS.map(std => {
             const Icon = std.icon;
             return (
