@@ -33,6 +33,9 @@ import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@/hooks/useOnboardingCompliance";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
+import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { Target } from "lucide-react";
 
 interface UserWithRole {
   user_id: string;
@@ -441,6 +444,130 @@ function PayrollConfigSection() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── Goal Cycle Configuration Section ─────────────────────────────────────────
+function GoalCycleSection() {
+  const { data: configs, isLoading } = useGoalCycleConfigs();
+  const upsert = useUpsertGoalCycleConfig();
+  const [defaults, setDefaults] = useState({
+    input_start_day: 1,
+    input_deadline_day: 7,
+    scoring_start_day: 25,
+    scoring_deadline_day: 28,
+  });
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (configs && !initialized) {
+      const defaultConfig = configs.find((c) => c.cycle_month === "*");
+      if (defaultConfig) {
+        setDefaults({
+          input_start_day: defaultConfig.input_start_day,
+          input_deadline_day: defaultConfig.input_deadline_day,
+          scoring_start_day: defaultConfig.scoring_start_day,
+          scoring_deadline_day: defaultConfig.scoring_deadline_day,
+        });
+      }
+      setInitialized(true);
+    }
+  }, [configs, initialized]);
+
+  const handleSave = async () => {
+    await upsert.mutateAsync({
+      cycle_month: "*",
+      ...defaults,
+    });
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="h-5 w-5" />
+          Goal Cycle Deadlines
+        </CardTitle>
+        <CardDescription>
+          Configure when employees can submit their goal plans and actuals each month.
+          These deadlines are enforced across all employees.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
+            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              📝 Goal Input Window
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              The date range each month when employees can create and submit their goal plans.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Opens on day</Label>
+                <Input
+                  type="number" min={1} max={28}
+                  value={defaults.input_start_day}
+                  onChange={(e) => setDefaults((p) => ({ ...p, input_start_day: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Closes on day</Label>
+                <Input
+                  type="number" min={1} max={28}
+                  value={defaults.input_deadline_day}
+                  onChange={(e) => setDefaults((p) => ({ ...p, input_deadline_day: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Employees can submit goal plans between the <strong>{defaults.input_start_day}th</strong> and <strong>{defaults.input_deadline_day}th</strong> of each month.
+            </p>
+          </div>
+
+          <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
+            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              📊 Scoring / Actuals Window
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              The date range when employees submit their actuals for approved goals.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Opens on day</Label>
+                <Input
+                  type="number" min={1} max={31}
+                  value={defaults.scoring_start_day}
+                  onChange={(e) => setDefaults((p) => ({ ...p, scoring_start_day: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Closes on day</Label>
+                <Input
+                  type="number" min={1} max={31}
+                  value={defaults.scoring_deadline_day}
+                  onChange={(e) => setDefaults((p) => ({ ...p, scoring_deadline_day: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Scoring window: <strong>{defaults.scoring_start_day}th</strong> to <strong>{defaults.scoring_deadline_day}th</strong> of each month.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleSave} disabled={upsert.isPending}>
+            {upsert.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+            Save Deadlines
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -901,6 +1028,10 @@ export default function Settings() {
               <Link2 className="h-4 w-4" />
               Integrations
             </TabsTrigger>
+            <TabsTrigger value="goals" className="gap-1.5">
+              <Target className="h-4 w-4" />
+              Goals
+            </TabsTrigger>
             <TabsTrigger value="users" className="gap-1.5">
               <Users className="h-4 w-4" />
               Users
@@ -925,6 +1056,10 @@ export default function Settings() {
 
           <TabsContent value="integrations" className="mt-6">
             <IntegrationsSection />
+          </TabsContent>
+
+          <TabsContent value="goals" className="mt-6">
+            <GoalCycleSection />
           </TabsContent>
 
           <TabsContent value="users" className="mt-6">
