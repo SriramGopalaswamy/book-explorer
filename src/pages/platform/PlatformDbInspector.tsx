@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Database, Loader2, RefreshCw, Search, ArrowUpDown, ArrowDown, ArrowUp,
-  Download, Activity, Link2, AlertTriangle, CheckCircle2, HardDrive, Columns3,
+  Download, Activity, Link2, AlertTriangle, CheckCircle2, HardDrive, Columns3, FileCode2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
