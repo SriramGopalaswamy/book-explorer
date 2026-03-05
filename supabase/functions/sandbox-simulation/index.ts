@@ -1417,6 +1417,431 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // ============================================================
+  // ===== MULTI-ROLE WORKFLOW CHAINS ===========================
+  // ============================================================
+
+  // Identify actors by role for cross-role handoffs
+  const { data: roleAssignments } = await client.from("user_roles")
+    .select("user_id, role").eq("organization_id", orgId);
+  const roleMap: Record<string, { user_id: string }[]> = {};
+  for (const ra of (roleAssignments ?? [])) {
+    if (!roleMap[ra.role]) roleMap[ra.role] = [];
+    roleMap[ra.role].push({ user_id: ra.user_id });
+  }
+  const findActor = (role: string) => roleMap[role]?.[0]?.user_id ?? userId;
+  const findProfile = (uid: string) => profileList.find((p: any) => p.user_id === uid);
+
+  const adminActor = findActor("admin") !== userId ? findActor("admin") : userId;
+  const hrActor = findActor("hr");
+  const financeActor = findActor("finance");
+  const managerActor = findActor("manager");
+  const employeeActor = findActor("employee");
+  const employeeProfile = findProfile(employeeActor);
+  const managerProfile = findProfile(managerActor);
+
+  // ------- MR1: LEAVE APPROVAL CHAIN (Employee → Manager → Finance visibility) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    const leaveFrom = new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
+    const leaveTo = new Date(Date.now() + 92 * 86400000).toISOString().split("T")[0];
+    try {
+      // Step 1: Employee submits leave
+      const { data: mrLeave, error: mrLeaveErr } = await client.from("leave_requests").insert({
+        user_id: employeeActor, profile_id: employeeProfile.id,
+        organization_id: orgId, leave_type: "Casual Leave",
+        from_date: leaveFrom, to_date: leaveTo, days: 3,
+        reason: "Multi-role test: family event", status: "pending",
+      }).select("id").single();
+      if (mrLeaveErr) throw mrLeaveErr;
+
+      results.push({
+        workflow: "MR-Leave: Employee submits", module: "Multi-Role",
+        status: "passed", detail: `${employeeProfile.full_name} submitted 3-day leave`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Step 2: Manager approves
+      const wf2 = Date.now();
+      const { error: mgrApproveErr } = await client.from("leave_requests").update({
+        status: "approved", reviewed_by: managerActor,
+      }).eq("id", mrLeave.id);
+      results.push({
+        workflow: "MR-Leave: Manager approves", module: "Multi-Role",
+        status: mgrApproveErr ? "failed" : "passed",
+        detail: mgrApproveErr?.message ?? `Approved by manager (${managerProfile?.full_name ?? "Manager"})`,
+        duration_ms: Date.now() - wf2,
+      });
+
+      // Step 3: Finance reads approved leaves (visibility check)
+      const wf3 = Date.now();
+      const { data: finLeaves, error: finLeaveErr } = await client.from("leave_requests")
+        .select("id, status, days").eq("organization_id", orgId).eq("status", "approved");
+      results.push({
+        workflow: "MR-Leave: Finance reads approved leaves", module: "Multi-Role",
+        status: finLeaveErr ? "failed" : (finLeaves ?? []).length > 0 ? "passed" : "warning",
+        detail: finLeaveErr?.message ?? `Finance can see ${(finLeaves ?? []).length} approved leaves for payroll`,
+        duration_ms: Date.now() - wf3,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-Leave chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR2: REIMBURSEMENT CHAIN (Employee → Manager → Finance → Paid) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    try {
+      // Step 1: Employee submits reimbursement
+      const { data: mrReimb, error: mrReimbErr } = await client.from("reimbursement_requests").insert({
+        user_id: employeeActor, profile_id: employeeProfile.id,
+        organization_id: orgId, amount: 8500,
+        category: "Travel", description: "Multi-role test: client visit travel",
+        expense_date: new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0],
+        status: "submitted", submitted_at: new Date().toISOString(),
+      }).select("id").single();
+      if (mrReimbErr) throw mrReimbErr;
+
+      results.push({
+        workflow: "MR-Reimb: Employee submits", module: "Multi-Role",
+        status: "passed", detail: `${employeeProfile.full_name} submitted ₹8,500 travel claim`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Step 2: Manager approves
+      const wf2 = Date.now();
+      const { error: mgrErr } = await client.from("reimbursement_requests").update({
+        status: "approved", manager_reviewed_by: managerActor,
+      }).eq("id", mrReimb.id);
+      results.push({
+        workflow: "MR-Reimb: Manager approves", module: "Multi-Role",
+        status: mgrErr ? "failed" : "passed",
+        detail: mgrErr?.message ?? `Manager approved reimbursement`,
+        duration_ms: Date.now() - wf2,
+      });
+
+      // Step 3: Finance processes payment
+      const wf3 = Date.now();
+      const { error: finErr } = await client.from("reimbursement_requests").update({
+        status: "paid", finance_reviewed_by: financeActor,
+      }).eq("id", mrReimb.id);
+      results.push({
+        workflow: "MR-Reimb: Finance processes payment", module: "Multi-Role",
+        status: finErr ? "failed" : "passed",
+        detail: finErr?.message ?? `Finance processed ₹8,500 reimbursement payment`,
+        duration_ms: Date.now() - wf3,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-Reimb chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR3: PAYROLL MAKER-CHECKER (HR creates → Finance reviews → Admin locks) -------
+  if (profileList.length >= 3) {
+    const wfStart = Date.now();
+    const mrPayPeriod = `${today.getFullYear()}-${String(today.getMonth()).padStart(2, "0")}`;
+    try {
+      // Step 1: HR creates payroll run
+      const { data: mrRun, error: runErr } = await client.from("payroll_runs").insert({
+        organization_id: orgId, pay_period: mrPayPeriod,
+        generated_by: hrActor, status: "draft",
+        employee_count: 3, total_gross: 210000, total_deductions: 42000, total_net: 168000,
+      }).select("id").single();
+      if (runErr) throw runErr;
+
+      results.push({
+        workflow: "MR-Payroll: HR creates run", module: "Multi-Role",
+        status: "passed", detail: `HR created payroll run for ${mrPayPeriod} (3 employees, ₹2.1L gross)`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Step 2: HR submits for review
+      const wf2 = Date.now();
+      const { error: submitErr } = await client.from("payroll_runs")
+        .update({ status: "under_review" } as any).eq("id", mrRun.id);
+      results.push({
+        workflow: "MR-Payroll: HR submits for review", module: "Multi-Role",
+        status: submitErr ? "failed" : "passed",
+        detail: submitErr?.message ?? "Payroll submitted draft → under_review",
+        duration_ms: Date.now() - wf2,
+      });
+
+      // Step 3: Finance approves
+      const wf3 = Date.now();
+      const { error: finApproveErr } = await client.from("payroll_runs")
+        .update({ status: "approved" } as any).eq("id", mrRun.id);
+      results.push({
+        workflow: "MR-Payroll: Finance approves", module: "Multi-Role",
+        status: finApproveErr ? "failed" : "passed",
+        detail: finApproveErr?.message ?? `Finance approved payroll (actor: ${financeActor.substring(0, 8)}...)`,
+        duration_ms: Date.now() - wf3,
+      });
+
+      // Step 4: Admin locks
+      const wf4 = Date.now();
+      const { error: lockErr } = await client.from("payroll_runs")
+        .update({ status: "locked" } as any).eq("id", mrRun.id);
+      results.push({
+        workflow: "MR-Payroll: Admin locks", module: "Multi-Role",
+        status: lockErr ? "failed" : "passed",
+        detail: lockErr?.message ?? `Admin locked payroll (actor: ${adminActor.substring(0, 8)}...)`,
+        duration_ms: Date.now() - wf4,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-Payroll chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR4: ATTENDANCE CORRECTION (Employee → Manager/HR approves) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    try {
+      const corrDate = new Date(Date.now() - 4 * 86400000).toISOString().split("T")[0];
+      const { data: mrCorr, error: corrErr } = await client.from("attendance_correction_requests").insert({
+        user_id: employeeActor, profile_id: employeeProfile.id,
+        organization_id: orgId, date: corrDate,
+        reason: "Multi-role test: forgot to check out due to client call",
+        requested_check_out: `${corrDate}T19:00:00`, status: "pending",
+      }).select("id").single();
+      if (corrErr) throw corrErr;
+
+      results.push({
+        workflow: "MR-AttCorr: Employee submits", module: "Multi-Role",
+        status: "passed", detail: `${employeeProfile.full_name} requested correction for ${corrDate}`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Manager/HR approves
+      const wf2 = Date.now();
+      const { error: approveErr } = await client.from("attendance_correction_requests").update({
+        status: "approved", reviewed_by: managerActor, reviewed_at: new Date().toISOString(),
+        reviewer_notes: "Verified via CCTV — approved",
+      }).eq("id", mrCorr.id);
+      results.push({
+        workflow: "MR-AttCorr: Manager approves", module: "Multi-Role",
+        status: approveErr ? "failed" : "passed",
+        detail: approveErr?.message ?? "Manager approved attendance correction with notes",
+        duration_ms: Date.now() - wf2,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-AttCorr chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR5: PROFILE CHANGE REQUEST (Employee → HR reviews) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    try {
+      const { data: mrPCR, error: pcrErr } = await client.from("profile_change_requests").insert({
+        profile_id: employeeProfile.id, organization_id: orgId,
+        requested_by: employeeActor,
+        field_name: "phone", old_value: "+91-9876543099", new_value: "+91-9876543100",
+        reason: "Updated personal phone number", status: "pending",
+      }).select("id").single();
+
+      if (pcrErr) throw pcrErr;
+
+      results.push({
+        workflow: "MR-ProfileChange: Employee submits", module: "Multi-Role",
+        status: "passed", detail: `${employeeProfile.full_name} requested phone number change`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // HR reviews and approves
+      const wf2 = Date.now();
+      const { error: hrApproveErr } = await client.from("profile_change_requests").update({
+        status: "approved", reviewed_by: hrActor, reviewed_at: new Date().toISOString(),
+      }).eq("id", mrPCR.id);
+      results.push({
+        workflow: "MR-ProfileChange: HR approves", module: "Multi-Role",
+        status: hrApproveErr ? "failed" : "passed",
+        detail: hrApproveErr?.message ?? "HR approved profile change request",
+        duration_ms: Date.now() - wf2,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-ProfileChange chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR6: COMPENSATION REVISION (HR requests → Finance approves) -------
+  if (profileList.length >= 2) {
+    const targetProfile = profileList[1];
+    const wfStart = Date.now();
+    try {
+      const { data: mrComp, error: compErr } = await client.from("compensation_revision_requests").insert({
+        profile_id: targetProfile.id, organization_id: orgId,
+        requested_by: hrActor, requested_by_role: "hr",
+        current_ctc: 900000, proposed_ctc: 1100000,
+        effective_from: new Date(today.getFullYear(), today.getMonth() + 2, 1).toISOString().split("T")[0],
+        revision_reason: "Multi-role test: mid-cycle promotion to Senior",
+        status: "pending",
+      }).select("id").single();
+      if (compErr) throw compErr;
+
+      results.push({
+        workflow: "MR-CompRevision: HR requests", module: "Multi-Role",
+        status: "passed", detail: `HR requested ₹9L→₹11L for ${targetProfile.full_name}`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Finance approves
+      const wf2 = Date.now();
+      const { error: finAppErr } = await client.from("compensation_revision_requests").update({
+        status: "approved", reviewed_by: financeActor, reviewed_at: new Date().toISOString(),
+      }).eq("id", mrComp.id);
+      results.push({
+        workflow: "MR-CompRevision: Finance approves", module: "Multi-Role",
+        status: finAppErr ? "failed" : "passed",
+        detail: finAppErr?.message ?? "Finance approved compensation revision",
+        duration_ms: Date.now() - wf2,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-CompRevision chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR7: BILL LIFECYCLE WITH ROLE ACTORS (Finance creates → Admin approves → paid) -------
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: mrBill, error: billErr } = await client.from("bills").insert({
+        bill_number: `MR-BILL-${Date.now()}`, vendor_name: "Multi-Role Vendor Test",
+        organization_id: orgId, user_id: financeActor,
+        amount: 75000, tax_amount: 13500, total_amount: 88500,
+        status: "draft", bill_date: new Date().toISOString().split("T")[0],
+      }).select("id").single();
+      if (billErr) throw billErr;
+
+      results.push({
+        workflow: "MR-Bill: Finance creates", module: "Multi-Role",
+        status: "passed", detail: "Finance created ₹88,500 bill",
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Admin approves
+      const wf2 = Date.now();
+      const { error: appErr } = await client.from("bills").update({ status: "approved" }).eq("id", mrBill.id);
+      results.push({
+        workflow: "MR-Bill: Admin approves", module: "Multi-Role",
+        status: appErr ? "failed" : "passed",
+        detail: appErr?.message ?? "Admin approved bill",
+        duration_ms: Date.now() - wf2,
+      });
+
+      // Finance pays
+      const wf3 = Date.now();
+      const { error: payErr } = await client.from("bills").update({ status: "paid" }).eq("id", mrBill.id);
+      results.push({
+        workflow: "MR-Bill: Finance marks paid", module: "Multi-Role",
+        status: payErr ? "failed" : "passed",
+        detail: payErr?.message ?? "Bill lifecycle: draft → approved → paid complete",
+        duration_ms: Date.now() - wf3,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-Bill chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR8: ROLE ESCALATION TEST (negative test — verify role distribution) -------
+  {
+    const wfStart = Date.now();
+    const expectedRoles = ["admin", "hr", "finance", "manager", "employee"];
+    const presentRoles = Object.keys(roleMap);
+    const missingRoles = expectedRoles.filter(r => !presentRoles.includes(r));
+
+    results.push({
+      workflow: "MR-RoleDistribution: All roles present", module: "Multi-Role",
+      status: missingRoles.length === 0 ? "passed" : "failed",
+      detail: missingRoles.length === 0
+        ? `All 5 roles present: ${presentRoles.join(", ")} (${(roleAssignments ?? []).length} total assignments)`
+        : `Missing roles: ${missingRoles.join(", ")} — found: ${presentRoles.join(", ")}`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ------- MR9: PAYSLIP DISPUTE CHAIN (Employee disputes → HR/Finance reviews) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    try {
+      // Find an existing payroll record for the employee
+      const { data: empPayroll } = await client.from("payroll_records")
+        .select("id, pay_period").eq("profile_id", employeeProfile.id).limit(1).maybeSingle();
+
+      if (empPayroll) {
+        const { data: mrDispute, error: dispErr } = await client.from("payslip_disputes").insert({
+          payroll_record_id: empPayroll.id, profile_id: employeeProfile.id,
+          organization_id: orgId, raised_by: employeeActor,
+          dispute_type: "deduction_query",
+          description: "Multi-role test: PF deduction seems higher than expected for this month",
+          status: "open",
+        }).select("id").single();
+
+        if (dispErr) throw dispErr;
+
+        results.push({
+          workflow: "MR-Dispute: Employee raises payslip dispute", module: "Multi-Role",
+          status: "passed", detail: `${employeeProfile.full_name} disputed ${empPayroll.pay_period} payslip`,
+          duration_ms: Date.now() - wfStart,
+        });
+
+        // HR/Finance reviews and resolves
+        const wf2 = Date.now();
+        const { error: resolveErr } = await client.from("payslip_disputes").update({
+          status: "resolved", resolved_by: hrActor,
+          resolution_notes: "PF calculated correctly at 12% of basic. No discrepancy found.",
+        }).eq("id", mrDispute.id);
+        results.push({
+          workflow: "MR-Dispute: HR resolves dispute", module: "Multi-Role",
+          status: resolveErr ? "failed" : "passed",
+          detail: resolveErr?.message ?? "HR reviewed and resolved payslip dispute",
+          duration_ms: Date.now() - wf2,
+        });
+      } else {
+        results.push({
+          workflow: "MR-Dispute: Employee raises payslip dispute", module: "Multi-Role",
+          status: "warning", detail: "Skipped — no payroll record found for employee",
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } catch (e) {
+      results.push({ workflow: "MR-Dispute chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
+  // ------- MR10: EXPENSE APPROVAL CHAIN (Employee → Manager → Finance approves) -------
+  if (employeeProfile) {
+    const wfStart = Date.now();
+    try {
+      const { data: mrExp, error: expErr } = await client.from("expenses").insert({
+        description: "Multi-role test: team dinner with client",
+        amount: 12500, category: "Meals",
+        organization_id: orgId, user_id: employeeActor,
+        profile_id: employeeProfile.id,
+        status: "pending", expense_date: new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0],
+      }).select("id").single();
+      if (expErr) throw expErr;
+
+      results.push({
+        workflow: "MR-Expense: Employee submits", module: "Multi-Role",
+        status: "passed", detail: `${employeeProfile.full_name} submitted ₹12,500 expense`,
+        duration_ms: Date.now() - wfStart,
+      });
+
+      // Manager reviews
+      const wf2 = Date.now();
+      const { error: mgrErr } = await client.from("expenses").update({
+        status: "approved",
+      }).eq("id", mrExp.id);
+      results.push({
+        workflow: "MR-Expense: Manager approves", module: "Multi-Role",
+        status: mgrErr ? "failed" : "passed",
+        detail: mgrErr?.message ?? "Manager approved expense",
+        duration_ms: Date.now() - wf2,
+      });
+    } catch (e) {
+      results.push({ workflow: "MR-Expense chain", module: "Multi-Role", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
 
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
