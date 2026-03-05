@@ -1282,7 +1282,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     try {
       const { error } = await client.from("notifications").insert({
-        user_id: profileList[i].id, organization_id: orgId,
+        user_id: profileList[i].user_id, organization_id: orgId,
         title: `Simulation notification: ${notifTypes[i]}`,
         message: `This is a test notification for the ${notifTypes[i]} event.`,
         type: notifTypes[i], read: false,
