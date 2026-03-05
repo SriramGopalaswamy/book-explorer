@@ -3993,6 +3993,139 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   }
 
 
+  // === NEW VALIDATIONS ===
+
+  // V_ORG_COMPLIANCE: Organization compliance configured
+  try {
+    const { data: oc } = await client.from("organization_compliance")
+      .select("payroll_enabled, pf_applicable, entity_type, pan, gstin")
+      .eq("organization_id", orgId).maybeSingle();
+    checks.push({
+      check: "V_ORG_COMPLIANCE_CONFIGURED", module: "Governance",
+      status: oc && oc.entity_type && oc.pan ? "passed" : "warning",
+      detail: oc
+        ? `Entity: ${oc.entity_type}, PAN: ${oc.pan ? "✓" : "✗"}, GST: ${(oc.gstin ?? []).length > 0 ? "✓" : "✗"}, Payroll: ${oc.payroll_enabled ? "On" : "Off"}, PF: ${oc.pf_applicable ? "On" : "Off"}`
+        : "No compliance record found",
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_ORG_COMPLIANCE_CONFIGURED", module: "Governance", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_GOAL_CYCLE: Goal cycle config exists
+  try {
+    const { count: gccCount } = await client.from("goal_cycle_config")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId).eq("is_active", true);
+    checks.push({
+      check: "V_GOAL_CYCLE_CONFIGURED", module: "Performance",
+      status: (gccCount ?? 0) > 0 ? "passed" : "warning",
+      detail: `${gccCount ?? 0} active goal cycle configs`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_GOAL_CYCLE_CONFIGURED", module: "Performance", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_HISTORICAL_PAYROLL: Historical payroll data exists
+  try {
+    const { data: histRuns } = await client.from("payroll_runs")
+      .select("pay_period, status, total_gross")
+      .eq("organization_id", orgId)
+      .in("status", ["processed", "approved", "locked"])
+      .order("pay_period", { ascending: false });
+    const periods = (histRuns ?? []).map((r: any) => r.pay_period);
+    checks.push({
+      check: "V_HISTORICAL_PAYROLL_DATA", module: "Payroll",
+      status: (histRuns ?? []).length >= 3 ? "passed" : (histRuns ?? []).length > 0 ? "warning" : "failed",
+      detail: `${(histRuns ?? []).length} finalized payroll runs: ${periods.slice(0, 5).join(", ")}`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_HISTORICAL_PAYROLL_DATA", module: "Payroll", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_DIVERSE_ATTENDANCE: Multiple attendance statuses exist
+  try {
+    const { data: attStatuses } = await client.from("attendance_daily")
+      .select("status").eq("organization_id", orgId);
+    const uniqueStatuses = [...new Set((attStatuses ?? []).map((a: any) => a.status))];
+    checks.push({
+      check: "V_ATTENDANCE_STATUS_DIVERSITY", module: "Attendance",
+      status: uniqueStatuses.length >= 3 ? "passed" : uniqueStatuses.length > 0 ? "warning" : "failed",
+      detail: `${uniqueStatuses.length} unique statuses: ${uniqueStatuses.join(", ")} across ${(attStatuses ?? []).length} records`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_ATTENDANCE_STATUS_DIVERSITY", module: "Attendance", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_LEAVE_BALANCE_INTEGRITY: used_days <= total_days for all leave balances
+  try {
+    const { data: lbRecords } = await client.from("leave_balances")
+      .select("used_days, total_days, leave_type")
+      .eq("organization_id", orgId);
+    const violations = (lbRecords ?? []).filter((lb: any) => lb.used_days > lb.total_days);
+    checks.push({
+      check: "V_LEAVE_BALANCE_INTEGRITY", module: "Leave",
+      status: violations.length === 0 ? "passed" : "warning",
+      detail: violations.length === 0
+        ? `All ${(lbRecords ?? []).length} leave balances valid (used ≤ total)`
+        : `${violations.length} leave balances where used > total days`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_LEAVE_BALANCE_INTEGRITY", module: "Leave", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_MANAGER_HIERARCHY: Verify manager assignments
+  try {
+    const { data: managedProfiles } = await client.from("profiles")
+      .select("id, manager_id").eq("organization_id", orgId).not("manager_id", "is", null);
+    const selfManaged = (managedProfiles ?? []).filter((p: any) => p.id === p.manager_id);
+    checks.push({
+      check: "V_MANAGER_HIERARCHY_VALID", module: "HR",
+      status: selfManaged.length === 0 && (managedProfiles ?? []).length > 0 ? "passed"
+        : (managedProfiles ?? []).length === 0 ? "warning" : "failed",
+      detail: selfManaged.length > 0
+        ? `${selfManaged.length} profiles are their own manager (circular)`
+        : `${(managedProfiles ?? []).length} profiles have valid manager assignments`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_MANAGER_HIERARCHY_VALID", module: "HR", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_CLOSED_FISCAL_PERIOD: At least one closed period for testing
+  try {
+    const { count: closedCount } = await client.from("fiscal_periods")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId).eq("status", "closed");
+    checks.push({
+      check: "V_FISCAL_PERIOD_CLOSED_EXISTS", module: "Finance",
+      status: (closedCount ?? 0) > 0 ? "passed" : "warning",
+      detail: `${closedCount ?? 0} closed fiscal periods (needed for period-lock testing)`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_FISCAL_PERIOD_CLOSED_EXISTS", module: "Finance", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
+  // V_PAYROLL_NET_CONSISTENCY: Verify gross - deductions = net across all records
+  try {
+    const { data: prAll } = await client.from("payroll_records")
+      .select("id, basic_salary, hra, transport_allowance, other_allowances, pf_deduction, tax_deduction, other_deductions, lop_deduction, net_pay, status")
+      .eq("organization_id", orgId).eq("is_superseded", false);
+    let calcErrors = 0;
+    for (const pr of (prAll ?? [])) {
+      const gross = pr.basic_salary + pr.hra + pr.transport_allowance + pr.other_allowances;
+      const ded = pr.pf_deduction + pr.tax_deduction + pr.other_deductions + pr.lop_deduction;
+      if (Math.abs((gross - ded) - pr.net_pay) > 1) calcErrors++;
+    }
+    checks.push({
+      check: "V_PAYROLL_CALC_INTEGRITY", module: "Payroll",
+      status: calcErrors === 0 ? "passed" : "failed",
+      detail: calcErrors === 0
+        ? `All ${(prAll ?? []).length} records: gross - deductions = net_pay ✓`
+        : `${calcErrors}/${(prAll ?? []).length} records have calculation mismatches`,
+    });
+  } catch (e: any) {
+    checks.push({ check: "V_PAYROLL_CALC_INTEGRITY", module: "Payroll", status: "failed", detail: `Exception: ${e.message}` });
+  }
+
   const passed = checks.filter(c => c.status === "passed").length;
   const failed = checks.filter(c => c.status === "failed").length;
   const allPassed = failed === 0;
