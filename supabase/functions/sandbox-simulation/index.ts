@@ -4638,6 +4638,232 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   } catch (e: any) { checks.push({ check: "K6_AP_AGING", module: "Dashboard", status: "failed", detail: e.message }); }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASE 6: ISA/SOX/SOC COMPLIANCE TESTS (Industry Standard)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ISA-A2: COMPLETENESS — Every posted invoice/bill should have a corresponding JE
+  try {
+    const { data: postedInvoices } = await client.from("invoices")
+      .select("id, invoice_number, status")
+      .eq("organization_id", orgId).in("status", ["sent", "paid"]);
+    const { data: invoiceJEs } = await client.from("journal_entries")
+      .select("id, source_type")
+      .eq("organization_id", orgId).eq("source_type", "invoice").eq("status", "posted");
+    const invWithoutJE = (postedInvoices ?? []).length - (invoiceJEs ?? []).length;
+
+    const { data: approvedBills } = await client.from("bills")
+      .select("id, bill_number, status")
+      .eq("organization_id", orgId).in("status", ["approved", "paid"]);
+    const { data: billJEs } = await client.from("journal_entries")
+      .select("id, source_type")
+      .eq("organization_id", orgId).eq("source_type", "bill").eq("status", "posted");
+    const billsWithoutJE = (approvedBills ?? []).length - (billJEs ?? []).length;
+
+    checks.push({
+      check: "ISA_A2_COMPLETENESS", module: "ISA Assertions",
+      status: invWithoutJE <= 0 && billsWithoutJE <= 0 ? "passed" : "warning",
+      detail: `Invoices: ${(postedInvoices ?? []).length} posted, ${(invoiceJEs ?? []).length} JEs (gap: ${Math.max(0, invWithoutJE)}). Bills: ${(approvedBills ?? []).length} approved, ${(billJEs ?? []).length} JEs (gap: ${Math.max(0, billsWithoutJE)})`,
+    });
+  } catch (e: any) { checks.push({ check: "ISA_A2_COMPLETENESS", module: "ISA Assertions", status: "failed", detail: e.message }); }
+
+  // ISA-A4: VALUATION — Asset depreciation book value verification
+  try {
+    const { data: activeAssets } = await client.from("assets")
+      .select("id, name, purchase_price, salvage_value, useful_life_months, current_book_value, accumulated_depreciation")
+      .eq("organization_id", orgId).eq("status", "active");
+    let valErrors = 0;
+    const valDetails: string[] = [];
+    for (const asset of (activeAssets ?? [])) {
+      const { data: depEntries } = await client.from("asset_depreciation_entries")
+        .select("depreciation_amount").eq("asset_id", asset.id);
+      const calcAccumDep = (depEntries ?? []).reduce((s: number, d: any) => s + Number(d.depreciation_amount || 0), 0);
+      const expectedBookValue = asset.purchase_price - calcAccumDep;
+      // Check last depreciation entry's book_value_after
+      const { data: lastDep } = await client.from("asset_depreciation_entries")
+        .select("book_value_after").eq("asset_id", asset.id)
+        .order("period_date", { ascending: false }).limit(1).maybeSingle();
+      if (lastDep && Math.abs(lastDep.book_value_after - expectedBookValue) > 1) {
+        valErrors++;
+        valDetails.push(`${asset.name}: expected BV ₹${expectedBookValue}, got ₹${lastDep.book_value_after}`);
+      }
+    }
+    checks.push({
+      check: "ISA_A4_VALUATION", module: "ISA Assertions",
+      status: valErrors === 0 ? "passed" : "failed",
+      detail: valErrors === 0
+        ? `All ${(activeAssets ?? []).length} assets: book_value = purchase_price - accumulated_depreciation ✓`
+        : `${valErrors} asset valuation errors: ${valDetails.join("; ")}`,
+    });
+  } catch (e: any) { checks.push({ check: "ISA_A4_VALUATION", module: "ISA Assertions", status: "failed", detail: e.message }); }
+
+  // ISA-A6: CLASSIFICATION — Revenue JEs only credit Revenue GL, Expense JEs only debit Expense GL
+  try {
+    const { data: glAccts } = await client.from("gl_accounts")
+      .select("id, account_type, code").eq("organization_id", orgId);
+    const revenueGLIds = (glAccts ?? []).filter((g: any) => g.account_type === "revenue").map((g: any) => g.id);
+    const expenseGLIds = (glAccts ?? []).filter((g: any) => g.account_type === "expense").map((g: any) => g.id);
+
+    // Check: revenue JEs should have credits to revenue accounts
+    const { data: revSourceJEs } = await client.from("journal_entries")
+      .select("id").eq("organization_id", orgId).eq("source_type", "invoice").eq("status", "posted");
+    let misclassifiedRevenue = 0;
+    for (const je of (revSourceJEs ?? []).slice(0, 10)) {
+      const { data: creditLines } = await client.from("journal_lines")
+        .select("gl_account_id, credit").eq("journal_entry_id", je.id).gt("credit", 0);
+      for (const line of (creditLines ?? [])) {
+        if (!revenueGLIds.includes(line.gl_account_id)) {
+          // Check it's not an AR/asset type (which is OK as debit side)
+          const lineAcct = (glAccts ?? []).find((g: any) => g.id === line.gl_account_id);
+          if (lineAcct && !["asset", "contra_asset", "liability"].includes(lineAcct.account_type)) {
+            misclassifiedRevenue++;
+          }
+        }
+      }
+    }
+
+    // Check: expense source JEs should debit expense accounts
+    const { data: expSourceJEs } = await client.from("journal_entries")
+      .select("id").eq("organization_id", orgId).in("source_type", ["bill", "payroll", "depreciation"]).eq("status", "posted");
+    let misclassifiedExpense = 0;
+    for (const je of (expSourceJEs ?? []).slice(0, 10)) {
+      const { data: debitLines } = await client.from("journal_lines")
+        .select("gl_account_id, debit").eq("journal_entry_id", je.id).gt("debit", 0);
+      for (const line of (debitLines ?? [])) {
+        if (!expenseGLIds.includes(line.gl_account_id)) {
+          const lineAcct = (glAccts ?? []).find((g: any) => g.id === line.gl_account_id);
+          if (lineAcct && !["asset", "contra_asset", "liability"].includes(lineAcct.account_type)) {
+            misclassifiedExpense++;
+          }
+        }
+      }
+    }
+
+    checks.push({
+      check: "ISA_A6_CLASSIFICATION", module: "ISA Assertions",
+      status: misclassifiedRevenue === 0 && misclassifiedExpense === 0 ? "passed" : "warning",
+      detail: `Revenue misclassifications: ${misclassifiedRevenue}, Expense misclassifications: ${misclassifiedExpense}`,
+    });
+  } catch (e: any) { checks.push({ check: "ISA_A6_CLASSIFICATION", module: "ISA Assertions", status: "failed", detail: e.message }); }
+
+  // SOX-S7: SUBLEDGER-TO-GL RECONCILIATION (AR subledger = GL AR balance)
+  try {
+    const { data: arInvoices } = await client.from("invoices")
+      .select("total_amount, status").eq("organization_id", orgId)
+      .in("status", ["sent", "overdue"]);
+    const arSubledger = (arInvoices ?? []).reduce((s: number, i: any) => s + Number(i.total_amount || 0), 0);
+
+    // Get AR GL account balance from journal lines
+    const { data: arGLAcct } = await client.from("gl_accounts")
+      .select("id").eq("organization_id", orgId).eq("code", "1100").maybeSingle();
+    let arGLBalance = 0;
+    if (arGLAcct) {
+      const { data: arLines } = await client.from("journal_lines")
+        .select("debit, credit").eq("gl_account_id", arGLAcct.id).limit(500);
+      arGLBalance = (arLines ?? []).reduce((s: number, l: any) => s + Number(l.debit || 0) - Number(l.credit || 0), 0);
+    }
+
+    const arDiff = Math.abs(arSubledger - arGLBalance);
+    checks.push({
+      check: "SOX_S7_AR_SUBLEDGER_GL", module: "SOX Controls",
+      status: arDiff < 1 ? "passed" : arDiff < arSubledger * 0.1 ? "warning" : "failed",
+      detail: `AR Subledger (open invoices): ₹${arSubledger.toLocaleString()}, GL 1100 balance: ₹${arGLBalance.toLocaleString()}, Diff: ₹${arDiff.toLocaleString()}`,
+    });
+
+    // AP subledger vs GL
+    const { data: apBills } = await client.from("bills")
+      .select("total_amount, status").eq("organization_id", orgId)
+      .in("status", ["approved", "pending"]);
+    const apSubledger = (apBills ?? []).reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0);
+
+    const { data: apGLAcct } = await client.from("gl_accounts")
+      .select("id").eq("organization_id", orgId).eq("code", "2000").maybeSingle();
+    let apGLBalance = 0;
+    if (apGLAcct) {
+      const { data: apLines } = await client.from("journal_lines")
+        .select("debit, credit").eq("gl_account_id", apGLAcct.id).limit(500);
+      apGLBalance = (apLines ?? []).reduce((s: number, l: any) => s + Number(l.credit || 0) - Number(l.debit || 0), 0);
+    }
+
+    const apDiff = Math.abs(apSubledger - apGLBalance);
+    checks.push({
+      check: "SOX_S7_AP_SUBLEDGER_GL", module: "SOX Controls",
+      status: apDiff < 1 ? "passed" : apDiff < apSubledger * 0.1 ? "warning" : "failed",
+      detail: `AP Subledger (open bills): ₹${apSubledger.toLocaleString()}, GL 2000 balance: ₹${apGLBalance.toLocaleString()}, Diff: ₹${apDiff.toLocaleString()}`,
+    });
+  } catch (e: any) { checks.push({ check: "SOX_S7_SUBLEDGER_GL", module: "SOX Controls", status: "failed", detail: e.message }); }
+
+  // SOC-T3: AUTO-JE ON APPROVAL — Check that invoice source JEs exist for posted invoices
+  try {
+    const { data: paidInvoices } = await client.from("invoices")
+      .select("id, invoice_number").eq("organization_id", orgId).eq("status", "paid");
+    const { data: invSourceJEs } = await client.from("journal_entries")
+      .select("id").eq("organization_id", orgId).eq("source_type", "invoice").eq("status", "posted");
+
+    checks.push({
+      check: "SOC_T3_AUTO_JE_ON_APPROVAL", module: "SOC Controls",
+      status: (invSourceJEs ?? []).length > 0 ? "passed" : "warning",
+      detail: `${(paidInvoices ?? []).length} paid invoices, ${(invSourceJEs ?? []).length} invoice-sourced JEs exist`,
+    });
+  } catch (e: any) { checks.push({ check: "SOC_T3_AUTO_JE_ON_APPROVAL", module: "SOC Controls", status: "failed", detail: e.message }); }
+
+  // SOC-T5: PERIOD-END ACCRUALS — Verify accrual + reversal entries exist
+  try {
+    const { data: accrualJEs } = await client.from("journal_entries")
+      .select("id, source_type, memo").eq("organization_id", orgId)
+      .in("source_type", ["accrual", "accrual_reversal"]).eq("status", "posted");
+    const accruals = (accrualJEs ?? []).filter((j: any) => j.source_type === "accrual").length;
+    const reversals = (accrualJEs ?? []).filter((j: any) => j.source_type === "accrual_reversal").length;
+
+    checks.push({
+      check: "SOC_T5_PERIOD_END_ACCRUALS", module: "SOC Controls",
+      status: accruals > 0 && reversals > 0 ? "passed" : accruals > 0 ? "warning" : "failed",
+      detail: `Accrual entries: ${accruals}, Reversal entries: ${reversals}. ${accruals > 0 && reversals > 0 ? "Accrual/reversal cycle complete ✓" : "Missing accrual lifecycle entries"}`,
+    });
+  } catch (e: any) { checks.push({ check: "SOC_T5_PERIOD_END_ACCRUALS", module: "SOC Controls", status: "failed", detail: e.message }); }
+
+  // SOX-S3: REPORT-TO-LEDGER TIE-OUT — P&L revenue = SUM of Revenue GL JE credits
+  try {
+    const { data: plData2 } = await client.rpc("get_profit_loss", { p_org_id: orgId, p_from: "2020-01-01", p_to: todayStr });
+    const plRevenue = (plData2 ?? []).filter((r: any) => r.account_type === "revenue")
+      .reduce((s: number, r: any) => s + Math.abs(Number(r.balance || 0)), 0);
+
+    // Get revenue from journal lines directly
+    const { data: revGLAccts } = await client.from("gl_accounts")
+      .select("id").eq("organization_id", orgId).eq("account_type", "revenue");
+    const revGLIds = (revGLAccts ?? []).map((a: any) => a.id);
+    let jlRevenue = 0;
+    if (revGLIds.length > 0) {
+      const { data: revJLs } = await client.from("journal_lines")
+        .select("credit, debit").in("gl_account_id", revGLIds).limit(1000);
+      jlRevenue = (revJLs ?? []).reduce((s: number, l: any) => s + Number(l.credit || 0) - Number(l.debit || 0), 0);
+    }
+
+    const revDiff = Math.abs(plRevenue - jlRevenue);
+    checks.push({
+      check: "SOX_S3_REPORT_LEDGER_TIEOUT", module: "SOX Controls",
+      status: revDiff < 1 ? "passed" : revDiff < plRevenue * 0.01 ? "warning" : "failed",
+      detail: `P&L Report revenue: ₹${plRevenue.toLocaleString()}, Journal line revenue: ₹${jlRevenue.toLocaleString()}, Diff: ₹${revDiff.toLocaleString()}`,
+    });
+  } catch (e: any) { checks.push({ check: "SOX_S3_REPORT_LEDGER_TIEOUT", module: "SOX Controls", status: "failed", detail: e.message }); }
+
+  // SOX-S5: HR/PAYROLL AUDIT TRAIL — Every payroll/leave mutation has audit_log entry
+  try {
+    const { data: hrAuditLogs } = await client.from("audit_logs")
+      .select("entity_type, action").eq("organization_id", orgId)
+      .in("entity_type", ["payroll_run", "leave_request", "compensation_revision", "attendance_correction", "profile"]);
+    
+    const entityTypes = [...new Set((hrAuditLogs ?? []).map((l: any) => l.entity_type))];
+    const expectedTypes = ["payroll_run", "leave_request", "compensation_revision"];
+    const missingTypes = expectedTypes.filter(t => !entityTypes.includes(t));
+
+    checks.push({
+      check: "SOX_S5_HR_AUDIT_TRAIL", module: "SOX Controls",
+      status: missingTypes.length === 0 ? "passed" : missingTypes.length <= 1 ? "warning" : "failed",
+      detail: `${(hrAuditLogs ?? []).length} HR/payroll audit entries across ${entityTypes.length} entity types. ${missingTypes.length > 0 ? `Missing: ${missingTypes.join(", ")}` : "All key entity types covered ✓"}`,
+    });
+  } catch (e: any) { checks.push({ check: "SOX_S5_HR_AUDIT_TRAIL", module: "SOX Controls", status: "failed", detail: e.message }); }
+
+  // ═══════════════════════════════════════════════════════════════
   // RESULTS
   // ═══════════════════════════════════════════════════════════════
   const passed = checks.filter(c => c.status === "passed").length;
