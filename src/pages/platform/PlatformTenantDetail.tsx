@@ -39,6 +39,7 @@ import {
   Lock,
   RefreshCw,
   Zap,
+  Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
@@ -116,6 +117,12 @@ export default function PlatformTenantDetail() {
   const [reinitiateOpen, setReinitiateOpen] = useState(false);
   const [reinitiateConfirmed, setReinitiateConfirmed] = useState(false);
   const [reinitiateLoading, setReinitiateLoading] = useState(false);
+
+  // Fresh re-onboarding state
+  const [freshReboardOpen, setFreshReboardOpen] = useState(false);
+  const [freshReboardConfirmName, setFreshReboardConfirmName] = useState("");
+  const [freshReboardChecked, setFreshReboardChecked] = useState(false);
+  const [freshReboardLoading, setFreshReboardLoading] = useState(false);
 
   if (orgLoading) {
     return (
@@ -229,6 +236,29 @@ export default function PlatformTenantDetail() {
       toast.error(e.message || "Re-initiation failed");
     } finally {
       setReinitiateLoading(false);
+    }
+  };
+
+  const handleFreshReboard = async () => {
+    setFreshReboardLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("fresh_reonboard_tenant" as any, {
+        _org_id: org.id,
+      });
+      if (error) throw error;
+      const result = data as any;
+      if (!result?.success) throw new Error(result?.error || "Fresh re-onboarding failed");
+      toast.success(`Fresh re-onboarding completed for ${org.name}`, {
+        description: result.message,
+      });
+      setFreshReboardOpen(false);
+      setFreshReboardConfirmName("");
+      setFreshReboardChecked(false);
+      refetchAudit();
+    } catch (e: any) {
+      toast.error(e.message || "Fresh re-onboarding failed");
+    } finally {
+      setFreshReboardLoading(false);
     }
   };
 
@@ -489,6 +519,89 @@ export default function PlatformTenantDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fresh Re-Onboarding (Delete Everything) */}
+      <Card className="mb-6 border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-destructive" />
+            Fresh Re-Onboarding
+          </CardTitle>
+          <CardDescription>
+            Delete <strong>ALL</strong> tenant data (transactions, employees, settings, financial records) and restart onboarding from scratch.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1">
+            <p className="font-medium text-destructive">⚠️ This is a destructive action!</p>
+            <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">
+              <li>All financial records, journal entries, and GL accounts will be deleted</li>
+              <li>All employee data, payroll runs, and attendance will be removed</li>
+              <li>All invoices, bills, expenses, and assets will be deleted</li>
+              <li>Organization settings and compliance data will be reset</li>
+              <li>Organization state will be set to <strong>initializing</strong></li>
+              <li>The org shell and auth users are preserved</li>
+            </ul>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => setFreshReboardOpen(true)}
+            disabled={freshReboardLoading}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Start Fresh Re-Onboarding
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Fresh Re-Onboarding Confirmation Modal */}
+      <Dialog open={freshReboardOpen} onOpenChange={setFreshReboardOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Fresh Re-Onboarding — Confirm Deletion
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>ALL data</strong> for <strong>{org.name}</strong> and restart onboarding from scratch. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Type the organization name to confirm: <strong>{org.name}</strong>
+              </Label>
+              <Input
+                placeholder="Type organization name"
+                value={freshReboardConfirmName}
+                onChange={(e) => setFreshReboardConfirmName(e.target.value)}
+                className="mt-1.5"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="fresh-reboard-confirm"
+                checked={freshReboardChecked}
+                onCheckedChange={(v) => setFreshReboardChecked(v === true)}
+              />
+              <label htmlFor="fresh-reboard-confirm" className="text-sm text-muted-foreground cursor-pointer">
+                I understand all data will be permanently deleted
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFreshReboardOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleFreshReboard}
+              disabled={freshReboardConfirmName !== org.name || !freshReboardChecked || freshReboardLoading}
+            >
+              {freshReboardLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Delete All Data & Restart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Re-Initiate Onboarding Confirmation Modal */}
       <Dialog open={reinitiateOpen} onOpenChange={setReinitiateOpen}>
