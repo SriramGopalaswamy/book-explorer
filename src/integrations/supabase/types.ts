@@ -3386,6 +3386,53 @@ export type Database = {
           },
         ]
       }
+      goal_cycle_config: {
+        Row: {
+          created_at: string
+          cycle_month: string
+          id: string
+          input_deadline_day: number
+          input_start_day: number
+          is_active: boolean
+          organization_id: string
+          scoring_deadline_day: number
+          scoring_start_day: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_month: string
+          id?: string
+          input_deadline_day?: number
+          input_start_day?: number
+          is_active?: boolean
+          organization_id: string
+          scoring_deadline_day?: number
+          scoring_start_day?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cycle_month?: string
+          id?: string
+          input_deadline_day?: number
+          input_start_day?: number
+          is_active?: boolean
+          organization_id?: string
+          scoring_deadline_day?: number
+          scoring_start_day?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_cycle_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goal_plans: {
         Row: {
           created_at: string
@@ -6690,6 +6737,7 @@ export type Database = {
         Returns: string
       }
       delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
       get_ap_aging: {
         Args: { p_as_of: string; p_org_id: string }
         Returns: {
