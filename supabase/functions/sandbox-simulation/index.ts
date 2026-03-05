@@ -117,7 +117,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "goal_plans", "memos", "notifications",
     "attendance_daily", "attendance_punches", "attendance_records",
     "attendance_correction_requests",
-    "leave_requests", "investment_declarations", "employee_documents",
+    "leave_requests", "leave_balances", "investment_declarations", "employee_documents",
     "asset_depreciation_entries",
     "quote_items", "quotes",
     "invoice_items", "invoices",
@@ -128,6 +128,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "compensation_revision_requests", "compensation_structures",
      "holidays", "user_roles", "organization_members",
      "profile_change_requests", "payslip_disputes",
+     "chart_of_accounts",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -457,6 +458,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // Role mapping based on department/title
   const roleMapping: Record<string, string> = {
+    "Senior Developer": "admin",     // Gap Fix #1: assign admin role
     "Finance Manager": "finance",
     "HR Executive": "hr",
     "Tech Lead": "manager",
@@ -497,6 +499,92 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
   summary.compensation_structures = compCount;
+
+  // ===== GAP FIX #2: SEED MANAGER HIERARCHY =====
+  // Tech Lead (Vikram Singh) and Operations Lead (Rahul Verma) are managers
+  // Assign manager_id on profiles so subordinates report to them
+  const managers = (allProfilesList ?? []).filter((p: any) =>
+    p.job_title === "Tech Lead" || p.job_title === "Operations Lead"
+  );
+  const engineeringManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Tech Lead");
+  const opsManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Operations Lead");
+
+  const managerAssignment: Record<string, any> = {
+    "Engineering": engineeringManager,
+    "Marketing": opsManager,
+    "Sales": opsManager,
+    "Finance": engineeringManager, // cross-dept reporting for sim
+    "HR": opsManager,
+  };
+
+  let managerHierarchyCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    const mgr = managerAssignment[p.department];
+    if (mgr && mgr.id !== p.id) {
+      const { error } = await client.from("profiles").update({
+        manager_id: mgr.id,
+      }).eq("id", p.id);
+      if (!error) managerHierarchyCount++;
+    }
+  }
+  summary.manager_hierarchy = managerHierarchyCount;
+
+  // ===== GAP FIX #3: SEED LEAVE BALANCES =====
+  const leaveBalanceTypes = [
+    { type: "Casual Leave", total: 12 },
+    { type: "Sick Leave", total: 10 },
+    { type: "Earned Leave", total: 15 },
+  ];
+  let leaveBalCount = 0;
+  for (const p of (allProfilesList ?? [])) {
+    for (const lb of leaveBalanceTypes) {
+      const usedDays = Math.floor(Math.random() * Math.min(lb.total, 4));
+      const { error } = await client.from("leave_balances").upsert({
+        user_id: p.user_id, profile_id: p.id, organization_id: orgId,
+        leave_type: lb.type, total_days: lb.total,
+        used_days: usedDays, year: 2026,
+      }, { onConflict: "user_id,leave_type,year" });
+      if (!error) leaveBalCount++;
+    }
+  }
+  summary.leave_balances = leaveBalCount;
+
+  // ===== GAP FIX #4: SEED CHART OF ACCOUNTS =====
+  let coaCount = 0;
+  for (const entry of coaEntries) {
+    const { error } = await client.from("chart_of_accounts").upsert({
+      account_code: entry.code, account_name: entry.name, account_type: entry.type,
+      organization_id: orgId, user_id: userId, is_active: true,
+      opening_balance: 0, current_balance: 0,
+    }, { onConflict: "account_code,organization_id" });
+    if (!error) coaCount++;
+  }
+  summary.chart_of_accounts = coaCount;
+
+  // ===== GAP FIX #7: SEED ATTENDANCE DAILY RECORDS =====
+  // Create computed attendance_daily records for past 5 days for first 5 profiles
+  let attDailyCount = 0;
+  const attToday = new Date();
+  for (let dayOffset = 1; dayOffset <= 5; dayOffset++) {
+    const d = new Date(attToday);
+    d.setDate(d.getDate() - dayOffset);
+    const dateStr = d.toISOString().split("T")[0];
+    for (const p of (allProfilesList ?? []).slice(0, 5)) {
+      const lateMin = Math.floor(Math.random() * 20);
+      const otMin = Math.floor(Math.random() * 60);
+      const workMin = 480 + otMin - lateMin;
+      const { error } = await client.from("attendance_daily").insert({
+        profile_id: p.id, organization_id: orgId,
+        attendance_date: dateStr, status: "present",
+        first_in_time: `${dateStr}T09:${String(lateMin).padStart(2, "0")}:00`,
+        last_out_time: `${dateStr}T18:${String(otMin).padStart(2, "0")}:00`,
+        total_work_minutes: workMin, late_minutes: lateMin,
+        early_exit_minutes: 0, ot_minutes: otMin,
+      });
+      if (!error) attDailyCount++;
+    }
+  }
+  summary.attendance_daily = attDailyCount;
 
   // ===== SEED BUDGETS =====
   let budgetCount = 0;
@@ -674,9 +762,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     try {
       const amount = Math.round(500 + Math.random() * 50000);
+      const profileForExp = profileList[i % profileList.length];
       const { error } = await client.from("expenses").insert({
         description: `Simulation expense - ${expenseCategories[i]}`, amount,
         category: expenseCategories[i], organization_id: orgId, user_id: userId,
+        profile_id: profileForExp?.id ?? null,
         status: "pending", expense_date: new Date().toISOString().split("T")[0],
       });
       results.push({
@@ -1634,8 +1724,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     try {
       const { data: mrPCR, error: pcrErr } = await client.from("profile_change_requests").insert({
         profile_id: employeeProfile.id, organization_id: orgId,
-        requested_by: employeeActor,
-        field_name: "phone", old_value: "+91-9876543099", new_value: "+91-9876543100",
+        user_id: employeeActor,
+        field_name: "phone", section: "personal",
+        current_value: "+91-9876543099", requested_value: "+91-9876543100",
         reason: "Updated personal phone number", status: "pending",
       }).select("id").single();
 
