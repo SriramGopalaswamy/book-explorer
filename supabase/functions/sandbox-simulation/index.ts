@@ -2408,7 +2408,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   // ------- MR8: ROLE ESCALATION TEST (negative test — verify role distribution) -------
   {
     const wfStart = Date.now();
-    const expectedRoles = ["admin", "hr", "finance", "manager", "employee"];
+    const expectedRoles = ["admin", "hr", "finance", "manager", "employee", "payroll"];
     const presentRoles = Object.keys(roleMap);
     const missingRoles = expectedRoles.filter(r => !presentRoles.includes(r));
 
@@ -2416,8 +2416,85 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       workflow: "MR-RoleDistribution: All roles present", module: "Multi-Role",
       status: missingRoles.length === 0 ? "passed" : "failed",
       detail: missingRoles.length === 0
-        ? `All 5 roles present: ${presentRoles.join(", ")} (${(roleAssignments ?? []).length} total assignments)`
+        ? `All 6 roles present: ${presentRoles.join(", ")} (${(roleAssignments ?? []).length} total assignments)`
         : `Missing roles: ${missingRoles.join(", ")} — found: ${presentRoles.join(", ")}`,
+      duration_ms: Date.now() - wfStart,
+    });
+
+    // MR8b: Multi-role coverage — verify at least 2 users have ≥2 roles
+    const userRoleCounts: Record<string, number> = {};
+    for (const ra of (roleAssignments ?? [])) {
+      userRoleCounts[ra.user_id] = (userRoleCounts[ra.user_id] || 0) + 1;
+    }
+    const multiRoleUsers = Object.values(userRoleCounts).filter(c => c >= 2).length;
+    results.push({
+      workflow: "MR-MultiRoleCoverage: Users with ≥2 roles", module: "Multi-Role",
+      status: multiRoleUsers >= 2 ? "passed" : "failed",
+      detail: `${multiRoleUsers} users have ≥2 roles (expected ≥2 for cross-role simulation)`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ------- MR11: DUAL-ROLE CONFLICT TEST (same user as maker AND checker) -------
+  {
+    const wfStart = Date.now();
+    // Priya (finance+manager) tries to create AND approve a bill — should be flagged
+    const dualRoleActor = (roleAssignments ?? []).find((ra: any) => {
+      const userRoles = (roleAssignments ?? []).filter((r: any) => r.user_id === ra.user_id).map((r: any) => r.role);
+      return userRoles.includes("finance") && userRoles.includes("manager");
+    });
+
+    if (dualRoleActor) {
+      // Test: same user creates invoice then approves it — this is a maker-checker violation
+      const { data: conflictBill, error: cbErr } = await client.from("bills").insert({
+        bill_number: `MR11-CONFLICT-${Date.now()}`, vendor_name: "Dual-Role Conflict Test",
+        organization_id: orgId, user_id: dualRoleActor.user_id,
+        amount: 50000, tax_amount: 9000, total_amount: 59000,
+        status: "draft", bill_date: new Date().toISOString().split("T")[0],
+      }).select("id").single();
+
+      if (!cbErr && conflictBill) {
+        // Same user approves — this should be flagged as a governance concern
+        const { error: selfApproveErr } = await client.from("bills")
+          .update({ status: "approved" }).eq("id", conflictBill.id);
+
+        results.push({
+          workflow: "MR-DualRoleConflict: Maker-checker violation test", module: "Multi-Role",
+          status: selfApproveErr ? "passed" : "warning",
+          detail: selfApproveErr
+            ? "Correctly blocked: same user cannot create and approve"
+            : `⚠️ Governance gap: user ${dualRoleActor.user_id.substring(0, 8)}... created AND approved bill (no maker-checker enforcement)`,
+          duration_ms: Date.now() - wfStart,
+        });
+      } else {
+        results.push({
+          workflow: "MR-DualRoleConflict", module: "Multi-Role",
+          status: "warning", detail: cbErr?.message ?? "Could not create test bill",
+          duration_ms: Date.now() - wfStart,
+        });
+      }
+    } else {
+      results.push({
+        workflow: "MR-DualRoleConflict", module: "Multi-Role",
+        status: "warning", detail: "No dual-role user (finance+manager) found to test conflict",
+        duration_ms: Date.now() - wfStart,
+      });
+    }
+  }
+
+  // ------- MR12: MANAGER HIERARCHY VALIDATION -------
+  {
+    const wfStart = Date.now();
+    const { data: managedProfiles } = await client.from("profiles")
+      .select("id, full_name, manager_id")
+      .eq("organization_id", orgId)
+      .not("manager_id", "is", null);
+    
+    const managedCount = (managedProfiles ?? []).length;
+    results.push({
+      workflow: "MR-ManagerHierarchy: Profiles with manager_id set", module: "Multi-Role",
+      status: managedCount >= 3 ? "passed" : managedCount > 0 ? "warning" : "failed",
+      detail: `${managedCount} employees have manager_id set (expected ≥3 for approval chains)`,
       duration_ms: Date.now() - wfStart,
     });
   }
