@@ -58,6 +58,7 @@ import OrgChart from "./pages/hrms/OrgChart";
 import MyAttendance from "./pages/hrms/MyAttendance";
 import ManagerInbox from "./pages/hrms/ManagerInbox";
 import Reimbursements from "./pages/hrms/Reimbursements";
+import MyExpenses from "./pages/hrms/MyExpenses";
 import ReimbursementsFinance from "./pages/financial/ReimbursementsFinance";
 
 // Performance OS
@@ -75,8 +76,13 @@ import PlatformHealth from "./pages/platform/PlatformHealth";
 import PlatformActions from "./pages/platform/PlatformActions";
 import PlatformAudit from "./pages/platform/PlatformAudit";
 import PlatformSandbox from "./pages/platform/PlatformSandbox";
+import PlatformSimulation from "./pages/platform/PlatformSimulation";
 import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
 import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
+import PlatformDbInspector from "./pages/platform/PlatformDbInspector";
+
+// Sandbox
+import SandboxJoin from "./pages/sandbox/SandboxJoin";
 
 // Profile
 import Profile from "./pages/Profile";
@@ -127,6 +133,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/sandbox/join/:token" element={<ProtectedRoute><SandboxJoin /></ProtectedRoute>} />
 
                 {/* Subscription & Onboarding (protected but exempt from subscription guard) */}
                 <Route path="/subscription/activate" element={<ProtectedRoute><SubscriptionActivate /></ProtectedRoute>} />
@@ -171,6 +178,7 @@ const App = () => (
                 <Route path="/hrms/my-attendance" element={<Guarded><MyAttendance /></Guarded>} />
                 <Route path="/hrms/inbox" element={<Guarded><ManagerRoute><ManagerInbox /></ManagerRoute></Guarded>} />
                 <Route path="/hrms/reimbursements" element={<Guarded><Reimbursements /></Guarded>} />
+                <Route path="/hrms/my-expenses" element={<Guarded><MyExpenses /></Guarded>} />
                 <Route path="/financial/reimbursements" element={<Guarded><FinanceRoute><ReimbursementsFinance /></FinanceRoute></Guarded>} />
 
                 {/* Performance OS */}
@@ -192,7 +200,9 @@ const App = () => (
                 <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/simulation" element={<ProtectedRoute><PlatformRoute><PlatformSimulation /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/subscription-keys" element={<ProtectedRoute><PlatformRoute><PlatformSubscriptionKeys /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/db-inspector" element={<ProtectedRoute><PlatformRoute><PlatformDbInspector /></PlatformRoute></ProtectedRoute>} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

@@ -253,7 +253,6 @@ export function useUpdateFinancialRecord() {
         .from("grxbooks.financial_records")
         .update(record)
         .eq("id", id)
-        .eq("user_id", user.id)
         .select()
         .single();
 
@@ -276,13 +275,16 @@ export function useDeleteFinancialRecord() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("User not authenticated");
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("grxbooks.financial_records")
         .delete()
         .eq("id", id)
-        .eq("user_id", user.id);
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Unable to delete entry. You may not have permission.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financial-records"] });

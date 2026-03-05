@@ -153,7 +153,11 @@ export function useReverseJournal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       queryClient.invalidateQueries({ queryKey: ["rpc-trial-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["rpc-gl-balances"] });
       toast.success("Journal entry reversed");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reverse journal entry");
     },
   });
 }
@@ -196,8 +200,9 @@ export function useCloseFiscalPeriod() {
 
   return useMutation({
     mutationFn: async (periodId: string) => {
+      if (!org?.organizationId) throw new Error("Organization not found");
       const { data, error } = await supabase.rpc("close_fiscal_period", {
-        _org_id: org?.organizationId!,
+        _org_id: org.organizationId,
         _period_id: periodId,
       });
       if (error) throw error;
@@ -207,10 +212,35 @@ export function useCloseFiscalPeriod() {
       queryClient.invalidateQueries({ queryKey: ["fiscal-periods"] });
       queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       if (result?.success) {
-        toast.success("Period closed successfully");
+        toast.success("Period closed successfully. All journal entries in this period are now locked.");
       } else {
-        toast.error("Period close failed pre-checks");
+        // Show detailed pre-check failures
+        const checks = result?.checks || {};
+        const failures: string[] = [];
+        if (checks.draft_entries && !checks.draft_entries.passed) {
+          failures.push(`${checks.draft_entries.count} draft journal entries must be posted first`);
+        }
+        if (checks.trial_balance && !checks.trial_balance.passed) {
+          const diff = Math.abs(checks.trial_balance.debit - checks.trial_balance.credit);
+          failures.push(`Trial balance imbalanced by ₹${diff.toLocaleString("en-IN")}`);
+        }
+        if (checks.depreciation_posted && !checks.depreciation_posted.passed) {
+          failures.push(`${checks.depreciation_posted.pending} depreciation entries not yet posted`);
+        }
+        if (checks.unbalanced_entries && !checks.unbalanced_entries.passed) {
+          failures.push(`${checks.unbalanced_entries.count} unbalanced journal entries found`);
+        }
+        toast.error("Period close blocked", {
+          description: failures.length > 0 ? failures.join(". ") : "Pre-checks failed. Review journal entries.",
+          duration: 8000,
+        });
       }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to close period", {
+        description: error.message,
+        duration: 6000,
+      });
     },
   });
 }

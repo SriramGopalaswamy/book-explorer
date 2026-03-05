@@ -328,7 +328,7 @@ export function useTDS24QData(from: string, to: string) {
         .select("*, profiles!profile_id(full_name)")
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
-        .eq("status", "processed");
+        .in("status", ["processed", "approved", "locked"]);
       if (error) throw error;
 
       return (data || []).map((p: any): TDS24QRow => {
@@ -359,7 +359,7 @@ export function useTDS26QData(from: string, to: string) {
   return useQuery({
     queryKey: ["tds26q", from, to],
     queryFn: async () => {
-      // Use bills as proxy for vendor payments with TDS
+      // Use bills with TDS section allocated
       const { data, error } = await supabase
         .from("bills")
         .select("*, vendors!vendor_id(name)")
@@ -368,21 +368,25 @@ export function useTDS26QData(from: string, to: string) {
         .in("status", ["approved", "paid"]);
       if (error) throw error;
 
-      return (data || []).map((b: any): TDS26QRow => {
-        const tdsRate = 10; // Default TDS rate for professional services (194J)
-        return {
-          id: b.id,
-          deductee_name: b.vendors?.name || b.vendor_name || "Unknown",
-          deductee_pan: "", // Not stored
-          section_code: "194J",
-          payment_date: b.bill_date,
-          amount_paid: Number(b.total_amount),
-          tds_rate: tdsRate,
-          tds_amount: Number(b.total_amount) * (tdsRate / 100),
-          description: `Bill ${b.bill_number}`,
-          reference_type: "bill",
-        };
-      });
+      return (data || [])
+        .filter((b: any) => b.tds_section || true) // Include all bills, default to 194J if no section
+        .map((b: any): TDS26QRow => {
+          const tdsSection = b.tds_section || "194J";
+          const tdsRate = b.tds_rate != null ? Number(b.tds_rate) : 10; // Default 10% if not set
+          const amountPaid = Number(b.total_amount);
+          return {
+            id: b.id,
+            deductee_name: b.vendors?.name || b.vendor_name || "Unknown",
+            deductee_pan: "", // Not stored
+            section_code: tdsSection,
+            payment_date: b.bill_date,
+            amount_paid: amountPaid,
+            tds_rate: tdsRate,
+            tds_amount: amountPaid * (tdsRate / 100),
+            description: `Bill ${b.bill_number}`,
+            reference_type: "bill",
+          };
+        });
     },
     enabled: !!user && !!from && !!to,
   });

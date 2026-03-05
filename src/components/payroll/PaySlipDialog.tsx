@@ -7,6 +7,7 @@ import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { useState, useEffect, useCallback } from "react";
+import { normalizePayslip } from "@/lib/payslip-utils";
 
 /** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
 function useLogoDataUrl(src: string) {
@@ -56,27 +57,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   if (!record) return null;
 
-  const lopDays = Number((record as any).lop_days) || 0;
-  const lopDeduction = Number((record as any).lop_deduction) || 0;
-  const workingDays = Number((record as any).working_days) || 0;
-  const paidDays = Number((record as any).paid_days) || 0;
-
-  const earnings = [
-    { label: "Basic Salary", amount: Number(record.basic_salary) },
-    { label: "House Rent Allowance (HRA)", amount: Number(record.hra) },
-    { label: "Transport Allowance", amount: Number(record.transport_allowance) },
-    { label: "Other Allowances", amount: Number(record.other_allowances) },
-  ];
-  const totalEarnings = earnings.reduce((s, e) => s + e.amount, 0);
-
-  const deductions = [
-    { label: "Provident Fund (PF)", amount: Number(record.pf_deduction) },
-    { label: "Tax Deduction (TDS)", amount: Number(record.tax_deduction) },
-    { label: "Other Deductions", amount: Number(record.other_deductions) },
-    ...(lopDeduction > 0 ? [{ label: `Loss of Pay (${lopDays} days)`, amount: lopDeduction }] : []),
-  ];
-  const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
-  const netPay = Number(record.net_pay);
+  // Unified normalization — works for both legacy payroll_records and engine payroll_entries
+  const slip = normalizePayslip(record);
+  const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, lopDeduction, workingDays, paidDays } = slip;
 
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const department = DOMPurify.sanitize(record.profiles?.department || "—");
@@ -96,7 +79,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   <title>Pay Slip — ${employeeName} — ${period}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 48px; max-width: 740px; margin: 0 auto; }
+    html, body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #111827; background: #fff; width: 640px; max-width: 640px; margin: 0 auto; padding: 36px 32px; }
     .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 18px; border-bottom: 3px solid #e11d74; margin-bottom: 28px; }
     .hdr-left { display: flex; align-items: center; gap: 14px; }
     .hdr-logo { height: 44px; width: auto; }
@@ -131,7 +114,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     .footer .sig { font-size: 11px; color: #9ca3af; text-align: right; }
     .footer .sig span { display: block; width: 140px; border-top: 1px solid #d1d5db; padding-top: 4px; margin-top: 28px; }
     .wm { text-align: center; margin-top: 20px; font-size: 10px; color: #d1d5db; }
-    @media print { body { padding: 28px; } }
+    @media print { body { padding: 24px; } }
   </style>
 </head>
 <body>
@@ -188,7 +171,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const openPrintWindow = () => {
     const html = buildHTML();
-    const win = window.open("", "_blank", "width=800,height=900");
+    const win = window.open("", "_blank", "width=700,height=900");
     if (!win) return;
     win.document.write(html);
     win.document.close();
@@ -215,7 +198,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     container.style.position = "fixed";
     container.style.left = "-10000px";
     container.style.top = "0";
-    container.style.width = "800px";
+    container.style.width = "640px";
     container.style.background = "#ffffff";
     container.style.zIndex = "-1";
     document.body.appendChild(container);
@@ -252,14 +235,15 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
-          margin: [10, 0, 10, 0],
+          margin: [10, 20, 10, 20],
           filename: `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: {
             scale: 2,
             useCORS: true,
             backgroundColor: "#ffffff",
-            windowWidth: 740,
+            width: 640,
+            windowWidth: 640,
             scrollX: 0,
             scrollY: 0,
           },

@@ -139,7 +139,7 @@ export function useRunFinancialEngine() {
   return useMutation({
     mutationFn: async (engine?: string) => {
       const { data, error } = await supabase.functions.invoke("financial-engine", {
-        body: { organization_id: org?.organizationId, engine },
+        body: { engine },
       });
       if (error) throw error;
       return data;

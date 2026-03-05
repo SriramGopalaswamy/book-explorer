@@ -101,6 +101,20 @@ const AP_CATEGORIES = [
   "Banking & Finance Charges", "Other",
 ];
 
+const TDS_SECTIONS: { code: string; label: string; rate: number }[] = [
+  { code: "", label: "No TDS", rate: 0 },
+  { code: "194C", label: "194C — Contractor Payments", rate: 2 },
+  { code: "194H", label: "194H — Commission / Brokerage", rate: 5 },
+  { code: "194I(a)", label: "194I(a) — Rent (Plant/Machinery)", rate: 2 },
+  { code: "194I(b)", label: "194I(b) — Rent (Land/Building)", rate: 10 },
+  { code: "194IA", label: "194IA — Property Purchase", rate: 1 },
+  { code: "194IB", label: "194IB — Rent by Individual/HUF", rate: 5 },
+  { code: "194J(a)", label: "194J(a) — Technical Services", rate: 2 },
+  { code: "194J(b)", label: "194J(b) — Professional Services", rate: 10 },
+  { code: "194Q", label: "194Q — Purchase of Goods", rate: 0.1 },
+  { code: "194R", label: "194R — Business Perquisites", rate: 10 },
+];
+
 const EMPTY_FORM = {
   vendor_name: "",
   bill_number: "",
@@ -113,6 +127,8 @@ const EMPTY_FORM = {
   ap_category: "",
   payment_terms: "",
   vendor_tax_number: "",
+  tds_section: "",
+  tds_rate: "",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -424,7 +440,9 @@ export default function Bills() {
           attachment_url: uploadedFile?.path || null,
           ai_extracted: aiExtracted,
           user_id: user!.id,
-        })
+          tds_section: form.tds_section || null,
+          tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
+        } as any)
         .select()
         .single();
 
@@ -467,25 +485,58 @@ export default function Bills() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("bills").update({ status }).eq("id", id);
-      if (error) throw error;
+      console.log("[Bills] Attempting status update:", { id, status });
+      
+      // First verify the bill exists and we can read it
+      const { data: currentBill, error: readError } = await supabase
+        .from("bills")
+        .select("id, status, organization_id, bill_number, bill_date")
+        .eq("id", id)
+        .single();
+      
+      if (readError) {
+        console.error("[Bills] Cannot read bill:", readError);
+        throw new Error(`Cannot access bill: ${readError.message}`);
+      }
+      
+      console.log("[Bills] Current bill state:", currentBill);
+      
+      const { data, error } = await supabase
+        .from("bills")
+        .update({ status })
+        .eq("id", id)
+        .select();
+      
+      console.log("[Bills] Update result:", { data, error });
+      
+      if (error) {
+        console.error("[Bills] Update error:", JSON.stringify(error));
+        const errMsg = error.message || error.details || error.hint || JSON.stringify(error);
+        throw new Error(`Failed to update bill: ${errMsg}`);
+      }
+      if (!data || data.length === 0) {
+        throw new Error("Update failed — bill status did not change. This may be a permissions issue.");
+      }
+      return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
-      toast.success("Status updated");
+      toast.success(`Bill ${variables.status === "approved" ? "approved" : variables.status === "paid" ? "marked as paid" : "status updated"} successfully`);
       if (["approved", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {
           body: { type: "bill_status_changed", payload: { bill_id: variables.id, new_status: variables.status } },
         }).catch((err) => console.warn("Failed to send bill notification:", err));
       }
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      console.error("[Bills] Mutation error:", e);
+      toast.error(e.message || "Failed to update bill status");
+    },
   });
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const closeDialog = () => {
-    setDialogOpen(false);
+  const resetForm = () => {
     setForm({ ...EMPTY_FORM });
     setLineItems([{ description: "", quantity: 1, rate: 0, amount: 0 }]);
     setUploadedFile(null);
@@ -493,6 +544,16 @@ export default function Bills() {
     setAiConfidence(undefined);
     setAiWarnings([]);
     setTaxBreakdown([]);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    resetForm();
+  };
+
+  const openDialog = () => {
+    resetForm();
+    setDialogOpen(true);
   };
 
   const openPreview = async (bill: any) => {
@@ -676,7 +737,7 @@ export default function Bills() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => { closeDialog(); setDialogOpen(true); }} className="gap-2 shrink-0">
+          <Button onClick={openDialog} className="gap-2 shrink-0">
             <ScanLine className="h-4 w-4" />
             Scan / Add Bill
           </Button>
@@ -694,7 +755,7 @@ export default function Bills() {
                 <Receipt className="h-12 w-12 opacity-30" />
                 <p className="text-sm font-medium">No bills found</p>
                 <p className="text-xs">Scan a vendor bill or invoice to get started</p>
-                <Button size="sm" variant="outline" onClick={() => { closeDialog(); setDialogOpen(true); }} className="mt-1">
+                <Button size="sm" variant="outline" onClick={openDialog} className="mt-1">
                   <ScanLine className="h-3.5 w-3.5 mr-1.5" /> Scan Bill
                 </Button>
               </div>
@@ -930,6 +991,46 @@ export default function Bills() {
               </div>
 
               <div className="space-y-1.5">
+                <Label>TDS Section</Label>
+                <Select
+                  value={form.tds_section || "none"}
+                  onValueChange={(v) => {
+                    const actualCode = v === "none" ? "" : v;
+                    const section = TDS_SECTIONS.find((s) => s.code === actualCode);
+                    setForm((p) => ({
+                      ...p,
+                      tds_section: actualCode,
+                      tds_rate: section ? String(section.rate) : "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select TDS section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TDS_SECTIONS.map((s) => (
+                      <SelectItem key={s.code || "none"} value={s.code || "none"}>
+                        {s.label}{s.rate > 0 ? ` (${s.rate}%)` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.tds_section && (
+                <div className="space-y-1.5">
+                  <Label>TDS Rate (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.tds_rate}
+                    onChange={(e) => setForm((p) => ({ ...p, tds_rate: e.target.value }))}
+                    placeholder="Auto-populated"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1026,11 +1127,19 @@ export default function Bills() {
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button
-              onClick={() => saveMutation.mutate()}
+              variant="secondary"
+              onClick={() => { setForm(f => ({ ...f, status: "draft" })); setTimeout(() => saveMutation.mutate(), 0); }}
               disabled={saveMutation.isPending || uploading || extracting}
               className="gap-2"
             >
-              {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
+              {saveMutation.isPending && form.status === "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><FileText className="h-4 w-4" /> Save as Draft</>}
+            </Button>
+            <Button
+              onClick={() => { setForm(f => ({ ...f, status: "received" })); setTimeout(() => saveMutation.mutate(), 0); }}
+              disabled={saveMutation.isPending || uploading || extracting}
+              className="gap-2"
+            >
+              {saveMutation.isPending && form.status !== "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
             </Button>
           </DialogFooter>
         </DialogContent>

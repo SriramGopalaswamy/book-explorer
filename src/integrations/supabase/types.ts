@@ -1889,6 +1889,8 @@ export type Database = {
           organization_id: string
           status: string
           tax_amount: number
+          tds_rate: number | null
+          tds_section: string | null
           total_amount: number
           updated_at: string
           user_id: string
@@ -1908,6 +1910,8 @@ export type Database = {
           organization_id?: string
           status?: string
           tax_amount?: number
+          tds_rate?: number | null
+          tds_section?: string | null
           total_amount?: number
           updated_at?: string
           user_id: string
@@ -1927,6 +1931,8 @@ export type Database = {
           organization_id?: string
           status?: string
           tax_amount?: number
+          tds_rate?: number | null
+          tds_section?: string | null
           total_amount?: number
           updated_at?: string
           user_id?: string
@@ -2179,6 +2185,85 @@ export type Database = {
             columns: ["compensation_structure_id"]
             isOneToOne: false
             referencedRelation: "compensation_structures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compensation_revision_requests: {
+        Row: {
+          created_at: string
+          current_ctc: number
+          effective_from: string
+          id: string
+          organization_id: string
+          profile_id: string
+          proposed_components: Json | null
+          proposed_ctc: number
+          requested_by: string
+          requested_by_role: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          revision_reason: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_ctc?: number
+          effective_from: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          proposed_components?: Json | null
+          proposed_ctc: number
+          requested_by: string
+          requested_by_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          revision_reason: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_ctc?: number
+          effective_from?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          proposed_components?: Json | null
+          proposed_ctc?: number
+          requested_by?: string
+          requested_by_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          revision_reason?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_revision_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -4629,6 +4714,62 @@ export type Database = {
           },
         ]
       }
+      organization_oauth_configs: {
+        Row: {
+          client_id: string
+          client_secret: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_verified: boolean | null
+          organization_id: string
+          provider: string
+          scopes: string[] | null
+          sender_email: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          client_id: string
+          client_secret: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean | null
+          organization_id: string
+          provider: string
+          scopes?: string[] | null
+          sender_email?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          client_secret?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean | null
+          organization_id?: string
+          provider?: string
+          scopes?: string[] | null
+          sender_email?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_oauth_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_roles: {
         Row: {
           created_at: string | null
@@ -4719,6 +4860,7 @@ export type Database = {
           slug: string | null
           status: string
           updated_at: string
+          weekend_policy: string
         }
         Insert: {
           auto_reset_enabled?: boolean
@@ -4736,6 +4878,7 @@ export type Database = {
           slug?: string | null
           status?: string
           updated_at?: string
+          weekend_policy?: string
         }
         Update: {
           auto_reset_enabled?: boolean
@@ -4753,6 +4896,7 @@ export type Database = {
           slug?: string | null
           status?: string
           updated_at?: string
+          weekend_policy?: string
         }
         Relationships: []
       }
@@ -5735,6 +5879,47 @@ export type Database = {
           },
         ]
       }
+      sandbox_invite_links: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          sandbox_org_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          sandbox_org_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          sandbox_org_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sandbox_invite_links_sandbox_org_id_fkey"
+            columns: ["sandbox_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sandbox_users: {
         Row: {
           created_at: string
@@ -5827,6 +6012,95 @@ export type Database = {
           {
             foreignKeyName: "scheduled_payments_organization_id_fkey"
             columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_runs: {
+        Row: {
+          chaos_test_results: Json | null
+          completed_at: string | null
+          concurrent_users_simulated: number | null
+          created_at: string | null
+          errors: Json | null
+          id: string
+          initiated_by: string
+          report_html: string | null
+          report_json: Json | null
+          run_type: string
+          sandbox_org_id: string
+          seed_summary: Json | null
+          started_at: string | null
+          status: string
+          stress_test_results: Json | null
+          total_execution_time_ms: number | null
+          total_records_created: number | null
+          updated_at: string | null
+          validation_details: Json | null
+          validation_passed: boolean | null
+          workflow_details: Json | null
+          workflows_executed: number | null
+          workflows_failed: number | null
+          workflows_passed: number | null
+        }
+        Insert: {
+          chaos_test_results?: Json | null
+          completed_at?: string | null
+          concurrent_users_simulated?: number | null
+          created_at?: string | null
+          errors?: Json | null
+          id?: string
+          initiated_by: string
+          report_html?: string | null
+          report_json?: Json | null
+          run_type?: string
+          sandbox_org_id: string
+          seed_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          stress_test_results?: Json | null
+          total_execution_time_ms?: number | null
+          total_records_created?: number | null
+          updated_at?: string | null
+          validation_details?: Json | null
+          validation_passed?: boolean | null
+          workflow_details?: Json | null
+          workflows_executed?: number | null
+          workflows_failed?: number | null
+          workflows_passed?: number | null
+        }
+        Update: {
+          chaos_test_results?: Json | null
+          completed_at?: string | null
+          concurrent_users_simulated?: number | null
+          created_at?: string | null
+          errors?: Json | null
+          id?: string
+          initiated_by?: string
+          report_html?: string | null
+          report_json?: Json | null
+          run_type?: string
+          sandbox_org_id?: string
+          seed_summary?: Json | null
+          started_at?: string | null
+          status?: string
+          stress_test_results?: Json | null
+          total_execution_time_ms?: number | null
+          total_records_created?: number | null
+          updated_at?: string | null
+          validation_details?: Json | null
+          validation_passed?: boolean | null
+          workflow_details?: Json | null
+          workflows_executed?: number | null
+          workflows_failed?: number | null
+          workflows_passed?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_runs_sandbox_org_id_fkey"
+            columns: ["sandbox_org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
@@ -6556,6 +6830,7 @@ export type Database = {
         Args: { _calibration?: Json; _force?: boolean; _org_id: string }
         Returns: Json
       }
+      inspect_database_structure: { Args: never; Returns: Json }
       is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_finance: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
@@ -6585,6 +6860,10 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      join_sandbox_via_token: {
+        Args: { _sandbox_user_id: string; _token: string }
+        Returns: Json
+      }
       next_document_sequence: {
         Args: { _doc_type: string; _org_id: string }
         Returns: string
@@ -6648,6 +6927,10 @@ export type Database = {
       run_financial_verification: { Args: { _org_id?: string }; Returns: Json }
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
+      sandbox_force_delete_journal_data: {
+        Args: { _org_id: string }
+        Returns: undefined
+      }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
         Args: { _sandbox_user_id: string }

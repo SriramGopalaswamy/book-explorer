@@ -125,7 +125,10 @@ export function useMyPayrollRecords() {
 }
 
 export function usePayrollStats(payPeriod?: string) {
-  const { data: records = [] } = usePayrollRecords(payPeriod);
+  const { data: allRecords = [] } = usePayrollRecords(payPeriod);
+
+  // Exclude superseded records from all stats
+  const records = allRecords.filter((r) => r.status !== "superseded");
 
   return {
     totalPayroll: records.reduce((sum, r) => sum + Number(r.net_pay), 0),
@@ -134,7 +137,7 @@ export function usePayrollStats(payPeriod?: string) {
     pending: records.filter((r) => r.status === "under_review" || r.status === "approved" || r.status === "pending" || r.status === "draft").length,
     totalBasic: records.reduce((sum, r) => sum + Number(r.basic_salary), 0),
     totalAllowances: records.reduce((sum, r) => sum + Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances), 0),
-    totalDeductions: records.reduce((sum, r) => sum + Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions), 0),
+    totalDeductions: records.reduce((sum, r) => sum + Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions) + (Number(r.lop_deduction) || 0), 0),
   };
 }
 
@@ -263,6 +266,11 @@ export function useProcessPayroll() {
           );
         }
         throw error;
+      }
+
+      // Check RPC-level errors
+      if (data?.processed === 0 && data?.skipped > 0) {
+        throw new Error("All selected records were already processed.");
       }
 
       return data;

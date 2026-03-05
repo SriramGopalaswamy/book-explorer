@@ -77,18 +77,26 @@ function maybeConvertExcelSerial(value: string): string {
  */
 function maybeConvertExcelTime(value: string): string {
   const trimmed = value.trim();
+  if (!trimmed) return trimmed;
 
   // Already looks like a time (HH:mm or HH:mm:ss) — return as-is
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return trimmed;
 
-  // Excel time serial: fractional number between 0 and 1 (e.g. 0.375 = 09:00)
+  // Excel time serial: fractional number (e.g. 0.375 = 09:00, or datetime serial like 45689.375)
   const num = Number(trimmed);
-  if (!isNaN(num) && num >= 0 && num < 1 && trimmed.includes(".")) {
-    const totalMinutes = Math.round(num * 24 * 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  if (!isNaN(num) && trimmed.includes(".")) {
+    // Extract fractional part (time portion) from any Excel serial
+    const fraction = num % 1;
+    if (fraction > 0) {
+      const totalMinutes = Math.round(fraction * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+    }
   }
+
+  // Pure integer that could be Excel serial without time — skip
+  if (!isNaN(num) && !trimmed.includes(".") && !trimmed.includes(":")) return trimmed;
 
   // DateTime string like "1899-12-30T09:00:00.000Z" or "2026-02-01 09:00:00" — extract time
   const dtMatch = trimmed.match(/(\d{1,2}:\d{2}(:\d{2})?)/);
@@ -237,38 +245,52 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     setUploading(true);
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      const result = await config.onUpload(validRows);
+      let result: { success: number; errors: string[]; created?: number; updated?: number };
+      
+      try {
+        result = await config.onUpload(validRows);
+      } catch (uploadErr: any) {
+        console.error("[BulkUpload] onUpload threw:", uploadErr);
+        result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+      }
 
-      // Log to bulk_upload_history
+      // Always log to bulk_upload_history, even on partial/full failure
       if (user) {
-        // Fetch user's organization_id for correct tenant isolation
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("organization_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
 
-        const orgId = profile?.organization_id || "00000000-0000-0000-0000-000000000001";
+          const orgId = profile?.organization_id || "00000000-0000-0000-0000-000000000001";
 
-        const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
-          module: config.module,
-          file_name: fileName,
-          total_rows: parsedRows.length,
-          successful_rows: result.success,
-          failed_rows: result.errors.length + errorCount,
-          errors: result.errors.slice(0, 50),
-          uploaded_by: user.id,
-          organization_id: orgId,
-        });
-        if (historyErr) {
-          console.error("Failed to log upload history:", historyErr.message);
+          const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
+            module: config.module,
+            file_name: fileName,
+            total_rows: parsedRows.length,
+            successful_rows: result.success,
+            failed_rows: result.errors.length + errorCount,
+            errors: result.errors.slice(0, 50),
+            uploaded_by: user.id,
+            organization_id: orgId,
+          });
+          if (historyErr) {
+            console.error("[BulkUpload] Failed to log upload history:", historyErr.message, historyErr);
+            toast.warning("Upload succeeded but history logging failed. Check permissions.");
+          }
+        } catch (histErr: any) {
+          console.error("[BulkUpload] History insert exception:", histErr);
+          toast.warning("Upload succeeded but history logging failed.");
         }
         qc.invalidateQueries({ queryKey: ["bulk-upload-history"] });
       }
 
       setUploadSummary(result);
 
-      if (result.errors.length > 0) {
+      if (result.success === 0 && result.errors.length > 0) {
+        toast.error(`Upload failed: ${result.errors.length} error(s)`);
+      } else if (result.errors.length > 0) {
         toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
       } else {
         toast.success(`Successfully uploaded ${result.success} rows`);

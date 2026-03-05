@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CountrySelect } from "@/components/ui/country-select";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TablePagination } from "@/components/ui/TablePagination";
@@ -25,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { getPhoneConfig, getTaxConfig, validatePhone, validateTaxNumber } from "@/lib/country-validation";
 
 interface Vendor {
   id: string; name: string; email: string | null; phone: string | null; address: string | null;
@@ -35,6 +37,8 @@ interface Vendor {
 
 const emptyForm = { name: "", email: "", phone: "", address: "", city: "", country: "", tax_number: "", contact_person: "", payment_terms: "30 days", bank_account: "", notes: "" };
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Vendors() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
@@ -43,6 +47,34 @@ export default function Vendors() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState<{ email?: string; phone?: string; tax_number?: string }>({});
+
+  // Auto-set country code when country changes
+  useEffect(() => {
+    if (form.country) {
+      const config = getPhoneConfig(form.country);
+      if (config.code && !form.phone.startsWith(config.code)) {
+        setForm((prev) => ({ ...prev, phone: config.code + " " }));
+      }
+    }
+  }, [form.country]);
+
+  // Live validation
+  useEffect(() => {
+    const newErrors: typeof errors = {};
+    if (form.email.trim() && !emailRegex.test(form.email.trim())) {
+      newErrors.email = "Enter a valid email address";
+    }
+    if (form.phone.trim()) {
+      const phoneErr = validatePhone(form.phone, form.country);
+      if (phoneErr) newErrors.phone = phoneErr;
+    }
+    if (form.tax_number.trim()) {
+      const taxErr = validateTaxNumber(form.tax_number, form.country);
+      if (taxErr) newErrors.tax_number = taxErr;
+    }
+    setErrors(newErrors);
+  }, [form.email, form.phone, form.tax_number, form.country]);
 
   const { data: vendors = [], isLoading } = useQuery({
     queryKey: ["vendors", user?.id],
@@ -101,6 +133,15 @@ export default function Vendors() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) return toast({ title: "Validation Error", description: "Vendor name is required.", variant: "destructive" });
+    if (!form.email.trim()) return toast({ title: "Validation Error", description: "Email is required.", variant: "destructive" });
+    if (!emailRegex.test(form.email.trim())) return toast({ title: "Invalid Email", description: "Enter a valid email address.", variant: "destructive" });
+    if (!form.phone.trim()) return toast({ title: "Validation Error", description: "Phone number is required.", variant: "destructive" });
+    const phoneErr = validatePhone(form.phone, form.country);
+    if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
+    if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "Tax / GST number is required.", variant: "destructive" });
+    const taxErr = validateTaxNumber(form.tax_number, form.country);
+    if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
+
     if (editingVendor) updateMutation.mutate({ id: editingVendor.id, values: form });
     else createMutation.mutate(form);
   };
@@ -108,16 +149,51 @@ export default function Vendors() {
   if (isCheckingRole) return <MainLayout title="Vendors"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
   if (!hasFinanceAccess) return <AccessDenied />;
 
+  const phoneConfig = getPhoneConfig(form.country);
+  const taxConfig = getTaxConfig(form.country);
+
   const VendorForm = (
     <div className="grid gap-3 py-2">
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2"><Label>Vendor Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Supplier Pvt Ltd" /></div>
-        <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-        <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+        <div className="col-span-2"><Label>Vendor Name <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Supplier Pvt Ltd" /></div>
+        <div>
+          <Label>Email <span className="text-destructive">*</span></Label>
+          <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="vendor@company.com" />
+          {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+        </div>
+        <div>
+          <Label>Phone <span className="text-destructive">*</span> {phoneConfig.code && <span className="text-xs text-muted-foreground ml-1">({phoneConfig.code})</span>}</Label>
+          <Input
+            value={form.phone}
+            onChange={(e) => {
+              const val = e.target.value;
+              const codePrefix = phoneConfig.code ? phoneConfig.code + " " : "";
+              if (codePrefix && !val.startsWith(phoneConfig.code)) {
+                return;
+              }
+              const afterCode = val.slice(codePrefix.length);
+              const digitsOnly = afterCode.replace(/\D/g, "");
+              const capped = digitsOnly.slice(0, phoneConfig.digits);
+              setForm({ ...form, phone: codePrefix + capped });
+            }}
+            placeholder={phoneConfig.code ? `${phoneConfig.code} ${"9".repeat(phoneConfig.digits)}` : "+XX XXXXXXXXXX"}
+            maxLength={(phoneConfig.code?.length || 0) + 1 + phoneConfig.digits}
+          />
+          {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+          {form.phone.trim() && !errors.phone && <p className="text-xs text-muted-foreground mt-1">Exactly {phoneConfig.digits} digits required</p>}
+        </div>
         <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></div>
-        <div><Label>Tax / GST Number</Label><Input value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></div>
+        <div>
+          <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"} <span className="text-destructive">*</span></Label>
+          <Input
+            value={form.tax_number}
+            onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+            placeholder={taxConfig?.placeholder || "Tax ID"}
+          />
+          {errors.tax_number && <p className="text-xs text-destructive mt-1">{errors.tax_number}</p>}
+        </div>
         <div><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
-        <div><Label>Country</Label><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
+        <div><Label>Country</Label><CountrySelect value={form.country} onChange={(val) => setForm({ ...form, country: val })} /></div>
         <div><Label>Payment Terms</Label><Input value={form.payment_terms} onChange={(e) => setForm({ ...form, payment_terms: e.target.value })} placeholder="30 days" /></div>
         <div><Label>Bank Account</Label><Input value={form.bank_account} onChange={(e) => setForm({ ...form, bank_account: e.target.value })} /></div>
         <div className="col-span-2"><Label>Address</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
@@ -133,7 +209,7 @@ export default function Vendors() {
           <StatCard title="Total Vendors" value={String(vendors.length)} icon={<Truck className="h-4 w-4" />} />
           <StatCard title="Active" value={String(vendors.filter((v) => v.status === "active").length)} icon={<Building2 className="h-4 w-4" />} />
           <StatCard title="Inactive" value={String(vendors.filter((v) => v.status !== "active").length)} icon={<Building2 className="h-4 w-4" />} />
-          <StatCard title="Countries" value={String(new Set(vendors.map((v) => v.country).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
+          <StatCard title="Countries" value={String(new Set(vendors.map((v) => v.country?.trim().toLowerCase()).filter(Boolean)).size)} icon={<Building2 className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">

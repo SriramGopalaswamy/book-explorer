@@ -38,32 +38,36 @@ export function BulkUploadHistory({ module }: { module?: string }) {
 
       const bulkRecords = ((bulkData || []) as unknown as UploadRecord[]);
 
-      // For attendance module, also fetch from attendance_upload_logs
-      if (module === "attendance") {
-        const { data: attData, error: attError } = await supabase
-          .from("attendance_upload_logs")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(20);
+      // Also fetch from attendance_upload_logs when relevant (attendance module or no filter)
+      if (!module || module === "attendance") {
+        try {
+          const { data: attData, error: attError } = await supabase
+            .from("attendance_upload_logs")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(20);
 
-        if (attError) console.error("attendance_upload_logs error:", attError.message);
+          if (attError) console.error("attendance_upload_logs error:", attError.message);
 
-        const attRecords: UploadRecord[] = ((attData || []) as any[]).map((log) => ({
-          id: log.id,
-          module: "attendance",
-          file_name: log.file_name,
-          total_rows: log.total_punches || 0,
-          successful_rows: log.matched_employees || 0,
-          failed_rows: (log.unmatched_codes?.length || 0) + (log.parse_errors?.length || 0),
-          errors: [...(log.parse_errors || []), ...(log.unmatched_codes || []).map((c: string) => `Unmatched code: ${c}`)],
-          created_at: log.created_at,
-        }));
+          const attRecords: UploadRecord[] = ((attData || []) as any[]).map((log) => ({
+            id: log.id,
+            module: "attendance",
+            file_name: log.file_name,
+            total_rows: log.total_punches || 0,
+            successful_rows: log.matched_employees || 0,
+            failed_rows: (log.unmatched_codes?.length || 0) + (log.parse_errors?.length || 0),
+            errors: [...(log.parse_errors || []), ...(log.unmatched_codes || []).map((c: string) => `Unmatched code: ${c}`)],
+            created_at: log.created_at,
+          }));
 
-        // Merge and sort by date descending
-        const merged = [...bulkRecords, ...attRecords].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        return merged.slice(0, 20);
+          // Merge and sort by date descending
+          const merged = [...bulkRecords, ...attRecords].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          return merged.slice(0, 20);
+        } catch (err) {
+          console.warn("Could not fetch attendance_upload_logs:", err);
+        }
       }
 
       return bulkRecords;
@@ -85,16 +89,31 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     );
   }
 
-  if (history.length === 0) return null;
-
   const moduleLabel = (m: string) => {
     const labels: Record<string, string> = {
       payroll: "Payroll",
       attendance: "Attendance",
       roles: "Roles",
+      holidays: "Holidays",
+      expenses: "Expenses",
+      users: "Users",
     };
     return labels[m] || m;
   };
+
+  if (history.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <History className="h-4 w-4 text-primary" />
+            Upload History
+          </CardTitle>
+          <CardDescription>No bulk uploads recorded yet{module ? ` for ${moduleLabel(module)}` : ""}.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>

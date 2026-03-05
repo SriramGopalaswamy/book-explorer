@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -250,7 +250,7 @@ export default function PlatformSubscriptionKeys() {
   }
 
   return (
-    <PlatformLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
+    <MainLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
       <div className="space-y-6">
         {/* Actions bar */}
         <div className="flex items-center justify-between">
@@ -465,6 +465,6 @@ export default function PlatformSubscriptionKeys() {
           </CardContent>
         </Card>
       </div>
-    </PlatformLayout>
+    </MainLayout>
   );
 }

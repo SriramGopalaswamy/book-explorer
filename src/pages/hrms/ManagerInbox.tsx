@@ -22,6 +22,7 @@ import {
   Wallet,
   AlertTriangle,
   UserCog,
+  IndianRupee,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -77,6 +78,11 @@ import {
   useReviewChangeRequest,
   type ProfileChangeRequest,
 } from "@/hooks/useProfileChangeRequests";
+import {
+  useCompensationRevisionRequests,
+  useReviewRevisionRequest,
+  type CompensationRevisionRequest,
+} from "@/hooks/useCompensationRevisions";
 
 // ─── Profile Change Request hooks ─────────────────────────────────────────────
 
@@ -631,6 +637,12 @@ function PendingCorrections() {
                     />
                   </div>
                 </div>
+                {editCheckIn && editCheckOut && editCheckOut <= editCheckIn && (
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Check-out time must be after check-in. Use 24h format (e.g. 18:15 for 6:15 PM).
+                  </p>
+                )}
               </div>
             )}
             <div>
@@ -651,7 +663,7 @@ function PendingCorrections() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || (pendingAction === "approved" && !!editCheckIn && !!editCheckOut && editCheckOut <= editCheckIn)}
               className={
                 pendingAction === "approved"
                   ? "bg-green-600 hover:bg-green-700 text-white"
@@ -1400,8 +1412,33 @@ function PendingHRDisputes() {
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Department</p>
                         <p className="font-medium">{payslipData.profiles?.department || "—"}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Designation</p>
+                        <p className="font-medium">{payslipData.profiles?.job_title || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <Badge variant="outline" className="text-xs capitalize">{payslipData.status}</Badge>
+                      </div>
+                      {Number(payslipData.working_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Working Days</p>
+                          <p className="font-medium">{payslipData.working_days}</p>
+                        </div>
+                      )}
+                      {Number(payslipData.paid_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Days</p>
+                          <p className="font-medium">
+                            {payslipData.paid_days}
+                            {Number(payslipData.lop_days) > 0 && <span className="text-amber-500 ml-1">(LOP: {payslipData.lop_days})</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Earnings */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Earnings</h5>
                         <div className="space-y-1 text-sm">
@@ -1416,8 +1453,16 @@ function PendingHRDisputes() {
                               <span className="font-medium">{fmtCurrency(e.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-green-600">
+                            <span>Total Earnings</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.basic_salary) + Number(payslipData.hra) +
+                              Number(payslipData.transport_allowance) + Number(payslipData.other_allowances)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
+                      {/* Deductions */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Deductions</h5>
                         <div className="space-y-1 text-sm">
@@ -1425,15 +1470,25 @@ function PendingHRDisputes() {
                             { label: "PF", amount: Number(payslipData.pf_deduction) },
                             { label: "TDS", amount: Number(payslipData.tax_deduction) },
                             { label: "Other", amount: Number(payslipData.other_deductions) },
+                            ...(Number(payslipData.lop_deduction) > 0 ? [{ label: `LOP (${payslipData.lop_days}d)`, amount: Number(payslipData.lop_deduction) }] : []),
                           ].filter(d => d.amount > 0).map(d => (
                             <div key={d.label} className="flex justify-between">
                               <span className="text-muted-foreground">{d.label}</span>
                               <span className="font-medium">{fmtCurrency(d.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-destructive">
+                            <span>Total Deductions</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.pf_deduction) + Number(payslipData.tax_deduction) +
+                              Number(payslipData.other_deductions) + (Number(payslipData.lop_deduction) || 0)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Net Pay */}
                     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex justify-between items-center">
                       <span className="font-semibold">Net Pay</span>
                       <span className="text-xl font-bold text-primary">{fmtCurrency(Number(payslipData.net_pay))}</span>
@@ -1671,8 +1726,33 @@ function PendingFinanceDisputes() {
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Department</p>
                         <p className="font-medium">{payslipData.profiles?.department || "—"}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Designation</p>
+                        <p className="font-medium">{payslipData.profiles?.job_title || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+                        <Badge variant="outline" className="text-xs capitalize">{payslipData.status}</Badge>
+                      </div>
+                      {Number(payslipData.working_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Working Days</p>
+                          <p className="font-medium">{payslipData.working_days}</p>
+                        </div>
+                      )}
+                      {Number(payslipData.paid_days) > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Days</p>
+                          <p className="font-medium">
+                            {payslipData.paid_days}
+                            {Number(payslipData.lop_days) > 0 && <span className="text-amber-500 ml-1">(LOP: {payslipData.lop_days})</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Earnings */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Earnings</h5>
                         <div className="space-y-1 text-sm">
@@ -1687,8 +1767,16 @@ function PendingFinanceDisputes() {
                               <span className="font-medium">{fmtCurrency(e.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-green-600">
+                            <span>Total Earnings</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.basic_salary) + Number(payslipData.hra) +
+                              Number(payslipData.transport_allowance) + Number(payslipData.other_allowances)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
+                      {/* Deductions */}
                       <div>
                         <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Deductions</h5>
                         <div className="space-y-1 text-sm">
@@ -1696,15 +1784,25 @@ function PendingFinanceDisputes() {
                             { label: "PF", amount: Number(payslipData.pf_deduction) },
                             { label: "TDS", amount: Number(payslipData.tax_deduction) },
                             { label: "Other", amount: Number(payslipData.other_deductions) },
+                            ...(Number(payslipData.lop_deduction) > 0 ? [{ label: `LOP (${payslipData.lop_days}d)`, amount: Number(payslipData.lop_deduction) }] : []),
                           ].filter(d => d.amount > 0).map(d => (
                             <div key={d.label} className="flex justify-between">
                               <span className="text-muted-foreground">{d.label}</span>
                               <span className="font-medium">{fmtCurrency(d.amount)}</span>
                             </div>
                           ))}
+                          <div className="flex justify-between border-t border-border/50 pt-1 font-semibold text-destructive">
+                            <span>Total Deductions</span>
+                            <span>{fmtCurrency(
+                              Number(payslipData.pf_deduction) + Number(payslipData.tax_deduction) +
+                              Number(payslipData.other_deductions) + (Number(payslipData.lop_deduction) || 0)
+                            )}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Net Pay */}
                     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex justify-between items-center">
                       <span className="font-semibold">Net Pay</span>
                       <span className="text-xl font-bold text-primary">{fmtCurrency(Number(payslipData.net_pay))}</span>
@@ -2294,6 +2392,76 @@ function PendingProfileChanges() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function PendingCompRevisions({ requests }: { requests: CompensationRevisionRequest[] }) {
+  const reviewMutation = useReviewRevisionRequest();
+  const [notes, setNotes] = useState("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  if (requests.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+        <IndianRupee className="h-8 w-8 opacity-30" />
+        <p className="text-sm">No pending compensation revision requests.</p>
+      </div>
+    );
+  }
+
+  const formatCurrency = (v: number) => `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
+
+  return (
+    <div className="space-y-3">
+      {requests.map((r) => {
+        const changePct = Number(r.current_ctc) > 0 ? (((Number(r.proposed_ctc) - Number(r.current_ctc)) / Number(r.current_ctc)) * 100).toFixed(1) : "N/A";
+        return (
+          <Card key={r.id} className="border-border/50 bg-card/60">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-sm">{r.profiles?.full_name || "Employee"}</span>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Pending</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p>{r.profiles?.department} · {r.profiles?.job_title}</p>
+                    <p>Current: {formatCurrency(Number(r.current_ctc))} → Proposed: <span className="font-semibold text-foreground">{formatCurrency(Number(r.proposed_ctc))}</span> ({changePct}%)</p>
+                    <p>Reason: {r.revision_reason} · Effective: {fmtDate(r.effective_from)} · By: {r.requester?.full_name} ({r.requested_by_role})</p>
+                  </div>
+                  {reviewingId === r.id && (
+                    <div className="mt-2">
+                      <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {reviewingId !== r.id ? (
+                    <Button size="sm" variant="outline" onClick={() => { setReviewingId(r.id); setNotes(""); }}>
+                      <Eye className="h-3.5 w-3.5 mr-1" /> Review
+                    </Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" className="border-green-500/40 text-green-400 hover:bg-green-500/10"
+                        disabled={reviewMutation.isPending}
+                        onClick={() => reviewMutation.mutate({ id: r.id, status: "approved", reviewer_notes: notes }, { onSuccess: () => setReviewingId(null) })}>
+                        <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                        disabled={reviewMutation.isPending}
+                        onClick={() => reviewMutation.mutate({ id: r.id, status: "rejected", reviewer_notes: notes }, { onSuccess: () => setReviewingId(null) })}>
+                        <X className="h-3.5 w-3.5 mr-1" /> Reject
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ManagerInbox() {
   const { data: leaves = [] } = useDirectReportsLeaves();
   const { data: corrections = [] } = useDirectReportsCorrectionsPending();
@@ -2308,6 +2476,8 @@ export default function ManagerInbox() {
   const isHRRole = currentRole === "hr" || currentRole === "admin";
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   const { data: pendingProfileChanges = [] } = useDirectReportsPendingProfileChanges();
+  const { data: allCompRevisions = [] } = useCompensationRevisionRequests("pending");
+  const pendingCompRevisions = allCompRevisions;
 
   const { data: pendingGoals = [] } = useDirectReportsPendingGoalPlans();
   const [reviewingGoal, setReviewingGoal] = useState<GoalPlanWithProfile | null>(null);
@@ -2316,7 +2486,7 @@ export default function ManagerInbox() {
   const approveGoal = useApproveGoalPlan();
   const rejectGoal = useRejectGoalPlan();
 
-  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0) + (isFinanceRole ? pendingFinanceDisputes.length : 0);
+  const totalPending = pendingCount + pendingGoals.length + pendingReimbursements.length + pendingExpenses.length + pendingMemos.length + pendingDisputes.length + pendingProfileChanges.length + (isHRRole ? pendingHRDisputes.length : 0) + (isFinanceRole ? pendingFinanceDisputes.length + pendingCompRevisions.length : 0);
 
   const openGoalReview = (plan: GoalPlanWithProfile) => {
     setReviewingGoal(plan);
@@ -2436,6 +2606,17 @@ export default function ManagerInbox() {
                 {pendingFinanceDisputes.length > 0 && (
                   <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
                     {pendingFinanceDisputes.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            {isFinanceRole && (
+              <TabsTrigger value="comp-revisions" className="gap-2">
+                <IndianRupee className="h-4 w-4" />
+                Comp Revisions
+                {pendingCompRevisions.length > 0 && (
+                  <span className="ml-1 rounded-full bg-primary/20 text-primary text-xs px-1.5 py-0.5 font-semibold">
+                    {pendingCompRevisions.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -2668,6 +2849,23 @@ export default function ManagerInbox() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Comp Revisions (Finance) ── */}
+          {isFinanceRole && (
+            <TabsContent value="comp-revisions">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <IndianRupee className="h-4 w-4 text-primary" />
+                    Pending Compensation Revisions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <PendingCompRevisions requests={pendingCompRevisions} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {/* ── Profile Changes ── */}
           <TabsContent value="profile-changes">

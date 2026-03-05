@@ -7,6 +7,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { AlertTriangle } from "lucide-react";
+import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -60,8 +61,11 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
 
   const { readOnlyMode } = useSubscription();
 
+  const isPlatform = location.pathname.startsWith("/platform");
+
   return (
     <div className="min-h-screen bg-background">
+      {isPlatform && <PlatformOrgBanner />}
       <Sidebar />
       <div
         ref={mainRef}

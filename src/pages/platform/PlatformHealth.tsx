@@ -1,4 +1,4 @@
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useTenantHealthMetrics, useOrganizations } from "@/hooks/useSuperAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Wallet, ClipboardList, Loader2, Activity } from "lucide-react";
@@ -36,7 +36,7 @@ export default function PlatformHealth() {
   const isLoading = orgsLoading || metricsLoading;
 
   return (
-    <PlatformLayout title="Tenant Health" subtitle="Platform-wide health metrics and activity">
+    <MainLayout title="Tenant Health" subtitle="Platform-wide health metrics and activity">
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -86,6 +86,6 @@ export default function PlatformHealth() {
           </Card>
         </>
       )}
-    </PlatformLayout>
+    </MainLayout>
   );
 }
