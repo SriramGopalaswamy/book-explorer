@@ -515,10 +515,20 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const p of (allProfilesList ?? [])) {
     const roles = multiRoleMapping[p.job_title] || ["employee"];
     for (const role of roles) {
-      const { error } = await client.from("user_roles").upsert({
+      // First try delete then insert to avoid onConflict issues with enum types
+      await client.from("user_roles")
+        .delete()
+        .eq("user_id", p.user_id)
+        .eq("role", role)
+        .eq("organization_id", orgId);
+      const { error } = await client.from("user_roles").insert({
         user_id: p.user_id, role, organization_id: orgId,
-      }, { onConflict: "user_id,role,organization_id" });
-      if (!error) roleCount++;
+      });
+      if (error) {
+        console.warn(`user_roles insert failed for ${p.full_name} / ${role}:`, error.message);
+      } else {
+        roleCount++;
+      }
     }
   }
   summary.user_roles = roleCount;
