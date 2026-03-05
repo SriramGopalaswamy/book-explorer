@@ -52,6 +52,7 @@ type SortDir = "asc" | "desc";
 
 export default function PlatformDbInspector() {
   const [loading, setLoading] = useState(false);
+  const [dumpLoading, setDumpLoading] = useState(false);
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [relations, setRelations] = useState<Relation[]>([]);
   const [health, setHealth] = useState<HealthData | null>(null);
