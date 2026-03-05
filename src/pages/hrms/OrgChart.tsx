@@ -14,8 +14,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
 import { useIsFinance } from "@/hooks/useRoles";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockEmployees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -620,38 +618,23 @@ function OrgChartCanvas({
 
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function OrgChart() {
-  const isDevMode = useIsDevModeWithoutAuth();
-  const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+    const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
   const { data: isFinance, isLoading: financeLoading } = useIsFinance();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDept, setActiveDept] = useState<string | null>(null);
   const [expandAllTrigger, setExpandAllTrigger] = useState(0);
 
   const { data: profiles = [], isLoading } = useQuery({
-    queryKey: ["org-chart-profiles", isDevMode],
+    queryKey: ["org-chart-profiles"],
     queryFn: async () => {
-      if (isDevMode) {
-        return mockEmployees.map((e) => ({
-          id: e.id,
-          full_name: e.full_name,
-          department: e.department,
-          job_title: e.job_title,
-          avatar_url: e.avatar_url,
-          manager_id: e.manager_id,
-          status: e.status,
-          email: e.email ?? null,
-          phone: e.phone ?? null,
-          join_date: e.join_date ?? null,
-        })) as RawProfile[];
-      }
       const { data, error } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("id, full_name, department, job_title, avatar_url, manager_id, status, email, phone, join_date")
         .order("full_name");
       if (error) throw error;
       return data as RawProfile[];
     },
-    enabled: isDevMode || true,
+    enabled: true,
   });
 
   const tree = useMemo(() => buildTree(profiles), [profiles]);
@@ -670,7 +653,7 @@ export default function OrgChart() {
     [profiles]
   );
 
-  if (!roleLoading && !financeLoading && !isAdmin && !isFinance && !isDevMode) {
+  if (!roleLoading && !financeLoading && !isAdmin && !isFinance) {
     return (
       <MainLayout title="Organization Chart" subtitle="Company hierarchy">
         <div className="flex flex-col items-center justify-center py-16 space-y-4">

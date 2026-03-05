@@ -107,29 +107,37 @@ export default function PlatformSubscriptionKeys() {
   };
 
   // Fetch keys
-  const { data: keys = [], isLoading } = useQuery({
+  const { data: keys = [], isLoading, error: keysError } = useQuery({
     queryKey: ["subscription-keys"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_keys")
         .select("*")
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching subscription keys:", error);
+        throw error;
+      }
       return data ?? [];
     },
+    retry: false,
   });
 
   // Fetch redemptions
-  const { data: redemptions = [] } = useQuery({
+  const { data: redemptions = [], error: redemptionsError } = useQuery({
     queryKey: ["subscription-redemptions"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_redemptions")
         .select("*, organizations:organization_id(name)")
         .order("redeemed_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching subscription redemptions:", error);
+        throw error;
+      }
       return data ?? [];
     },
+    retry: false,
   });
 
   const filteredKeys = useMemo(() => {
@@ -215,6 +223,31 @@ export default function PlatformSubscriptionKeys() {
       </div>
     );
   };
+
+  // Check if tables exist
+  const tablesNotExist = keysError || redemptionsError;
+
+  if (tablesNotExist) {
+    return (
+      <PlatformLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-yellow-500" />
+              <h3 className="text-lg font-semibold mb-2">Database Tables Not Found</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                The subscription system tables have not been created yet.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Required tables: <code className="bg-muted px-2 py-1 rounded">subscription_keys</code>,{" "}
+                <code className="bg-muted px-2 py-1 rounded">subscription_redemptions</code>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </PlatformLayout>
+    );
+  }
 
   return (
     <PlatformLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">

@@ -1,15 +1,34 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlatformLayout } from "@/components/platform/PlatformLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useOrganizations, useOrgMemberCounts, useLogPlatformAction } from "@/hooks/useSuperAdmin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Users, Eye, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Building2, Users, Eye, Loader2, Plus } from "lucide-react";
+import { format, addMonths } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 function getStateBadge(status: string, orgState: string) {
   if (status === "active" && orgState === "active") {
@@ -29,10 +48,88 @@ function getStateBadge(status: string, orgState: string) {
 
 export default function PlatformOrganizations() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: orgs, isLoading } = useOrganizations();
   const { data: memberCounts } = useOrgMemberCounts();
   const logAction = useLogPlatformAction();
   const [switching, setSwitching] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newOrg, setNewOrg] = useState({
+    name: "",
+    slug: "",
+    plan: "free",
+    validMonths: 12,
+  });
+
+  const createOrganization = async () => {
+    if (!newOrg.name || !newOrg.slug) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Create organization
+      const { data: orgData, error: orgError } = await supabase
+        .from("organizations")
+        .insert([
+          {
+            name: newOrg.name,
+            slug: newOrg.slug,
+            status: "active",
+            org_state: "active",
+            environment_type: "production",
+            settings: {},
+          },
+        ])
+        .select()
+        .single();
+
+      if (orgError) {
+        toast.error(`Failed to create organization: ${orgError.message}`);
+        return;
+      }
+
+      // Create subscription
+      const validUntil = addMonths(new Date(), newOrg.validMonths);
+      const { error: subError } = await supabase
+        .from("subscriptions")
+        .insert([
+          {
+            organization_id: orgData.id,
+            plan: newOrg.plan,
+            status: "active",
+            source: "platform_admin",
+            valid_until: validUntil.toISOString(),
+            is_read_only: false,
+            enabled_modules: ["hrms", "accounting", "gst"],
+          },
+        ]);
+
+      if (subError) {
+        toast.error(`Organization created but subscription failed: ${subError.message}`);
+        return;
+      }
+
+      await logAction.mutateAsync({
+        action: "org_created",
+        target_type: "organization",
+        target_id: orgData.id,
+        target_name: orgData.name,
+        metadata: { plan: newOrg.plan, valid_months: newOrg.validMonths },
+      });
+
+      toast.success(`Organization "${newOrg.name}" created successfully!`);
+      setCreateDialogOpen(false);
+      setNewOrg({ name: "", slug: "", plan: "free", validMonths: 12 });
+      queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
+    } catch (err: any) {
+      toast.error(`Failed to create organization: ${err.message}`);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const switchToOrg = async (orgId: string, orgName: string) => {
     setSwitching(orgId);
@@ -62,7 +159,7 @@ export default function PlatformOrganizations() {
   };
 
   return (
-    <PlatformLayout title="Tenants" subtitle="All registered tenants in the platform">
+    <MainLayout title="Tenants" subtitle="All registered tenants in the platform">
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="pb-2">
@@ -96,10 +193,84 @@ export default function PlatformOrganizations() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Tenants
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Tenants
+            </CardTitle>
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Organization
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Organization</DialogTitle>
+                  <DialogDescription>
+                    Add a new organization to the platform with subscription details
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="org-name">Organization Name *</Label>
+                    <Input
+                      id="org-name"
+                      placeholder="e.g., grx10 Technologies"
+                      value={newOrg.name}
+                      onChange={(e) => setNewOrg({ ...newOrg, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="org-slug">Slug (URL-friendly) *</Label>
+                    <Input
+                      id="org-slug"
+                      placeholder="e.g., grx10"
+                      value={newOrg.slug}
+                      onChange={(e) =>
+                        setNewOrg({ ...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="subscription-plan">Subscription Plan</Label>
+                    <Select value={newOrg.plan} onValueChange={(value) => setNewOrg({ ...newOrg, plan: value })}>
+                      <SelectTrigger id="subscription-plan">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="starter">Starter</SelectItem>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="enterprise">Enterprise</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="valid-months">Subscription Duration (months)</Label>
+                    <Input
+                      id="valid-months"
+                      type="number"
+                      min="1"
+                      max="36"
+                      value={newOrg.validMonths}
+                      onChange={(e) => setNewOrg({ ...newOrg, validMonths: parseInt(e.target.value) || 12 })}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createOrganization} disabled={creating}>
+                    {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create Organization
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -163,6 +334,6 @@ export default function PlatformOrganizations() {
           )}
         </CardContent>
       </Card>
-    </PlatformLayout>
+    </MainLayout>
   );
 }

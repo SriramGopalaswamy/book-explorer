@@ -13,18 +13,27 @@ export function useIsSuperAdmin() {
   return useQuery({
     queryKey: ["platform-role", user?.id, "super_admin"],
     queryFn: async () => {
-      if (!user) return false;
-      const { data, error } = await supabase
-        .from("platform_roles")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .limit(1);
-      if (error) {
-        console.error("Super admin check failed:", error);
+      if (!user) {
+        console.log("[useSuperAdmin] No user, returning false");
         return false;
       }
-      return (data?.length ?? 0) > 0;
+      console.log("[useSuperAdmin] Checking super_admin for user:", user.id);
+      try {
+        // Query all platform roles for this user (usually 0-1 records)
+        const data = await supabase
+          .from("platform_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .then();
+        console.log("[useSuperAdmin] Query returned:", data);
+        // Filter for super_admin role in JavaScript
+        const isSuperAdmin = Array.isArray(data) && data.some((r: any) => r.role === "super_admin");
+        console.log("[useSuperAdmin] Is super admin:", isSuperAdmin);
+        return isSuperAdmin;
+      } catch (error) {
+        console.error("[useSuperAdmin] Super admin check error:", error);
+        return false;
+      }
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
@@ -43,7 +52,8 @@ export function useOrganizations() {
       const { data, error } = await supabase
         .from("organizations")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .then();
       if (error) throw error;
       return data ?? [];
     },
@@ -61,7 +71,7 @@ export function useOrgMemberCounts() {
     queryKey: ["platform-org-member-counts"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("organization_members")
+        .from("grxbooks.organization_members")
         .select("organization_id");
       if (error) throw error;
       const counts: Record<string, number> = {};
@@ -84,10 +94,10 @@ export function useTenantHealthMetrics(orgId?: string) {
       const filters = orgId ? { organization_id: orgId } : {};
 
       const [profiles, invoices, expenses, auditLogs] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }).match(filters),
-        supabase.from("invoices").select("id", { count: "exact", head: true }).match(filters),
-        supabase.from("expenses").select("id", { count: "exact", head: true }).match(filters),
-        supabase.from("audit_logs").select("id", { count: "exact", head: true }).match(filters),
+        supabase.from("grxbooks.profiles").select("id", { count: "exact", head: true }).match(filters),
+        supabase.from("grxbooks.invoices").select("id", { count: "exact", head: true }).match(filters),
+        supabase.from("grxbooks.expenses").select("id", { count: "exact", head: true }).match(filters),
+        supabase.from("grxbooks.audit_logs").select("id", { count: "exact", head: true }).match(filters),
       ]);
 
       return {
@@ -109,7 +119,7 @@ export function usePlatformAdminLogs() {
     queryKey: ["platform-admin-logs"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("platform_admin_logs")
+        .from("grxbooks.platform_admin_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(100);
@@ -135,7 +145,7 @@ export function useLogPlatformAction() {
       metadata?: Record<string, unknown>;
     }) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("platform_admin_logs").insert([{
+      const { error } = await supabase.from("grxbooks.platform_admin_logs").insert([{
         admin_id: user.id,
         action: params.action,
         target_type: params.target_type,
@@ -161,7 +171,7 @@ export function useOrgStatusAction() {
   return useMutation({
     mutationFn: async (params: { orgId: string; orgName: string; newStatus: "active" | "suspended" }) => {
       const { error } = await supabase
-        .from("organizations")
+        .from("grxbooks.organizations")
         .update({ status: params.newStatus })
         .eq("id", params.orgId);
       if (error) throw error;

@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockPayrollRecords } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createPayrollSchema } from "@/lib/validation-schemas";
 
@@ -80,19 +78,13 @@ export interface UpdatePayrollData extends Partial<CreatePayrollData> {
 
 export function usePayrollRecords(payPeriod?: string) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["payroll", user?.id, payPeriod, isDevMode],
+    return useQuery({
+    queryKey: ["payroll", user?.id, payPeriod],
     queryFn: async () => {
-      if (isDevMode) {
-        if (payPeriod) return mockPayrollRecords.filter(r => r.pay_period === payPeriod);
-        return mockPayrollRecords;
-      }
       if (!user) return [];
 
       let query = supabase
-        .from("payroll_records")
+        .from("grxbooks.payroll_records")
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .order("created_at", { ascending: false });
 
@@ -104,7 +96,7 @@ export function usePayrollRecords(payPeriod?: string) {
       if (error) throw error;
       return data as PayrollRecord[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
     refetchInterval: 15_000,
@@ -120,7 +112,7 @@ export function useMyPayrollRecords() {
       if (!user) return [];
 
       const { data, error } = await supabase
-        .from("payroll_records")
+        .from("grxbooks.payroll_records")
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .eq("user_id", user.id)
         .order("pay_period", { ascending: false });
@@ -157,13 +149,13 @@ export function useCreatePayroll() {
       const validated = createPayrollSchema.parse(data);
 
       const { data: profile } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("user_id")
         .eq("id", validated.profile_id)
         .single();
 
       const { data: record, error } = await supabase
-        .from("payroll_records")
+        .from("grxbooks.payroll_records")
         .insert({
           profile_id: validated.profile_id,
           pay_period: validated.pay_period,
@@ -210,7 +202,7 @@ export function useUpdatePayroll() {
       }
 
       const { data: record, error } = await supabase
-        .from("payroll_records")
+        .from("grxbooks.payroll_records")
         .update(updateData)
         .eq("id", id)
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
@@ -236,7 +228,7 @@ export function useDeletePayroll() {
     mutationFn: async (id: string) => {
       // Hard delete since deleted_at column doesn't exist in schema
       const { error } = await supabase
-        .from("payroll_records")
+        .from("grxbooks.payroll_records")
         .delete()
         .eq("id", id);
       if (error) throw error;

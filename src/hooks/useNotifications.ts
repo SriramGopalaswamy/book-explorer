@@ -19,7 +19,7 @@ export function useNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch notifications
+  // Fetch notifications (with polling instead of real-time)
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: async () => {
@@ -30,38 +30,20 @@ export function useNotifications() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50);
-      if (error) throw error;
+      if (error) {
+        console.warn("[useNotifications] Error fetching notifications:", error);
+        return [];
+      }
       return (data || []) as Notification[];
     },
     enabled: !!user,
+    refetchInterval: 30000, // Poll every 30 seconds instead of real-time
   });
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Real-time subscription
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("notifications-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
+  // Real-time subscription disabled for PostgreSQL-only mode
+  // Using polling (refetchInterval) instead
 
   // Mark single as read
   const markAsRead = useMutation({

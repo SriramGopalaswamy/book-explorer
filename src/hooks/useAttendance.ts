@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockAttendanceRecords, mockAttendanceStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface AttendanceRecord {
@@ -32,13 +31,11 @@ export interface AttendanceStats {
 
 export function useAttendance(date?: string) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-  const selectedDate = date || new Date().toISOString().split("T")[0];
+    const selectedDate = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance", selectedDate, isDevMode],
+    queryKey: ["attendance", selectedDate],
     queryFn: async () => {
-      if (isDevMode) return mockAttendanceRecords;
       const { data, error } = await supabase
         .from("attendance_records")
         .select(`
@@ -54,20 +51,17 @@ export function useAttendance(date?: string) {
       if (error) throw error;
       return data as AttendanceRecord[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useAttendanceStats(date?: string) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-  const selectedDate = date || new Date().toISOString().split("T")[0];
+    const selectedDate = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance-stats", selectedDate, isDevMode],
+    queryKey: ["attendance-stats", selectedDate],
     queryFn: async () => {
-      if (isDevMode) return mockAttendanceStats;
-
       // Fetch attendance records and approved leave requests in parallel
       const [attendanceRes, leaveRes] = await Promise.all([
         supabase
@@ -75,7 +69,7 @@ export function useAttendanceStats(date?: string) {
           .select("status, user_id, profile_id")
           .eq("date", selectedDate),
         supabase
-          .from("leave_requests")
+          .from("grxbooks.leave_requests")
           .select("user_id, profile_id")
           .eq("status", "approved")
           .lte("from_date", selectedDate)
@@ -133,18 +127,16 @@ export function useAttendanceStats(date?: string) {
 
       return stats;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useWeeklyAttendanceStats() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["weekly-attendance-stats", isDevMode],
+    return useQuery({
+    queryKey: ["weekly-attendance-stats"],
     queryFn: async () => {
-      if (isDevMode) {
+      if (false) {
         return [
           { day: "Mon", present: 10, absent: 1, late: 1, leave: 0 },
           { day: "Tue", present: 11, absent: 0, late: 1, leave: 0 },
@@ -172,7 +164,7 @@ export function useWeeklyAttendanceStats() {
           .gte("date", days[0])
           .lte("date", days[4]),
         supabase
-          .from("leave_requests")
+          .from("grxbooks.leave_requests")
           .select("from_date, to_date, profile_id, user_id")
           .eq("status", "approved")
           .lte("from_date", days[4])
@@ -223,7 +215,7 @@ export function useWeeklyAttendanceStats() {
 
       return weekData;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -265,7 +257,7 @@ export function useSelfCheckIn() {
 
       // First get user's profile
       const { data: profile, error: profileError } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();

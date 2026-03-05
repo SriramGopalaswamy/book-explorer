@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockEmployees } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 
 export interface Employee {
@@ -46,7 +44,7 @@ export function useIsAdminOrHR() {
       if (!user) return false;
       
       const { data, error } = await supabase
-        .from("user_roles")
+        .from("grxbooks.user_roles")
         .select("role")
         .eq("user_id", user.id)
         .in("role", ["admin", "hr"]);
@@ -72,7 +70,7 @@ export function useIsAdminHROrFinance() {
       if (!user) return false;
       
       const { data, error } = await supabase
-        .from("user_roles")
+        .from("grxbooks.user_roles")
         .select("role")
         .eq("user_id", user.id)
         .in("role", ["admin", "hr", "finance"]);
@@ -92,17 +90,14 @@ export function useIsAdminHROrFinance() {
 export function useEmployees() {
   const { user } = useAuth();
   const { data: hasAccess, isLoading: isRoleLoading } = useIsAdminHROrFinance();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["employees", user?.id, hasAccess, isDevMode],
+    return useQuery({
+    queryKey: ["employees", user?.id, hasAccess],
     queryFn: async () => {
-      if (isDevMode) return mockEmployees;
       if (!user) return [];
 
       if (hasAccess) {
         const { data, error } = await supabase
-          .from("profiles")
+          .from("grxbooks.profiles")
           .select("*")
           .order("full_name", { ascending: true });
 
@@ -115,7 +110,7 @@ export function useEmployees() {
         
         if (onLeaveIds.length > 0) {
           const { data: activeLeaves } = await supabase
-            .from("leave_requests")
+            .from("grxbooks.leave_requests")
             .select("user_id")
             .eq("status", "approved")
             .lte("from_date", today)
@@ -132,7 +127,7 @@ export function useEmployees() {
             // Update in background, don't block the UI
             Promise.all(
               staleProfiles.map(p =>
-                supabase.from("profiles").update({ status: "active" }).eq("id", p.id)
+                supabase.from("grxbooks.profiles").update({ status: "active" }).eq("id", p.id)
               )
             ).catch(err => console.warn("Failed to reset stale on_leave status:", err));
 
@@ -148,7 +143,7 @@ export function useEmployees() {
         return employees;
       } else {
         const { data, error } = await supabase
-          .from("profiles_safe" as any)
+          .from("grxbooks.profiles_safe" as any)
           .select("*")
           .order("full_name", { ascending: true });
 
@@ -160,7 +155,7 @@ export function useEmployees() {
         })) as Employee[];
       }
     },
-    enabled: (!!user && !isRoleLoading) || isDevMode,
+    enabled: !!user && !isRoleLoading,
   });
 }
 
@@ -212,7 +207,7 @@ export function useUpdateEmployee() {
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdateEmployeeData) => {
       const { data: employee, error } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .update(data)
         .eq("id", id)
         .select()
@@ -239,7 +234,7 @@ export function useDeleteEmployee() {
     mutationFn: async (id: string) => {
       // Get the user_id from the profile first
       const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("user_id")
         .eq("id", id)
         .single();
@@ -253,7 +248,7 @@ export function useDeleteEmployee() {
 
       if (error || result?.error) {
         // Fallback: just delete the profile row if edge fn fails (e.g. no auth account)
-        const { error: delErr } = await supabase.from("profiles").delete().eq("id", id);
+        const { error: delErr } = await supabase.from("grxbooks.profiles").delete().eq("id", id);
         if (delErr) throw delErr;
       }
     },

@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockFinancialRecords } from "@/lib/mock-data";
 import { financialRecordSchema } from "@/lib/validation-schemas";
 
 export interface FinancialRecord {
@@ -49,30 +47,26 @@ const categoryColors: Record<string, string> = {
 // Org-scoped via RLS — no user_id filter needed for SELECT
 export function useFinancialRecords() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["financial-records", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["financial-records", user?.id],
     queryFn: async () => {
-      if (isDevMode) return mockFinancialRecords;
       if (!user) return [];
       
       const { data, error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .select("*")
         .order("record_date", { ascending: false });
 
       if (error) throw error;
       return data as FinancialRecord[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 // Monthly revenue — org-scoped via RLS
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
-  const isDevMode = useIsDevModeWithoutAuth();
-  const { user } = useAuth();
+    const { user } = useAuth();
 
   return useQuery({
     queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
@@ -87,7 +81,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       const toDate = dateRange?.to || new Date();
 
       const { data, error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .select("*")
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
@@ -164,14 +158,13 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       return result;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 // Expense breakdown — org-scoped via RLS
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
-  const isDevMode = useIsDevModeWithoutAuth();
-  const { user } = useAuth();
+    const { user } = useAuth();
 
   return useQuery({
     queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
@@ -185,7 +178,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       const toDate = dateRange?.to || new Date();
 
       const { data, error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .select("*")
         .eq("type", "expense")
         .gte("record_date", fromDate.toISOString().split("T")[0])
@@ -210,7 +203,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         color: categoryColors[name] || "hsl(220, 9%, 46%)",
       }));
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -225,7 +218,7 @@ export function useAddFinancialRecord() {
       const validated = financialRecordSchema.parse(record);
 
       const { data, error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .insert({
           type: validated.type,
           category: validated.category,
@@ -257,7 +250,7 @@ export function useUpdateFinancialRecord() {
       if (!user) throw new Error("User not authenticated");
 
       const { data, error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .update(record)
         .eq("id", id)
         .eq("user_id", user.id)
@@ -284,7 +277,7 @@ export function useDeleteFinancialRecord() {
       if (!user) throw new Error("User not authenticated");
 
       const { error } = await supabase
-        .from("financial_records")
+        .from("grxbooks.financial_records")
         .delete()
         .eq("id", id)
         .eq("user_id", user.id);

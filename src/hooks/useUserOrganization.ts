@@ -12,36 +12,89 @@ export function useUserOrganization() {
   return useQuery({
     queryKey: ["user-organization", user?.id],
     queryFn: async () => {
-      if (!user) return null;
+      console.log("[useUserOrganization] Fetching organization for user:", user?.id);
+      if (!user) {
+        console.log("[useUserOrganization] No user, returning null");
+        return null;
+      }
 
-      // Get org_id from profile
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      try {
+        // Get org_id from profile
+        console.log("[useUserOrganization] Fetching profile...");
+        const { data: profile, error: profileError } = await supabase
+          .from("grxbooks.profiles")
+          .select("organization_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
-      if (profileError) throw profileError;
-      if (!profile) return null;
+        if (profileError) {
+          console.error("[useUserOrganization] Profile fetch error:", profileError);
+          throw profileError;
+        }
+        if (!profile) {
+          console.log("[useUserOrganization] No profile found for user");
+          return null;
+        }
 
-      const orgId = profile.organization_id;
+        const orgId = profile.organization_id;
+        console.log("[useUserOrganization] Found orgId:", orgId);
 
-      // Get org details including org_state
-      const { data: org, error: orgError } = await supabase
-        .from("organizations")
-        .select("id, name, status, org_state, created_at")
-        .eq("id", orgId)
-        .maybeSingle();
+        if (!orgId) {
+          console.log("[useUserOrganization] Profile has no organization_id");
+          return null;
+        }
 
-      if (orgError) throw orgError;
+        // Get org details including org_state
+        console.log("[useUserOrganization] Fetching organization details for orgId:", orgId);
+        try {
+          const { data: org, error: orgError } = await supabase
+            .from("grxbooks.organizations")
+            .select("id, name, status, org_state, created_at")
+            .eq("id", orgId)
+            .maybeSingle();
 
-      return {
-        organizationId: orgId,
-        orgName: org?.name ?? null,
-        orgStatus: org?.status ?? null,
-        orgState: (org as any)?.org_state ?? null,
-        createdAt: org?.created_at ?? null,
-      };
+          console.log("[useUserOrganization] Organization query response:", { data: org, error: orgError });
+
+          if (orgError) {
+            console.error("[useUserOrganization] Organization fetch error:", orgError);
+            throw orgError;
+          }
+
+          if (!org) {
+            console.warn("[useUserOrganization] No organization found for orgId:", orgId);
+            // Return orgId even if org details not found
+            return {
+              organizationId: orgId,
+              orgName: null,
+              orgStatus: null,
+              orgState: null,
+              createdAt: null,
+            };
+          }
+
+          console.log("[useUserOrganization] Organization data:", org);
+          return {
+            organizationId: orgId,
+            orgName: org?.name ?? null,
+            orgStatus: org?.status ?? null,
+            orgState: (org as any)?.org_state ?? null,
+            createdAt: org?.created_at ?? null,
+          };
+        } catch (orgErr) {
+          console.error("[useUserOrganization] Organization fetch exception:", orgErr);
+          // Return orgId even if org details fetch failed
+          return {
+            organizationId: orgId,
+            orgName: null,
+            orgStatus: null,
+            orgState: null,
+            createdAt: null,
+          };
+        }
+      } catch (err) {
+        console.error("[useUserOrganization] Exception:", err);
+        throw err;
+      }
     },
     enabled: !!user,
     staleTime: 1000 * 60 * 10, // 10 min — org rarely changes

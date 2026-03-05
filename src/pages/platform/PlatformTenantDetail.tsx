@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PlatformLayout } from "@/components/platform/PlatformLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useOrgDetail,
   useIntegrityAudit,
@@ -19,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +28,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Building2,
@@ -39,6 +42,9 @@ import {
   Lock,
   RefreshCw,
   Zap,
+  Users,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
@@ -117,6 +123,12 @@ export default function PlatformTenantDetail() {
   const [reinitiateConfirmed, setReinitiateConfirmed] = useState(false);
   const [reinitiateLoading, setReinitiateLoading] = useState(false);
 
+  // User management state
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserRole, setNewUserRole] = useState("admin");
+  const queryClient = useQueryClient();
+
   if (orgLoading) {
     return (
       <PlatformLayout title="Tenant Detail" subtitle="Loading...">
@@ -137,6 +149,95 @@ export default function PlatformTenantDetail() {
 
   const orgStatus = (org as any).status ?? "active";
   const orgState = (org as any).org_state ?? "active";
+
+  // Fetch organization members
+  const { data: members = [], isLoading: membersLoading } = useQuery({
+    queryKey: ["org-members", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("organization_members")
+        .select(`
+          *,
+          profiles:user_id (
+            full_name,
+            email
+          )
+        `)
+        .eq("organization_id", orgId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Add user to organization mutation
+  const addUserMutation = useMutation({
+    mutationFn: async (userData: { email: string; role: string }) => {
+      // First, check if user exists
+      const { data: existingUser, error: userError } = await supabase
+        .from("profiles")
+        .select("id, user_id, email")
+        .eq("email", userData.email)
+        .maybeSingle();
+
+      if (userError) throw userError;
+
+      if (!existingUser) {
+        throw new Error("User with this email does not exist in the system");
+      }
+
+      // Add user to organization
+      const { error: memberError } = await supabase
+        .from("organization_members")
+        .insert([
+          {
+            organization_id: orgId,
+            user_id: existingUser.user_id,
+            role: userData.role,
+          },
+        ]);
+
+      if (memberError) {
+        if (memberError.message.includes("duplicate")) {
+          throw new Error("User is already a member of this organization");
+        }
+        throw memberError;
+      }
+
+      return existingUser;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org-members", orgId] });
+      toast.success("User added to organization successfully");
+      setAddUserOpen(false);
+      setNewUserEmail("");
+      setNewUserRole("admin");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to add user");
+    },
+  });
+
+  // Remove user from organization mutation
+  const removeUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("organization_members")
+        .delete()
+        .eq("organization_id", orgId)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org-members", orgId] });
+      toast.success("User removed from organization");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to remove user");
+    },
+  });
 
   const handleReinitOpen = () => {
     setReinitStep(1);
@@ -280,6 +381,133 @@ export default function PlatformTenantDetail() {
               <p className="text-sm text-foreground">{format(new Date(org.created_at), "MMM d, yyyy")}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Organization Members */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Organization Members
+              </CardTitle>
+              <CardDescription>Manage users and their roles within this organization</CardDescription>
+            </div>
+            <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add User to Organization</DialogTitle>
+                  <DialogDescription>
+                    Add an existing user to {org.name}. The user must already be registered in the system.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="user-email">User Email</Label>
+                    <Input
+                      id="user-email"
+                      type="email"
+                      placeholder="user@example.com"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="user-role">Role</Label>
+                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                      <SelectTrigger id="user-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="hr">HR</SelectItem>
+                        <SelectItem value="finance">Finance</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="employee">Employee</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setAddUserOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => addUserMutation.mutate({ email: newUserEmail, role: newUserRole })}
+                    disabled={!newUserEmail || addUserMutation.isPending}
+                  >
+                    {addUserMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Add User
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {membersLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">No members in this organization</p>
+              <p className="text-xs text-muted-foreground mt-1">Click "Add User" to add the first member</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Added</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members.map((member: any) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">
+                      {member.profiles?.full_name || "N/A"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {member.profiles?.email || "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{member.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {format(new Date(member.created_at), "MMM d, yyyy")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (window.confirm(`Remove ${member.profiles?.full_name || "this user"} from the organization?`)) {
+                            removeUserMutation.mutate(member.user_id);
+                          }
+                        }}
+                        disabled={removeUserMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 

@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockLeaveRequests, mockLeaveBalances, mockHolidays } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 // Lightweight audit helper — fire-and-forget, never throws
@@ -65,17 +63,11 @@ export interface Holiday {
 
 export function useLeaveRequests(status?: string) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["leave-requests", status, isDevMode],
+    return useQuery({
+    queryKey: ["leave-requests", status],
     queryFn: async () => {
-      if (isDevMode) {
-        if (status && status !== "all") return mockLeaveRequests.filter(r => r.status === status);
-        return mockLeaveRequests;
-      }
       let query = supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .select(`*, profiles!profile_id(full_name, department)`)
         .order("created_at", { ascending: false });
 
@@ -87,20 +79,17 @@ export function useLeaveRequests(status?: string) {
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useMyLeaveRequests() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["my-leave-requests", isDevMode],
+    return useQuery({
+    queryKey: ["my-leave-requests"],
     queryFn: async () => {
-      if (isDevMode) return mockLeaveRequests;
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .select("*")
         .eq("user_id", user?.id)
         .order("created_at", { ascending: false });
@@ -108,21 +97,19 @@ export function useMyLeaveRequests() {
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useLeaveBalances() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-  const currentYear = new Date().getFullYear();
+    const currentYear = new Date().getFullYear();
 
   return useQuery({
-    queryKey: ["leave-balances", currentYear, isDevMode],
+    queryKey: ["leave-balances", currentYear],
     queryFn: async () => {
-      if (isDevMode) return mockLeaveBalances;
       const { data, error } = await supabase
-        .from("leave_balances")
+        .from("grxbooks.leave_balances")
         .select("*")
         .eq("user_id", user?.id)
         .eq("year", currentYear);
@@ -138,20 +125,17 @@ export function useLeaveBalances() {
 
       return data.length > 0 ? data as LeaveBalance[] : defaultBalances;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useHolidays() {
   const currentYear = new Date().getFullYear();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["holidays", currentYear],
     queryFn: async () => {
-      if (isDevMode) return mockHolidays;
       const { data, error } = await supabase
-        .from("holidays")
+        .from("grxbooks.holidays")
         .select("*")
         .eq("year", currentYear)
         .order("date", { ascending: true });
@@ -200,13 +184,13 @@ export function useCreateLeaveRequest() {
 
       // Fetch the user's profile_id so the join works in the table
       const { data: profile } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("id")
         .eq("user_id", user?.id)
         .maybeSingle();
 
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .insert({
           user_id: user?.id,
           profile_id: profile?.id ?? null,
@@ -245,7 +229,7 @@ export function useApproveLeaveRequest() {
   return useMutation({
     mutationFn: async (requestId: string) => {
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .update({
           status: "approved",
           reviewed_by: user?.id,
@@ -272,7 +256,7 @@ export function useApproveLeaveRequest() {
 
         // Get the employee's profile_id
         const { data: profile } = await supabase
-          .from("profiles")
+          .from("grxbooks.profiles")
           .select("id")
           .eq("user_id", data.user_id)
           .maybeSingle();
@@ -297,7 +281,7 @@ export function useApproveLeaveRequest() {
         // Update profile status to 'on_leave' if the leave covers today
         if (profile?.id && data.from_date <= today && data.to_date >= today) {
           await supabase
-            .from("profiles")
+            .from("grxbooks.profiles")
             .update({ status: "on_leave" })
             .eq("id", profile.id);
         }
@@ -333,7 +317,7 @@ export function useRejectLeaveRequest() {
   return useMutation({
     mutationFn: async (requestId: string) => {
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .update({
           status: "rejected",
           reviewed_by: user?.id,
@@ -368,7 +352,7 @@ export function useDeleteLeaveRequest() {
   return useMutation({
     mutationFn: async (requestId: string) => {
       const { error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .delete()
         .eq("id", requestId);
 
@@ -402,23 +386,11 @@ export interface LeaveType {
 
 export function useLeaveTypes() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["leave-types"],
     queryFn: async () => {
-      if (isDevMode) {
-        return [
-          { id: "1", organization_id: "", key: "casual", label: "Casual Leave", icon: "Palmtree", color: "text-green-600", default_days: 12, is_active: true, sort_order: 1 },
-          { id: "2", organization_id: "", key: "sick", label: "Sick Leave", icon: "Stethoscope", color: "text-red-600", default_days: 10, is_active: true, sort_order: 2 },
-          { id: "3", organization_id: "", key: "earned", label: "Earned Leave", icon: "Briefcase", color: "text-blue-600", default_days: 15, is_active: true, sort_order: 3 },
-          { id: "4", organization_id: "", key: "maternity", label: "Maternity Leave", icon: "Baby", color: "text-purple-600", default_days: 180, is_active: true, sort_order: 4 },
-          { id: "5", organization_id: "", key: "paternity", label: "Paternity Leave", icon: "Baby", color: "text-purple-600", default_days: 15, is_active: true, sort_order: 5 },
-          { id: "6", organization_id: "", key: "wfh", label: "Work From Home", icon: "Home", color: "text-orange-600", default_days: 30, is_active: true, sort_order: 6 },
-        ] as LeaveType[];
-      }
       const { data, error } = await supabase
-        .from("leave_types")
+        .from("grxbooks.leave_types")
         .select("*")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
@@ -426,7 +398,7 @@ export function useLeaveTypes() {
       if (error) throw error;
       return (data ?? []) as LeaveType[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -437,7 +409,7 @@ export function useAllLeaveTypes() {
     queryKey: ["leave-types-all"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("leave_types")
+        .from("grxbooks.leave_types")
         .select("*")
         .order("sort_order", { ascending: true });
 
@@ -454,7 +426,7 @@ export function useCreateLeaveType() {
   return useMutation({
     mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
       const { data, error } = await supabase
-        .from("leave_types")
+        .from("grxbooks.leave_types")
         .insert(leaveType as any)
         .select()
         .single();
@@ -479,7 +451,7 @@ export function useUpdateLeaveType() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number }) => {
       const { data, error } = await supabase
-        .from("leave_types")
+        .from("grxbooks.leave_types")
         .update({ ...updates, updated_at: new Date().toISOString() } as any)
         .eq("id", id)
         .select()

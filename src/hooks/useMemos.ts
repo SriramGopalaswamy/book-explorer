@@ -53,17 +53,15 @@ export function useProfileSearch(searchTerm: string) {
 
 export function useMemos(status?: string) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["memos", status, user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["memos", status, user?.id],
     queryFn: async () => {
-      if (isDevMode) return [] as Memo[];
+      if (false) return [] as Memo[];
       if (!user) return [] as Memo[];
 
       // Check if user is admin/hr/manager
       const { data: roles } = await supabase
-        .from("user_roles")
+        .from("grxbooks.user_roles")
         .select("role")
         .eq("user_id", user.id);
       const userRoles = roles?.map(r => r.role) ?? [];
@@ -81,7 +79,7 @@ export function useMemos(status?: string) {
         if (dbStatus === "published" || isPrivileged) {
           // Published memos visible to all; privileged users see all of any status
           const { data, error } = await supabase
-            .from("memos")
+            .from("grxbooks.memos")
             .select("*")
             .eq("status", dbStatus)
             .order("created_at", { ascending: false });
@@ -90,7 +88,7 @@ export function useMemos(status?: string) {
         } else {
           // Non-privileged: only own memos for non-published statuses
           const { data, error } = await supabase
-            .from("memos")
+            .from("grxbooks.memos")
             .select("*")
             .eq("status", dbStatus)
             .eq("user_id", user.id)
@@ -103,7 +101,7 @@ export function useMemos(status?: string) {
       // "all" tab
       if (isPrivileged) {
         const { data, error } = await supabase
-          .from("memos")
+          .from("grxbooks.memos")
           .select("*")
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -111,14 +109,14 @@ export function useMemos(status?: string) {
       } else {
         // Non-privileged: own memos + published memos
         const { data: ownMemos, error: e1 } = await supabase
-          .from("memos")
+          .from("grxbooks.memos")
           .select("*")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (e1) throw e1;
 
         const { data: publishedMemos, error: e2 } = await supabase
-          .from("memos")
+          .from("grxbooks.memos")
           .select("*")
           .eq("status", "published")
           .neq("user_id", user.id)
@@ -131,23 +129,21 @@ export function useMemos(status?: string) {
         return all as unknown as Memo[];
       }
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useMemoStats() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["memo-stats", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["memo-stats", user?.id],
     queryFn: async () => {
-      if (isDevMode) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
+      if (false) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
       if (!user) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
 
       // Check privilege
       const { data: roles } = await supabase
-        .from("user_roles")
+        .from("grxbooks.user_roles")
         .select("role")
         .eq("user_id", user.id);
       const userRoles = roles?.map(r => r.role) ?? [];
@@ -156,19 +152,19 @@ export function useMemoStats() {
       let data: { status: string }[];
 
       if (isPrivileged) {
-        const { data: d, error } = await supabase.from("memos").select("status");
+        const { data: d, error } = await supabase.from("grxbooks.memos").select("status");
         if (error) throw error;
         data = d;
       } else {
         // Own memos + published
         const { data: own, error: e1 } = await supabase
-          .from("memos")
+          .from("grxbooks.memos")
           .select("status")
           .eq("user_id", user.id);
         if (e1) throw e1;
 
         const { data: pub, error: e2 } = await supabase
-          .from("memos")
+          .from("grxbooks.memos")
           .select("status")
           .eq("status", "published")
           .neq("user_id", user.id);
@@ -184,7 +180,7 @@ export function useMemoStats() {
         pending: data.filter((m) => m.status === "pending_approval").length,
       } as MemoStats;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -219,7 +215,7 @@ export function useCreateMemo() {
 
       // Fetch the user's organization_id so the insert passes RLS
       const { data: profile, error: profileError } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("organization_id")
         .eq("user_id", user.id)
         .single();
@@ -233,7 +229,7 @@ export function useCreateMemo() {
         : null;
 
       const { data, error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .insert({
           title: memo.title,
           subject: memo.subject,
@@ -286,7 +282,7 @@ export function useUpdateMemo() {
         : undefined;
 
       const { data, error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .update({
           ...updates,
           ...(excerpt !== undefined && { excerpt }),
@@ -347,7 +343,7 @@ export function useApproveMemo() {
       if (updatedRecipients) updates.recipients = updatedRecipients;
 
       const { data, error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .update(updates as any)
         .eq("id", id)
         .select()
@@ -381,7 +377,7 @@ export function useRejectMemo() {
   return useMutation({
     mutationFn: async ({ id, reviewerNotes }: { id: string; reviewerNotes: string }) => {
       const { error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .update({
           status: "rejected",
           reviewed_by: user?.id,
@@ -412,16 +408,14 @@ export function useRejectMemo() {
 // Pending memos for manager to review (from their direct reports)
 export function useDirectReportsPendingMemos() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["pending-memos-for-manager", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["pending-memos-for-manager", user?.id],
     queryFn: async () => {
-      if (isDevMode || !user) return [] as Memo[];
+      if (!user) return [] as Memo[];
       
       // Get manager's profile_id
       const { data: myProfile } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("id")
         .eq("user_id", user.id)
         .single();
@@ -430,7 +424,7 @@ export function useDirectReportsPendingMemos() {
 
       // Get direct reports
       const { data: reports } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("user_id")
         .eq("manager_id", myProfile.id)
         .not("user_id", "is", null);
@@ -440,7 +434,7 @@ export function useDirectReportsPendingMemos() {
       const reportUserIds = reports.map(r => r.user_id).filter(Boolean);
 
       const { data, error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .select("*")
         .eq("status", "pending_approval")
         .in("user_id", reportUserIds)
@@ -449,7 +443,7 @@ export function useDirectReportsPendingMemos() {
       if (error) throw error;
       return data as unknown as Memo[];
     },
-    enabled: !!user && !isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -459,13 +453,13 @@ export function useIncrementMemoViews() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data: current } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .select("views")
         .eq("id", id)
         .single();
 
       const { data, error } = await supabase
-        .from("memos")
+        .from("grxbooks.memos")
         .update({ views: (current?.views || 0) + 1 } as any)
         .eq("id", id)
         .select()
@@ -485,7 +479,7 @@ export function useDeleteMemo() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("memos").delete().eq("id", id);
+      const { error } = await supabase.from("grxbooks.memos").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

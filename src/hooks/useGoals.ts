@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockGoals, mockGoalStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 export interface Goal {
@@ -29,34 +28,28 @@ export interface GoalStats {
 
 export function useGoals() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["goals", isDevMode],
+    return useQuery({
+    queryKey: ["goals"],
     queryFn: async () => {
-      if (isDevMode) return mockGoals;
       const { data, error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Goal[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useGoalStats() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["goal-stats", isDevMode],
+    return useQuery({
+    queryKey: ["goal-stats"],
     queryFn: async () => {
-      if (isDevMode) return mockGoalStats;
       const { data, error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .select("status");
 
       if (error) throw error;
@@ -71,7 +64,7 @@ export function useGoalStats() {
 
       return stats;
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -88,7 +81,7 @@ export function useCreateGoal() {
       due_date?: string;
     }) => {
       const { data, error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .insert({
           ...goal,
           user_id: user?.id,
@@ -119,7 +112,7 @@ export function useUpdateGoal() {
       ...updates
     }: Partial<Goal> & { id: string }) => {
       const { data, error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .update(updates)
         .eq("id", id)
         .select()
@@ -147,7 +140,7 @@ export function useUpdateGoalProgress() {
       const status = progress >= 100 ? "completed" : undefined;
       
       const { data, error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .update({ 
           progress,
           ...(status && { status }),
@@ -175,7 +168,7 @@ export function useDeleteGoal() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("goals")
+        .from("grxbooks.goals")
         .delete()
         .eq("id", id);
 

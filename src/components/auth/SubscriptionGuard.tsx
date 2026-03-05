@@ -1,7 +1,9 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import { DEV_MODE } from "@/config/systemFlags";
 
 /**
  * Centralized lifecycle guard. Wraps all protected routes.
@@ -11,6 +13,7 @@ import { Loader2 } from "lucide-react";
  * - Super admins bypass all guards
  */
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const { needsActivation, onboardingRequired, loading } = useSubscription();
   const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
   const location = useLocation();
@@ -31,6 +34,12 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   if (isExempt) return <>{children}</>;
 
+  // If user is not authenticated, let ProtectedRoute handle redirect to /auth
+  // Don't check subscription if no user
+  if (!user) {
+    return <>{children}</>;
+  }
+
   if (loading || saLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -43,7 +52,17 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Super admins bypass subscription enforcement
-  if (isSuperAdmin) return <>{children}</>;
+  console.log("[SubscriptionGuard] Super admin check:", { isSuperAdmin, saLoading, user: user?.id, DEV_MODE });
+  if (isSuperAdmin) {
+    console.log("[SubscriptionGuard] User is super_admin, bypassing subscription check");
+    return <>{children}</>;
+  }
+
+  // DEV_MODE bypass for development and testing
+  if (DEV_MODE) {
+    console.log("[SubscriptionGuard] DEV_MODE enabled, bypassing subscription check");
+    return <>{children}</>;
+  }
 
   if (needsActivation) {
     return <Navigate to="/subscription/activate" replace />;

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockBankAccounts, mockBankTransactions } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createBankAccountSchema, createTransactionSchema } from "@/lib/validation-schemas";
 
@@ -60,21 +59,18 @@ export interface CreateTransactionData {
 // Bank Accounts
 export function useBankAccounts() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["bank-accounts", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["bank-accounts", user?.id],
     queryFn: async () => {
-      if (isDevMode) return mockBankAccounts;
       if (!user) return [];
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("grxbooks.bank_accounts")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as BankAccount[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -87,7 +83,7 @@ export function useCreateBankAccount() {
       if (!user) throw new Error("Not authenticated");
       const validated = createBankAccountSchema.parse(data);
       const { data: account, error } = await supabase
-        .from("bank_accounts")
+        .from("grxbooks.bank_accounts")
         .insert({
           name: validated.name,
           account_type: validated.account_type,
@@ -116,7 +112,7 @@ export function useDeleteBankAccount() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("bank_accounts").delete().eq("id", id);
+      const { error } = await supabase.from("grxbooks.bank_accounts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -132,22 +128,19 @@ export function useDeleteBankAccount() {
 // Transactions
 export function useBankTransactions(limit = 20) {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["bank-transactions", user?.id, limit, isDevMode],
+    return useQuery({
+    queryKey: ["bank-transactions", user?.id, limit],
     queryFn: async () => {
-      if (isDevMode) return mockBankTransactions;
       if (!user) return [];
       const { data, error } = await supabase
-        .from("bank_transactions")
+        .from("grxbooks.bank_transactions")
         .select("*, bank_accounts(name)")
         .order("transaction_date", { ascending: false })
         .limit(limit);
       if (error) throw error;
       return data as BankTransaction[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -163,7 +156,7 @@ export function useCreateTransaction() {
 
       // Create transaction
       const { data: transaction, error } = await supabase
-        .from("bank_transactions")
+        .from("grxbooks.bank_transactions")
         .insert({
           account_id: validated.account_id,
           transaction_type: validated.transaction_type,
@@ -179,7 +172,7 @@ export function useCreateTransaction() {
 
       // Update account balance
       const { data: account } = await supabase
-        .from("bank_accounts")
+        .from("grxbooks.bank_accounts")
         .select("balance")
         .eq("id", validated.account_id)
         .single();
@@ -190,7 +183,7 @@ export function useCreateTransaction() {
           : Number(account.balance) - Number(validated.amount);
 
         await supabase
-          .from("bank_accounts")
+          .from("grxbooks.bank_accounts")
           .update({ balance: newBalance })
           .eq("id", validated.account_id);
       }
@@ -221,7 +214,7 @@ export function useMonthlyTransactionStats() {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
 
       const { data, error } = await supabase
-        .from("bank_transactions")
+        .from("grxbooks.bank_transactions")
         .select("transaction_type, amount")
         .gte("transaction_date", firstDay.toISOString().split("T")[0]);
 
@@ -258,7 +251,7 @@ export function useCashFlowData(months = 6) {
       startDate.setMonth(startDate.getMonth() - months);
 
       const { data, error } = await supabase
-        .from("bank_transactions")
+        .from("grxbooks.bank_transactions")
         .select("transaction_type, amount, transaction_date")
         .gte("transaction_date", startDate.toISOString().split("T")[0]);
 

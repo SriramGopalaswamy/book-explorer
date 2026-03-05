@@ -121,20 +121,32 @@ export default function Auth() {
   const handleMicrosoftSignIn = async () => {
     setIsMsLoading(true);
     try {
+      console.log("[Auth] Starting MS365 sign in...");
       const { data, error: fnError } = await supabase.functions.invoke("ms365-auth", {
         body: {
           action: "get_auth_url",
           redirect_uri: `${window.location.origin}/auth/callback`,
         },
       });
+      console.log("[Auth] MS365 response:", { data, error: fnError });
       if (fnError || data?.error) {
-        toast.error(data?.error || fnError?.message || "Failed to start Microsoft sign in");
+        const errorMsg = data?.error || fnError?.message || "Failed to start Microsoft sign in";
+        console.error("[Auth] MS365 error:", errorMsg);
+        toast.error(errorMsg);
         setIsMsLoading(false);
         return;
       }
+      if (!data?.url) {
+        console.error("[Auth] No URL returned from MS365 auth");
+        toast.error("Failed to get authentication URL");
+        setIsMsLoading(false);
+        return;
+      }
+      console.log("[Auth] Redirecting to MS365...");
       sessionStorage.setItem("ms365_oauth_state", data.state);
       window.location.href = data.url;
     } catch (err) {
+      console.error("[Auth] MS365 sign in exception:", err);
       toast.error("An unexpected error occurred");
       setIsMsLoading(false);
     }

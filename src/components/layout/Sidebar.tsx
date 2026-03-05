@@ -290,12 +290,15 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
-  const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { data: isSuperAdmin, isFetched: superAdminFetched } = useIsSuperAdmin();
   const { isModuleEnabled } = useModuleAccess();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
   // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
-  const isLoading = !isFetched;
+  // For super admins, don't wait for role query (they don't have user_roles entry)
+  const isLoading = isSuperAdmin ? !superAdminFetched : !isFetched;
+
+  console.log('[Sidebar] isSuperAdmin:', isSuperAdmin, 'currentRole:', currentRole, 'isLoading:', isLoading);
 
   // Restore sidebar scroll position after remount AND after content has rendered
   // We depend on isLoading so scroll is restored once nav items are actually in the DOM
@@ -314,10 +317,13 @@ export function Sidebar() {
     };
   }, [isLoading]);
 
-  const isEmployee = currentRole === "employee";
-  const isManager = currentRole === "manager";
-  const isFinance = currentRole === "finance";
-  const isHR = currentRole === "hr";
+  // Super admins are treated as admins for navigation purposes
+  const effectiveRole = isSuperAdmin ? "admin" : currentRole;
+
+  const isEmployee = effectiveRole === "employee";
+  const isManager = effectiveRole === "manager";
+  const isFinance = effectiveRole === "finance";
+  const isHR = effectiveRole === "hr";
 
   // Expose setter so Header can trigger it
   setMobileMenuOpen = setMobileOpen;

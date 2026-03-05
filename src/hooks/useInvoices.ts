@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockInvoices } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 
 export interface Invoice {
@@ -106,23 +104,20 @@ export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
 
 export function useInvoices() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["invoices", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["invoices", user?.id],
     queryFn: async () => {
-      if (isDevMode) return mockInvoices;
       if (!user) return [];
 
       const { data, error } = await supabase
-        .from("invoices")
+        .from("grxbooks.invoices")
         .select(`*, invoice_items (*)`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Invoice[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -137,7 +132,7 @@ export function useCreateInvoice() {
       const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
       const { data: invoice, error: invoiceError } = await supabase
-        .from("invoices")
+        .from("grxbooks.invoices")
         .insert({
           user_id: user.id,
           invoice_number: invoiceNumber,
@@ -165,7 +160,7 @@ export function useCreateInvoice() {
 
       if (data.items && data.items.length > 0) {
         const { error: itemsError } = await supabase
-          .from("invoice_items")
+          .from("grxbooks.invoice_items")
           .insert(
             data.items.map((item) => ({
               invoice_id: invoice.id,
@@ -210,7 +205,7 @@ export function useUpdateInvoiceStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Invoice["status"] }) => {
       const { data, error } = await supabase
-        .from("invoices")
+        .from("grxbooks.invoices")
         .update({ status })
         .eq("id", id)
         .select()
@@ -240,7 +235,7 @@ export function useUpdateInvoice() {
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
       const { error: invoiceError } = await supabase
-        .from("invoices")
+        .from("grxbooks.invoices")
         .update({
           client_name: data.client_name,
           client_email: data.client_email,
@@ -263,14 +258,14 @@ export function useUpdateInvoice() {
 
       // Delete old items and reinsert
       const { error: deleteError } = await supabase
-        .from("invoice_items")
+        .from("grxbooks.invoice_items")
         .delete()
         .eq("invoice_id", data.id);
       if (deleteError) throw deleteError;
 
       if (data.items && data.items.length > 0) {
         const { error: itemsError } = await supabase
-          .from("invoice_items")
+          .from("grxbooks.invoice_items")
           .insert(
             data.items.map((item) => ({
               invoice_id: data.id,
@@ -291,7 +286,7 @@ export function useUpdateInvoice() {
       }
 
       const { data: invoice, error: fetchError } = await supabase
-        .from("invoices")
+        .from("grxbooks.invoices")
         .select(`*, invoice_items (*)`)
         .eq("id", data.id)
         .single();
@@ -313,7 +308,7 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      const { error } = await supabase.from("grxbooks.invoices").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

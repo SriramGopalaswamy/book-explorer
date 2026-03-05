@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
@@ -80,7 +81,28 @@ import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys"
 // Profile
 import Profile from "./pages/Profile";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Expose queryClient globally for cache clearing on token invalidation
+if (typeof window !== 'undefined') {
+  (window as any).queryClient = queryClient;
+}
+
+// Listen for token invalidation events
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:token-invalid', () => {
+    console.log('[App] Token invalid event received, clearing cache...');
+    queryClient.clear();
+    queryClient.resetQueries();
+  });
+}
 
 /** Shorthand: ProtectedRoute + SubscriptionGuard */
 function Guarded({ children }: { children: React.ReactNode }) {
@@ -101,7 +123,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                {/* Public routes */}
+                {/* Public routes - must be first */}
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -112,6 +134,9 @@ const App = () => (
 
                 {/* Protected + Subscription-guarded routes */}
                 <Route path="/" element={<Guarded><Index /></Guarded>} />
+                
+                {/* Catch-all: redirect to auth if not authenticated */}
+                <Route path="*" element={<Navigate to="/auth" replace />} />
 
                 {/* Financial Suite */}
                 <Route path="/financial/accounting" element={<Guarded><FinanceRoute><Accounting /></FinanceRoute></Guarded>} />

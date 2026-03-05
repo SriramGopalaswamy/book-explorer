@@ -40,28 +40,40 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const orgId = org?.organizationId;
 
+  // Only fetch subscription if user is authenticated
   const { data: subscription, isLoading: subLoading } = useQuery({
     queryKey: ["subscription", orgId],
     queryFn: async () => {
-      if (!orgId) return null;
-      const { data, error } = await supabase
-        .from("subscriptions")
-        .select("id, plan, status, source, valid_until, is_read_only, enabled_modules")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) {
-        console.error("Subscription fetch error:", error);
+      console.log("[SubscriptionContext] Fetching subscription for orgId:", orgId);
+      if (!orgId) {
+        console.log("[SubscriptionContext] No orgId, skipping subscription fetch");
         return null;
       }
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from("grxbooks.subscriptions")
+          .select("id, plan, status, source, valid_until, is_read_only, enabled_modules")
+          .eq("organization_id", orgId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          console.error("[SubscriptionContext] Subscription fetch error:", error);
+          return null;
+        }
+        console.log("[SubscriptionContext] Subscription data:", data);
+        return data;
+      } catch (err) {
+        console.error("[SubscriptionContext] Subscription fetch exception:", err);
+        return null;
+      }
     },
-    enabled: !!user && !!orgId,
+    enabled: !!user && !!orgId, // Only run if user exists and orgId exists
     staleTime: 1000 * 60 * 5,
   });
 
-  const loading = orgLoading || subLoading;
+  // Only show loading if user is authenticated, otherwise don't block
+  const loading = user ? (orgLoading || subLoading) : false;
 
   const state = useMemo<SubscriptionState>(() => {
     if (loading || !org) {

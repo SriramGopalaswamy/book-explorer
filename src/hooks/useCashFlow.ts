@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockScheduledPayments } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
 
@@ -33,22 +32,19 @@ export interface CreateScheduledPaymentData {
 
 export function useScheduledPayments() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["scheduled-payments", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["scheduled-payments", user?.id],
     queryFn: async () => {
-      if (isDevMode) return mockScheduledPayments;
       if (!user) return [];
       const { data, error } = await supabase
-        .from("scheduled_payments")
+        .from("grxbooks.scheduled_payments")
         .select("*")
         .in("status", ["scheduled", "pending"])
         .order("due_date", { ascending: true });
       if (error) throw error;
       return data as ScheduledPayment[];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
@@ -61,7 +57,7 @@ export function useCreateScheduledPayment() {
       if (!user) throw new Error("Not authenticated");
       const validated = createScheduledPaymentSchema.parse(data);
       const { data: payment, error } = await supabase
-        .from("scheduled_payments")
+        .from("grxbooks.scheduled_payments")
         .insert({
           name: validated.name,
           amount: validated.amount,
@@ -93,7 +89,7 @@ export function useUpdatePaymentStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: ScheduledPayment["status"] }) => {
       const { data, error } = await supabase
-        .from("scheduled_payments")
+        .from("grxbooks.scheduled_payments")
         .update({ status })
         .eq("id", id)
         .select()
@@ -116,7 +112,7 @@ export function useDeleteScheduledPayment() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
+      const { error } = await supabase.from("grxbooks.scheduled_payments").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -149,7 +145,7 @@ export function useCashFlowSummary() {
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
       const { data, error } = await supabase
-        .from("bank_transactions")
+        .from("grxbooks.bank_transactions")
         .select("transaction_type, amount")
         .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
 
@@ -181,7 +177,7 @@ export function useCashFlowSummary() {
       
       // Get current balance
       const { data: accounts } = await supabase
-        .from("bank_accounts")
+        .from("grxbooks.bank_accounts")
         .select("balance");
 
       const totalBalance = (accounts || []).reduce((sum, acc) => sum + Number(acc.balance), 0);

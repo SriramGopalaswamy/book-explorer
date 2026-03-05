@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
-import { mockEmployees } from "@/lib/mock-data";
 
 export function useIsManager() {
   const { user } = useAuth();
@@ -12,7 +10,7 @@ export function useIsManager() {
     queryFn: async () => {
       if (!user) return false;
       const { data, error } = await supabase
-        .from("user_roles")
+        .from("grxbooks.user_roles")
         .select("role")
         .eq("user_id", user.id)
         .in("role", ["admin", "hr", "manager"]);
@@ -25,19 +23,13 @@ export function useIsManager() {
 
 export function useDirectReports() {
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["direct-reports", user?.id, isDevMode],
+    return useQuery({
+    queryKey: ["direct-reports", user?.id],
     queryFn: async () => {
-      if (isDevMode) {
-        const manager = mockEmployees.find((e) => e.user_id === "dev-mode-user");
-        return mockEmployees.filter((e) => e.manager_id === manager?.id);
-      }
       if (!user) return [];
 
       const { data: myProfile, error: profileError } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
@@ -45,7 +37,7 @@ export function useDirectReports() {
       if (profileError || !myProfile) return [];
 
       const { data, error } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("*")
         .eq("manager_id", myProfile.id)
         .order("full_name", { ascending: true });
@@ -53,17 +45,15 @@ export function useDirectReports() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user || isDevMode,
+    enabled: !!user,
   });
 }
 
 export function useDirectReportsAttendance() {
   const { data: reports = [] } = useDirectReports();
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["direct-reports-attendance", reports.map((r) => r.id), isDevMode],
+    return useQuery({
+    queryKey: ["direct-reports-attendance", reports.map((r) => r.id)],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
 
@@ -77,22 +67,20 @@ export function useDirectReportsAttendance() {
       if (error) throw error;
       return data || [];
     },
-    enabled: (!!user || isDevMode) && reports.length > 0,
+    enabled: !!user && reports.length > 0,
   });
 }
 
 export function useDirectReportsLeaves() {
   const { data: reports = [] } = useDirectReports();
   const { user } = useAuth();
-  const isDevMode = useIsDevModeWithoutAuth();
-
-  return useQuery({
-    queryKey: ["direct-reports-leaves", reports.map((r) => r.id), isDevMode],
+    return useQuery({
+    queryKey: ["direct-reports-leaves", reports.map((r) => r.id)],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
 
       const { data, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .select("*")
         .in("profile_id", reports.map((r) => r.id))
         .eq("status", "pending")
@@ -101,7 +89,7 @@ export function useDirectReportsLeaves() {
       if (error) throw error;
       return data || [];
     },
-    enabled: (!!user || isDevMode) && reports.length > 0,
+    enabled: !!user && reports.length > 0,
   });
 }
 
@@ -114,13 +102,13 @@ export function useLeaveApproval() {
       if (!user) throw new Error("Not authenticated");
 
       const { data: reviewerProfile } = await supabase
-        .from("profiles")
+        .from("grxbooks.profiles")
         .select("full_name")
         .eq("user_id", user.id)
         .maybeSingle();
 
       const { data: leaveData, error } = await supabase
-        .from("leave_requests")
+        .from("grxbooks.leave_requests")
         .update({
           status: action,
           reviewed_by: user.id,
@@ -140,7 +128,7 @@ export function useLeaveApproval() {
           const today = new Date().toISOString().split("T")[0];
 
           const { data: empProfile } = await supabase
-            .from("profiles")
+            .from("grxbooks.profiles")
             .select("id")
             .eq("user_id", leaveData.user_id)
             .maybeSingle();
@@ -172,7 +160,7 @@ export function useLeaveApproval() {
 
           if (empProfile?.id && leaveData.from_date <= today && leaveData.to_date >= today) {
             await supabase
-              .from("profiles")
+              .from("grxbooks.profiles")
               .update({ status: "on_leave" })
               .eq("id", empProfile.id);
           }

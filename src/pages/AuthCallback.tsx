@@ -93,7 +93,7 @@ export default function AuthCallback() {
         ) : (
           <>
             <Loader2 className="h-8 w-8 animate-spin text-white mx-auto" />
-            <p className="text-white/70">Completing Microsoft 365 sign in...</p>
+            <p className="text-white/70">Redirecting to sign in...</p>
           </>
         )}
       </div>

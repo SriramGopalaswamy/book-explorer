@@ -10,6 +10,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  // Show loading only briefly, then redirect to auth if no user
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -21,7 +22,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
+  // If no user, immediately redirect to login page
   if (!user) {
+    console.log("[ProtectedRoute] No user, redirecting to /auth");
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
