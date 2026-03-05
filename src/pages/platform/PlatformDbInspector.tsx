@@ -148,6 +148,28 @@ export default function PlatformDbInspector() {
     setLoading(false);
   };
 
+  const downloadSqlDump = async () => {
+    setDumpLoading(true);
+    try {
+      const resp = await supabase.functions.invoke("db-inspector?action=dump");
+      if (resp.error) throw new Error(resp.error.message);
+
+      // The response data is the raw SQL string
+      const sqlContent = typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data);
+      const blob = new Blob([sqlContent], { type: "application/sql" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `grx10-dump-${new Date().toISOString().slice(0, 10)}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("SQL dump downloaded successfully");
+    } catch (err) {
+      toast.error(`SQL dump failed: ${(err as Error).message}`);
+    }
+    setDumpLoading(false);
+  };
+
   // Group relations by source table for the relationship view
   const relationsBySource = useMemo(() => {
     const map: Record<string, Relation[]> = {};
