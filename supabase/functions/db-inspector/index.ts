@@ -100,6 +100,24 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Generate SQL dump
+    if (action === "dump") {
+      const tables = data.tables || [];
+      const relations = data.relations || [];
+
+      // Generate DDL from introspection data
+      const sqlDump = await generateSqlDump(adminClient, tables, relations);
+
+      return new Response(sqlDump, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/sql",
+          "Content-Disposition": `attachment; filename="db-dump-${new Date().toISOString().slice(0, 10)}.sql"`,
+        },
+      });
+    }
+
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -173,4 +191,157 @@ function generateHtmlReport(
 <p>Large tables (>100k rows): ${health.large_tables ? JSON.stringify(health.large_tables) : "None"}</p>
 <p>Tables without indexes: ${health.tables_without_indexes ? JSON.stringify(health.tables_without_indexes) : "None"}</p>
 </body></html>`;
+}
+
+async function generateSqlDump(
+  adminClient: any,
+  tables: any[],
+  relations: any[]
+): Promise<string> {
+  const lines: string[] = [];
+  const timestamp = new Date().toISOString();
+
+  lines.push("-- ============================================================");
+  lines.push(`-- GRX10 Database Dump`);
+  lines.push(`-- Generated: ${timestamp}`);
+  lines.push(`-- Tables: ${tables.length}`);
+  lines.push("-- ============================================================");
+  lines.push("");
+  lines.push("BEGIN;");
+  lines.push("");
+
+  // Sort tables: no-FK tables first to avoid dependency issues
+  const tableNames = new Set(tables.map((t: any) => t.table_name));
+  const fkTargets = new Set(relations.map((r: any) => r.source_table));
+
+  const sortedTables = [...tables].sort((a: any, b: any) => {
+    const aHasFk = fkTargets.has(a.table_name) ? 1 : 0;
+    const bHasFk = fkTargets.has(b.table_name) ? 1 : 0;
+    return aHasFk - bHasFk;
+  });
+
+  // DDL for each table
+  for (const table of sortedTables) {
+    const tName = table.table_name;
+    const cols = (table.columns || []).sort(
+      (a: any, b: any) => a.ordinal_position - b.ordinal_position
+    );
+
+    lines.push(`-- ----------------------------------------`);
+    lines.push(`-- Table: ${tName}`);
+    lines.push(`-- ----------------------------------------`);
+
+    const colDefs = cols.map((c: any) => {
+      let def = `  "${c.name}" ${c.data_type}`;
+      if (c.is_nullable === "NO") def += " NOT NULL";
+      if (c.column_default) def += ` DEFAULT ${c.column_default}`;
+      return def;
+    });
+
+    // Add primary key constraint
+    if (table.primary_keys && table.primary_keys.length > 0) {
+      const pkCols = table.primary_keys.map((p: string) => `"${p}"`).join(", ");
+      colDefs.push(`  PRIMARY KEY (${pkCols})`);
+    }
+
+    lines.push(`CREATE TABLE IF NOT EXISTS public."${tName}" (`);
+    lines.push(colDefs.join(",\n"));
+    lines.push(`);\n`);
+  }
+
+  // Foreign key constraints
+  if (relations.length > 0) {
+    lines.push("");
+    lines.push("-- ============================================================");
+    lines.push("-- Foreign Key Constraints");
+    lines.push("-- ============================================================");
+    lines.push("");
+
+    for (const r of relations) {
+      lines.push(
+        `ALTER TABLE public."${r.source_table}" ADD CONSTRAINT "${r.constraint_name}" ` +
+          `FOREIGN KEY ("${r.source_column}") REFERENCES public."${r.target_table}"("${r.target_column}");`
+      );
+    }
+  }
+
+  // Indexes
+  lines.push("");
+  lines.push("-- ============================================================");
+  lines.push("-- Indexes");
+  lines.push("-- ============================================================");
+  lines.push("");
+
+  for (const table of sortedTables) {
+    if (table.indexes && table.indexes.length > 0) {
+      for (const idx of table.indexes) {
+        if (idx.index_def) {
+          lines.push(`${idx.index_def};`);
+        }
+      }
+    }
+  }
+
+  // Data dump for each table (limit to tables with data)
+  lines.push("");
+  lines.push("-- ============================================================");
+  lines.push("-- Data");
+  lines.push("-- ============================================================");
+  lines.push("");
+
+  for (const table of sortedTables) {
+    const tName = table.table_name;
+    if ((table.row_count || 0) === 0) continue;
+
+    // Fetch all data from table using paginated reads (max 1000 per call)
+    let allRows: any[] = [];
+    let offset = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: rows, error: dataError } = await adminClient
+        .from(tName)
+        .select("*")
+        .range(offset, offset + batchSize - 1);
+
+      if (dataError || !rows || rows.length === 0) {
+        hasMore = false;
+      } else {
+        allRows = allRows.concat(rows);
+        offset += batchSize;
+        if (rows.length < batchSize) hasMore = false;
+      }
+      // Safety: cap at 50k rows per table to avoid memory issues
+      if (allRows.length >= 50000) {
+        lines.push(`-- WARNING: ${tName} truncated at 50,000 rows`);
+        hasMore = false;
+      }
+    }
+
+    if (allRows.length === 0) continue;
+
+    lines.push(`-- Data for ${tName} (${allRows.length} rows)`);
+
+    const cols = Object.keys(allRows[0]);
+    const colList = cols.map((c) => `"${c}"`).join(", ");
+
+    for (const row of allRows) {
+      const vals = cols.map((c) => {
+        const v = row[c];
+        if (v === null || v === undefined) return "NULL";
+        if (typeof v === "number") return String(v);
+        if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+        if (typeof v === "object") return `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb`;
+        return `'${String(v).replace(/'/g, "''")}'`;
+      });
+      lines.push(`INSERT INTO public."${tName}" (${colList}) VALUES (${vals.join(", ")});`);
+    }
+    lines.push("");
+  }
+
+  lines.push("COMMIT;");
+  lines.push("");
+
+  return lines.join("\n");
 }

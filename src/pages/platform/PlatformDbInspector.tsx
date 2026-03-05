@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Database, Loader2, RefreshCw, Search, ArrowUpDown, ArrowDown, ArrowUp,
-  Download, Activity, Link2, AlertTriangle, CheckCircle2, HardDrive, Columns3,
+  Download, Activity, Link2, AlertTriangle, CheckCircle2, HardDrive, Columns3, FileCode2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ type SortDir = "asc" | "desc";
 
 export default function PlatformDbInspector() {
   const [loading, setLoading] = useState(false);
+  const [dumpLoading, setDumpLoading] = useState(false);
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [relations, setRelations] = useState<Relation[]>([]);
   const [health, setHealth] = useState<HealthData | null>(null);
@@ -148,6 +149,28 @@ export default function PlatformDbInspector() {
     setLoading(false);
   };
 
+  const downloadSqlDump = async () => {
+    setDumpLoading(true);
+    try {
+      const resp = await supabase.functions.invoke("db-inspector?action=dump");
+      if (resp.error) throw new Error(resp.error.message);
+
+      // The response data is the raw SQL string
+      const sqlContent = typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data);
+      const blob = new Blob([sqlContent], { type: "application/sql" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `grx10-dump-${new Date().toISOString().slice(0, 10)}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("SQL dump downloaded successfully");
+    } catch (err) {
+      toast.error(`SQL dump failed: ${(err as Error).message}`);
+    }
+    setDumpLoading(false);
+  };
+
   // Group relations by source table for the relationship view
   const relationsBySource = useMemo(() => {
     const map: Record<string, Relation[]> = {};
@@ -207,6 +230,10 @@ export default function PlatformDbInspector() {
         <Button variant="outline" onClick={downloadReport} disabled={loading || tables.length === 0}>
           <Download className="h-4 w-4 mr-2" />
           Export Report
+        </Button>
+        <Button variant="outline" onClick={downloadSqlDump} disabled={dumpLoading}>
+          {dumpLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileCode2 className="h-4 w-4 mr-2" />}
+          {dumpLoading ? "Generating Dump…" : "Download SQL Dump"}
         </Button>
         {inspectedAt && (
           <span className="text-xs text-muted-foreground ml-auto">
