@@ -10,15 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FlaskConical, Play, RotateCcw, Zap, AlertTriangle, Shield,
   Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronRight,
-  FileText, Activity, Bug, Download, Info, Terminal
+  FileText, Activity, Bug, Download, Info, Terminal, Award, BookOpen,
+  ShieldCheck, Scale, Lock, BarChart3, Users, TrendingUp, Layers
 } from "lucide-react";
 import { format } from "date-fns";
 
+// ── Types ──
 interface SimulationRun {
   id: string;
   sandbox_org_id: string;
@@ -43,6 +46,96 @@ interface SimulationRun {
   report_html: string | null;
 }
 
+// ── Standards & Compliance Metadata ──
+const COMPLIANCE_STANDARDS = [
+  {
+    code: "ISA",
+    name: "International Standards on Auditing",
+    body: "IFAC / IAASB",
+    icon: Scale,
+    color: "text-blue-600",
+    bgColor: "bg-blue-500/10",
+    borderColor: "border-blue-500/30",
+    tests: [
+      { id: "ISA_A1", name: "Existence – Posted JE Validation", assertion: "ISA 500 / ISA 315" },
+      { id: "ISA_A2", name: "Completeness – Invoice↔JE Matching", assertion: "ISA 500" },
+      { id: "ISA_A3", name: "Cut-off – Period Boundary Enforcement", assertion: "ISA 500" },
+      { id: "ISA_A4", name: "Valuation – Asset Book Value Accuracy", assertion: "ISA 540" },
+      { id: "ISA_A5", name: "Accuracy – Trial Balance Equilibrium", assertion: "ISA 500" },
+      { id: "ISA_A6", name: "Classification – GL Account Type Enforcement", assertion: "ISA 500" },
+    ],
+  },
+  {
+    code: "COSO",
+    name: "Committee of Sponsoring Organizations",
+    body: "COSO / Treadway Commission",
+    icon: ShieldCheck,
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/30",
+    tests: [
+      { id: "COSO_CE1", name: "Control Environment – Segregation of Duties", assertion: "Principle 3" },
+      { id: "COSO_RA1", name: "Risk Assessment – Anomaly Detection", assertion: "Principle 7" },
+      { id: "COSO_CA1", name: "Control Activities – Approval Workflows", assertion: "Principle 10" },
+      { id: "COSO_IC1", name: "Information & Communication – Audit Trail", assertion: "Principle 13" },
+      { id: "COSO_MA1", name: "Monitoring – Continuous Integrity Checks", assertion: "Principle 16" },
+    ],
+  },
+  {
+    code: "SOX",
+    name: "Sarbanes-Oxley Act / ITGC",
+    body: "PCAOB / ISACA",
+    icon: Lock,
+    color: "text-amber-600",
+    bgColor: "bg-amber-500/10",
+    borderColor: "border-amber-500/30",
+    tests: [
+      { id: "SOX_S1", name: "Balance Sheet Equation Validation", assertion: "SOX §302/404" },
+      { id: "SOX_S3", name: "P&L Report-to-Ledger Tie-out", assertion: "SOX §404" },
+      { id: "SOX_S5", name: "HR/Payroll Audit Trail Coverage", assertion: "ITGC" },
+      { id: "SOX_S7", name: "Subledger-to-GL Reconciliation (AR/AP)", assertion: "SOX §404" },
+    ],
+  },
+  {
+    code: "SOC 1",
+    name: "Service Organization Controls",
+    body: "AICPA",
+    icon: Award,
+    color: "text-purple-600",
+    bgColor: "bg-purple-500/10",
+    borderColor: "border-purple-500/30",
+    tests: [
+      { id: "SOC_T1", name: "Transaction Authorization – Role-based CRUD", assertion: "CC6.1" },
+      { id: "SOC_T3", name: "Auto-JE Generation on Approval", assertion: "CC7.1" },
+      { id: "SOC_T5", name: "Period-End Accrual & Reversal Lifecycle", assertion: "CC7.2" },
+      { id: "SOC_T7", name: "Data Integrity – Orphan Record Detection", assertion: "CC8.1" },
+    ],
+  },
+];
+
+const ALL_STANDARD_TESTS = COMPLIANCE_STANDARDS.flatMap(s =>
+  s.tests.map(t => ({ ...t, standard: s.code, color: s.color, bgColor: s.bgColor }))
+);
+
+// ── Workflow Category Metadata ──
+const WORKFLOW_CATEGORIES = [
+  { key: "finance", label: "Finance & Accounting", icon: BarChart3, color: "text-blue-500" },
+  { key: "hr", label: "HR & People", icon: Users, color: "text-emerald-500" },
+  { key: "payroll", label: "Payroll & Statutory", icon: TrendingUp, color: "text-amber-500" },
+  { key: "compliance", label: "Compliance & Audit", icon: ShieldCheck, color: "text-purple-500" },
+  { key: "operations", label: "Operations & Stress", icon: Layers, color: "text-pink-500" },
+];
+
+function categorizeWorkflow(name: string): string {
+  const n = name.toUpperCase();
+  if (n.startsWith("ISA_") || n.startsWith("SOX_") || n.startsWith("SOC_") || n.startsWith("COSO_") || n.includes("AUDIT") || n.includes("COMPLIANCE")) return "compliance";
+  if (n.includes("PAYROLL") || n.includes("LOP") || n.includes("CTC") || n.includes("COMPENSATION") || n.includes("TDS") || n.includes("PF_") || n.includes("ESI_") || n.includes("STATUTORY")) return "payroll";
+  if (n.includes("EMPLOYEE") || n.includes("LEAVE") || n.includes("ATTENDANCE") || n.includes("HOLIDAY") || n.includes("DOCUMENT") || n.includes("HR_")) return "hr";
+  if (n.includes("STRESS") || n.includes("CHAOS") || n.includes("CONCURRENT")) return "operations";
+  return "finance";
+}
+
+// ── Hooks ──
 function useSandboxOrgs() {
   return useQuery({
     queryKey: ["sandbox-orgs-sim"],
@@ -76,6 +169,7 @@ function useSimulationRuns(orgId: string | null) {
   });
 }
 
+// ── Constants ──
 const PHASE_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
   reset_and_seed: { label: "Reset & Seed", icon: RotateCcw },
   run_workflows: { label: "Workflow Simulation", icon: Play },
@@ -91,8 +185,8 @@ const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }
     durations: [3000, 8000, 10000, 8000, 5000, 2000],
   },
   run_workflows: {
-    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
-    durations: [2000, 15000, 10000, 12000, 15000, 8000, 3000],
+    steps: ["Initializing workflow engine...", "Running finance workflows (invoices, bills, journals)...", "Running HR workflows (attendance, leaves)...", "Running payroll workflows...", "Running ISA / SOX / SOC compliance checks...", "Running multi-role approval chains...", "Running performance & goal workflows...", "Aggregating results..."],
+    durations: [2000, 15000, 10000, 12000, 10000, 15000, 8000, 3000],
   },
   run_stress_test: {
     steps: ["Spawning 20 concurrent users...", "Executing parallel operations...", "Measuring throughput & latency...", "Collecting results..."],
@@ -103,15 +197,438 @@ const SIMULATION_PHASES: Record<string, { steps: string[]; durations: number[] }
     durations: [5000, 15000, 10000, 3000],
   },
   run_validation: {
-    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Generating report..."],
-    durations: [5000, 8000, 8000, 5000, 2000],
+    steps: ["Running V3 integrity checks...", "Checking trial balance & accounting equation...", "Scanning for duplicates & orphans...", "Validating RLS coverage...", "Running ISA assertion checks...", "Running SOX/SOC control checks...", "Generating report..."],
+    durations: [5000, 8000, 8000, 5000, 5000, 5000, 2000],
   },
   run_full_simulation: {
-    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — Integrity validation & reporting..."],
+    steps: ["Phase 1/5 — Resetting & seeding sandbox...", "Phase 2/5 — Running 120+ workflow simulations...", "Phase 3/5 — Stress testing (20 concurrent users)...", "Phase 4/5 — Chaos testing (boundary abuse)...", "Phase 5/5 — ISA/SOX/COSO/SOC integrity validation..."],
     durations: [30000, 60000, 30000, 25000, 15000],
   },
 };
 
+// ── Compliance Coverage Card ──
+function ComplianceCoverageCard() {
+  const totalTests = ALL_STANDARD_TESTS.length;
+  return (
+    <Card className="border-primary/20 bg-gradient-to-br from-card to-primary/5">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-primary" />
+            Standards Compliance Coverage
+          </CardTitle>
+          <Badge className="bg-primary/10 text-primary border-primary/30 font-mono text-xs">
+            {totalTests} Canonical Tests
+          </Badge>
+        </div>
+        <CardDescription className="text-xs">
+          Simulation engine validates against internationally recognized audit and control frameworks
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          {COMPLIANCE_STANDARDS.map(std => {
+            const Icon = std.icon;
+            return (
+              <motion.div
+                key={std.code}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`rounded-xl border ${std.borderColor} ${std.bgColor} p-4 space-y-2.5`}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className={`h-4.5 w-4.5 ${std.color}`} />
+                  <span className={`font-bold text-sm ${std.color}`}>{std.code}</span>
+                </div>
+                <p className="text-[11px] font-medium text-foreground leading-tight">{std.name}</p>
+                <p className="text-[10px] text-muted-foreground">{std.body}</p>
+                <Separator className="opacity-30" />
+                <div className="space-y-1">
+                  {std.tests.map(t => (
+                    <div key={t.id} className="flex items-start gap-1.5">
+                      <CheckCircle2 className={`h-3 w-3 mt-0.5 shrink-0 ${std.color}`} />
+                      <div>
+                        <span className="text-[10px] text-foreground leading-tight block">{t.name}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono">{t.assertion}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-muted-foreground">{std.tests.length} tests</span>
+                  <Badge variant="outline" className={`text-[9px] ${std.color} ${std.borderColor}`}>
+                    Implemented
+                  </Badge>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Enhanced Results Card ──
+function EnhancedResultsCard({ lastResult, expandedSections, toggleSection }: {
+  lastResult: any;
+  expandedSections: Set<string>;
+  toggleSection: (s: string) => void;
+}) {
+  if (!lastResult) return null;
+
+  const workflowDetails = lastResult.workflow_details ?? [];
+  const validationDetails = lastResult.details ?? [];
+
+  // Categorize workflows
+  const categorizedWorkflows: Record<string, any[]> = {};
+  for (const w of workflowDetails) {
+    const cat = categorizeWorkflow(w.workflow || w.check || "");
+    if (!categorizedWorkflows[cat]) categorizedWorkflows[cat] = [];
+    categorizedWorkflows[cat].push(w);
+  }
+
+  // Extract standards-specific results from validation
+  const standardsResults: Record<string, { passed: number; total: number; checks: any[] }> = {};
+  for (const v of [...workflowDetails, ...validationDetails]) {
+    const name = v.workflow || v.check || "";
+    const match = ALL_STANDARD_TESTS.find(t => name.toUpperCase().includes(t.id));
+    if (match) {
+      if (!standardsResults[match.standard]) standardsResults[match.standard] = { passed: 0, total: 0, checks: [] };
+      standardsResults[match.standard].total++;
+      if (v.status === "passed") standardsResults[match.standard].passed++;
+      standardsResults[match.standard].checks.push(v);
+    }
+  }
+
+  const totalPassed = lastResult.passed ?? lastResult.workflows_passed ?? 0;
+  const totalFailed = lastResult.failed ?? lastResult.workflows_failed ?? 0;
+  const totalTests = totalPassed + totalFailed;
+  const passRate = totalTests > 0 ? Math.round((totalPassed / totalTests) * 100) : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Latest Simulation Result
+          </CardTitle>
+          {lastResult.execution_time_ms && (
+            <Badge variant="outline" className="font-mono text-xs">
+              <Clock className="h-3 w-3 mr-1" />
+              {(lastResult.execution_time_ms / 1000).toFixed(1)}s
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Hero Metrics */}
+        {lastResult.report && (
+          <div className="grid gap-3 md:grid-cols-5">
+            {[
+              { label: "Records Created", value: lastResult.report.summary?.total_records_created ?? 0, color: "text-foreground" },
+              { label: "Total Workflows", value: lastResult.report.summary?.total_workflows ?? 0, color: "text-foreground" },
+              { label: "Errors", value: lastResult.report.summary?.total_errors ?? 0, color: (lastResult.report.summary?.total_errors ?? 0) > 0 ? "text-destructive" : "text-emerald-500" },
+              { label: "Concurrent Users", value: lastResult.report.summary?.concurrent_users_tested ?? 0, color: "text-foreground" },
+              { label: "Integrity", value: lastResult.report.summary?.validation_passed ? "✓ PASS" : "✗ FAIL", color: lastResult.report.summary?.validation_passed ? "text-emerald-500" : "text-destructive" },
+            ].map((m, i) => (
+              <div key={i} className="bg-muted/50 rounded-lg p-4 text-center">
+                <div className={`text-2xl font-bold ${m.color}`}>{m.value}</div>
+                <div className="text-xs text-muted-foreground mt-1">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pass Rate Bar */}
+        {totalTests > 0 && (
+          <div className="rounded-xl border border-border bg-muted/20 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-foreground">Overall Pass Rate</span>
+              <span className={`text-2xl font-bold ${passRate === 100 ? "text-emerald-500" : passRate >= 80 ? "text-amber-500" : "text-destructive"}`}>
+                {passRate}%
+              </span>
+            </div>
+            <Progress value={passRate} className="h-2.5" />
+            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+              <span>{totalPassed} passed</span>
+              {totalFailed > 0 && <span className="text-destructive">{totalFailed} failed</span>}
+              <span>{totalTests} total</span>
+            </div>
+          </div>
+        )}
+
+        {/* Standards Compliance Scorecard */}
+        {Object.keys(standardsResults).length > 0 && (
+          <Collapsible open={expandedSections.has("standards")} onOpenChange={() => toggleSection("standards")}>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer mb-2">
+                <div className="flex items-center gap-2">
+                  {expandedSections.has("standards") ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <Award className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-sm text-foreground">Standards Compliance Scorecard</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {COMPLIANCE_STANDARDS.map(s => {
+                    const r = standardsResults[s.code];
+                    if (!r) return null;
+                    return (
+                      <Badge key={s.code} variant="outline" className={`text-[10px] ${r.passed === r.total ? "text-emerald-600 border-emerald-500/30" : "text-amber-600 border-amber-500/30"}`}>
+                        {s.code} {r.passed}/{r.total}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+                {COMPLIANCE_STANDARDS.map(std => {
+                  const r = standardsResults[std.code];
+                  if (!r) return null;
+                  const Icon = std.icon;
+                  const pct = Math.round((r.passed / r.total) * 100);
+                  return (
+                    <div key={std.code} className={`rounded-lg border ${std.borderColor} ${std.bgColor} p-3 space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Icon className={`h-4 w-4 ${std.color}`} />
+                          <span className={`text-xs font-bold ${std.color}`}>{std.code}</span>
+                        </div>
+                        <span className={`text-lg font-bold ${pct === 100 ? "text-emerald-500" : "text-amber-500"}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <Progress value={pct} className="h-1.5" />
+                      <div className="space-y-1">
+                        {r.checks.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                            {c.status === "passed" ? (
+                              <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-destructive shrink-0" />
+                            )}
+                            <span className="text-foreground truncate">{c.workflow || c.check}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Categorized Workflows */}
+        {workflowDetails.length > 0 && (
+          <Collapsible open={expandedSections.has("workflows")} onOpenChange={() => toggleSection("workflows")}>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer mb-2">
+                <div className="flex items-center gap-2">
+                  {expandedSections.has("workflows") ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <span className="font-medium text-sm text-foreground">Workflow Details by Category</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs text-emerald-600">
+                    {totalPassed} passed
+                  </Badge>
+                  {totalFailed > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {totalFailed} failed
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3">
+              {WORKFLOW_CATEGORIES.map(cat => {
+                const items = categorizedWorkflows[cat.key];
+                if (!items || items.length === 0) return null;
+                const catPassed = items.filter((w: any) => w.status === "passed").length;
+                const CatIcon = cat.icon;
+                return (
+                  <div key={cat.key} className="rounded-lg border border-border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <CatIcon className={`h-4 w-4 ${cat.color}`} />
+                        <span className="text-sm font-medium text-foreground">{cat.label}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {catPassed}/{items.length} passed
+                      </span>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]">Status</TableHead>
+                          <TableHead>Test</TableHead>
+                          <TableHead>Standard</TableHead>
+                          <TableHead>Detail</TableHead>
+                          <TableHead className="text-right w-[80px]">Duration</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((w: any, i: number) => {
+                          const testName = w.workflow || w.check || "";
+                          const stdMatch = ALL_STANDARD_TESTS.find(t => testName.toUpperCase().includes(t.id));
+                          return (
+                            <TableRow key={i}>
+                              <TableCell>
+                                {w.status === "passed" ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-destructive" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-foreground">{testName}</TableCell>
+                              <TableCell>
+                                {stdMatch ? (
+                                  <Badge variant="outline" className={`text-[9px] ${stdMatch.color} border-current/30`}>
+                                    {stdMatch.standard} · {stdMatch.assertion}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[9px] text-muted-foreground">Custom</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[250px] truncate">{w.detail}</TableCell>
+                              <TableCell className="text-right text-xs text-muted-foreground">{w.duration_ms ? `${w.duration_ms}ms` : "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Stress test details */}
+        {lastResult.details && lastResult.action === "run_stress_test" && (
+          <div className="grid gap-3 md:grid-cols-4">
+            {[
+              { label: "Concurrent Users", value: lastResult.concurrent_users, color: "text-foreground" },
+              { label: "Passed", value: lastResult.passed, color: "text-emerald-500" },
+              { label: "Avg Duration", value: `${lastResult.avg_duration_ms}ms`, color: "text-foreground" },
+              { label: "Max Duration", value: `${lastResult.max_duration_ms}ms`, color: "text-foreground" },
+            ].map((m, i) => (
+              <div key={i} className="bg-muted/30 rounded-lg p-3 text-center">
+                <div className={`text-lg font-bold ${m.color}`}>{m.value}</div>
+                <div className="text-xs text-muted-foreground">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chaos test details */}
+        {lastResult.details && lastResult.action === "run_chaos_test" && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Test</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Detail</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(lastResult.details ?? []).map((c: any, i: number) => (
+                <TableRow key={i}>
+                  <TableCell className="text-sm font-medium text-foreground">{c.test}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
+                        c.status === "passed" || c.status === "blocked" ? "text-emerald-600 border-emerald-500/30" :
+                        c.status === "anomaly" ? "text-destructive border-destructive/30" :
+                        "text-yellow-600 border-yellow-500/30"
+                      }
+                    >
+                      {c.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{c.detail}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        {/* Validation details */}
+        {lastResult.details && lastResult.action === "run_validation" && (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <Badge
+                className={lastResult.validation_passed
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                  : "bg-destructive/10 text-destructive border-destructive/30"}
+              >
+                {lastResult.validation_passed ? "ALL CHECKS PASSED" : "ISSUES DETECTED"}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {lastResult.passed}/{lastResult.total_checks} passed
+              </span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Check</TableHead>
+                  <TableHead>Standard</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Detail</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(lastResult.details ?? []).map((v: any, i: number) => {
+                  const stdMatch = ALL_STANDARD_TESTS.find(t => (v.check || "").toUpperCase().includes(t.id));
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs text-foreground">{v.check}</TableCell>
+                      <TableCell>
+                        {stdMatch ? (
+                          <Badge variant="outline" className={`text-[9px] ${stdMatch.color}`}>
+                            {stdMatch.standard}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">Internal</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {v.status === "passed" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> :
+                         v.status === "warning" ? <AlertTriangle className="h-4 w-4 text-yellow-500" /> :
+                         <XCircle className="h-4 w-4 text-destructive" />}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{v.detail}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Seed summary */}
+        {lastResult.seed_summary && lastResult.action === "reset_and_seed" && (
+          <div>
+            <h4 className="text-sm font-medium text-foreground mb-3">Seeded Data</h4>
+            <div className="grid gap-2 md:grid-cols-4">
+              {Object.entries(lastResult.seed_summary).map(([key, val]) => (
+                <div key={key} className="bg-muted/30 rounded p-3 text-center">
+                  <div className="text-lg font-bold text-foreground">{val as number}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Main Page ──
 export default function PlatformSimulation() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -121,7 +638,7 @@ export default function PlatformSimulation() {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [lastResult, setLastResult] = useState<any>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["summary"]));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["summary", "standards"]));
   const startTimeRef = useRef<number>(0);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -224,15 +741,15 @@ export default function PlatformSimulation() {
 
   const actions = [
     { key: "reset_and_seed", label: "Reset Sandbox", icon: RotateCcw, variant: "outline" as const, desc: "Clear data & seed fresh master data" },
-    { key: "run_workflows", label: "Run Workflows", icon: Play, variant: "outline" as const, desc: "Finance, HR, Payroll, Leave, Attendance" },
+    { key: "run_workflows", label: "Run Workflows", icon: Play, variant: "outline" as const, desc: "Finance, HR, Payroll + ISA/SOX checks" },
     { key: "run_stress_test", label: "Stress Test", icon: Zap, variant: "outline" as const, desc: "20 concurrent users across all modules" },
-    { key: "run_chaos_test", label: "Chaos Test", icon: Bug, variant: "outline" as const, desc: "Invalid data across all modules" },
-    { key: "run_validation", label: "Validate Integrity", icon: Shield, variant: "outline" as const, desc: "Full system integrity check" },
-    { key: "run_full_simulation", label: "Run Full Simulation", icon: FlaskConical, variant: "default" as const, desc: "Complete end-to-end all-module simulation" },
+    { key: "run_chaos_test", label: "Chaos Test", icon: Bug, variant: "outline" as const, desc: "Boundary abuse & invalid data" },
+    { key: "run_validation", label: "Validate Integrity", icon: Shield, variant: "outline" as const, desc: "ISA/SOX/COSO/SOC compliance audit" },
+    { key: "run_full_simulation", label: "Run Full Simulation", icon: FlaskConical, variant: "default" as const, desc: "Complete end-to-end all-standards simulation" },
   ];
 
   return (
-    <MainLayout title="Sandbox System Simulation" subtitle="End-to-end simulation across Finance, HR, Payroll, Attendance, Leave & Performance">
+    <MainLayout title="Sandbox System Simulation" subtitle="Enterprise-grade validation against ISA, COSO, SOX/ITGC & AICPA SOC 1 standards">
       {/* Org Selector */}
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -251,27 +768,37 @@ export default function PlatformSimulation() {
               </Select>
             </div>
             {selectedOrg && (
-              <Badge variant="outline" className="text-xs">
-                Sandbox Isolated
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">Sandbox Isolated</Badge>
+                <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px]">
+                  {ALL_STANDARD_TESTS.length} Standard Tests
+                </Badge>
+              </div>
             )}
           </div>
         </CardContent>
       </Card>
 
       {!selectedOrg ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <FlaskConical className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Select a Sandbox</h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              Choose a sandbox environment to run financial simulations. All operations are strictly
-              isolated — production data is never affected.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <FlaskConical className="h-12 w-12 text-muted-foreground/30 mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Select a Sandbox</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Choose a sandbox environment to run financial simulations. All operations are strictly
+                isolated — production data is never affected.
+              </p>
+            </CardContent>
+          </Card>
+          {/* Show compliance coverage even before selecting sandbox */}
+          <ComplianceCoverageCard />
+        </div>
       ) : (
         <div className="space-y-6">
+          {/* Compliance Standards Banner */}
+          <ComplianceCoverageCard />
+
           {/* Action Buttons */}
           <Card>
             <CardHeader>
@@ -280,16 +807,16 @@ export default function PlatformSimulation() {
                 Simulation Controls
               </CardTitle>
               <CardDescription>
-                Run individual phases or execute the complete simulation pipeline
+                Run individual phases or execute the complete pipeline — all tests are mapped to ISA/COSO/SOX/SOC assertions
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-                {actions.map(a => (
+              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
+                {actions.filter(a => a.key !== "run_full_simulation").map(a => (
                   <Button
                     key={a.key}
                     variant={a.variant}
-                    className={`h-auto flex-col gap-2 py-4 ${a.key === "run_full_simulation" ? "md:col-span-3 lg:col-span-6 bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
+                    className="h-auto flex-col gap-2 py-4"
                     disabled={isRunning}
                     onClick={() => runSimulation.mutate(a.key)}
                   >
@@ -303,6 +830,22 @@ export default function PlatformSimulation() {
                   </Button>
                 ))}
               </div>
+              <Button
+                variant="default"
+                className="w-full mt-3 h-auto flex-col gap-2 py-4 bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={isRunning}
+                onClick={() => runSimulation.mutate("run_full_simulation")}
+              >
+                {isRunning && activePhase === "run_full_simulation" ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <FlaskConical className="h-6 w-6" />
+                )}
+                <span className="text-sm font-semibold">Run Full Simulation</span>
+                <span className="text-xs opacity-70">
+                  Complete end-to-end: Seed → 120+ Workflows → Stress → Chaos → ISA/SOX/COSO/SOC Validation
+                </span>
+              </Button>
 
               {/* Progress Tracker */}
               <AnimatePresence>
@@ -313,12 +856,9 @@ export default function PlatformSimulation() {
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-6 rounded-xl border border-border bg-muted/30 overflow-hidden"
                   >
-                    {/* Header */}
                     <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/50">
                       <div className="flex items-center gap-3">
-                        <div className="relative h-5 w-5">
-                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                        </div>
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
                         <span className="font-semibold text-sm text-foreground">
                           {PHASE_LABELS[activePhase]?.label ?? activePhase}
                         </span>
@@ -332,27 +872,16 @@ export default function PlatformSimulation() {
                         </Badge>
                       </div>
                     </div>
-
-                    {/* Overall progress bar */}
                     <div className="px-5 pt-3">
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full bg-primary"
-                          initial={{ width: "0%" }}
-                          animate={{
-                            width: `${((currentStep + 1) / SIMULATION_PHASES[activePhase].steps.length) * 100}%`,
-                          }}
-                          transition={{ duration: 0.6, ease: "easeInOut" }}
-                        />
-                      </div>
+                      <Progress
+                        value={((currentStep + 1) / SIMULATION_PHASES[activePhase].steps.length) * 100}
+                        className="h-1.5"
+                      />
                     </div>
-
-                    {/* Step list */}
                     <div className="px-5 py-3 space-y-1.5">
                       {SIMULATION_PHASES[activePhase].steps.map((step, idx) => {
                         const isCompleted = completedSteps.includes(idx);
                         const isCurrent = idx === currentStep;
-                        const isPending = !isCompleted && !isCurrent;
                         return (
                           <motion.div
                             key={idx}
@@ -370,9 +899,7 @@ export default function PlatformSimulation() {
                             ) : (
                               <div className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/20" />
                             )}
-                            <span className={`${isCurrent ? "font-medium" : ""}`}>
-                              {step}
-                            </span>
+                            <span className={isCurrent ? "font-medium" : ""}>{step}</span>
                           </motion.div>
                         );
                       })}
@@ -383,232 +910,12 @@ export default function PlatformSimulation() {
             </CardContent>
           </Card>
 
-          {/* Live Result Display */}
-          {lastResult && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Latest Result
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Summary metrics for full simulation */}
-                {lastResult.report && (
-                  <div className="grid gap-3 md:grid-cols-5 mb-6">
-                    <div className="bg-muted/50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-foreground">
-                        {lastResult.report.summary?.total_records_created ?? 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">Records Created</div>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-foreground">
-                        {lastResult.report.summary?.total_workflows ?? 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">Workflows</div>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-4 text-center">
-                      <div className={`text-2xl font-bold ${(lastResult.report.summary?.total_errors ?? 0) > 0 ? "text-destructive" : "text-emerald-500"}`}>
-                        {lastResult.report.summary?.total_errors ?? 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">Errors</div>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-4 text-center">
-                      <div className="text-2xl font-bold text-foreground">
-                        {lastResult.report.summary?.concurrent_users_tested ?? 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">Concurrent Users</div>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-4 text-center">
-                      <div className={`text-2xl font-bold ${lastResult.report.summary?.validation_passed ? "text-emerald-500" : "text-destructive"}`}>
-                        {lastResult.report.summary?.validation_passed ? "✓ PASS" : "✗ FAIL"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">Integrity</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Workflow details */}
-                {lastResult.workflow_details && (
-                  <Collapsible
-                    open={expandedSections.has("workflows")}
-                    onOpenChange={() => toggleSection("workflows")}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer mb-2">
-                        <div className="flex items-center gap-2">
-                          {expandedSections.has("workflows") ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          <span className="font-medium text-sm text-foreground">Workflow Details</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs text-emerald-600">
-                            {lastResult.passed ?? lastResult.workflows_passed ?? 0} passed
-                          </Badge>
-                          {(lastResult.failed ?? lastResult.workflows_failed ?? 0) > 0 && (
-                            <Badge variant="destructive" className="text-xs">
-                              {lastResult.failed ?? lastResult.workflows_failed ?? 0} failed
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <Table>
-                         <TableHeader>
-                          <TableRow>
-                            <TableHead>Module</TableHead>
-                            <TableHead>Workflow</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Detail</TableHead>
-                            <TableHead className="text-right">Duration</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(lastResult.workflow_details ?? []).map((w: any, i: number) => (
-                            <TableRow key={i}>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px]">{w.module ?? "Finance"}</Badge>
-                              </TableCell>
-                              <TableCell className="font-mono text-xs text-foreground">{w.workflow}</TableCell>
-                              <TableCell>
-                                {w.status === "passed" ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                ) : (
-                                  <XCircle className="h-4 w-4 text-destructive" />
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate">{w.detail}</TableCell>
-                              <TableCell className="text-right text-xs text-muted-foreground">{w.duration_ms}ms</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-
-                {/* Stress test details */}
-                {lastResult.details && lastResult.action === "run_stress_test" && (
-                  <div className="mt-4">
-                    <div className="grid gap-3 md:grid-cols-4 mb-4">
-                      <div className="bg-muted/30 rounded p-3 text-center">
-                        <div className="text-lg font-bold text-foreground">{lastResult.concurrent_users}</div>
-                        <div className="text-xs text-muted-foreground">Concurrent Users</div>
-                      </div>
-                      <div className="bg-muted/30 rounded p-3 text-center">
-                        <div className="text-lg font-bold text-emerald-500">{lastResult.passed}</div>
-                        <div className="text-xs text-muted-foreground">Passed</div>
-                      </div>
-                      <div className="bg-muted/30 rounded p-3 text-center">
-                        <div className="text-lg font-bold text-foreground">{lastResult.avg_duration_ms}ms</div>
-                        <div className="text-xs text-muted-foreground">Avg Duration</div>
-                      </div>
-                      <div className="bg-muted/30 rounded p-3 text-center">
-                        <div className="text-lg font-bold text-foreground">{lastResult.max_duration_ms}ms</div>
-                        <div className="text-xs text-muted-foreground">Max Duration</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Chaos test details */}
-                {lastResult.details && lastResult.action === "run_chaos_test" && (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Detail</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(lastResult.details ?? []).map((c: any, i: number) => (
-                        <TableRow key={i}>
-                          <TableCell className="text-sm font-medium text-foreground">{c.test}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                c.status === "passed" || c.status === "blocked" ? "text-emerald-600 border-emerald-500/30" :
-                                c.status === "anomaly" ? "text-destructive border-destructive/30" :
-                                "text-yellow-600 border-yellow-500/30"
-                              }
-                            >
-                              {c.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{c.detail}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-
-                {/* Validation details */}
-                {lastResult.details && lastResult.action === "run_validation" && (
-                  <div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <Badge
-                        className={lastResult.validation_passed
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                          : "bg-destructive/10 text-destructive border-destructive/30"}
-                      >
-                        {lastResult.validation_passed ? "ALL CHECKS PASSED" : "ISSUES DETECTED"}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {lastResult.passed}/{lastResult.total_checks} passed
-                      </span>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Check</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Detail</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(lastResult.details ?? []).map((v: any, i: number) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono text-xs text-foreground">{v.check}</TableCell>
-                            <TableCell>
-                              {v.status === "passed" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> :
-                               v.status === "warning" ? <AlertTriangle className="h-4 w-4 text-yellow-500" /> :
-                               <XCircle className="h-4 w-4 text-destructive" />}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{v.detail}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-
-                {/* Seed summary */}
-                {lastResult.seed_summary && lastResult.action === "reset_and_seed" && (
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground mb-3">Seeded Data</h4>
-                    <div className="grid gap-2 md:grid-cols-4">
-                      {Object.entries(lastResult.seed_summary).map(([key, val]) => (
-                        <div key={key} className="bg-muted/30 rounded p-3 text-center">
-                          <div className="text-lg font-bold text-foreground">{val as number}</div>
-                          <div className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {lastResult.execution_time_ms && (
-                  <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    Completed in {(lastResult.execution_time_ms / 1000).toFixed(1)}s
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {/* Enhanced Results */}
+          <EnhancedResultsCard
+            lastResult={lastResult}
+            expandedSections={expandedSections}
+            toggleSection={toggleSection}
+          />
 
           {/* Past Runs */}
           {(runs ?? []).length > 0 && (
