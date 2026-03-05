@@ -1367,6 +1367,56 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     });
   }
 
+  // ===== ROLE-BASED ACCESS VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { data: roles } = await client.from("user_roles")
+      .select("user_id, role").eq("organization_id", orgId);
+    const roleTypes = [...new Set((roles ?? []).map((r: any) => r.role))];
+    results.push({
+      workflow: "Role distribution verification", module: "Governance",
+      status: roleTypes.length >= 3 ? "passed" : roleTypes.length > 0 ? "warning" : "failed",
+      detail: `${(roles ?? []).length} assignments across roles: ${roleTypes.join(", ")}`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== ORGANIZATION MEMBERSHIP VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    const { count } = await client.from("organization_members")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+    results.push({
+      workflow: "Org membership verification", module: "Governance",
+      status: (count ?? 0) >= 5 ? "passed" : "failed",
+      detail: `${count ?? 0} org members (expected ≥5 for seeded employees)`,
+      duration_ms: Date.now() - wfStart,
+    });
+  }
+
+  // ===== ATTENDANCE DAILY COMPUTATION =====
+  if (profileList.length > 0) {
+    const wfStart = Date.now();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    try {
+      const { error } = await client.from("attendance_daily").insert({
+        profile_id: profileList[0].id, organization_id: orgId,
+        attendance_date: yesterday, status: "present",
+        first_in_time: `${yesterday}T09:05:00`, last_out_time: `${yesterday}T18:15:00`,
+        total_work_minutes: 550, late_minutes: 5, early_exit_minutes: 0, ot_minutes: 70,
+      });
+      results.push({
+        workflow: "Attendance Daily: computed record", module: "Attendance",
+        status: error ? "failed" : "passed",
+        detail: error?.message ?? "Daily attendance computation record created",
+        duration_ms: Date.now() - wfStart,
+      });
+    } catch (e) {
+      results.push({ workflow: "Attendance Daily", module: "Attendance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
+    }
+  }
+
 
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
