@@ -383,6 +383,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       try {
         const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
         const tempPassword = crypto.randomUUID() + "Aa1!";
+        let userId: string | null = null;
 
         const { data: newUser, error: createErr } = await client.auth.admin.createUser({
           email,
@@ -392,9 +393,26 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         });
 
         if (createErr) {
-          console.warn(`Failed to create user ${emp.name}:`, createErr.message);
-          continue;
+          // User already exists — look them up by email and reuse their ID
+          if (createErr.message?.includes("already been registered")) {
+            const { data: existingUsers } = await client.auth.admin.listUsers();
+            const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+            if (found) {
+              userId = found.id;
+              console.log(`Reusing existing auth user for ${emp.name}: ${userId}`);
+            } else {
+              console.warn(`Could not find existing user ${emp.name} by email`);
+              continue;
+            }
+          } else {
+            console.warn(`Failed to create user ${emp.name}:`, createErr.message);
+            continue;
+          }
+        } else {
+          userId = newUser.user.id;
         }
+
+        if (!userId) continue;
 
         const { error: updateErr } = await client.from("profiles").update({
           organization_id: orgId,
@@ -404,7 +422,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           status: "active",
           join_date: "2024-06-01",
           phone: emp.phone,
-        }).eq("id", newUser.user.id);
+        }).eq("id", userId);
 
         if (updateErr) {
           console.warn(`Failed to update profile for ${emp.name}:`, updateErr.message);
