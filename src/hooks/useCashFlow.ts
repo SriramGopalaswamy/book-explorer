@@ -90,6 +90,7 @@ export function useCreateScheduledPayment() {
 
 export function useUpdatePaymentStatus() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: ScheduledPayment["status"] }) => {
@@ -100,11 +101,29 @@ export function useUpdatePaymentStatus() {
         .select()
         .single();
       if (error) throw error;
+
+      // When marking as completed, create a bank transaction to update KPIs
+      if (status === "completed" && user) {
+        const payment = data as ScheduledPayment;
+        await createBankTransaction({
+          userId: user.id,
+          amount: Number(payment.amount),
+          type: payment.payment_type === "inflow" ? "credit" : "debit",
+          description: `Scheduled payment: ${payment.name}`,
+          reference: payment.id,
+          category: payment.category || (payment.payment_type === "inflow" ? "Scheduled Inflow" : "Scheduled Outflow"),
+          date: payment.due_date,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduled-payments"] });
-      toast({ title: "Status Updated", description: "Payment status has been updated." });
+      queryClient.invalidateQueries({ queryKey: ["cash-flow-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-flow-data"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      toast({ title: "Status Updated", description: "Payment marked as completed and cash flow updated." });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
