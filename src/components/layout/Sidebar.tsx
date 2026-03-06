@@ -51,6 +51,8 @@ import {
   Activity,
   ClipboardList,
   Database,
+  Boxes,
+  Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -138,6 +140,13 @@ const financeHrmsNav: NavItem[] = [
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
   { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
+];
+
+const inventoryNav: NavItem[] = [
+  { name: "Items", path: "/inventory/items", icon: Package, module: "financial" },
+  { name: "Warehouses", path: "/inventory/warehouses", icon: Warehouse, module: "financial" },
+  { name: "Stock Ledger", path: "/inventory/stock-ledger", icon: BookOpen, module: "financial" },
+  { name: "Adjustments", path: "/inventory/adjustments", icon: ClipboardList, module: "financial" },
 ];
 
 const performanceNav: NavItem[] = [
@@ -344,6 +353,9 @@ export function Sidebar() {
   const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] 
     : isModuleEnabled("financial") ? financialNav 
     : [];
+  const visibleInventoryNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? inventoryNav
+    : [];
   const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
     : isManager
     ? managerHrmsNav
@@ -391,6 +403,9 @@ export function Sidebar() {
             )}
             {visibleFinancialNav.length > 0 && (
               <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
+            {visibleInventoryNav.length > 0 && (
+              <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
             {visiblePerformanceNav.length > 0 && (

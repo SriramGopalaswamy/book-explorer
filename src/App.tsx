@@ -78,6 +78,12 @@ import PlatformDbInspector from "./pages/platform/PlatformDbInspector";
 // Sandbox
 import SandboxJoin from "./pages/sandbox/SandboxJoin";
 
+// Inventory
+import Items from "./pages/inventory/Items";
+import InventoryWarehouses from "./pages/inventory/Warehouses";
+import StockLedger from "./pages/inventory/StockLedger";
+import StockAdjustments from "./pages/inventory/StockAdjustments";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -135,6 +141,12 @@ const App = () => (
                 <Route path="/financial/journal-entry" element={<Guarded><FinanceRoute><JournalEntry /></FinanceRoute></Guarded>} />
                 <Route path="/financial/ledger" element={<Guarded><FinanceRoute><LedgerExplorer /></FinanceRoute></Guarded>} />
                 <Route path="/financial/ca-dashboard" element={<Guarded><FinanceRoute><CADashboard /></FinanceRoute></Guarded>} />
+
+                {/* Inventory */}
+                <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />
+                <Route path="/inventory/warehouses" element={<Guarded><FinanceRoute><InventoryWarehouses /></FinanceRoute></Guarded>} />
+                <Route path="/inventory/stock-ledger" element={<Guarded><FinanceRoute><StockLedger /></FinanceRoute></Guarded>} />
+                <Route path="/inventory/adjustments" element={<Guarded><FinanceRoute><StockAdjustments /></FinanceRoute></Guarded>} />
 
                 {/* HRMS */}
                 <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
