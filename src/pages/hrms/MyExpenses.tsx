@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
