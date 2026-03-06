@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -445,7 +445,7 @@ export default function AuditConsole() {
                               </p>
                               <p className="text-xs text-muted-foreground">Risk Score</p>
                             </div>
-                            <Button size="sm" variant="ghost" onClick={() => setSelectedTheme(theme)}><Eye className="h-4 w-4" /></Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedTheme(theme); }}><Eye className="h-4 w-4" /></Button>
                           </div>
                         </motion.div>
                       ))}
@@ -692,6 +692,9 @@ export default function AuditConsole() {
               <Layers className="h-5 w-5 text-primary" />
               {selectedTheme?.theme_name || "Risk Theme Detail"}
             </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Detailed breakdown of risk theme analysis and contributing factors.
+            </DialogDescription>
           </DialogHeader>
           {selectedTheme && (
             <div className="space-y-4">
