@@ -685,12 +685,12 @@ export default function AuditConsole() {
       </div>
 
       {/* Risk Theme Detail Dialog */}
-      <Dialog open={!!selectedTheme} onOpenChange={(open) => !open && setSelectedTheme(null)}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={!!selectedTheme} onOpenChange={(open) => { if (!open) setSelectedTheme(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-primary" />
-              {selectedTheme?.theme_name}
+              {selectedTheme?.theme_name || "Risk Theme Detail"}
             </DialogTitle>
           </DialogHeader>
           {selectedTheme && (
