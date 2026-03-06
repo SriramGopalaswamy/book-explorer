@@ -78,6 +78,7 @@ interface AIExtracted {
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
   draft:    { label: "Draft",    className: "bg-muted text-muted-foreground border-border",           icon: FileText },
   received: { label: "Received", className: "bg-primary/10 text-primary border-primary/30",           icon: Receipt },
+  approved: { label: "Approved", className: "bg-secondary/20 text-secondary-foreground border-secondary/30", icon: FileCheck },
   paid:     { label: "Paid",     className: "bg-accent/40 text-accent-foreground border-accent/50",   icon: CheckCircle2 },
   overdue:  { label: "Overdue",  className: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertCircle },
 };
@@ -137,7 +138,7 @@ function fmt(v: number) {
 }
 
 function isOverdue(bill: any) {
-  return bill.due_date && bill.status !== "paid" && new Date(bill.due_date) < new Date();
+  return bill.due_date && !["paid", "approved"].includes(bill.status) && new Date(bill.due_date) < new Date();
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -824,12 +825,7 @@ export default function Bills() {
                                   <FileCheck className="h-4 w-4 mr-2 text-secondary-foreground" /> Approve
                                 </DropdownMenuItem>
                               )}
-                              {(b.status === "approved" || b.status === "overdue") && (
-                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "paid" })}>
-                                  <CheckCircle2 className="h-4 w-4 mr-2 text-accent-foreground" /> Mark Paid
-                                </DropdownMenuItem>
-                              )}
-                              {b.status !== "paid" && b.status !== "approved" && (
+                              {(b.status === "approved" || b.effectiveStatus === "overdue") && (
                                 <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "paid" })}>
                                   <CheckCircle2 className="h-4 w-4 mr-2 text-accent-foreground" /> Mark Paid
                                 </DropdownMenuItem>
