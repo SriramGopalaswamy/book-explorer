@@ -78,7 +78,6 @@ interface AIExtracted {
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
   draft:    { label: "Draft",    className: "bg-muted text-muted-foreground border-border",           icon: FileText },
   received: { label: "Received", className: "bg-primary/10 text-primary border-primary/30",           icon: Receipt },
-  approved: { label: "Approved", className: "bg-secondary/30 text-secondary-foreground border-border", icon: CheckCircle2 },
   paid:     { label: "Paid",     className: "bg-accent/40 text-accent-foreground border-accent/50",   icon: CheckCircle2 },
   overdue:  { label: "Overdue",  className: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertCircle },
 };
