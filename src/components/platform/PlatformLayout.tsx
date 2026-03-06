@@ -4,12 +4,9 @@ import { cn } from "@/lib/utils";
 import {
   Building2,
   Shield,
-  Activity,
   ClipboardList,
   ChevronLeft,
-  Zap,
   FlaskConical,
-  KeyRound,
 } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { PlatformOrgBanner } from "./PlatformOrgBanner";
