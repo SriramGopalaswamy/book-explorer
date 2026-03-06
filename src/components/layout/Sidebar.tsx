@@ -60,10 +60,11 @@ import {
   Wrench,
   Flame,
   MapPin,
-  ArrowRightLeft,
-  RotateCcw,
-  Banknote,
-  CheckSquare,
+   ArrowRightLeft,
+   RotateCcw,
+   Banknote,
+   CheckSquare,
+   Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -483,6 +484,17 @@ export function Sidebar() {
                   { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
                 ]}
                 sectionId="admin"
+                collapsed={collapsed}
+                onItemClick={closeMobile}
+              />
+            )}
+            {(currentRole === "admin" || isSuperAdmin) && (
+              <NavSection
+                title="Connectors"
+                items={[
+                  { name: "Connectors", path: "/connectors", icon: Plug },
+                ]}
+                sectionId="connectors"
                 collapsed={collapsed}
                 onItemClick={closeMobile}
               />

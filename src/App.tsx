@@ -112,6 +112,10 @@ import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
 import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
 import ExchangeRatesPage from "./pages/financial/ExchangeRates";
 
+// Connectors
+import Connectors from "./pages/connectors/Connectors";
+import ConnectorDetail from "./pages/connectors/ConnectorDetail";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -222,6 +226,10 @@ const App = () => (
                 {/* Admin */}
                 <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
                 <Route path="/admin/approvals" element={<Guarded><HRAdminRoute><ApprovalWorkflowsPage /></HRAdminRoute></Guarded>} />
+
+                {/* Connectors */}
+                <Route path="/connectors" element={<Guarded><FinanceRoute><Connectors /></FinanceRoute></Guarded>} />
+                <Route path="/connectors/:provider" element={<Guarded><FinanceRoute><ConnectorDetail /></FinanceRoute></Guarded>} />
 
                 {/* Profile & Settings */}
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

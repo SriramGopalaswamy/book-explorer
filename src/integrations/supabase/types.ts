@@ -2619,6 +2619,47 @@ export type Database = {
           },
         ]
       }
+      connector_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          message: string | null
+          organization_id: string
+          payload: Json | null
+          provider: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          message?: string | null
+          organization_id: string
+          payload?: Json | null
+          provider: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          message?: string | null
+          organization_id?: string
+          payload?: Json | null
+          provider?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connector_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       control_account_overrides: {
         Row: {
           approved_by: string | null
@@ -4399,6 +4440,56 @@ export type Database = {
           },
           {
             foreignKeyName: "holidays_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          access_token: string | null
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          metadata: Json | null
+          organization_id: string
+          provider: string
+          shop_domain: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json | null
+          organization_id: string
+          provider?: string
+          shop_domain?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json | null
+          organization_id?: string
+          provider?: string
+          shop_domain?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -7952,6 +8043,150 @@ export type Database = {
           },
           {
             foreignKeyName: "scheduled_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_customers: {
+        Row: {
+          created_at: string
+          customer_payload: Json | null
+          email: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          phone: string | null
+          shopify_customer_id: string
+          synced_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_payload?: Json | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          phone?: string | null
+          shopify_customer_id: string
+          synced_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_payload?: Json | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          phone?: string | null
+          shopify_customer_id?: string
+          synced_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_orders: {
+        Row: {
+          created_at: string
+          currency: string | null
+          customer_id: string | null
+          financial_status: string | null
+          fulfillment_status: string | null
+          id: string
+          order_number: string | null
+          order_payload: Json | null
+          order_total: number
+          organization_id: string
+          shopify_order_id: string
+          synced_at: string | null
+          tax_total: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          id?: string
+          order_number?: string | null
+          order_payload?: Json | null
+          order_total?: number
+          organization_id: string
+          shopify_order_id: string
+          synced_at?: string | null
+          tax_total?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          id?: string
+          order_number?: string | null
+          order_payload?: Json | null
+          order_total?: number
+          organization_id?: string
+          shopify_order_id?: string
+          synced_at?: string | null
+          tax_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_products: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          price: number | null
+          product_payload: Json | null
+          shopify_product_id: string
+          sku: string | null
+          synced_at: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          price?: number | null
+          product_payload?: Json | null
+          shopify_product_id: string
+          sku?: string | null
+          synced_at?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          price?: number | null
+          product_payload?: Json | null
+          shopify_product_id?: string
+          sku?: string | null
+          synced_at?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
