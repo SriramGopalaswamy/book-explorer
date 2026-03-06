@@ -477,7 +477,10 @@ export function Sidebar() {
             {(currentRole === "admin" || currentRole === "hr") && (
               <NavSection
                 title="Admin"
-                items={[{ name: "Audit Log", path: "/admin/audit-log", icon: Shield }]}
+                items={[
+                  { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
+                  { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
+                ]}
                 sectionId="admin"
                 collapsed={collapsed}
                 onItemClick={closeMobile}
