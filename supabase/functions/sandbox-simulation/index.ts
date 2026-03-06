@@ -202,7 +202,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { code: "1100", name: "Accounts Receivable", type: "asset" },
     { code: "1200", name: "Inventory", type: "asset" },
     { code: "1500", name: "Fixed Assets - Gross Block", type: "asset" },
-    { code: "1510", name: "Accumulated Depreciation", type: "contra_asset" },
+    { code: "1510", name: "Accumulated Depreciation", type: "asset" },
     { code: "2000", name: "Accounts Payable", type: "liability" },
     { code: "2100", name: "Tax Payable - GST Output", type: "liability" },
     { code: "2200", name: "TDS Payable", type: "liability" },
