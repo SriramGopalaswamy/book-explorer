@@ -18,7 +18,11 @@ import { Zap, Ban, RotateCcw, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function PlatformActions() {
+export function ActionsContent() {
+  return <ActionsContentInner />;
+}
+
+function ActionsContentInner() {
   const { data: orgs, isLoading } = useOrganizations();
   const orgStatusAction = useOrgStatusAction();
   const [confirmAction, setConfirmAction] = useState<{
@@ -74,7 +78,7 @@ export default function PlatformActions() {
   };
 
   return (
-    <MainLayout title="Action Panel" subtitle="Manage organization lifecycle and data">
+    <>
       <div className="grid gap-4">
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -175,6 +179,14 @@ export default function PlatformActions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+export default function PlatformActions() {
+  return (
+    <MainLayout title="Action Panel" subtitle="Manage organization lifecycle and data">
+      <ActionsContent />
     </MainLayout>
   );
 }

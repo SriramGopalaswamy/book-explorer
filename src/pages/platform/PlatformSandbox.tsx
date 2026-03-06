@@ -142,7 +142,11 @@ const ROLE_COLORS: Record<string, string> = {
   employee: "bg-muted text-muted-foreground border-border",
 };
 
-export default function PlatformSandbox() {
+export function SandboxContent() {
+  return <SandboxContentInner />;
+}
+
+function SandboxContentInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const logAction = useLogPlatformAction();
@@ -338,7 +342,7 @@ export default function PlatformSandbox() {
   });
 
   return (
-    <MainLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
+    <>
       {/* Active Impersonation Banner */}
       {activeImpersonation && (
         <Card className="mb-6 border-amber-500/50 bg-amber-500/5">
@@ -656,6 +660,14 @@ export default function PlatformSandbox() {
           )}
         </div>
       </div>
+    </>
+  );
+}
+
+export default function PlatformSandbox() {
+  return (
+    <MainLayout title="Sandbox Environment" subtitle="Create isolated sandbox tenants and simulate roles securely">
+      <SandboxContent />
     </MainLayout>
   );
 }

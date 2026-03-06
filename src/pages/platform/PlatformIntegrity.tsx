@@ -77,7 +77,11 @@ const engineStatusConfig = (s: string) => {
   }
 };
 
-export default function PlatformIntegrity() {
+export function IntegrityContent() {
+  return <IntegrityContentInner />;
+}
+
+function IntegrityContentInner() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [runLog, setRunLog] = useState<RunLogEntry[]>([]);
@@ -186,7 +190,7 @@ export default function PlatformIntegrity() {
   const esConfig = result ? engineStatusConfig(result.engine_status) : null;
 
   return (
-    <MainLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
+    <>
       {/* Status Cards */}
       <div className="grid gap-4 md:grid-cols-5 mb-6">
         <Card className="md:col-span-2">
@@ -414,6 +418,14 @@ export default function PlatformIntegrity() {
           </CardContent>
         </Card>
       )}
+    </>
+  );
+}
+
+export default function PlatformIntegrity() {
+  return (
+    <MainLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
+      <IntegrityContent />
     </MainLayout>
   );
 }
