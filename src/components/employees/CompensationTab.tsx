@@ -57,6 +57,40 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
   const { data: currentRole } = useCurrentRole();
   const [showForm, setShowForm] = useState(false);
   const [showProposalForm, setShowProposalForm] = useState(false);
+  const queryClient = useQueryClient();
+
+  // ESI eligibility override
+  const { data: esiEligible, isLoading: esiLoading } = useQuery({
+    queryKey: ["profile-esi", profileId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("esi_eligible")
+        .eq("id", profileId)
+        .single();
+      return (data as any)?.esi_eligible as boolean | null;
+    },
+    enabled: !!profileId,
+  });
+
+  const [localEsi, setLocalEsi] = useState<boolean | null>(null);
+  useEffect(() => { if (!esiLoading) setLocalEsi(esiEligible ?? null); }, [esiEligible, esiLoading]);
+
+  const handleEsiChange = async (value: boolean | null) => {
+    setLocalEsi(value);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ esi_eligible: value } as any)
+      .eq("id", profileId);
+    if (error) {
+      toast.error("Failed to update ESI eligibility");
+      setLocalEsi(esiEligible ?? null);
+    } else {
+      toast.success("ESI eligibility updated");
+      queryClient.invalidateQueries({ queryKey: ["profile-esi", profileId] });
+      queryClient.invalidateQueries({ queryKey: ["esi"] });
+    }
+  };
 
   const activeStructure = history.find((s) => s.is_active) ?? null;
 
