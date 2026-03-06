@@ -545,16 +545,18 @@ export default function StatutoryFilings() {
               )}
               {!esiData.isLoading && (!esiData.data || esiData.data.length === 0) && (
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <p className="text-sm font-medium text-foreground mb-2">How ESI eligibility works</p>
+                  <p className="text-sm font-medium text-foreground mb-2">No ESI-eligible employees found</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    No employees qualify for ESI in this period. Eligibility is determined by:
+                  </p>
                   <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>ESI applies automatically to employees with gross monthly salary <span className="font-medium text-foreground">≤ ₹21,000</span> (as per ESIC norms).</li>
-                    <li>Eligibility is computed from processed payroll records (Basic + HRA + Transport + Other Allowances).</li>
-                    <li>Ensure payroll is processed for the selected period and that the ESI flag is enabled in <span className="font-medium text-foreground">Settings → Payroll</span>.</li>
-                    <li>Employees with an ESI number in their profile will have their IP Number auto-populated.</li>
+                    <li><span className="font-medium text-foreground">Auto-inference:</span> Employees with gross monthly salary <span className="font-medium text-foreground">≤ ₹21,000</span> (Basic + HRA + Transport + Other Allowances) are automatically eligible per ESIC norms.</li>
+                    <li><span className="font-medium text-foreground">Manual override:</span> HR admins can explicitly mark employees as ESI-eligible (or ineligible) via the <span className="font-medium text-foreground">Employee Profile → Compensation tab</span>, which overrides the salary-based threshold.</li>
+                    <li>Ensure payroll is <span className="font-medium text-foreground">processed</span> for the selected period and the ESI flag is enabled in <span className="font-medium text-foreground">Settings → Payroll</span>.</li>
                   </ul>
                 </div>
               )}
-              <DataTable columns={esiCols} data={esiData.data || []} isLoading={esiData.isLoading} emptyMessage="No ESI-eligible employees for this period — all employees may earn above the ₹21,000 ceiling or payroll is not yet processed." />
+              <DataTable columns={esiCols} data={esiData.data || []} isLoading={esiData.isLoading} emptyMessage="No ESI-eligible employees for this period." />
             </div>
           )}
 

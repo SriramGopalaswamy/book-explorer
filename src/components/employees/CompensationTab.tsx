@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,12 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  Plus, Trash2, TrendingUp, TrendingDown, Calendar, IndianRupee, FileText, ChevronRight, Send, Clock, Check, X,
+  Plus, Trash2, TrendingUp, TrendingDown, Calendar, IndianRupee, FileText, ChevronRight, Send, Clock, Check, X, Shield,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   useCompensationHistory,
   useCreateCompensationRevision,
@@ -53,6 +57,40 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
   const { data: currentRole } = useCurrentRole();
   const [showForm, setShowForm] = useState(false);
   const [showProposalForm, setShowProposalForm] = useState(false);
+  const queryClient = useQueryClient();
+
+  // ESI eligibility override
+  const { data: esiEligible, isLoading: esiLoading } = useQuery({
+    queryKey: ["profile-esi", profileId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("esi_eligible")
+        .eq("id", profileId)
+        .single();
+      return (data as any)?.esi_eligible as boolean | null;
+    },
+    enabled: !!profileId,
+  });
+
+  const [localEsi, setLocalEsi] = useState<boolean | null>(null);
+  useEffect(() => { if (!esiLoading) setLocalEsi(esiEligible ?? null); }, [esiEligible, esiLoading]);
+
+  const handleEsiChange = async (value: boolean | null) => {
+    setLocalEsi(value);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ esi_eligible: value } as any)
+      .eq("id", profileId);
+    if (error) {
+      toast.error("Failed to update ESI eligibility");
+      setLocalEsi(esiEligible ?? null);
+    } else {
+      toast.success("ESI eligibility updated");
+      queryClient.invalidateQueries({ queryKey: ["profile-esi", profileId] });
+      queryClient.invalidateQueries({ queryKey: ["esi"] });
+    }
+  };
 
   const activeStructure = history.find((s) => s.is_active) ?? null;
 
@@ -113,6 +151,42 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
                 <Plus className="h-4 w-4 mr-1" /> Add Compensation
               </Button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ESI Eligibility Override */}
+      {canEdit && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">ESI Eligibility</p>
+                <p className="text-xs text-muted-foreground">
+                  {localEsi === null
+                    ? "Auto (eligible if gross ≤ ₹21,000/mo)"
+                    : localEsi
+                    ? "Manually marked as eligible"
+                    : "Manually marked as ineligible"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select
+                value={localEsi === null ? "auto" : localEsi ? "yes" : "no"}
+                onValueChange={(v) => handleEsiChange(v === "auto" ? null : v === "yes")}
+              >
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (≤ ₹21K)</SelectItem>
+                  <SelectItem value="yes">Always Eligible</SelectItem>
+                  <SelectItem value="no">Not Eligible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       )}

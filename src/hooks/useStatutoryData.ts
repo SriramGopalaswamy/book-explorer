@@ -431,7 +431,7 @@ export function usePFECRData(from: string, to: string) {
   });
 }
 
-// ── ESI: From payroll (only for employees earning ≤ ₹21,000/month) ──
+// ── ESI: From payroll (auto-inferred ≤ ₹21,000 + manual override via profiles.esi_eligible) ──
 export function useESIData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
@@ -439,48 +439,24 @@ export function useESIData(from: string, to: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payroll_records")
-        .select("*, profiles!profile_id(full_name), employee_details:employee_details!payroll_records_profile_id_fkey(esi_number)")
+        .select("*, profiles!profile_id(full_name, esi_eligible)")
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .in("status", ["processed", "approved", "locked"]);
-      if (error) {
-        // Fallback without employee_details join if FK doesn't exist
-        const { data: fallback, error: err2 } = await supabase
-          .from("payroll_records")
-          .select("*, profiles!profile_id(full_name)")
-          .gte("created_at", from)
-          .lte("created_at", to + "T23:59:59")
-          .in("status", ["processed", "approved", "locked"]);
-        if (err2) throw err2;
-        return (fallback || [])
-          .map((p: any) => {
-            const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
-            if (gross > 21000) return null;
-            const empContrib = Math.round(gross * 0.0075);
-            const erContrib = Math.round(gross * 0.0325);
-            return {
-              id: p.id,
-              ip_number: "",
-              employee_name: p.profiles?.full_name || "Unknown",
-              days_worked: 30,
-              gross_wages: gross,
-              employee_contribution: empContrib,
-              employer_contribution: erContrib,
-              total_contribution: empContrib + erContrib,
-            } as ESIRow;
-          })
-          .filter(Boolean) as ESIRow[];
-      }
+      if (error) throw error;
 
       return (data || [])
         .map((p: any) => {
           const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
-          if (gross > 21000) return null; // ESI ceiling
+          const manualFlag = p.profiles?.esi_eligible;
+          // Manual override: true = always eligible, false = never eligible, null = auto (≤21000)
+          const isEligible = manualFlag === true ? true : manualFlag === false ? false : gross <= 21000;
+          if (!isEligible) return null;
           const empContrib = Math.round(gross * 0.0075);
           const erContrib = Math.round(gross * 0.0325);
           return {
             id: p.id,
-            ip_number: p.employee_details?.esi_number || "",
+            ip_number: "",
             employee_name: p.profiles?.full_name || "Unknown",
             days_worked: 30,
             gross_wages: gross,
