@@ -97,7 +97,7 @@ export default function Vendors() {
       const { error } = await supabase.from("vendors").insert({ ...values, user_id: user.id });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); toast({ title: "Vendor Added" }); setIsDialogOpen(false); setForm(emptyForm); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Added" }); setIsDialogOpen(false); setForm(emptyForm); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -112,7 +112,7 @@ export default function Vendors() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("vendors").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); toast({ title: "Vendor Removed" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
