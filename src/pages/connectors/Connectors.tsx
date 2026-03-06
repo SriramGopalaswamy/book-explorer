@@ -137,10 +137,7 @@ export default function Connectors() {
   return (
     <MainLayout title="Connectors" subtitle="Connect external platforms">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Connectors</h1>
-          <p className="text-muted-foreground">Connect external platforms and sync business data into your accounting system</p>
-        </div>
+        <p className="text-muted-foreground">Connect external platforms and sync business data into your accounting system</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {CONNECTORS.map(connector => {
