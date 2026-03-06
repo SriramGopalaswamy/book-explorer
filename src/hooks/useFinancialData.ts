@@ -35,16 +35,39 @@ export interface DateRangeFilter {
 }
 
 const categoryColors: Record<string, string> = {
-  "Salaries":        "hsl(328, 86%, 58%)",  // magenta-pink — brand accent, highly visible
+  "Salaries":        "hsl(328, 86%, 58%)",  // magenta-pink
   "Operations":      "hsl(262, 70%, 65%)",  // bright violet
   "Marketing":       "hsl(38, 95%, 55%)",   // vivid amber
   "Rent & Utilities":"hsl(199, 85%, 55%)",  // bright sky blue
   "Software":        "hsl(142, 65%, 48%)",  // bright green
-  "Others":          "hsl(220, 25%, 60%)",  // medium steel blue — readable on both themes
-  "Sales":           "hsl(328, 86%, 58%)",  // magenta-pink
-  "Services":        "hsl(262, 70%, 65%)",  // bright violet
-  "Investments":     "hsl(38, 95%, 55%)",   // vivid amber
+  "Others":          "hsl(220, 25%, 60%)",  // medium steel blue
+  "Sales":           "hsl(15, 85%, 55%)",   // coral orange
+  "Services":        "hsl(175, 65%, 45%)",  // teal
+  "Investments":     "hsl(55, 80%, 50%)",   // golden yellow
+  "Travel":          "hsl(290, 60%, 55%)",  // purple
+  "Insurance":       "hsl(100, 55%, 50%)",  // lime green
+  "Professional Fees":"hsl(350, 70%, 50%)", // crimson
+  "Uncategorized":   "hsl(220, 15%, 55%)",  // neutral gray
 };
+
+// Dynamic fallback palette for categories not in the static map
+const fallbackPalette = [
+  "hsl(210, 70%, 55%)", "hsl(30, 80%, 55%)", "hsl(160, 60%, 45%)",
+  "hsl(280, 65%, 55%)", "hsl(0, 70%, 55%)",  "hsl(70, 60%, 48%)",
+  "hsl(190, 75%, 50%)", "hsl(310, 60%, 55%)", "hsl(120, 50%, 45%)",
+  "hsl(240, 55%, 60%)",
+];
+let fallbackIndex = 0;
+const dynamicColorCache: Record<string, string> = {};
+
+function getCategoryColor(name: string): string {
+  if (categoryColors[name]) return categoryColors[name];
+  if (!dynamicColorCache[name]) {
+    dynamicColorCache[name] = fallbackPalette[fallbackIndex % fallbackPalette.length];
+    fallbackIndex++;
+  }
+  return dynamicColorCache[name];
+}
 
 // Org-scoped via RLS — no user_id filter needed for SELECT
 export function useFinancialRecords() {
@@ -224,7 +247,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       return Array.from(categoryMap.entries()).map(([name, value]) => ({
         name,
         value,
-        color: categoryColors[name] || "hsl(220, 9%, 46%)",
+        color: getCategoryColor(name),
       }));
     },
     enabled: !!user || isDevMode,
