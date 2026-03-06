@@ -543,6 +543,13 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
                 </DropdownMenuItem>
               </>
             )}
+            {(a.status === "under_maintenance" || a.status === "transferred") && (
+              <DropdownMenuItem onClick={() => {
+                updateAsset.mutate({ id: a.id, status: "active" } as any);
+              }}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Reactivate
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedAsset(a); setDeleteOpen(true); }}>
               <Trash2 className="h-4 w-4 mr-2" /> Delete
             </DropdownMenuItem>
