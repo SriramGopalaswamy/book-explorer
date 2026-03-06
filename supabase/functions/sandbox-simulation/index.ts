@@ -3253,6 +3253,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
   {
     const wfStart = Date.now();
     try {
+      // Clean up previous simulation CTC template to avoid duplicates
+      await client.from("master_ctc_components").delete()
+        .eq("organization_id", orgId).eq("component_name", "SIM Performance Bonus");
       // Create a master CTC template
       const { data: template, error: tplErr } = await client.from("master_ctc_components").insert({
         organization_id: orgId,
