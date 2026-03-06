@@ -98,6 +98,12 @@ import WorkOrdersPage from "./pages/manufacturing/WorkOrders";
 import MaterialConsumption from "./pages/manufacturing/MaterialConsumption";
 import FinishedGoods from "./pages/manufacturing/FinishedGoods";
 
+// Warehouse
+import BinLocationsPage from "./pages/warehouse/BinLocations";
+import StockTransfersPage from "./pages/warehouse/StockTransfers";
+import PickingListsPage from "./pages/warehouse/PickingLists";
+import InventoryCountsPage from "./pages/warehouse/InventoryCounts";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -176,6 +182,11 @@ const App = () => (
                 <Route path="/manufacturing/consumption" element={<Guarded><FinanceRoute><MaterialConsumption /></FinanceRoute></Guarded>} />
                 <Route path="/manufacturing/finished-goods" element={<Guarded><FinanceRoute><FinishedGoods /></FinanceRoute></Guarded>} />
 
+                {/* Warehouse */}
+                <Route path="/warehouse/bins" element={<Guarded><FinanceRoute><BinLocationsPage /></FinanceRoute></Guarded>} />
+                <Route path="/warehouse/transfers" element={<Guarded><FinanceRoute><StockTransfersPage /></FinanceRoute></Guarded>} />
+                <Route path="/warehouse/picking" element={<Guarded><FinanceRoute><PickingListsPage /></FinanceRoute></Guarded>} />
+                <Route path="/warehouse/counts" element={<Guarded><FinanceRoute><InventoryCountsPage /></FinanceRoute></Guarded>} />
                 {/* HRMS */}
                 <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
                 <Route path="/hrms/attendance" element={<Guarded><HRAdminRoute><Attendance /></HRAdminRoute></Guarded>} />
