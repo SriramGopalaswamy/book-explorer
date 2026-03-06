@@ -182,13 +182,25 @@ export default function Employees() {
     manager_id: "" as string,
   });
 
+  // Get the on-leave profile/user IDs from stats (same source as KPI)
+  const { onLeaveIds } = stats;
+
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
       emp.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.department?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || emp.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    if (statusFilter === "all") return matchesSearch;
+    if (statusFilter === "on_leave") {
+      return matchesSearch && (onLeaveIds.profileIds.has(emp.id) || onLeaveIds.userIds.has(emp.user_id));
+    }
+    if (statusFilter === "active") {
+      // Active = not inactive and not on leave
+      return matchesSearch && emp.status !== "inactive" && !onLeaveIds.profileIds.has(emp.id) && !onLeaveIds.userIds.has(emp.user_id);
+    }
+    // inactive
+    return matchesSearch && emp.status === statusFilter;
   });
 
   const pagination = usePagination(filteredEmployees, 12);
