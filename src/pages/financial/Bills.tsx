@@ -1216,7 +1216,7 @@ export default function Bills() {
               disabled={saveMutation.isPending || uploading || extracting}
               className="gap-2"
             >
-              {saveMutation.isPending && form.status !== "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
+              {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : editingBillId ? "Update Bill" : "Save Bill"}
             </Button>
           </DialogFooter>
         </DialogContent>
