@@ -31,6 +31,7 @@ export interface ApprovalRequest {
   rejection_reason: string | null;
   notes: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export function useApprovalWorkflows() {
@@ -48,11 +49,11 @@ export function useCreateApprovalWorkflow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (w: { workflow_type: string; threshold_amount: number; required_role: string }) => {
-      const { error } = await supabase.from("approval_workflows").insert({
+      const { error } = await supabase.from("approval_workflows").insert([{
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
         required_role: w.required_role,
-      });
+      }] as any);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["approval-workflows"] }); toast.success("Workflow created"); },

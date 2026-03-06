@@ -35,10 +35,10 @@ export default function SalesReturnsPage() {
     });
   };
 
-  if (isLoading) return <MainLayout><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
+  if (isLoading) return <MainLayout title="Sales Returns"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
 
   return (
-    <MainLayout>
+    <MainLayout title="Sales Returns">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
