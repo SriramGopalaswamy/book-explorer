@@ -84,6 +84,14 @@ import InventoryWarehouses from "./pages/inventory/Warehouses";
 import StockLedger from "./pages/inventory/StockLedger";
 import StockAdjustments from "./pages/inventory/StockAdjustments";
 
+// Procurement
+import PurchaseOrders from "./pages/procurement/PurchaseOrders";
+import GoodsReceipts from "./pages/procurement/GoodsReceipts";
+
+// Sales
+import SalesOrders from "./pages/sales/SalesOrders";
+import DeliveryNotes from "./pages/sales/DeliveryNotes";
+
 // Profile
 import Profile from "./pages/Profile";
 
@@ -147,6 +155,14 @@ const App = () => (
                 <Route path="/inventory/warehouses" element={<Guarded><FinanceRoute><InventoryWarehouses /></FinanceRoute></Guarded>} />
                 <Route path="/inventory/stock-ledger" element={<Guarded><FinanceRoute><StockLedger /></FinanceRoute></Guarded>} />
                 <Route path="/inventory/adjustments" element={<Guarded><FinanceRoute><StockAdjustments /></FinanceRoute></Guarded>} />
+
+                {/* Procurement */}
+                <Route path="/procurement/purchase-orders" element={<Guarded><FinanceRoute><PurchaseOrders /></FinanceRoute></Guarded>} />
+                <Route path="/procurement/goods-receipts" element={<Guarded><FinanceRoute><GoodsReceipts /></FinanceRoute></Guarded>} />
+
+                {/* Sales */}
+                <Route path="/sales/orders" element={<Guarded><FinanceRoute><SalesOrders /></FinanceRoute></Guarded>} />
+                <Route path="/sales/deliveries" element={<Guarded><FinanceRoute><DeliveryNotes /></FinanceRoute></Guarded>} />
 
                 {/* HRMS */}
                 <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
