@@ -499,6 +499,7 @@ export function Sidebar() {
                 onItemClick={closeMobile}
               />
             )}
+            {isSuperAdmin && (
               <NavSection
                 title="Platform"
                 items={[
