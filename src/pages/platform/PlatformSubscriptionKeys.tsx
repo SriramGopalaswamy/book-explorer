@@ -436,6 +436,14 @@ function SubscriptionKeysContentInner() {
           </CardContent>
         </Card>
       </div>
+    </>
+  );
+}
+
+export default function PlatformSubscriptionKeys() {
+  return (
+    <MainLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
+      <SubscriptionKeysContent />
     </MainLayout>
   );
 }
