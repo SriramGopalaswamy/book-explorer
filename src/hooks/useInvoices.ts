@@ -244,6 +244,8 @@ export function useUpdateInvoiceStatus() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
       // Fire financial notification
       if (["sent", "paid"].includes(variables.status)) {

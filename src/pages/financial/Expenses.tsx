@@ -154,6 +154,8 @@ export default function Expenses() {
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       toast({ title: "Expense marked as Paid" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
