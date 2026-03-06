@@ -156,6 +156,23 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    // Fetch organization settings for authorized signatory name
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    let authorizedSignatoryName = "";
+    if (profile?.organization_id) {
+      const { data: orgSettings } = await supabaseClient
+        .from("organization_settings")
+        .select("authorized_signatory_name")
+        .eq("organization_id", profile.organization_id)
+        .maybeSingle();
+      authorizedSignatoryName = orgSettings?.authorized_signatory_name || "";
+    }
+
     const s: InvoiceSettings = settings || {};
 
     console.log(`Generating PDF for invoice: ${invoice.invoice_number}`);
@@ -517,7 +534,13 @@ serve(async (req) => {
       }
     }
 
-    drawText(page, "Authorized Signature", rightEdge - 130, 70, regular, 8, BRAND_COLORS.muted);
+    // Print signatory name if available from organization settings
+    if (authorizedSignatoryName) {
+      drawText(page, authorizedSignatoryName, rightEdge - 130, 80, bold, 9, BRAND_COLORS.text);
+      drawText(page, "Authorized Signatory", rightEdge - 130, 68, regular, 8, BRAND_COLORS.muted);
+    } else {
+      drawText(page, "Authorized Signatory", rightEdge - 130, 70, regular, 8, BRAND_COLORS.muted);
+    }
 
     // ========== FOOTER ==========
     if (s.custom_footer_text) {
