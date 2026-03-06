@@ -227,42 +227,20 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
       console.log(`[Attendance Upload] ${row.employee_id} | date=${row.date} | raw_in="${row.check_in}" → ${checkInTime} → ${checkInDate} | raw_out="${row.check_out}" → ${checkOutTime} → ${checkOutDate}`);
 
-      // First try to find an existing record to update (avoids upsert conflict issues)
-      const { data: existing } = await supabase
-        .from("attendance_records")
-        .select("id")
-        .eq("profile_id", profile.id)
-        .eq("date", row.date)
-        .maybeSingle();
-
-      let error;
-      if (existing) {
-        // Update the existing record
-        const res = await supabase.from("attendance_records")
-          .update({
-            status: row.status || "present",
-            check_in: checkInDate,
-            check_out: checkOutDate,
-            notes: row.notes || null,
-            user_id: resolvedUserId,
-          })
-          .eq("id", existing.id);
-        error = res.error;
-      } else {
-        // Insert a new record
-        const res = await supabase.from("attendance_records")
-          .insert({
-            user_id: resolvedUserId,
-            profile_id: profile.id,
-            date: row.date,
-            status: row.status || "present",
-            check_in: checkInDate,
-            check_out: checkOutDate,
-            notes: row.notes || null,
-            ...(orgId ? { organization_id: orgId } : {}),
-          });
-        error = res.error;
-      }
+      // Use upsert with profile_id+date conflict to handle re-uploads cleanly
+      const { error } = await supabase.from("attendance_records")
+        .upsert({
+          user_id: resolvedUserId,
+          profile_id: profile.id,
+          date: row.date,
+          status: row.status || "present",
+          check_in: checkInDate,
+          check_out: checkOutDate,
+          notes: row.notes || null,
+          ...(orgId ? { organization_id: orgId } : {}),
+        }, {
+          onConflict: "profile_id,date",
+        });
 
       if (error) errors.push(`Row ${row.employee_id} ${row.date}: ${error.message}`);
       else success++;
