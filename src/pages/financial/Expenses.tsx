@@ -107,7 +107,7 @@ export default function Expenses() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); toast({ title: "Expense Deleted" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -140,6 +140,8 @@ export default function Expenses() {
       queryClient.invalidateQueries({ queryKey: ["financial-records"] });
       queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast({ title: "Expense marked as Paid" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -187,6 +189,7 @@ export default function Expenses() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
       queryClient.invalidateQueries({ queryKey: ["expenses-my"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({ title: "Expense Created", description: "Your expense has been submitted for approval." });
       setCreateOpen(false);
       resetForm();
