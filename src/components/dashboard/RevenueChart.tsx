@@ -43,7 +43,7 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
             <span className="text-muted-foreground">Revenue</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-secondary" />
+            <div className="h-3 w-3 rounded-full bg-[hsl(346,77%,76%)]" />
             <span className="text-muted-foreground">Expenses</span>
           </div>
         </div>
@@ -65,8 +65,8 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
                   <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(346, 77%, 76%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(346, 77%, 76%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -107,7 +107,7 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
               <Area
                 type="monotone"
                 dataKey="expenses"
-                stroke="hsl(var(--muted-foreground))"
+                stroke="hsl(346, 77%, 76%)"
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorExpenses)"
