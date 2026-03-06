@@ -91,6 +91,7 @@ import GoodsReceipts from "./pages/procurement/GoodsReceipts";
 // Sales
 import SalesOrders from "./pages/sales/SalesOrders";
 import DeliveryNotes from "./pages/sales/DeliveryNotes";
+import SalesReturnsPage from "./pages/sales/SalesReturns";
 
 // Manufacturing
 import BillOfMaterials from "./pages/manufacturing/BillOfMaterials";
@@ -103,6 +104,12 @@ import BinLocationsPage from "./pages/warehouse/BinLocations";
 import StockTransfersPage from "./pages/warehouse/StockTransfers";
 import PickingListsPage from "./pages/warehouse/PickingLists";
 import InventoryCountsPage from "./pages/warehouse/InventoryCounts";
+
+// Payments & Returns
+import PaymentReceipts from "./pages/financial/PaymentReceipts";
+import VendorPaymentsPage from "./pages/financial/VendorPayments";
+import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
+import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
 
 // Profile
 import Profile from "./pages/Profile";
@@ -171,10 +178,12 @@ const App = () => (
                 {/* Procurement */}
                 <Route path="/procurement/purchase-orders" element={<Guarded><FinanceRoute><PurchaseOrders /></FinanceRoute></Guarded>} />
                 <Route path="/procurement/goods-receipts" element={<Guarded><FinanceRoute><GoodsReceipts /></FinanceRoute></Guarded>} />
+                <Route path="/procurement/returns" element={<Guarded><FinanceRoute><PurchaseReturnsPage /></FinanceRoute></Guarded>} />
 
                 {/* Sales */}
                 <Route path="/sales/orders" element={<Guarded><FinanceRoute><SalesOrders /></FinanceRoute></Guarded>} />
                 <Route path="/sales/deliveries" element={<Guarded><FinanceRoute><DeliveryNotes /></FinanceRoute></Guarded>} />
+                <Route path="/sales/returns" element={<Guarded><FinanceRoute><SalesReturnsPage /></FinanceRoute></Guarded>} />
 
                 {/* Manufacturing */}
                 <Route path="/manufacturing/bom" element={<Guarded><FinanceRoute><BillOfMaterials /></FinanceRoute></Guarded>} />

@@ -184,7 +184,7 @@ export default function ApprovalWorkflowsPage() {
                         <TableCell className="font-mono text-foreground">{r.document_number || "—"}</TableCell>
                         <TableCell className="text-foreground">{r.document_amount ? `₹${Number(r.document_amount).toLocaleString()}` : "—"}</TableCell>
                         <TableCell><Badge variant={r.status === "approved" ? "default" : "destructive"}>{r.status}</Badge></TableCell>
-                        <TableCell className="text-foreground">{format(new Date(r.updated_at), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-foreground">{format(new Date(r.approved_at || r.rejected_at || r.created_at), "dd MMM yyyy")}</TableCell>
                       </TableRow>
                     ))}
                     {processedRequests.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No history yet</TableCell></TableRow>}
