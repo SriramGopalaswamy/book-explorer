@@ -51,7 +51,7 @@ export default function GoodsReceipts() {
   ];
 
   return (
-    <MainLayout>
+    <MainLayout title="Goods Receipts" subtitle="Track incoming material">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Goods Receipts</h1>

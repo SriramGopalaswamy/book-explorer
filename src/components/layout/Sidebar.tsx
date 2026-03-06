@@ -32,6 +32,8 @@ import {
   ShieldCheck,
   UserCheck,
   Truck,
+  ShoppingCart,
+  ShoppingBag,
   Quote,
   FileX,
   Receipt,
@@ -53,6 +55,7 @@ import {
   Database,
   Boxes,
   Warehouse,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
