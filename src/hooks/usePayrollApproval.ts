@@ -20,6 +20,8 @@ export function useSubmitForReview() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
       toast.success("Payroll submitted for review");
     },
     onError: (err: any) => toast.error(err.message),
@@ -38,6 +40,9 @@ export function useApprovePayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast.success("Payroll approved");
     },
     onError: (err: any) => toast.error(err.message),
@@ -56,6 +61,8 @@ export function useLockApprovedPayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
       toast.success("Payroll locked — no further modifications allowed");
     },
     onError: (err: any) => toast.error(err.message),
