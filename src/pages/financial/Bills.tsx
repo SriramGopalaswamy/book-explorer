@@ -4,7 +4,7 @@ import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
   Eye, ExternalLink, CheckCircle2, Clock, AlertCircle, FileText, X,
   AlertTriangle, Building2, Calendar, ChevronDown, FileCheck, Receipt,
-  ChevronsUpDown, Check as CheckIcon,
+  ChevronsUpDown, Check as CheckIcon, Pencil,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
