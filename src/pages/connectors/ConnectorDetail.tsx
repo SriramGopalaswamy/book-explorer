@@ -183,7 +183,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <IndianRupee className="h-8 w-8 text-green-500" />
+                <IndianRupee className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">
                     ₹{(stats?.totalRevenue || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
