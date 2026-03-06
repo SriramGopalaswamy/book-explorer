@@ -418,6 +418,14 @@ function IntegrityContentInner() {
           </CardContent>
         </Card>
       )}
+    </>
+  );
+}
+
+export default function PlatformIntegrity() {
+  return (
+    <MainLayout title="Financial System Verification" subtitle="Production-grade integrity engine v2">
+      <IntegrityContent />
     </MainLayout>
   );
 }

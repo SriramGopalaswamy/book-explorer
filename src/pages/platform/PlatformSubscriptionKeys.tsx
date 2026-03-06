@@ -85,7 +85,11 @@ async function sha256(text: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export default function PlatformSubscriptionKeys() {
+export function SubscriptionKeysContent() {
+  return <SubscriptionKeysContentInner />;
+}
+
+function SubscriptionKeysContentInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -217,7 +221,7 @@ export default function PlatformSubscriptionKeys() {
   };
 
   return (
-    <MainLayout title="Subscription Keys" subtitle="Generate and manage tenant activation keys">
+    <>
       <div className="space-y-6">
         {/* Actions bar */}
         <div className="flex items-center justify-between">
