@@ -205,6 +205,7 @@ export function useEmployeeStats() {
     active: employees.filter((e) => e.status !== "inactive").length - onLeaveCount,
     onLeave: onLeaveCount,
     inactive: employees.filter((e) => e.status === "inactive").length,
+    onLeaveIds: { profileIds: leaveProfileIds, userIds: leaveUserIds },
   };
 
   return stats;
