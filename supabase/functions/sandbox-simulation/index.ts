@@ -376,7 +376,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   let seededProfiles = 0;
 
-  // Always ensure auth users exist for ALL employees (fixes orphaned user_id after reset)
+  // Seed employees — optimized: skip slow getUserById calls, just try create and handle errors
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
@@ -388,31 +388,21 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         .select("id, user_id").eq("organization_id", orgId).eq("email", email).maybeSingle();
 
       if (existingProfile) {
-        // Profile exists — verify the auth user still exists
-        const { data: authCheck } = await client.auth.admin.getUserById(existingProfile.user_id);
-        if (authCheck?.user) {
-          authUserId = existingProfile.user_id;
-        } else {
-          // Auth user was deleted — re-create it and update profile
-          const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-            email, password: tempPassword, email_confirm: true,
-            user_metadata: { full_name: emp.name },
-          });
-          if (createErr) {
-            // Maybe email was re-registered under different ID
-            if (createErr.message?.includes("already been registered")) {
-              const { data: existingUsers } = await client.auth.admin.listUsers();
-              const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
-              if (found) authUserId = found.id;
-            }
-          } else {
-            authUserId = newUser.user.id;
-          }
-          if (authUserId) {
-            // Update profile to point to new auth user
-            await client.from("profiles").update({ user_id: authUserId }).eq("id", existingProfile.id);
-          }
+        // Profile exists — try to use existing user_id directly (skip slow getUserById)
+        // If the auth user was deleted, the FK will still work for service_role queries
+        authUserId = existingProfile.user_id;
+        
+        // Quick validation: try creating the auth user — if it already exists, we're good
+        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
+          email, password: tempPassword, email_confirm: true,
+          user_metadata: { full_name: emp.name },
+        });
+        if (!createErr && newUser?.user) {
+          // Auth user didn't exist (was orphaned) — update profile with new user_id
+          authUserId = newUser.user.id;
+          await client.from("profiles").update({ user_id: authUserId }).eq("id", existingProfile.id);
         }
+        // If "already registered" error — the user exists, use existing user_id
         seededProfiles++;
       } else {
         // No profile — create auth user + profile
@@ -422,7 +412,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         });
         if (createErr) {
           if (createErr.message?.includes("already been registered")) {
-            const { data: existingUsers } = await client.auth.admin.listUsers();
+            // User exists but no profile — find their ID via a lightweight approach
+            const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
             const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
             if (found) authUserId = found.id;
           } else {
@@ -2332,6 +2323,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     try {
       // Delete any existing record first to avoid duplicate key violation
       await client.from("attendance_daily").delete()
+        .eq("organization_id", orgId)
         .eq("profile_id", profileList[0].id).eq("attendance_date", yesterday);
       const { error } = await client.from("attendance_daily").insert({
         profile_id: profileList[0].id, organization_id: orgId,
