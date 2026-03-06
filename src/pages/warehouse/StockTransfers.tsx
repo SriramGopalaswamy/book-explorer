@@ -1,0 +1,117 @@
+import { useState } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DataTable, Column } from "@/components/ui/data-table";
+import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2 } from "lucide-react";
+import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
+import { format } from "date-fns";
+
+const statusColors: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  in_transit: "bg-yellow-500/20 text-yellow-400",
+  received: "bg-green-500/20 text-green-400",
+  cancelled: "bg-destructive/20 text-destructive",
+};
+
+export default function StockTransfers() {
+  const { data: transfers = [], isLoading } = useStockTransfers();
+  const createTransfer = useCreateStockTransfer();
+  const updateStatus = useUpdateTransferStatus();
+  const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
+  const [items, setItems] = useState([{ item_name: "", quantity: 1 }]);
+
+  const filtered = transfers.filter((t) => t.transfer_number.toLowerCase().includes(search.toLowerCase()));
+
+  const stats = {
+    total: transfers.length,
+    draft: transfers.filter((t) => t.status === "draft").length,
+    in_transit: transfers.filter((t) => t.status === "in_transit").length,
+    received: transfers.filter((t) => t.status === "received").length,
+  };
+
+  const addItem = () => setItems([...items, { item_name: "", quantity: 1 }]);
+  const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
+  const updateItem = (i: number, field: string, value: any) => { const u = [...items]; (u[i] as any)[field] = value; setItems(u); };
+
+  const handleCreate = () => {
+    if (!form.from_warehouse_id || !form.to_warehouse_id || items.some((i) => !i.item_name)) return;
+    createTransfer.mutate({ ...form, items }, {
+      onSuccess: () => {
+        setDialogOpen(false);
+        setForm({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
+        setItems([{ item_name: "", quantity: 1 }]);
+      },
+    });
+  };
+
+  const columns: Column<StockTransfer>[] = [
+    { key: "transfer_number", header: "Transfer #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.transfer_number}</span> },
+    { key: "transfer_date", header: "Date", render: (r) => format(new Date(r.transfer_date), "dd MMM yyyy") },
+    {
+      key: "status", header: "Status",
+      render: (r) => (
+        <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
+          <SelectTrigger className="w-[140px] h-8"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {Object.keys(statusColors).map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      ),
+    },
+    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
+  ];
+
+  return (
+    <MainLayout title="Stock Transfers" subtitle="Move inventory between warehouses">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div><h1 className="text-2xl font-bold text-foreground">Stock Transfers</h1><p className="text-muted-foreground">Move inventory between warehouses</p></div>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Transfer</Button></DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Create Stock Transfer</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>From Warehouse ID *</Label><Input value={form.from_warehouse_id} onChange={(e) => setForm({ ...form, from_warehouse_id: e.target.value })} /></div>
+                  <div><Label>To Warehouse ID *</Label><Input value={form.to_warehouse_id} onChange={(e) => setForm({ ...form, to_warehouse_id: e.target.value })} /></div>
+                  <div><Label>Transfer Date</Label><Input type="date" value={form.transfer_date} onChange={(e) => setForm({ ...form, transfer_date: e.target.value })} /></div>
+                </div>
+                <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between"><Label className="text-base font-semibold">Items</Label><Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
+                  {items.map((item, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_100px_32px] gap-2 items-end">
+                      <div><Label className="text-xs">Item Name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} /></div>
+                      <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  ))}
+                </div>
+                <Button onClick={handleCreate} disabled={createTransfer.isPending} className="w-full">{createTransfer.isPending ? "Creating..." : "Create Transfer"}</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ArrowRightLeft className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Clock className="h-8 w-8 text-muted-foreground" /><div><p className="text-2xl font-bold text-foreground">{stats.draft}</p><p className="text-xs text-muted-foreground">Draft</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Truck className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.in_transit}</p><p className="text-xs text-muted-foreground">In Transit</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.received}</p><p className="text-xs text-muted-foreground">Received</p></div></div></CardContent></Card>
+        </div>
+
+        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No transfers yet" />
+      </div>
+    </MainLayout>
+  );
+}
