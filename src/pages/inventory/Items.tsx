@@ -1,0 +1,194 @@
+import { useState } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { useItems, useCreateItem, useDeleteItem } from "@/hooks/useInventory";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const ITEM_TYPES = [
+  { value: "product", label: "Product" },
+  { value: "service", label: "Service" },
+  { value: "raw_material", label: "Raw Material" },
+  { value: "finished_good", label: "Finished Good" },
+  { value: "consumable", label: "Consumable" },
+];
+
+export default function Items() {
+  const { data: items, isLoading } = useItems();
+  const createItem = useCreateItem();
+  const deleteItem = useDeleteItem();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({
+    name: "", sku: "", category: "general", item_type: "product",
+    purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "",
+    opening_stock: "", description: "", barcode: "",
+  });
+
+  const filtered = (items || []).filter((i: any) =>
+    i.name?.toLowerCase().includes(search.toLowerCase()) ||
+    i.sku?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalItems = items?.length || 0;
+  const lowStock = (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
+  const totalValue = (items || []).reduce((s: number, i: any) => s + Number(i.stock_value || 0), 0);
+
+  const handleCreate = () => {
+    createItem.mutate({
+      name: form.name,
+      sku: form.sku,
+      category: form.category,
+      item_type: form.item_type,
+      purchase_price: Number(form.purchase_price) || 0,
+      selling_price: Number(form.selling_price) || 0,
+      hsn_code: form.hsn_code || null,
+      reorder_level: Number(form.reorder_level) || 0,
+      opening_stock: Number(form.opening_stock) || 0,
+      current_stock: Number(form.opening_stock) || 0,
+      description: form.description || null,
+      barcode: form.barcode || null,
+    }, {
+      onSuccess: () => {
+        setOpen(false);
+        setForm({ name: "", sku: "", category: "general", item_type: "product", purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "", opening_stock: "", description: "", barcode: "" });
+      },
+    });
+  };
+
+  const typeBadgeColor = (t: string) => {
+    const map: Record<string, string> = {
+      product: "default", service: "secondary", raw_material: "outline",
+      finished_good: "default", consumable: "secondary",
+    };
+    return (map[t] || "default") as any;
+  };
+
+  return (
+    <MainLayout title="Items" subtitle="Manage your item master — products, raw materials, and services">
+      <div className="space-y-6 animate-fade-in">
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10"><Package className="h-6 w-6 text-primary" /></div>
+            <div><p className="text-sm text-muted-foreground">Total Items</p><p className="text-2xl font-bold text-foreground">{totalItems}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-destructive/10"><Archive className="h-6 w-6 text-destructive" /></div>
+            <div><p className="text-sm text-muted-foreground">Low Stock</p><p className="text-2xl font-bold text-foreground">{lowStock}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-accent/20"><Boxes className="h-6 w-6 text-accent-foreground" /></div>
+            <div><p className="text-sm text-muted-foreground">Stock Value</p><p className="text-2xl font-bold text-foreground">₹{totalValue.toLocaleString("en-IN")}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-secondary/50"><ShoppingCart className="h-6 w-6 text-secondary-foreground" /></div>
+            <div><p className="text-sm text-muted-foreground">Active</p><p className="text-2xl font-bold text-foreground">{(items || []).filter((i: any) => i.is_active).length}</p></div>
+          </CardContent></Card>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search items..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" />Add Item</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>New Item</DialogTitle></DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+                  <div><Label>SKU *</Label><Input value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Type</Label>
+                    <Select value={form.item_type} onValueChange={v => setForm(f => ({ ...f, item_type: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{ITEM_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Category</Label><Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Purchase Price</Label><Input type="number" value={form.purchase_price} onChange={e => setForm(f => ({ ...f, purchase_price: e.target.value }))} /></div>
+                  <div><Label>Selling Price</Label><Input type="number" value={form.selling_price} onChange={e => setForm(f => ({ ...f, selling_price: e.target.value }))} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>HSN Code</Label><Input value={form.hsn_code} onChange={e => setForm(f => ({ ...f, hsn_code: e.target.value }))} /></div>
+                  <div><Label>Barcode</Label><Input value={form.barcode} onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Reorder Level</Label><Input type="number" value={form.reorder_level} onChange={e => setForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
+                  <div><Label>Opening Stock</Label><Input type="number" value={form.opening_stock} onChange={e => setForm(f => ({ ...f, opening_stock: e.target.value }))} /></div>
+                </div>
+                <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+                <Button onClick={handleCreate} disabled={!form.name || !form.sku || createItem.isPending}>
+                  {createItem.isPending ? "Creating..." : "Create Item"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Purchase ₹</TableHead>
+                    <TableHead className="text-right">Selling ₹</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No items found. Add your first item to get started.</TableCell></TableRow>
+                  ) : filtered.map((item: any) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">{item.sku}</TableCell>
+                      <TableCell><Badge variant={typeBadgeColor(item.item_type)}>{item.item_type?.replace("_", " ")}</Badge></TableCell>
+                      <TableCell className="text-muted-foreground">{item.category}</TableCell>
+                      <TableCell className="text-right text-foreground">₹{Number(item.purchase_price).toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right text-foreground">₹{Number(item.selling_price).toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={Number(item.current_stock) <= Number(item.reorder_level) && Number(item.reorder_level) > 0 ? "text-destructive font-semibold" : "text-foreground"}>
+                          {Number(item.current_stock)}
+                        </span>
+                      </TableCell>
+                      <TableCell><Badge variant={item.is_active ? "default" : "secondary"}>{item.is_active ? "Active" : "Inactive"}</Badge></TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => deleteItem.mutate(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </MainLayout>
+  );
+}
