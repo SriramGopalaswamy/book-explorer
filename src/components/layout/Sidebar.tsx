@@ -385,6 +385,9 @@ export function Sidebar() {
   const visibleSalesNav = (isEmployee || isManager || isHR) ? []
     : isModuleEnabled("financial") ? salesNav
     : [];
+  const visibleManufacturingNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? manufacturingNav
+    : [];
   const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
     : isManager
     ? managerHrmsNav
