@@ -931,11 +931,11 @@ export default function Bills() {
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ScanLine className="h-5 w-5 text-primary" />
-              {aiExtracted ? "AI-Scanned Bill — Review & Save" : "Add Vendor Bill"}
+              {editingBillId ? <Pencil className="h-5 w-5 text-primary" /> : <ScanLine className="h-5 w-5 text-primary" />}
+              {editingBillId ? "Edit Draft Bill" : aiExtracted ? "AI-Scanned Bill — Review & Save" : "Add Vendor Bill"}
             </DialogTitle>
             <DialogDescription>
-              Upload a bill image or PDF for AI extraction, or enter details manually.
+              {editingBillId ? "Update the bill details below." : "Upload a bill image or PDF for AI extraction, or enter details manually."}
             </DialogDescription>
           </DialogHeader>
 
