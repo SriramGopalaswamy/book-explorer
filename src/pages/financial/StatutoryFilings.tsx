@@ -54,6 +54,10 @@ import {
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+import { useGSTFilingStatus, useUpdateFilingStatus } from "@/hooks/useCurrencyAndFiling";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
@@ -197,6 +201,10 @@ export default function StatutoryFilings() {
   const [quarter, setQuarter] = useState(defaults.currentQuarter);
   const [month, setMonth] = useState(defaults.currentMonth);
   const { data: payrollFlags } = usePayrollFlags();
+  const { data: filingStatuses = [] } = useGSTFilingStatus(fy);
+  const updateFiling = useUpdateFilingStatus();
+  const [filingDialog, setFilingDialog] = useState<{ type: string; open: boolean }>({ type: "", open: false });
+  const [filingForm, setFilingForm] = useState({ status: "not_started", arn_number: "", challan_number: "", filed_date: "" });
 
   // Compute date ranges
   const fyRange = useMemo(() => getFinancialYearRange(fy), [fy]);
