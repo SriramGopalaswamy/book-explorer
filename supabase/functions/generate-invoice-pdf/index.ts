@@ -165,12 +165,23 @@ serve(async (req) => {
 
     let authorizedSignatoryName = "";
     if (profile?.organization_id) {
-      const { data: orgSettings } = await supabaseClient
-        .from("organization_settings")
-        .select("authorized_signatory_name")
-        .eq("organization_id", profile.organization_id)
-        .maybeSingle();
-      authorizedSignatoryName = orgSettings?.authorized_signatory_name || "";
+      // Check organization_settings first, then fall back to organization_compliance
+      const [settingsRes, complianceRes] = await Promise.all([
+        supabaseClient
+          .from("organization_settings")
+          .select("authorized_signatory_name")
+          .eq("organization_id", profile.organization_id)
+          .maybeSingle(),
+        supabaseClient
+          .from("organization_compliance")
+          .select("authorized_signatory_name")
+          .eq("organization_id", profile.organization_id)
+          .maybeSingle(),
+      ]);
+      authorizedSignatoryName =
+        settingsRes.data?.authorized_signatory_name ||
+        complianceRes.data?.authorized_signatory_name ||
+        "";
     }
 
     const s: InvoiceSettings = settings || {};
