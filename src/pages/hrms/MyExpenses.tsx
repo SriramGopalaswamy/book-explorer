@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -23,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign, Plus, Loader2 } from "lucide-react";
+import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign, Plus, Loader2, X, Filter } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +54,7 @@ export default function MyExpenses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -148,15 +148,18 @@ export default function MyExpenses() {
     return e.category.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
   };
 
-  const allFiltered = expenses.filter(matchesSearch);
-  const pendingExpenses = expenses.filter(e => e.status === "pending" && matchesSearch(e));
-  const approvedExpenses = expenses.filter(e => e.status === "approved" && matchesSearch(e));
-  const paidExpenses = expenses.filter(e => e.status === "paid" && matchesSearch(e));
+  const matchesStatus = (e: Expense) => {
+    if (statusFilter === "all") return true;
+    return e.status === statusFilter;
+  };
+
+  const allFiltered = expenses.filter(e => matchesSearch(e) && matchesStatus(e));
+  const pendingExpenses = expenses.filter(e => e.status === "pending");
+  const approvedExpenses = expenses.filter(e => e.status === "approved");
+  const paidExpenses = expenses.filter(e => e.status === "paid");
+  const rejectedExpenses = expenses.filter(e => e.status === "rejected");
 
   const allPagination = usePagination(allFiltered, 10);
-  const pendingPagination = usePagination(pendingExpenses, 10);
-  const approvedPagination = usePagination(approvedExpenses, 10);
-  const paidPagination = usePagination(paidExpenses, 10);
 
   const renderReceiptButton = (receiptUrl: string | null) => {
     if (!receiptUrl) return <span className="text-muted-foreground text-sm">—</span>;
@@ -255,30 +258,38 @@ export default function MyExpenses() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search by category..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search by category..." value={search} onChange={(e) => { setSearch(e.target.value); allPagination.setPage(1); }} />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); allPagination.setPage(1); }}>
+              <SelectTrigger className="w-[150px] h-9 text-sm">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending ({pendingExpenses.length})</SelectItem>
+                <SelectItem value="approved">Approved ({approvedExpenses.length})</SelectItem>
+                <SelectItem value="paid">Paid ({paidExpenses.length})</SelectItem>
+                <SelectItem value="rejected">Rejected ({rejectedExpenses.length})</SelectItem>
+              </SelectContent>
+            </Select>
+            {(search || statusFilter !== "all") && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground h-9"
+                onClick={() => { setSearch(""); setStatusFilter("all"); allPagination.setPage(1); }}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />Clear
+              </Button>
+            )}
           </div>
           <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
             <Plus className="h-4 w-4" /> Create Expense
           </Button>
         </div>
 
-        <Tabs defaultValue="all">
-          <TabsList>
-            <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
-            <TabsTrigger value="pending" className="gap-2">
-              Pending
-              {pendingExpenses.length > 0 && <span className="ml-1 rounded-full bg-warning/20 text-warning text-xs px-1.5 py-0.5 font-semibold">{pendingExpenses.length}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="approved">Approved ({approvedExpenses.length})</TabsTrigger>
-            <TabsTrigger value="paid">Paid ({paidExpenses.length})</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all">{renderExpenseTable(allFiltered, allPagination)}</TabsContent>
-          <TabsContent value="pending">{renderExpenseTable(pendingExpenses, pendingPagination)}</TabsContent>
-          <TabsContent value="approved">{renderExpenseTable(approvedExpenses, approvedPagination)}</TabsContent>
-          <TabsContent value="paid">{renderExpenseTable(paidExpenses, paidPagination)}</TabsContent>
-        </Tabs>
+        {renderExpenseTable(allFiltered, allPagination)}
       </div>
 
       {/* Create Expense Dialog */}
