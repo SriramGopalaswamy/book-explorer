@@ -368,6 +368,7 @@ export default function Bills() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [previewBill, setPreviewBill] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -424,35 +425,54 @@ export default function Bills() {
 
       const matchedVendor = vendors.find((v: any) => v.name === form.vendor_name.trim());
 
-      const { data: bill, error } = await supabase
-        .from("bills")
-        .insert({
-          vendor_name: form.vendor_name.trim(),
-          vendor_id: matchedVendor?.id || null,
-          bill_number: billNum,
-          bill_date: form.bill_date,
-          due_date: form.due_date || null,
-          amount: subtotal,
-          tax_amount: tax,
-          total_amount: total,
-          notes: form.notes || null,
-          status: form.status,
-          attachment_url: uploadedFile?.path || null,
-          ai_extracted: aiExtracted,
-          user_id: user!.id,
-          tds_section: form.tds_section || null,
-          tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
-        } as any)
-        .select()
-        .single();
+      const payload = {
+        vendor_name: form.vendor_name.trim(),
+        vendor_id: matchedVendor?.id || null,
+        bill_number: billNum,
+        bill_date: form.bill_date,
+        due_date: form.due_date || null,
+        amount: subtotal,
+        tax_amount: tax,
+        total_amount: total,
+        notes: form.notes || null,
+        status: form.status,
+        attachment_url: uploadedFile?.path || null,
+        ai_extracted: aiExtracted,
+        tds_section: form.tds_section || null,
+        tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
+      };
 
-      if (error) throw error;
+      let billId: string;
+
+      if (editingBillId) {
+        // Update existing bill
+        const { data: bill, error } = await supabase
+          .from("bills")
+          .update(payload as any)
+          .eq("id", editingBillId)
+          .select()
+          .single();
+        if (error) throw error;
+        billId = bill.id;
+
+        // Delete existing line items and re-insert
+        await supabase.from("bill_items").delete().eq("bill_id", billId);
+      } else {
+        // Insert new bill
+        const { data: bill, error } = await supabase
+          .from("bills")
+          .insert({ ...payload, user_id: user!.id } as any)
+          .select()
+          .single();
+        if (error) throw error;
+        billId = bill.id;
+      }
 
       const validItems = lineItems.filter((i) => i.description.trim());
       if (validItems.length > 0) {
         const { error: itemsError } = await supabase.from("bill_items").insert(
           validItems.map((i) => ({
-            bill_id: bill.id,
+            bill_id: billId,
             description: i.description,
             quantity: i.quantity,
             rate: i.rate,
@@ -466,7 +486,7 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast.success("Bill saved successfully");
+      toast.success(editingBillId ? "Bill updated successfully" : "Bill saved successfully");
       closeDialog();
     },
     onError: (e: any) => toast.error(e.message),
