@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
+  TrendingUp, TrendingDown, DollarSign, BarChart3, FileText, Layers,
   Brain, Users,
 } from "lucide-react";
 import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod, useProfitLossAllTime } from "@/hooks/useAnalytics";
