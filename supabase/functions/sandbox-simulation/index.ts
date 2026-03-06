@@ -774,6 +774,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       const p = allProfilesList![pi];
       const st = attStatuses[(dayOffset + pi) % attStatuses.length];
       const isPresent = st === "P" || st === "HD";
+      // Delete any existing record for this profile+date to avoid duplicates
+      await client.from("attendance_daily").delete()
+        .eq("profile_id", p.id).eq("attendance_date", dateStr);
       const { error } = await client.from("attendance_daily").insert({
         profile_id: p.id, organization_id: orgId,
         attendance_date: dateStr, status: st,
