@@ -149,10 +149,16 @@ export default function MyExpenses() {
     return e.category.toLowerCase().includes(q) || (e.description ?? "").toLowerCase().includes(q);
   };
 
-  const allFiltered = expenses.filter(matchesSearch);
-  const pendingExpenses = expenses.filter(e => e.status === "pending" && matchesSearch(e));
-  const approvedExpenses = expenses.filter(e => e.status === "approved" && matchesSearch(e));
-  const paidExpenses = expenses.filter(e => e.status === "paid" && matchesSearch(e));
+  const matchesStatus = (e: Expense) => {
+    if (statusFilter === "all") return true;
+    return e.status === statusFilter;
+  };
+
+  const allFiltered = expenses.filter(e => matchesSearch(e) && matchesStatus(e));
+  const pendingExpenses = expenses.filter(e => e.status === "pending");
+  const approvedExpenses = expenses.filter(e => e.status === "approved");
+  const paidExpenses = expenses.filter(e => e.status === "paid");
+  const rejectedExpenses = expenses.filter(e => e.status === "rejected");
 
   const allPagination = usePagination(allFiltered, 10);
   const pendingPagination = usePagination(pendingExpenses, 10);
