@@ -295,6 +295,7 @@ export default function Quotes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({ title: "Converted to Invoice" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
