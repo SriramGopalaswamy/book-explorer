@@ -219,6 +219,7 @@ const App = () => (
 
                 {/* Admin */}
                 <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
+                <Route path="/admin/approvals" element={<Guarded><HRAdminRoute><ApprovalWorkflowsPage /></HRAdminRoute></Guarded>} />
 
                 {/* Profile & Settings */}
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
