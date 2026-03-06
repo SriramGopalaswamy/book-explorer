@@ -594,11 +594,46 @@ export default function Bills() {
 
   const closeDialog = () => {
     setDialogOpen(false);
+    setEditingBillId(null);
     resetForm();
   };
 
   const openDialog = () => {
     resetForm();
+    setEditingBillId(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (bill: any) => {
+    setEditingBillId(bill.id);
+    setForm({
+      vendor_name: bill.vendor_name || "",
+      bill_number: bill.bill_number || "",
+      bill_date: bill.bill_date || new Date().toISOString().split("T")[0],
+      due_date: bill.due_date || "",
+      amount: String(bill.amount || ""),
+      tax_amount: String(bill.tax_amount || "0"),
+      notes: bill.notes || "",
+      status: bill.status || "draft",
+      ap_category: "",
+      payment_terms: "",
+      vendor_tax_number: "",
+      tds_section: bill.tds_section || "",
+      tds_rate: bill.tds_rate ? String(bill.tds_rate) : "",
+    });
+    const items = bill.bill_items?.length > 0
+      ? bill.bill_items.map((i: any) => ({
+          description: i.description || "",
+          quantity: i.quantity || 1,
+          rate: i.rate || 0,
+          amount: i.amount || 0,
+        }))
+      : [{ description: "", quantity: 1, rate: 0, amount: 0 }];
+    setLineItems(items);
+    if (bill.attachment_url) {
+      setUploadedFile({ path: bill.attachment_url, name: bill.attachment_url.split("/").pop() || "attachment", type: "" });
+    }
+    setAiExtracted(bill.ai_extracted || false);
     setDialogOpen(true);
   };
 
