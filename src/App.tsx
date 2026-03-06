@@ -69,15 +69,10 @@ import AuditLog from "./pages/AuditLog";
 
 // Platform (Super Admin)
 import { PlatformRoute } from "@/components/auth/PlatformRoute";
-import PlatformOrganizations from "./pages/platform/PlatformOrganizations";
-import PlatformIntegrity from "./pages/platform/PlatformIntegrity";
-import PlatformHealth from "./pages/platform/PlatformHealth";
-import PlatformActions from "./pages/platform/PlatformActions";
-import PlatformAudit from "./pages/platform/PlatformAudit";
-import PlatformSandbox from "./pages/platform/PlatformSandbox";
-import PlatformSimulation from "./pages/platform/PlatformSimulation";
+import PlatformTenants from "./pages/platform/PlatformTenants";
 import PlatformTenantDetail from "./pages/platform/PlatformTenantDetail";
-import PlatformSubscriptionKeys from "./pages/platform/PlatformSubscriptionKeys";
+import PlatformSandboxLab from "./pages/platform/PlatformSandboxLab";
+import PlatformAudit from "./pages/platform/PlatformAudit";
 import PlatformDbInspector from "./pages/platform/PlatformDbInspector";
 
 // Sandbox
@@ -168,15 +163,10 @@ const App = () => (
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
                 {/* Platform Admin (Super Admin only — exempt from subscription guard) */}
-                <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformOrganizations /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformTenants /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/tenant/:orgId" element={<ProtectedRoute><PlatformRoute><PlatformTenantDetail /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/integrity" element={<ProtectedRoute><PlatformRoute><PlatformIntegrity /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/health" element={<ProtectedRoute><PlatformRoute><PlatformHealth /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/actions" element={<ProtectedRoute><PlatformRoute><PlatformActions /></PlatformRoute></ProtectedRoute>} />
+                <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandboxLab /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/audit" element={<ProtectedRoute><PlatformRoute><PlatformAudit /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandbox /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/simulation" element={<ProtectedRoute><PlatformRoute><PlatformSimulation /></PlatformRoute></ProtectedRoute>} />
-                <Route path="/platform/subscription-keys" element={<ProtectedRoute><PlatformRoute><PlatformSubscriptionKeys /></PlatformRoute></ProtectedRoute>} />
                 <Route path="/platform/db-inspector" element={<ProtectedRoute><PlatformRoute><PlatformDbInspector /></PlatformRoute></ProtectedRoute>} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
