@@ -167,7 +167,7 @@ export function PayrollEnginePanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {runs.map((run) => {
+                  {runs.filter((run) => run.pay_period === selectedPeriod).map((run) => {
                     const sc = statusConfig[run.status] || statusConfig.draft;
                     return (
                       <TableRow key={run.id}>
