@@ -218,7 +218,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       }
 
       if (categoryMap.size === 0) {
-        return getDefaultExpenseData();
+        return [];
       }
 
       return Array.from(categoryMap.entries()).map(([name, value]) => ({
