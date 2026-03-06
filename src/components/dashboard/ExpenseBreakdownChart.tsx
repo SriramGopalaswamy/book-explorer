@@ -111,10 +111,18 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
               layout="vertical"
               align="right"
               verticalAlign="middle"
-              iconType="circle"
-              iconSize={8}
-              formatter={(value: string) => (
-                <span className="text-sm text-muted-foreground">{value}</span>
+              content={({ payload }) => (
+                <ul className="flex flex-col gap-2 pl-4">
+                  {(payload || []).map((entry, index) => (
+                    <li key={`legend-${index}`} className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <span className="text-sm text-muted-foreground">{entry.value}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             />
           </PieChart>
