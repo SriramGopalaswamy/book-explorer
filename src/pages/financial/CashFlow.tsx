@@ -385,10 +385,16 @@ export default function CashFlow() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => updateStatus.mutate({ id: payment.id, status: "completed" })}>
-                          <Check className="mr-2 h-4 w-4" />
-                          Mark Completed
+                        <DropdownMenuItem onClick={() => setViewPayment(payment)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
                         </DropdownMenuItem>
+                        {payment.status === "scheduled" && (
+                          <DropdownMenuItem onClick={() => updateStatus.mutate({ id: payment.id, status: "completed" })}>
+                            <Check className="mr-2 h-4 w-4" />
+                            Mark Completed
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => deletePayment.mutate(payment.id)}
