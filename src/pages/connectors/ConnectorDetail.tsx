@@ -161,7 +161,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <Users className="h-8 w-8 text-blue-500" />
+                <Users className="h-8 w-8 text-accent-foreground" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats?.customersCount || 0}</p>
                   <p className="text-xs text-muted-foreground">Customers Imported</p>
@@ -172,7 +172,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <Package className="h-8 w-8 text-amber-500" />
+                <Package className="h-8 w-8 text-muted-foreground" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats?.productsCount || 0}</p>
                   <p className="text-xs text-muted-foreground">Products Imported</p>
