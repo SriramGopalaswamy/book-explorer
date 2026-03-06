@@ -816,3 +816,92 @@ function GSTR3BSummaryCards({ data }: { data: GSTR3BSummary }) {
     </div>
   );
 }
+
+// ─── GST Filing Status Panel ──────────────────────────────────────────────────
+
+const FILING_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  not_started: { label: "Not Started", variant: "secondary" },
+  preparing: { label: "Preparing", variant: "outline" },
+  ready: { label: "Ready to File", variant: "default" },
+  filed: { label: "Filed", variant: "default" },
+  acknowledged: { label: "Acknowledged", variant: "default" },
+};
+
+function GSTFilingStatusPanel({ filingType, month, fy, statuses, onUpdate, filingDialog, setFilingDialog, filingForm, setFilingForm }: {
+  filingType: string;
+  month: number;
+  fy: string;
+  statuses: any[];
+  onUpdate: any;
+  filingDialog: { type: string; open: boolean };
+  setFilingDialog: (v: { type: string; open: boolean }) => void;
+  filingForm: any;
+  setFilingForm: (v: any) => void;
+}) {
+  const fyStartYear = parseInt(fy.split("-")[0]);
+  const periodYear = month >= 4 ? fyStartYear : fyStartYear + 1;
+  const existing = statuses.find(s => s.filing_type === filingType && s.period_month === month);
+  const currentStatus = existing?.status || "not_started";
+  const statusInfo = FILING_STATUS_LABELS[currentStatus] || FILING_STATUS_LABELS.not_started;
+
+  const handleUpdate = () => {
+    onUpdate.mutate({
+      id: existing?.id,
+      filing_type: filingType,
+      period_month: month,
+      period_year: periodYear,
+      financial_year: fy,
+      status: filingForm.status,
+      arn_number: filingForm.arn_number,
+      challan_number: filingForm.challan_number,
+      filed_date: filingForm.filed_date || undefined,
+    });
+    setFilingDialog({ type: "", open: false });
+  };
+
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Filing Status:</span>
+            <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+            {existing?.arn_number && <span className="text-xs text-muted-foreground">ARN: <span className="font-mono">{existing.arn_number}</span></span>}
+            {existing?.filed_date && <span className="text-xs text-muted-foreground">Filed: {existing.filed_date}</span>}
+          </div>
+          <Dialog open={filingDialog.type === filingType && filingDialog.open} onOpenChange={v => setFilingDialog({ type: filingType, open: v })}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => {
+                setFilingForm({ status: currentStatus, arn_number: existing?.arn_number || "", challan_number: existing?.challan_number || "", filed_date: existing?.filed_date || "" });
+                setFilingDialog({ type: filingType, open: true });
+              }}>
+                Update Filing Status
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Update {filingType.toUpperCase()} Filing Status</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div><Label>Status</Label>
+                  <Select value={filingForm.status} onValueChange={(v: string) => setFilingForm((p: any) => ({ ...p, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_started">Not Started</SelectItem>
+                      <SelectItem value="preparing">Preparing</SelectItem>
+                      <SelectItem value="ready">Ready to File</SelectItem>
+                      <SelectItem value="filed">Filed</SelectItem>
+                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Filed Date</Label><Input type="date" value={filingForm.filed_date} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, filed_date: e.target.value }))} /></div>
+                <div><Label>ARN Number</Label><Input value={filingForm.arn_number} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, arn_number: e.target.value }))} placeholder="Acknowledgement Reference Number" /></div>
+                <div><Label>Challan Number</Label><Input value={filingForm.challan_number} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, challan_number: e.target.value }))} placeholder="Tax payment challan number" /></div>
+                <Button onClick={handleUpdate} disabled={onUpdate.isPending} className="w-full">{onUpdate.isPending ? "Saving..." : "Update Status"}</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
