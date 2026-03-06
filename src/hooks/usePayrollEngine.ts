@@ -137,9 +137,68 @@ export function useGeneratePayroll() {
       if (sErr) throw sErr;
 
       if (!structures || structures.length === 0) {
-        // Update run to completed with 0 employees
-        await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
-        return { run, entriesCount: 0 };
+        // Fallback: generate entries from payroll_records for this period
+        const { data: existingRecords } = await supabase
+          .from("payroll_records")
+          .select("*, profiles!profile_id(full_name, email, department, job_title)")
+          .eq("organization_id", orgId)
+          .eq("pay_period", payPeriod)
+          .eq("is_superseded", false);
+
+        if (!existingRecords || existingRecords.length === 0) {
+          await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
+          return { run, entriesCount: 0 };
+        }
+
+        // Map payroll_records to payroll_entries
+        const fallbackEntries = existingRecords.map((r: any) => {
+          const gross = Number(r.basic_salary || 0) + Number(r.hra || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowances || 0);
+          const deductions = Number(r.pf_deduction || 0) + Number(r.tax_deduction || 0) + Number(r.other_deductions || 0);
+          const netPay = gross - deductions;
+          return {
+            payroll_run_id: run.id,
+            profile_id: r.profile_id,
+            organization_id: orgId,
+            compensation_structure_id: null,
+            annual_ctc: gross * 12,
+            gross_earnings: gross,
+            total_deductions: deductions,
+            net_pay: netPay,
+            lwp_days: Number(r.lop_days || 0),
+            lwp_deduction: Number(r.lop_deduction || 0),
+            working_days: Number(r.working_days || 22),
+            paid_days: Number(r.paid_days || 22),
+            earnings_breakdown: [
+              { name: "Basic Salary", annual: Number(r.basic_salary || 0) * 12, monthly: Number(r.basic_salary || 0), is_taxable: true },
+              { name: "HRA", annual: Number(r.hra || 0) * 12, monthly: Number(r.hra || 0), is_taxable: true },
+              { name: "Transport Allowance", annual: Number(r.transport_allowance || 0) * 12, monthly: Number(r.transport_allowance || 0), is_taxable: true },
+              { name: "Other Allowances", annual: Number(r.other_allowances || 0) * 12, monthly: Number(r.other_allowances || 0), is_taxable: true },
+            ].filter(e => e.monthly > 0),
+            deductions_breakdown: [
+              { name: "PF Deduction", annual: Number(r.pf_deduction || 0) * 12, monthly: Number(r.pf_deduction || 0), is_taxable: false },
+              { name: "Tax Deduction", annual: Number(r.tax_deduction || 0) * 12, monthly: Number(r.tax_deduction || 0), is_taxable: false },
+              { name: "Other Deductions", annual: Number(r.other_deductions || 0) * 12, monthly: Number(r.other_deductions || 0), is_taxable: false },
+            ].filter(d => d.monthly > 0),
+            status: "computed",
+          };
+        });
+
+        const { error: fbErr } = await supabase.from("payroll_entries").insert(fallbackEntries);
+        if (fbErr) throw fbErr;
+
+        const fbGross = fallbackEntries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
+        const fbDed = fallbackEntries.reduce((s: number, e: any) => s + e.total_deductions, 0);
+        const fbNet = fallbackEntries.reduce((s: number, e: any) => s + e.net_pay, 0);
+
+        await supabase.from("payroll_runs").update({
+          status: "completed",
+          employee_count: fallbackEntries.length,
+          total_gross: fbGross,
+          total_deductions: fbDed,
+          total_net: fbNet,
+        }).eq("id", run.id);
+
+        return { run, entriesCount: fallbackEntries.length };
       }
 
       // 3. Fetch LWP for the period from leave_requests AND attendance_daily
