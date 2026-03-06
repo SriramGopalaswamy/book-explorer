@@ -99,6 +99,7 @@ const financialNav: NavItem[] = [
   { name: "Cash Flow", path: "/financial/cashflow", icon: TrendingUp, module: "financial" },
   { name: "Payment Receipts", path: "/financial/payment-receipts", icon: Banknote, module: "financial" },
   { name: "Vendor Payments", path: "/financial/vendor-payments", icon: Banknote, module: "financial" },
+  { name: "Exchange Rates", path: "/financial/exchange-rates", icon: ArrowRightLeft, module: "financial" },
   { name: "Assets", path: "/financial/assets", icon: Package, module: "financial" },
   { name: "Statutory Filings", path: "/financial/statutory", icon: Landmark, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
