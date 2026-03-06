@@ -16,6 +16,7 @@ import {
 import {
   User, Mail, Lock, Save, AlertCircle, Building2, Briefcase, Phone,
   MapPin, Heart, Landmark, FileText, Send, Clock, CheckCircle, XCircle, Download,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +37,6 @@ const DEPARTMENTS = [
   "Operations", "Leadership", "Legal", "Product", "Design",
 ];
 
-// Field label mapping for display
 const FIELD_LABELS: Record<string, string> = {
   full_name: "Full Name",
   date_of_birth: "Date of Birth",
@@ -62,7 +62,27 @@ const FIELD_LABELS: Record<string, string> = {
   uan_number: "UAN Number",
   esi_number: "ESI Number",
   employee_id_number: "Employee ID",
+  phone: "Phone",
 };
+
+// Fields employees can edit directly (non-critical personal info)
+const SELF_EDITABLE_FIELDS = new Set([
+  "phone",
+  "marital_status",
+  "blood_group",
+  "address_line1",
+  "address_line2",
+  "city",
+  "state",
+  "pincode",
+  "country",
+  "emergency_contact_name",
+  "emergency_contact_relation",
+  "emergency_contact_phone",
+]);
+
+const MARITAL_STATUS_OPTIONS = ["Single", "Married", "Divorced", "Widowed"];
+const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 const statusIcons: Record<string, React.ReactNode> = {
   pending: <Clock className="h-3.5 w-3.5 text-warning" />,
@@ -102,7 +122,10 @@ export default function Profile() {
   const [changeNewVal, setChangeNewVal] = useState("");
   const [changeReason, setChangeReason] = useState("");
 
-  // Get own profile ID
+  // Self-edit tracking
+  const [editingFields, setEditingFields] = useState<Record<string, string>>({});
+  const [isSavingSelfEdit, setIsSavingSelfEdit] = useState(false);
+
   const { data: myProfile } = useQuery({
     queryKey: ["my-profile-id", user?.id],
     queryFn: async () => {
@@ -119,15 +142,11 @@ export default function Profile() {
 
   const profileId = myProfile?.id || null;
 
-  // Employee details (personal, address, bank)
   const { data: details, isLoading: detailsLoading } = useEmployeeDetails(profileId);
-  // Documents
   const { data: documents = [], isLoading: docsLoading } = useEmployeeDocuments(profileId);
-  // Change requests
   const { data: changeRequests = [] } = useMyChangeRequests();
   const submitChange = useSubmitChangeRequest();
 
-  // Load profile
   useEffect(() => {
     if (!user) return;
     const loadProfile = async () => {
@@ -238,6 +257,71 @@ export default function Profile() {
     );
   };
 
+  // Self-edit: start editing a field
+  const startEditing = (fieldKey: string, currentValue: string | null) => {
+    setEditingFields((prev) => ({ ...prev, [fieldKey]: currentValue || "" }));
+  };
+
+  const cancelEditing = (fieldKey: string) => {
+    setEditingFields((prev) => {
+      const next = { ...prev };
+      delete next[fieldKey];
+      return next;
+    });
+  };
+
+  const updateEditingField = (fieldKey: string, value: string) => {
+    setEditingFields((prev) => ({ ...prev, [fieldKey]: value }));
+  };
+
+  // Save a single self-editable field
+  const saveSelfEdit = async (fieldKey: string, currentValue: string | null) => {
+    const newValue = editingFields[fieldKey]?.trim() || null;
+    if (newValue === (currentValue || null)) {
+      cancelEditing(fieldKey);
+      return;
+    }
+
+    setIsSavingSelfEdit(true);
+    try {
+      // Phone is on profiles table, everything else on employee_details
+      if (fieldKey === "phone") {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ phone: newValue })
+          .eq("id", profileId!);
+        if (error) throw error;
+        setPhone(newValue || "");
+        queryClient.invalidateQueries({ queryKey: ["my-profile-id"] });
+      } else {
+        // employee_details field
+        if (!details?.id) {
+          // Need to insert
+          const { error } = await supabase
+            .from("employee_details")
+            .upsert(
+              { profile_id: profileId!, [fieldKey]: newValue },
+              { onConflict: "profile_id" }
+            );
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("employee_details")
+            .update({ [fieldKey]: newValue })
+            .eq("id", details.id);
+          if (error) throw error;
+        }
+        queryClient.invalidateQueries({ queryKey: ["employee-details", profileId] });
+      }
+      toast.success(`${FIELD_LABELS[fieldKey] || fieldKey} updated`);
+      cancelEditing(fieldKey);
+    } catch (err: any) {
+      toast.error("Failed to save: " + err.message);
+    } finally {
+      setIsSavingSelfEdit(false);
+    }
+  };
+
   const handleDocDownload = async (filePath: string, docName: string) => {
     const { data, error } = await supabase.storage
       .from("employee-documents")
@@ -249,7 +333,7 @@ export default function Profile() {
     window.open(data.signedUrl, "_blank");
   };
 
-  // Render a read-only detail row with "Request Change" button
+  // Read-only row with "Request Change" button (for critical fields)
   const DetailRow = ({ label, value, section, fieldKey }: {
     label: string; value: string | null; section: string; fieldKey: string;
   }) => (
@@ -269,6 +353,84 @@ export default function Profile() {
       </Button>
     </div>
   );
+
+  // Editable row for non-critical fields
+  const EditableDetailRow = ({ label, value, fieldKey, type = "text", options }: {
+    label: string; value: string | null; fieldKey: string; type?: "text" | "select"; options?: string[];
+  }) => {
+    const isEditing = fieldKey in editingFields;
+
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-2 py-2.5 border-b border-border/50 last:border-0">
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground mb-1">{label}</p>
+            {type === "select" && options ? (
+              <Select
+                value={editingFields[fieldKey] || ""}
+                onValueChange={(v) => updateEditingField(fieldKey, v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o} value={o}>{o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                className="h-8 text-sm"
+                value={editingFields[fieldKey]}
+                onChange={(e) => updateEditingField(fieldKey, e.target.value)}
+                placeholder={`Enter ${label.toLowerCase()}`}
+                autoFocus
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-1 mt-4">
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 text-xs px-2"
+              disabled={isSavingSelfEdit}
+              onClick={() => saveSelfEdit(fieldKey, value)}
+            >
+              <Save className="h-3 w-3 mr-1" />
+              Save
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs px-2 text-muted-foreground"
+              onClick={() => cancelEditing(fieldKey)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0 group">
+        <div className="flex-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-sm font-medium">{value || "—"}</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground hover:text-primary h-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => startEditing(fieldKey, value)}
+        >
+          <Pencil className="h-3 w-3 mr-1" />
+          Edit
+        </Button>
+      </div>
+    );
+  };
 
   const pendingCount = changeRequests.filter(r => r.status === "pending").length;
 
@@ -354,7 +516,9 @@ export default function Profile() {
                     <User className="h-5 w-5 text-primary" />
                     Personal Details
                   </CardTitle>
-                  <CardDescription>Your personal information. To make changes, submit a request to HR.</CardDescription>
+                  <CardDescription>
+                    Fields marked with <Pencil className="inline h-3 w-3 text-muted-foreground" /> can be edited directly. Other fields require an HR change request.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {detailsLoading ? (
@@ -364,12 +528,12 @@ export default function Profile() {
                       <DetailRow label="Full Name" value={fullName} section="personal" fieldKey="full_name" />
                       <DetailRow label="Date of Birth" value={details?.date_of_birth} section="personal" fieldKey="date_of_birth" />
                       <DetailRow label="Gender" value={details?.gender} section="personal" fieldKey="gender" />
-                      <DetailRow label="Blood Group" value={details?.blood_group} section="personal" fieldKey="blood_group" />
-                      <DetailRow label="Marital Status" value={details?.marital_status} section="personal" fieldKey="marital_status" />
+                      <EditableDetailRow label="Blood Group" value={details?.blood_group || null} fieldKey="blood_group" type="select" options={BLOOD_GROUP_OPTIONS} />
+                      <EditableDetailRow label="Marital Status" value={details?.marital_status || null} fieldKey="marital_status" type="select" options={MARITAL_STATUS_OPTIONS} />
                       <DetailRow label="Nationality" value={details?.nationality} section="personal" fieldKey="nationality" />
                       <DetailRow label="Department" value={department} section="personal" fieldKey="department" />
                       <DetailRow label="Job Title" value={jobTitle} section="personal" fieldKey="job_title" />
-                      <DetailRow label="Phone" value={phone} section="personal" fieldKey="phone" />
+                      <EditableDetailRow label="Phone" value={phone} fieldKey="phone" />
                       <DetailRow label="Email" value={user?.email || null} section="personal" fieldKey="email" />
                     </div>
                   )}
@@ -385,7 +549,7 @@ export default function Profile() {
                     <MapPin className="h-5 w-5 text-primary" />
                     Address & Emergency Contacts
                   </CardTitle>
-                  <CardDescription>Your address and emergency contact details.</CardDescription>
+                  <CardDescription>You can directly update your address and emergency contact details.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {detailsLoading ? (
@@ -393,17 +557,17 @@ export default function Profile() {
                   ) : (
                     <>
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Address</p>
-                      <DetailRow label="Address Line 1" value={details?.address_line1} section="address" fieldKey="address_line1" />
-                      <DetailRow label="Address Line 2" value={details?.address_line2} section="address" fieldKey="address_line2" />
-                      <DetailRow label="City" value={details?.city} section="address" fieldKey="city" />
-                      <DetailRow label="State" value={details?.state} section="address" fieldKey="state" />
-                      <DetailRow label="Pincode" value={details?.pincode} section="address" fieldKey="pincode" />
-                      <DetailRow label="Country" value={details?.country} section="address" fieldKey="country" />
+                      <EditableDetailRow label="Address Line 1" value={details?.address_line1 || null} fieldKey="address_line1" />
+                      <EditableDetailRow label="Address Line 2" value={details?.address_line2 || null} fieldKey="address_line2" />
+                      <EditableDetailRow label="City" value={details?.city || null} fieldKey="city" />
+                      <EditableDetailRow label="State" value={details?.state || null} fieldKey="state" />
+                      <EditableDetailRow label="Pincode" value={details?.pincode || null} fieldKey="pincode" />
+                      <EditableDetailRow label="Country" value={details?.country || null} fieldKey="country" />
 
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-6 mb-2">Emergency Contact</p>
-                      <DetailRow label="Contact Name" value={details?.emergency_contact_name} section="address" fieldKey="emergency_contact_name" />
-                      <DetailRow label="Relation" value={details?.emergency_contact_relation} section="address" fieldKey="emergency_contact_relation" />
-                      <DetailRow label="Phone" value={details?.emergency_contact_phone} section="address" fieldKey="emergency_contact_phone" />
+                      <EditableDetailRow label="Contact Name" value={details?.emergency_contact_name || null} fieldKey="emergency_contact_name" />
+                      <EditableDetailRow label="Relation" value={details?.emergency_contact_relation || null} fieldKey="emergency_contact_relation" />
+                      <EditableDetailRow label="Phone" value={details?.emergency_contact_phone || null} fieldKey="emergency_contact_phone" />
                     </>
                   )}
                 </CardContent>
@@ -418,7 +582,7 @@ export default function Profile() {
                     <Landmark className="h-5 w-5 text-primary" />
                     Bank & Statutory IDs
                   </CardTitle>
-                  <CardDescription>Your banking and statutory identification details.</CardDescription>
+                  <CardDescription>These are sensitive fields. Changes require HR approval.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {detailsLoading ? (
