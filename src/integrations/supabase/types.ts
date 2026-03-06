@@ -2688,6 +2688,135 @@ export type Database = {
           },
         ]
       }
+      delivery_note_items: {
+        Row: {
+          created_at: string
+          delivery_note_id: string
+          description: string
+          id: string
+          item_id: string | null
+          ordered_quantity: number
+          sales_order_item_id: string | null
+          shipped_quantity: number
+          warehouse_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivery_note_id: string
+          description: string
+          id?: string
+          item_id?: string | null
+          ordered_quantity?: number
+          sales_order_item_id?: string | null
+          shipped_quantity?: number
+          warehouse_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivery_note_id?: string
+          description?: string
+          id?: string
+          item_id?: string | null
+          ordered_quantity?: number
+          sales_order_item_id?: string | null
+          shipped_quantity?: number
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_notes: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          delivery_date: string
+          dispatched_by: string | null
+          dn_number: string
+          id: string
+          notes: string | null
+          organization_id: string
+          sales_order_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          delivery_date?: string
+          dispatched_by?: string | null
+          dn_number: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          sales_order_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          delivery_date?: string
+          dispatched_by?: string | null
+          dn_number?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          sales_order_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_sequences: {
         Row: {
           created_at: string
@@ -3563,6 +3692,144 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goods_receipt_items: {
+        Row: {
+          accepted_quantity: number
+          created_at: string
+          description: string
+          goods_receipt_id: string
+          id: string
+          item_id: string | null
+          notes: string | null
+          ordered_quantity: number
+          purchase_order_item_id: string | null
+          received_quantity: number
+          rejected_quantity: number
+          warehouse_id: string | null
+        }
+        Insert: {
+          accepted_quantity?: number
+          created_at?: string
+          description: string
+          goods_receipt_id: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          ordered_quantity?: number
+          purchase_order_item_id?: string | null
+          received_quantity?: number
+          rejected_quantity?: number
+          warehouse_id?: string | null
+        }
+        Update: {
+          accepted_quantity?: number
+          created_at?: string
+          description?: string
+          goods_receipt_id?: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          ordered_quantity?: number
+          purchase_order_item_id?: string | null
+          received_quantity?: number
+          rejected_quantity?: number
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receipt_items_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_items_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_items_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goods_receipts: {
+        Row: {
+          created_at: string
+          grn_number: string
+          id: string
+          notes: string | null
+          organization_id: string
+          purchase_order_id: string | null
+          receipt_date: string
+          received_by: string
+          status: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          grn_number: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          purchase_order_id?: string | null
+          receipt_date?: string
+          received_by: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          grn_number?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          purchase_order_id?: string | null
+          receipt_date?: string
+          received_by?: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -5742,6 +6009,135 @@ export type Database = {
           },
         ]
       }
+      purchase_order_items: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          item_id: string | null
+          purchase_order_id: string
+          quantity: number
+          received_quantity: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description: string
+          id?: string
+          item_id?: string | null
+          purchase_order_id: string
+          quantity?: number
+          received_quantity?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          item_id?: string | null
+          purchase_order_id?: string
+          quantity?: number
+          received_quantity?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          expected_delivery: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          organization_id: string
+          po_number: string
+          status: string
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          updated_at: string
+          vendor_id: string | null
+          vendor_name: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          expected_delivery?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          organization_id: string
+          po_number: string
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_name: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          expected_delivery?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          organization_id?: string
+          po_number?: string
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_items: {
         Row: {
           amount: number
@@ -6021,6 +6417,135 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_order_items: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          item_id: string | null
+          quantity: number
+          sales_order_id: string
+          shipped_quantity: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description: string
+          id?: string
+          item_id?: string | null
+          quantity?: number
+          sales_order_id: string
+          shipped_quantity?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          item_id?: string | null
+          quantity?: number
+          sales_order_id?: string
+          shipped_quantity?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_orders: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          customer_id: string | null
+          customer_name: string
+          expected_delivery: string | null
+          id: string
+          notes: string | null
+          order_date: string
+          organization_id: string
+          so_number: string
+          status: string
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          customer_id?: string | null
+          customer_name: string
+          expected_delivery?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          organization_id: string
+          so_number: string
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          customer_id?: string | null
+          customer_name?: string
+          expected_delivery?: string | null
+          id?: string
+          notes?: string | null
+          order_date?: string
+          organization_id?: string
+          so_number?: string
+          status?: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
