@@ -160,9 +160,6 @@ export default function MyExpenses() {
   const rejectedExpenses = expenses.filter(e => e.status === "rejected");
 
   const allPagination = usePagination(allFiltered, 10);
-  const pendingPagination = usePagination(pendingExpenses, 10);
-  const approvedPagination = usePagination(approvedExpenses, 10);
-  const paidPagination = usePagination(paidExpenses, 10);
 
   const renderReceiptButton = (receiptUrl: string | null) => {
     if (!receiptUrl) return <span className="text-muted-foreground text-sm">—</span>;
