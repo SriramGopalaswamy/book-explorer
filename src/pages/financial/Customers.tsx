@@ -68,9 +68,9 @@ export default function Customers() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      // Check 12-char alphanumeric rule
-      if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) {
-        newErrors.tax_number = "Must be exactly 12 alphanumeric characters";
+      // Check 15-char alphanumeric rule (GSTIN is 15 characters)
+      if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) {
+        newErrors.tax_number = "Must be exactly 15 alphanumeric characters";
       } else {
         const taxErr = validateTaxNumber(form.tax_number, form.country);
         if (taxErr) newErrors.tax_number = taxErr;
@@ -174,10 +174,10 @@ export default function Customers() {
     
     if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "GST / Tax Number is required.", variant: "destructive" });
     
-    // GST validation: must be exactly 12 alphanumeric characters (user requirement)
+    // GST validation: must be exactly 15 alphanumeric characters (standard GSTIN format)
     const gstRaw = form.tax_number.trim();
-    if (!/^[A-Za-z0-9]{12}$/.test(gstRaw)) {
-      return toast({ title: "Invalid GST Number", description: "GST Number must be exactly 12 alphanumeric characters.", variant: "destructive" });
+    if (!/^[A-Za-z0-9]{15}$/.test(gstRaw)) {
+      return toast({ title: "Invalid GST Number", description: "GST Number must be exactly 15 alphanumeric characters.", variant: "destructive" });
     }
     
     const taxErr = validateTaxNumber(form.tax_number, form.country);
