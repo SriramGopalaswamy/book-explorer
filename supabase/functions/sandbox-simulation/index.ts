@@ -2330,6 +2330,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
     try {
+      // Delete any existing record first to avoid duplicate key violation
+      await client.from("attendance_daily").delete()
+        .eq("profile_id", profileList[0].id).eq("attendance_date", yesterday);
       const { error } = await client.from("attendance_daily").insert({
         profile_id: profileList[0].id, organization_id: orgId,
         attendance_date: yesterday, status: "P",
