@@ -202,7 +202,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { code: "1100", name: "Accounts Receivable", type: "asset" },
     { code: "1200", name: "Inventory", type: "asset" },
     { code: "1500", name: "Fixed Assets - Gross Block", type: "asset" },
-    { code: "1510", name: "Accumulated Depreciation", type: "contra_asset" },
+    { code: "1510", name: "Accumulated Depreciation", type: "asset" },
     { code: "2000", name: "Accounts Payable", type: "liability" },
     { code: "2100", name: "Tax Payable - GST Output", type: "liability" },
     { code: "2200", name: "TDS Payable", type: "liability" },
@@ -363,97 +363,92 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.holidays = holidayCount;
 
   // ===== SEED SANDBOX PROFILES (employees) =====
-  const { data: existingProfiles } = await client.from("profiles")
-    .select("id").eq("organization_id", orgId);
+  const employeeSeeds = [
+    { name: "Arjun Mehta", dept: "Engineering", jobTitle: "Senior Developer", salary: 95000, phone: "+91-9876543001" },
+    { name: "Priya Sharma", dept: "Finance", jobTitle: "Finance Manager", salary: 85000, phone: "+91-9876543002" },
+    { name: "Rahul Verma", dept: "Operations", jobTitle: "Operations Lead", salary: 72000, phone: "+91-9876543003" },
+    { name: "Sneha Iyer", dept: "HR", jobTitle: "HR Executive", salary: 60000, phone: "+91-9876543004" },
+    { name: "Vikram Singh", dept: "Engineering", jobTitle: "Tech Lead", salary: 110000, phone: "+91-9876543005" },
+    { name: "Ananya Reddy", dept: "Marketing", jobTitle: "Marketing Analyst", salary: 55000, phone: "+91-9876543006" },
+    { name: "Karan Patel", dept: "Sales", jobTitle: "Sales Executive", salary: 65000, phone: "+91-9876543007" },
+    { name: "Deepika Nair", dept: "Engineering", jobTitle: "QA Engineer", salary: 68000, phone: "+91-9876543008" },
+  ];
 
-  const targetEmployeeCount = 8;
-  let seededProfiles = (existingProfiles ?? []).length;
+  let seededProfiles = 0;
 
-  if (seededProfiles < targetEmployeeCount) {
-    const employeeSeeds = [
-      { name: "Arjun Mehta", dept: "Engineering", jobTitle: "Senior Developer", salary: 95000, phone: "+91-9876543001" },
-      { name: "Priya Sharma", dept: "Finance", jobTitle: "Finance Manager", salary: 85000, phone: "+91-9876543002" },
-      { name: "Rahul Verma", dept: "Operations", jobTitle: "Operations Lead", salary: 72000, phone: "+91-9876543003" },
-      { name: "Sneha Iyer", dept: "HR", jobTitle: "HR Executive", salary: 60000, phone: "+91-9876543004" },
-      { name: "Vikram Singh", dept: "Engineering", jobTitle: "Tech Lead", salary: 110000, phone: "+91-9876543005" },
-      { name: "Ananya Reddy", dept: "Marketing", jobTitle: "Marketing Analyst", salary: 55000, phone: "+91-9876543006" },
-      { name: "Karan Patel", dept: "Sales", jobTitle: "Sales Executive", salary: 65000, phone: "+91-9876543007" },
-      { name: "Deepika Nair", dept: "Engineering", jobTitle: "QA Engineer", salary: 68000, phone: "+91-9876543008" },
-    ];
+  // Always ensure auth users exist for ALL employees (fixes orphaned user_id after reset)
+  for (const emp of employeeSeeds) {
+    try {
+      const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
+      const tempPassword = crypto.randomUUID() + "Aa1!";
+      let authUserId: string | null = null;
 
-    const toCreate = employeeSeeds.slice(seededProfiles);
+      // Check if profile already exists for this email in the org
+      const { data: existingProfile } = await client.from("profiles")
+        .select("id, user_id").eq("organization_id", orgId).eq("email", email).maybeSingle();
 
-    for (const emp of toCreate) {
-      try {
-        const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
-        const tempPassword = crypto.randomUUID() + "Aa1!";
-        let userId: string | null = null;
-
+      if (existingProfile) {
+        // Profile exists — verify the auth user still exists
+        const { data: authCheck } = await client.auth.admin.getUserById(existingProfile.user_id);
+        if (authCheck?.user) {
+          authUserId = existingProfile.user_id;
+        } else {
+          // Auth user was deleted — re-create it and update profile
+          const { data: newUser, error: createErr } = await client.auth.admin.createUser({
+            email, password: tempPassword, email_confirm: true,
+            user_metadata: { full_name: emp.name },
+          });
+          if (createErr) {
+            // Maybe email was re-registered under different ID
+            if (createErr.message?.includes("already been registered")) {
+              const { data: existingUsers } = await client.auth.admin.listUsers();
+              const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+              if (found) authUserId = found.id;
+            }
+          } else {
+            authUserId = newUser.user.id;
+          }
+          if (authUserId) {
+            // Update profile to point to new auth user
+            await client.from("profiles").update({ user_id: authUserId }).eq("id", existingProfile.id);
+          }
+        }
+        seededProfiles++;
+      } else {
+        // No profile — create auth user + profile
         const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-          email,
-          password: tempPassword,
-          email_confirm: true,
+          email, password: tempPassword, email_confirm: true,
           user_metadata: { full_name: emp.name },
         });
-
         if (createErr) {
-          // User already exists — look them up by email and reuse their ID
           if (createErr.message?.includes("already been registered")) {
             const { data: existingUsers } = await client.auth.admin.listUsers();
             const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
-            if (found) {
-              userId = found.id;
-              console.log(`Reusing existing auth user for ${emp.name}: ${userId}`);
-            } else {
-              console.warn(`Could not find existing user ${emp.name} by email`);
-              continue;
-            }
+            if (found) authUserId = found.id;
           } else {
             console.warn(`Failed to create user ${emp.name}:`, createErr.message);
             continue;
           }
         } else {
-          userId = newUser.user.id;
+          authUserId = newUser.user.id;
         }
-
-        if (!userId) continue;
+        if (!authUserId) continue;
 
         const profileData = {
-          organization_id: orgId,
-          full_name: emp.name,
-          email: `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`,
-          department: emp.dept,
-          job_title: emp.jobTitle,
-          status: "active",
-          join_date: "2024-06-01",
-          phone: emp.phone,
+          id: authUserId, user_id: authUserId, organization_id: orgId,
+          full_name: emp.name, email,
+          department: emp.dept, job_title: emp.jobTitle,
+          status: "active", join_date: "2024-06-01", phone: emp.phone,
         };
-
-        // Check if a profile row exists for this auth user
-        const { data: existingProfile } = await client.from("profiles")
-          .select("id").eq("user_id", userId).maybeSingle();
-
-        let profileErr: any = null;
-        if (existingProfile) {
-          // Profile exists — update it
-          const { error } = await client.from("profiles")
-            .update(profileData).eq("user_id", userId);
-          profileErr = error;
-        } else {
-          // Profile was deleted during reset — re-insert it
-          const { error } = await client.from("profiles")
-            .insert({ ...profileData, id: userId, user_id: userId });
-          profileErr = error;
-        }
-
+        const { error: profileErr } = await client.from("profiles").insert(profileData);
         if (profileErr) {
-          console.warn(`Failed to upsert profile for ${emp.name}:`, profileErr.message);
+          console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
         } else {
           seededProfiles++;
         }
-      } catch (e) {
-        console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
       }
+    } catch (e) {
+      console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
     }
   }
   summary.profiles = seededProfiles;
@@ -2335,6 +2330,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
     try {
+      // Delete any existing record first to avoid duplicate key violation
+      await client.from("attendance_daily").delete()
+        .eq("profile_id", profileList[0].id).eq("attendance_date", yesterday);
       const { error } = await client.from("attendance_daily").insert({
         profile_id: profileList[0].id, organization_id: orgId,
         attendance_date: yesterday, status: "P",
