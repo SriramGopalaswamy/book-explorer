@@ -95,23 +95,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
   if (jdErr) console.warn("Force delete journal data:", jdErr.message);
 
-  // Clean up previously seeded sandbox simulation users
-  const { data: simProfiles } = await client.from("profiles")
-    .select("id, user_id, email")
-    .eq("organization_id", orgId)
-    .like("email", "%@sandbox-sim.local");
-  for (const sp of (simProfiles ?? [])) {
-    try {
-      await client.from("organization_members").delete().eq("user_id", sp.user_id).eq("organization_id", orgId);
-      await client.from("compensation_structures").delete().eq("profile_id", sp.id);
-      await client.from("profiles").delete().eq("id", sp.id);
-      await client.auth.admin.deleteUser(sp.user_id);
-    } catch (e) {
-      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
-    }
-  }
-
-  // Clear existing transactional data (order matters for FK constraints)
+  // ===== PHASE 1: Clear ALL transactional data FIRST (before touching profiles) =====
   const orgScopedTables = [
     "payslip_disputes", "payroll_records", "payroll_runs",
     "reimbursement_requests",
@@ -127,9 +111,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "bank_transactions", "bank_accounts", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
     "compensation_revision_requests", "compensation_components", "compensation_structures",
-     "holidays", "user_roles", "organization_members",
-     "profile_change_requests", "payslip_disputes",
-     "chart_of_accounts",
+    "holidays", "user_roles", "organization_members",
+    "profile_change_requests",
+    "chart_of_accounts",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -151,12 +135,27 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
 
-  // Now clear org-scoped tables
+  // Clear all org-scoped tables (this removes FK dependencies on profiles)
   for (const table of orgScopedTables) {
     try {
       const { error } = await client.from(table).delete().eq("organization_id", orgId);
       if (error) console.warn(`Clear ${table}:`, error.message);
     } catch (_) { /* table may not exist */ }
+  }
+
+  // ===== PHASE 2: Now safely delete sim profiles and auth users =====
+  const { data: simProfiles } = await client.from("profiles")
+    .select("id, user_id, email")
+    .eq("organization_id", orgId)
+    .like("email", "%@sandbox-sim.local");
+  for (const sp of (simProfiles ?? [])) {
+    try {
+      // Profile FK dependencies are already cleared above, so this will succeed
+      await client.from("profiles").delete().eq("id", sp.id);
+      await client.auth.admin.deleteUser(sp.user_id);
+    } catch (e) {
+      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
+    }
   }
 
   // ===== SEED VENDORS =====
@@ -363,6 +362,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.holidays = holidayCount;
 
   // ===== SEED SANDBOX PROFILES (employees) =====
+  // Track verified auth user IDs for downstream use (roles, managers, members)
+  const verifiedUsers: { authId: string; profileId: string; name: string; jobTitle: string; dept: string }[] = [];
   const employeeSeeds = [
     { name: "Arjun Mehta", dept: "Engineering", jobTitle: "Senior Developer", salary: 95000, phone: "+91-9876543001" },
     { name: "Priya Sharma", dept: "Finance", jobTitle: "Finance Manager", salary: 85000, phone: "+91-9876543002" },
@@ -376,148 +377,117 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   let seededProfiles = 0;
 
-  // Seed employees — optimized: skip slow getUserById calls, just try create and handle errors
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
       const tempPassword = crypto.randomUUID() + "Aa1!";
       let authUserId: string | null = null;
 
-      // Check if profile already exists for this email in the org
-      const { data: existingProfile } = await client.from("profiles")
-        .select("id, user_id").eq("organization_id", orgId).eq("email", email).maybeSingle();
-
-      if (existingProfile) {
-        // Profile exists — try to use existing user_id directly (skip slow getUserById)
-        // If the auth user was deleted, the FK will still work for service_role queries
-        authUserId = existingProfile.user_id;
-        
-        // Quick validation: try creating the auth user — if it already exists, we're good
-        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-          email, password: tempPassword, email_confirm: true,
-          user_metadata: { full_name: emp.name },
-        });
-        if (!createErr && newUser?.user) {
-          // Auth user didn't exist (was orphaned) — update profile with new user_id
-          authUserId = newUser.user.id;
-          await client.from("profiles").update({ user_id: authUserId }).eq("id", existingProfile.id);
-        }
-        // If "already registered" error — the user exists, use existing user_id
-        seededProfiles++;
-      } else {
-        // No profile — create auth user + profile
-        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-          email, password: tempPassword, email_confirm: true,
-          user_metadata: { full_name: emp.name },
-        });
-        if (createErr) {
-          if (createErr.message?.includes("already been registered")) {
-            // User exists but no profile — find their ID via a lightweight approach
-            const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
-            const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
-            if (found) authUserId = found.id;
-          } else {
-            console.warn(`Failed to create user ${emp.name}:`, createErr.message);
-            continue;
-          }
-        } else {
-          authUserId = newUser.user.id;
-        }
-        if (!authUserId) continue;
-
-        const profileData = {
-          id: authUserId, user_id: authUserId, organization_id: orgId,
-          full_name: emp.name, email,
-          department: emp.dept, job_title: emp.jobTitle,
-          status: "active", join_date: "2024-06-01", phone: emp.phone,
-        };
-        const { error: profileErr } = await client.from("profiles").insert(profileData);
-        if (profileErr) {
-          console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
-        } else {
-          seededProfiles++;
-        }
+      // Step 1: Try to delete any leftover auth user with this email
+      // (handles edge case where profile was deleted but auth user remains)
+      const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
+      const existingAuthUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+      if (existingAuthUser) {
+        await client.auth.admin.deleteUser(existingAuthUser.id);
+        console.log(`Deleted leftover auth user for ${email}`);
       }
+
+      // Step 2: Also delete any leftover profile (shouldn't exist after cleanup, but be safe)
+      await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
+
+      // Step 3: Create fresh auth user
+      const { data: newUser, error: createErr } = await client.auth.admin.createUser({
+        email, password: tempPassword, email_confirm: true,
+        user_metadata: { full_name: emp.name },
+      });
+      if (createErr) {
+        console.warn(`Failed to create auth user ${emp.name}:`, createErr.message);
+        continue;
+      }
+      authUserId = newUser.user.id;
+
+      // Step 4: Create profile with verified auth user ID
+      const profileData = {
+        id: authUserId, user_id: authUserId, organization_id: orgId,
+        full_name: emp.name, email,
+        department: emp.dept, job_title: emp.jobTitle,
+        status: "active", join_date: "2024-06-01", phone: emp.phone,
+      };
+      const { error: profileErr } = await client.from("profiles").insert(profileData);
+      if (profileErr) {
+        console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
+        continue;
+      }
+
+      verifiedUsers.push({ authId: authUserId, profileId: authUserId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+      seededProfiles++;
     } catch (e) {
       console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
     }
   }
   summary.profiles = seededProfiles;
+  console.log(`Seeded ${seededProfiles} profiles with verified auth users`);
 
-  // ===== SEED ORGANIZATION MEMBERS =====
-  const { data: allProfilesList } = await client.from("profiles")
-    .select("id, user_id, full_name, department, job_title")
-    .eq("organization_id", orgId);
-
+  // ===== SEED ORGANIZATION MEMBERS (using verified users only) =====
   let orgMemberCount = 0;
-  for (const p of (allProfilesList ?? [])) {
+  for (const vu of verifiedUsers) {
     const { error } = await client.from("organization_members").upsert({
-      user_id: p.user_id, organization_id: orgId, role: "member",
+      user_id: vu.authId, organization_id: orgId, role: "member",
     }, { onConflict: "organization_id,user_id" });
     if (!error) orgMemberCount++;
   }
   summary.organization_members = orgMemberCount;
 
   // ===== SET MANAGER_ID ON PROFILES (reporting hierarchy) =====
-  // Vikram Singh (Tech Lead) manages: Arjun (Sr Dev), Deepika (QA), Ananya (Marketing)
-  // Rahul Verma (Ops Lead) manages: Karan (Sales)
-  // Sneha Iyer (HR Exec) manages: nobody directly but is HR head
-  // Priya Sharma (Finance Mgr) manages: nobody directly but is Finance head
   const managerMapping: Record<string, string> = {
     "Senior Developer": "Tech Lead",
     "QA Engineer": "Tech Lead",
     "Marketing Analyst": "Tech Lead",
     "Sales Executive": "Operations Lead",
   };
-  const titleToUserId: Record<string, string> = {};
-  for (const p of (allProfilesList ?? [])) {
-    titleToUserId[p.job_title] = p.user_id;
+  const titleToAuthId: Record<string, string> = {};
+  for (const vu of verifiedUsers) {
+    titleToAuthId[vu.jobTitle] = vu.authId;
   }
   let managerIdSetCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const managerTitle = managerMapping[p.job_title];
-    if (managerTitle && titleToUserId[managerTitle]) {
+  for (const vu of verifiedUsers) {
+    const managerTitle = managerMapping[vu.jobTitle];
+    if (managerTitle && titleToAuthId[managerTitle]) {
       const { error } = await client.from("profiles")
-        .update({ manager_id: titleToUserId[managerTitle] })
-        .eq("id", p.id);
+        .update({ manager_id: titleToAuthId[managerTitle] })
+        .eq("id", vu.profileId);
       if (!error) managerIdSetCount++;
     }
   }
   console.log(`Set manager_id on ${managerIdSetCount} profiles`);
 
-  // ===== SEED USER ROLES (MULTI-ROLE) for employees =====
-  // Each key actor gets multiple roles to enable cross-role simulation
+  // ===== SEED USER ROLES (using verified auth IDs — guaranteed to exist in auth.users) =====
   const multiRoleMapping: Record<string, string[]> = {
-    "Senior Developer": ["admin", "manager"],           // Admin who also manages team
-    "Finance Manager":  ["finance", "manager", "payroll"], // Finance head + manager + payroll
-    "HR Executive":     ["hr", "manager", "payroll"],   // HR head + manager + payroll access
-    "Tech Lead":        ["manager"],                     // Pure manager
-    "Operations Lead":  ["manager"],                     // Pure manager
-    "Marketing Analyst": ["employee"],                   // Pure employee
-    "Sales Executive":   ["employee"],                   // Pure employee
-    "QA Engineer":       ["employee"],                   // Pure employee
+    "Senior Developer": ["admin", "manager"],
+    "Finance Manager":  ["finance", "manager", "payroll"],
+    "HR Executive":     ["hr", "manager", "payroll"],
+    "Tech Lead":        ["manager"],
+    "Operations Lead":  ["manager"],
+    "Marketing Analyst": ["employee"],
+    "Sales Executive":   ["employee"],
+    "QA Engineer":       ["employee"],
   };
   let roleCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const roles = multiRoleMapping[p.job_title] || ["employee"];
+  for (const vu of verifiedUsers) {
+    const roles = multiRoleMapping[vu.jobTitle] || ["employee"];
     for (const role of roles) {
-      // First try delete then insert to avoid onConflict issues with enum types
-      await client.from("user_roles")
-        .delete()
-        .eq("user_id", p.user_id)
-        .eq("role", role)
-        .eq("organization_id", orgId);
       const { error } = await client.from("user_roles").insert({
-        user_id: p.user_id, role, organization_id: orgId,
+        user_id: vu.authId, role, organization_id: orgId,
       });
       if (error) {
-        console.warn(`user_roles insert failed for ${p.full_name} / ${role}:`, error.message);
+        console.warn(`user_roles insert failed for ${vu.name} / ${role}:`, error.message);
       } else {
         roleCount++;
       }
     }
   }
   summary.user_roles = roleCount;
+  console.log(`Inserted ${roleCount} user_roles`);
 
   // ===== SEED COMPENSATION STRUCTURES =====
   const salaryByTitle: Record<string, number> = {
@@ -526,19 +496,19 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "Sales Executive": 65000, "QA Engineer": 68000,
   };
   let compCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const basic = salaryByTitle[p.job_title] ?? 50000;
+  for (const vu of verifiedUsers) {
+    const basic = salaryByTitle[vu.jobTitle] ?? 50000;
     const annualCTC = Math.round(basic * 12 * 1.55);
     const { data: existingComp } = await client.from("compensation_structures")
-      .select("id").eq("profile_id", p.id).eq("effective_from", "2024-06-01").maybeSingle();
+      .select("id").eq("profile_id", vu.profileId).eq("effective_from", "2024-06-01").maybeSingle();
     if (!existingComp) {
       const { error: compErr } = await client.from("compensation_structures").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         annual_ctc: annualCTC, created_by: userId,
         effective_from: "2024-06-01", is_active: true,
       });
       if (!compErr) compCount++;
-      else console.warn(`Comp structure for ${p.full_name}:`, compErr.message);
+      else console.warn(`Comp structure for ${vu.name}:`, compErr.message);
     } else {
       compCount++;
     }
@@ -548,27 +518,24 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== GAP FIX #2: SEED MANAGER HIERARCHY =====
   // Tech Lead (Vikram Singh) and Operations Lead (Rahul Verma) are managers
   // Assign manager_id on profiles so subordinates report to them
-  const managers = (allProfilesList ?? []).filter((p: any) =>
-    p.job_title === "Tech Lead" || p.job_title === "Operations Lead"
-  );
-  const engineeringManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Tech Lead");
-  const opsManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Operations Lead");
+  const engineeringManager = verifiedUsers.find((vu) => vu.jobTitle === "Tech Lead");
+  const opsManager = verifiedUsers.find((vu) => vu.jobTitle === "Operations Lead");
 
   const managerAssignment: Record<string, any> = {
     "Engineering": engineeringManager,
     "Marketing": opsManager,
     "Sales": opsManager,
-    "Finance": engineeringManager, // cross-dept reporting for sim
+    "Finance": engineeringManager,
     "HR": opsManager,
   };
 
   let managerHierarchyCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const mgr = managerAssignment[p.department];
-    if (mgr && mgr.id !== p.id) {
+  for (const vu of verifiedUsers) {
+    const mgr = managerAssignment[vu.dept];
+    if (mgr && mgr.profileId !== vu.profileId) {
       const { error } = await client.from("profiles").update({
-        manager_id: mgr.id,
-      }).eq("id", p.id);
+        manager_id: mgr.authId,
+      }).eq("id", vu.profileId);
       if (!error) managerHierarchyCount++;
     }
   }
@@ -581,11 +548,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { type: "earned", total: 15 },
   ];
   let leaveBalCount = 0;
-  for (const p of (allProfilesList ?? [])) {
+  for (const vu of verifiedUsers) {
     for (const lb of leaveBalanceTypes) {
       const usedDays = Math.floor(Math.random() * Math.min(lb.total, 4));
       const { error } = await client.from("leave_balances").insert({
-        user_id: p.user_id, profile_id: p.id, organization_id: orgId,
+        user_id: vu.authId, profile_id: vu.profileId, organization_id: orgId,
         leave_type: lb.type, total_days: lb.total,
         used_days: usedDays, year: 2026,
       });
@@ -615,15 +582,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const d = new Date(attToday);
     d.setDate(d.getDate() - dayOffset);
     const dateStr = d.toISOString().split("T")[0];
-    for (const p of (allProfilesList ?? []).slice(0, 5)) {
+    for (const vu of verifiedUsers.slice(0, 5)) {
       // Delete any existing record for this profile+date to avoid duplicates
       await client.from("attendance_daily").delete()
-        .eq("profile_id", p.id).eq("attendance_date", dateStr);
+        .eq("profile_id", vu.profileId).eq("attendance_date", dateStr);
       const lateMin = Math.floor(Math.random() * 20);
       const otMin = Math.floor(Math.random() * 60);
       const workMin = 480 + otMin - lateMin;
       const { error } = await client.from("attendance_daily").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         attendance_date: dateStr, status: "P",
         first_in_time: `09:${String(lateMin).padStart(2, "0")}:00`,
         last_out_time: `18:${String(otMin).padStart(2, "0")}:00`,
@@ -727,8 +694,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     if (!hrErr && histRun) {
       histPayrollCount++;
       // Create payroll records for each historical month
-      for (let pi = 0; pi < Math.min(5, (allProfilesList ?? []).length); pi++) {
-        const p = allProfilesList![pi];
+      for (let pi = 0; pi < Math.min(5, verifiedUsers.length); pi++) {
+        const vu = verifiedUsers[pi];
         const basic = [50000, 65000, 80000, 45000, 95000][pi % 5];
         const hra = Math.round(basic * 0.4);
         const gross = basic + hra + 1600 + Math.round(basic * 0.15);
@@ -736,7 +703,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         const tax = Math.round(gross * 0.1);
         const net = gross - pf - tax - 500;
         await client.from("payroll_records").insert({
-          user_id: p.user_id, profile_id: p.id,
+          user_id: vu.authId, profile_id: vu.profileId,
           organization_id: orgId, pay_period: hm.period,
           basic_salary: basic, hra, transport_allowance: 1600,
           other_allowances: Math.round(basic * 0.15),
@@ -756,15 +723,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const d = new Date(attToday);
     d.setDate(d.getDate() - dayOffset);
     const dateStr = d.toISOString().split("T")[0];
-    for (let pi = 0; pi < Math.min(8, (allProfilesList ?? []).length); pi++) {
-      const p = allProfilesList![pi];
+    for (let pi = 0; pi < Math.min(8, verifiedUsers.length); pi++) {
+      const vu = verifiedUsers[pi];
       const st = attStatuses[(dayOffset + pi) % attStatuses.length];
       const isPresent = st === "P" || st === "HD";
       // Delete any existing record for this profile+date to avoid duplicates
       await client.from("attendance_daily").delete()
-        .eq("profile_id", p.id).eq("attendance_date", dateStr);
+        .eq("profile_id", vu.profileId).eq("attendance_date", dateStr);
       const { error } = await client.from("attendance_daily").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         attendance_date: dateStr, status: st,
         first_in_time: isPresent ? "09:05:00" : null,
         last_out_time: isPresent ? (st === "HD" ? "13:00:00" : "18:10:00") : null,
@@ -785,14 +752,14 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { type: "aadhaar", name: "Aadhaar Card" },
     { type: "bank_details", name: "Cancelled Cheque" },
   ];
-  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
-    const p = allProfilesList![pi];
+  for (let pi = 0; pi < Math.min(4, verifiedUsers.length); pi++) {
+    const vu = verifiedUsers[pi];
     for (const doc of docTypes) {
       const { error } = await client.from("employee_documents").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         uploaded_by: userId, document_type: doc.type,
-        document_name: `${doc.name} - ${p.full_name}`,
-        file_path: `sandbox/${orgId}/${p.id}/${doc.type}.pdf`,
+        document_name: `${doc.name} - ${vu.name}`,
+        file_path: `sandbox/${orgId}/${vu.profileId}/${doc.type}.pdf`,
         file_size: Math.round(50000 + Math.random() * 200000),
         mime_type: "application/pdf",
       });
@@ -804,11 +771,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED INVESTMENT DECLARATIONS =====
   let invDeclCount = 0;
   const sections = ["80C", "80D", "80G", "HRA"];
-  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
-    const p = allProfilesList![pi];
+  for (let pi = 0; pi < Math.min(4, verifiedUsers.length); pi++) {
+    const vu = verifiedUsers[pi];
     for (const sec of sections.slice(0, 2 + pi % 2)) {
       const { error } = await client.from("investment_declarations").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         financial_year: "2025-2026", section_type: sec,
         declared_amount: Math.round(20000 + Math.random() * 130000),
         status: pi < 2 ? "submitted" : "approved",
