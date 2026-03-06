@@ -543,7 +543,18 @@ export default function StatutoryFilings() {
                   <SummaryCard label="Employer Share" value={formatCurrency(esiData.data.reduce((s, r) => s + r.employer_contribution, 0))} />
                 </div>
               )}
-              <DataTable columns={esiCols} data={esiData.data || []} isLoading={esiData.isLoading} emptyMessage="No ESI-eligible employees for this period" />
+              {!esiData.isLoading && (!esiData.data || esiData.data.length === 0) && (
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <p className="text-sm font-medium text-foreground mb-2">How ESI eligibility works</p>
+                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>ESI applies automatically to employees with gross monthly salary <span className="font-medium text-foreground">≤ ₹21,000</span> (as per ESIC norms).</li>
+                    <li>Eligibility is computed from processed payroll records (Basic + HRA + Transport + Other Allowances).</li>
+                    <li>Ensure payroll is processed for the selected period and that the ESI flag is enabled in <span className="font-medium text-foreground">Settings → Payroll</span>.</li>
+                    <li>Employees with an ESI number in their profile will have their IP Number auto-populated.</li>
+                  </ul>
+                </div>
+              )}
+              <DataTable columns={esiCols} data={esiData.data || []} isLoading={esiData.isLoading} emptyMessage="No ESI-eligible employees for this period — all employees may earn above the ₹21,000 ceiling or payroll is not yet processed." />
             </div>
           )}
 
