@@ -55,6 +55,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Calendar,
+  Wrench,
+  ArrowRightLeft,
+  Ban,
 } from "lucide-react";
 import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/BulkUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -180,6 +183,9 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
   const [depScheduleOpen, setDepScheduleOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [disposeOpen, setDisposeOpen] = useState(false);
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -223,6 +229,15 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
     disposal_method: "sale",
     disposal_notes: "",
   });
+
+  // Maintenance form
+  const [maintenanceForm, setMaintenanceForm] = useState({ reason: "", expected_return: "" });
+
+  // Write-off form
+  const [writeOffForm, setWriteOffForm] = useState({ date: new Date().toISOString().split("T")[0], reason: "" });
+
+  // Transfer form
+  const [transferForm, setTransferForm] = useState({ location: "", department: "", custodian: "", notes: "" });
 
   // Filter + search
   const filtered = useMemo(() => {
@@ -357,6 +372,48 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
       {
         onSuccess: () => { setTagOpen(false); setSelectedAsset(null); },
       }
+    );
+  };
+
+  const handleMaintenance = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "under_maintenance",
+        notes: [selectedAsset.notes, `[Maintenance] ${maintenanceForm.reason}${maintenanceForm.expected_return ? ` | Expected return: ${maintenanceForm.expected_return}` : ""}`].filter(Boolean).join("\n"),
+      } as any,
+      { onSuccess: () => { setMaintenanceOpen(false); setSelectedAsset(null); setMaintenanceForm({ reason: "", expected_return: "" }); } }
+    );
+  };
+
+  const handleWriteOff = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "written_off",
+        disposal_date: writeOffForm.date,
+        disposal_method: "write_off",
+        disposal_price: 0,
+        disposal_notes: writeOffForm.reason,
+      } as any,
+      { onSuccess: () => { setWriteOffOpen(false); setSelectedAsset(null); setWriteOffForm({ date: new Date().toISOString().split("T")[0], reason: "" }); } }
+    );
+  };
+
+  const handleTransfer = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "transferred",
+        location: transferForm.location || selectedAsset.location,
+        department: transferForm.department || selectedAsset.department,
+        custodian: transferForm.custodian || selectedAsset.custodian,
+        notes: [selectedAsset.notes, `[Transfer] ${transferForm.notes || "Transferred"} on ${new Date().toISOString().split("T")[0]}`].filter(Boolean).join("\n"),
+      } as any,
+      { onSuccess: () => { setTransferOpen(false); setSelectedAsset(null); setTransferForm({ location: "", department: "", custodian: "", notes: "" }); } }
     );
   };
 
