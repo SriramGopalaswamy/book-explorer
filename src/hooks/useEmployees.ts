@@ -167,11 +167,43 @@ export function useEmployees() {
 // Get employee stats
 export function useEmployeeStats() {
   const { data: employees = [] } = useEmployees();
+  const { user } = useAuth();
+
+  // Dynamically count approved leaves for today (matches attendance module logic)
+  const { data: approvedLeavesToday = [] } = useQuery({
+    queryKey: ["employee-stats-leaves-today"],
+    queryFn: async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("user_id, profile_id")
+        .eq("status", "approved")
+        .lte("from_date", today)
+        .gte("to_date", today);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const leaveProfileIds = new Set(
+    approvedLeavesToday
+      .map((l) => l.profile_id)
+      .filter(Boolean)
+  );
+  const leaveUserIds = new Set(
+    approvedLeavesToday
+      .map((l) => l.user_id)
+      .filter(Boolean)
+  );
+
+  const onLeaveCount = employees.filter(
+    (e) => leaveProfileIds.has(e.id) || leaveUserIds.has(e.user_id)
+  ).length;
 
   const stats = {
     total: employees.length,
-    active: employees.filter((e) => e.status === "active").length,
-    onLeave: employees.filter((e) => e.status === "on_leave").length,
+    active: employees.filter((e) => e.status !== "inactive").length - onLeaveCount,
+    onLeave: onLeaveCount,
     inactive: employees.filter((e) => e.status === "inactive").length,
   };
 
