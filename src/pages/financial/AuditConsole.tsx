@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -443,7 +444,7 @@ export default function AuditConsole() {
                               </p>
                               <p className="text-xs text-muted-foreground">Risk Score</p>
                             </div>
-                            <Button size="sm" variant="ghost"><Eye className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => setSelectedTheme(theme)}><Eye className="h-4 w-4" /></Button>
                           </div>
                         </motion.div>
                       ))}
