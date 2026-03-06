@@ -132,7 +132,7 @@ export default function Analytics() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="ai" className="flex items-center gap-1.5">
               <Brain className="h-3.5 w-3.5" />
               AI Insights
@@ -153,10 +153,6 @@ export default function Analytics() {
               <FileText className="h-3.5 w-3.5" />
               Reports
             </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-1.5">
-              <PieChart className="h-3.5 w-3.5" />
-              Charts
-            </TabsTrigger>
           </TabsList>
 
           {/* AI Command Center Tab */}
@@ -174,7 +170,7 @@ export default function Analytics() {
             <ChartOfAccountsTable />
           </TabsContent>
 
-          {/* Overview Tab */}
+          {/* Overview Tab — consolidated charts & visualizations */}
           <TabsContent value="overview" className="space-y-6 mt-6">
             <div className="grid md:grid-cols-2 gap-6">
               <RevenueTrendChart />
@@ -188,33 +184,6 @@ export default function Analytics() {
           </TabsContent>
 
           {/* Reports Tab */}
-          <TabsContent value="reports" className="space-y-6 mt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                {hasDateFilter ? "Showing filtered period" : "Showing all-time (CoA balances)"}
-              </h3>
-              <ReportsDateFilter
-                from={reportFrom}
-                to={reportTo}
-                onFromChange={setReportFrom}
-                onToChange={setReportTo}
-                onClear={() => { setReportFrom(undefined); setReportTo(undefined); }}
-              />
-            </div>
-            <ProfitLossStatement periodData={hasDateFilter ? periodPL : undefined} from={reportFrom} to={reportTo} />
-            <BalanceSheetSummary asOfDate={reportTo} />
-          </TabsContent>
-
-          {/* Charts Tab */}
-          <TabsContent value="charts" className="space-y-6 mt-6">
-            <RevenueTrendChart />
-            <div className="grid md:grid-cols-2 gap-6">
-              <ExpenseBreakdownDonut />
-              <RevenueSourceDonut />
-            </div>
-            <ProfitBarChart />
-            <AccountsReceivableAging />
-          </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
