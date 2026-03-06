@@ -74,6 +74,18 @@ const CONNECTORS: ConnectorDef[] = [
     ],
     connectLabel: "Connect Razorpay",
   },
+  {
+    id: "zoho_books",
+    name: "Zoho Books",
+    description: "Import invoices, bills, contacts, and chart of accounts from Zoho Books.",
+    icon: Store,
+    fields: [
+      { key: "shopDomain", label: "Zoho Organization ID", placeholder: "123456789" },
+      { key: "apiKey", label: "OAuth Client ID", placeholder: "1000.XXXXXXXXXX" },
+      { key: "apiSecret", label: "OAuth Client Secret", placeholder: "xxxxxxxxxxxx", type: "password" },
+    ],
+    connectLabel: "Connect Zoho Books",
+  },
 ];
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ElementType }> = {
