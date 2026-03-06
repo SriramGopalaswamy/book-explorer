@@ -155,6 +155,42 @@ export function CompensationTab({ profileId, employeeName, canEdit }: Props) {
         </div>
       )}
 
+      {/* ESI Eligibility Override */}
+      {canEdit && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">ESI Eligibility</p>
+                <p className="text-xs text-muted-foreground">
+                  {localEsi === null
+                    ? "Auto (eligible if gross ≤ ₹21,000/mo)"
+                    : localEsi
+                    ? "Manually marked as eligible"
+                    : "Manually marked as ineligible"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select
+                value={localEsi === null ? "auto" : localEsi ? "yes" : "no"}
+                onValueChange={(v) => handleEsiChange(v === "auto" ? null : v === "yes")}
+              >
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (≤ ₹21K)</SelectItem>
+                  <SelectItem value="yes">Always Eligible</SelectItem>
+                  <SelectItem value="no">Not Eligible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pending revision requests for this employee */}
       <PendingRevisionBadges profileId={profileId} />
 
