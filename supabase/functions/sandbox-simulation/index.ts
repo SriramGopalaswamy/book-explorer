@@ -362,6 +362,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.holidays = holidayCount;
 
   // ===== SEED SANDBOX PROFILES (employees) =====
+  // Track verified auth user IDs for downstream use (roles, managers, members)
+  const verifiedUsers: { authId: string; profileId: string; name: string; jobTitle: string; dept: string }[] = [];
   const employeeSeeds = [
     { name: "Arjun Mehta", dept: "Engineering", jobTitle: "Senior Developer", salary: 95000, phone: "+91-9876543001" },
     { name: "Priya Sharma", dept: "Finance", jobTitle: "Finance Manager", salary: 85000, phone: "+91-9876543002" },
@@ -375,148 +377,117 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   let seededProfiles = 0;
 
-  // Seed employees — optimized: skip slow getUserById calls, just try create and handle errors
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
       const tempPassword = crypto.randomUUID() + "Aa1!";
       let authUserId: string | null = null;
 
-      // Check if profile already exists for this email in the org
-      const { data: existingProfile } = await client.from("profiles")
-        .select("id, user_id").eq("organization_id", orgId).eq("email", email).maybeSingle();
-
-      if (existingProfile) {
-        // Profile exists — try to use existing user_id directly (skip slow getUserById)
-        // If the auth user was deleted, the FK will still work for service_role queries
-        authUserId = existingProfile.user_id;
-        
-        // Quick validation: try creating the auth user — if it already exists, we're good
-        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-          email, password: tempPassword, email_confirm: true,
-          user_metadata: { full_name: emp.name },
-        });
-        if (!createErr && newUser?.user) {
-          // Auth user didn't exist (was orphaned) — update profile with new user_id
-          authUserId = newUser.user.id;
-          await client.from("profiles").update({ user_id: authUserId }).eq("id", existingProfile.id);
-        }
-        // If "already registered" error — the user exists, use existing user_id
-        seededProfiles++;
-      } else {
-        // No profile — create auth user + profile
-        const { data: newUser, error: createErr } = await client.auth.admin.createUser({
-          email, password: tempPassword, email_confirm: true,
-          user_metadata: { full_name: emp.name },
-        });
-        if (createErr) {
-          if (createErr.message?.includes("already been registered")) {
-            // User exists but no profile — find their ID via a lightweight approach
-            const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
-            const found = (existingUsers?.users ?? []).find((u: any) => u.email === email);
-            if (found) authUserId = found.id;
-          } else {
-            console.warn(`Failed to create user ${emp.name}:`, createErr.message);
-            continue;
-          }
-        } else {
-          authUserId = newUser.user.id;
-        }
-        if (!authUserId) continue;
-
-        const profileData = {
-          id: authUserId, user_id: authUserId, organization_id: orgId,
-          full_name: emp.name, email,
-          department: emp.dept, job_title: emp.jobTitle,
-          status: "active", join_date: "2024-06-01", phone: emp.phone,
-        };
-        const { error: profileErr } = await client.from("profiles").insert(profileData);
-        if (profileErr) {
-          console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
-        } else {
-          seededProfiles++;
-        }
+      // Step 1: Try to delete any leftover auth user with this email
+      // (handles edge case where profile was deleted but auth user remains)
+      const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
+      const existingAuthUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+      if (existingAuthUser) {
+        await client.auth.admin.deleteUser(existingAuthUser.id);
+        console.log(`Deleted leftover auth user for ${email}`);
       }
+
+      // Step 2: Also delete any leftover profile (shouldn't exist after cleanup, but be safe)
+      await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
+
+      // Step 3: Create fresh auth user
+      const { data: newUser, error: createErr } = await client.auth.admin.createUser({
+        email, password: tempPassword, email_confirm: true,
+        user_metadata: { full_name: emp.name },
+      });
+      if (createErr) {
+        console.warn(`Failed to create auth user ${emp.name}:`, createErr.message);
+        continue;
+      }
+      authUserId = newUser.user.id;
+
+      // Step 4: Create profile with verified auth user ID
+      const profileData = {
+        id: authUserId, user_id: authUserId, organization_id: orgId,
+        full_name: emp.name, email,
+        department: emp.dept, job_title: emp.jobTitle,
+        status: "active", join_date: "2024-06-01", phone: emp.phone,
+      };
+      const { error: profileErr } = await client.from("profiles").insert(profileData);
+      if (profileErr) {
+        console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
+        continue;
+      }
+
+      verifiedUsers.push({ authId: authUserId, profileId: authUserId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+      seededProfiles++;
     } catch (e) {
       console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
     }
   }
   summary.profiles = seededProfiles;
+  console.log(`Seeded ${seededProfiles} profiles with verified auth users`);
 
-  // ===== SEED ORGANIZATION MEMBERS =====
-  const { data: allProfilesList } = await client.from("profiles")
-    .select("id, user_id, full_name, department, job_title")
-    .eq("organization_id", orgId);
-
+  // ===== SEED ORGANIZATION MEMBERS (using verified users only) =====
   let orgMemberCount = 0;
-  for (const p of (allProfilesList ?? [])) {
+  for (const vu of verifiedUsers) {
     const { error } = await client.from("organization_members").upsert({
-      user_id: p.user_id, organization_id: orgId, role: "member",
+      user_id: vu.authId, organization_id: orgId, role: "member",
     }, { onConflict: "organization_id,user_id" });
     if (!error) orgMemberCount++;
   }
   summary.organization_members = orgMemberCount;
 
   // ===== SET MANAGER_ID ON PROFILES (reporting hierarchy) =====
-  // Vikram Singh (Tech Lead) manages: Arjun (Sr Dev), Deepika (QA), Ananya (Marketing)
-  // Rahul Verma (Ops Lead) manages: Karan (Sales)
-  // Sneha Iyer (HR Exec) manages: nobody directly but is HR head
-  // Priya Sharma (Finance Mgr) manages: nobody directly but is Finance head
   const managerMapping: Record<string, string> = {
     "Senior Developer": "Tech Lead",
     "QA Engineer": "Tech Lead",
     "Marketing Analyst": "Tech Lead",
     "Sales Executive": "Operations Lead",
   };
-  const titleToUserId: Record<string, string> = {};
-  for (const p of (allProfilesList ?? [])) {
-    titleToUserId[p.job_title] = p.user_id;
+  const titleToAuthId: Record<string, string> = {};
+  for (const vu of verifiedUsers) {
+    titleToAuthId[vu.jobTitle] = vu.authId;
   }
   let managerIdSetCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const managerTitle = managerMapping[p.job_title];
-    if (managerTitle && titleToUserId[managerTitle]) {
+  for (const vu of verifiedUsers) {
+    const managerTitle = managerMapping[vu.jobTitle];
+    if (managerTitle && titleToAuthId[managerTitle]) {
       const { error } = await client.from("profiles")
-        .update({ manager_id: titleToUserId[managerTitle] })
-        .eq("id", p.id);
+        .update({ manager_id: titleToAuthId[managerTitle] })
+        .eq("id", vu.profileId);
       if (!error) managerIdSetCount++;
     }
   }
   console.log(`Set manager_id on ${managerIdSetCount} profiles`);
 
-  // ===== SEED USER ROLES (MULTI-ROLE) for employees =====
-  // Each key actor gets multiple roles to enable cross-role simulation
+  // ===== SEED USER ROLES (using verified auth IDs — guaranteed to exist in auth.users) =====
   const multiRoleMapping: Record<string, string[]> = {
-    "Senior Developer": ["admin", "manager"],           // Admin who also manages team
-    "Finance Manager":  ["finance", "manager", "payroll"], // Finance head + manager + payroll
-    "HR Executive":     ["hr", "manager", "payroll"],   // HR head + manager + payroll access
-    "Tech Lead":        ["manager"],                     // Pure manager
-    "Operations Lead":  ["manager"],                     // Pure manager
-    "Marketing Analyst": ["employee"],                   // Pure employee
-    "Sales Executive":   ["employee"],                   // Pure employee
-    "QA Engineer":       ["employee"],                   // Pure employee
+    "Senior Developer": ["admin", "manager"],
+    "Finance Manager":  ["finance", "manager", "payroll"],
+    "HR Executive":     ["hr", "manager", "payroll"],
+    "Tech Lead":        ["manager"],
+    "Operations Lead":  ["manager"],
+    "Marketing Analyst": ["employee"],
+    "Sales Executive":   ["employee"],
+    "QA Engineer":       ["employee"],
   };
   let roleCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const roles = multiRoleMapping[p.job_title] || ["employee"];
+  for (const vu of verifiedUsers) {
+    const roles = multiRoleMapping[vu.jobTitle] || ["employee"];
     for (const role of roles) {
-      // First try delete then insert to avoid onConflict issues with enum types
-      await client.from("user_roles")
-        .delete()
-        .eq("user_id", p.user_id)
-        .eq("role", role)
-        .eq("organization_id", orgId);
       const { error } = await client.from("user_roles").insert({
-        user_id: p.user_id, role, organization_id: orgId,
+        user_id: vu.authId, role, organization_id: orgId,
       });
       if (error) {
-        console.warn(`user_roles insert failed for ${p.full_name} / ${role}:`, error.message);
+        console.warn(`user_roles insert failed for ${vu.name} / ${role}:`, error.message);
       } else {
         roleCount++;
       }
     }
   }
   summary.user_roles = roleCount;
+  console.log(`Inserted ${roleCount} user_roles`);
 
   // ===== SEED COMPENSATION STRUCTURES =====
   const salaryByTitle: Record<string, number> = {
