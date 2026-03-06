@@ -5,7 +5,7 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs removed – Journal Entries tab moved to standalone page
 import {
   Table,
   TableBody,
@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  BookOpen,
   Plus,
   ArrowUpRight,
   ArrowDownRight,
@@ -41,10 +40,6 @@ import {
   Loader2,
   Search,
   X,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Undo2,
   Trash2,
   Receipt,
 } from "lucide-react";
@@ -52,9 +47,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
-import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
-import { useJournalEntries, useGLAccounts, usePostJournal, useReverseJournal } from "@/hooks/useLedger";
-import { useProfitLoss } from "@/hooks/useAnalytics";
 import {
   useFinancialRecords,
   useAddFinancialRecord,
