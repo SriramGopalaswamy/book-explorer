@@ -56,6 +56,9 @@ import {
   Boxes,
   Warehouse,
   PackageCheck,
+  Layers,
+  Wrench,
+  Flame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -160,6 +163,13 @@ const procurementNav: NavItem[] = [
 const salesNav: NavItem[] = [
   { name: "Sales Orders", path: "/sales/orders", icon: ShoppingBag, module: "financial" },
   { name: "Deliveries", path: "/sales/deliveries", icon: Truck, module: "financial" },
+];
+
+const manufacturingNav: NavItem[] = [
+  { name: "BOM", path: "/manufacturing/bom", icon: Layers, module: "financial" },
+  { name: "Work Orders", path: "/manufacturing/work-orders", icon: Wrench, module: "financial" },
+  { name: "Consumption", path: "/manufacturing/consumption", icon: Flame, module: "financial" },
+  { name: "Finished Goods", path: "/manufacturing/finished-goods", icon: PackageCheck, module: "financial" },
 ];
 
 const performanceNav: NavItem[] = [
@@ -375,6 +385,9 @@ export function Sidebar() {
   const visibleSalesNav = (isEmployee || isManager || isHR) ? []
     : isModuleEnabled("financial") ? salesNav
     : [];
+  const visibleManufacturingNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? manufacturingNav
+    : [];
   const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
     : isManager
     ? managerHrmsNav
@@ -431,6 +444,9 @@ export function Sidebar() {
             )}
             {visibleSalesNav.length > 0 && (
               <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
+            {visibleManufacturingNav.length > 0 && (
+              <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
             {visiblePerformanceNav.length > 0 && (

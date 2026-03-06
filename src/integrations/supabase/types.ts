@@ -1875,6 +1875,63 @@ export type Database = {
           },
         ]
       }
+      bill_of_materials: {
+        Row: {
+          bom_code: string
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          organization_id: string
+          product_item_id: string | null
+          product_name: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          bom_code: string
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          product_item_id?: string | null
+          product_name: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          bom_code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          product_item_id?: string | null
+          product_name?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_of_materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_of_materials_product_item_id_fkey"
+            columns: ["product_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bills: {
         Row: {
           ai_extracted: boolean
@@ -1959,6 +2016,60 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bom_lines: {
+        Row: {
+          bom_id: string
+          created_at: string
+          id: string
+          item_id: string | null
+          material_name: string
+          notes: string | null
+          quantity: number
+          sort_order: number
+          uom: string
+          wastage_pct: number
+        }
+        Insert: {
+          bom_id: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          material_name: string
+          notes?: string | null
+          quantity?: number
+          sort_order?: number
+          uom?: string
+          wastage_pct?: number
+        }
+        Update: {
+          bom_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          material_name?: string
+          notes?: string | null
+          quantity?: number
+          sort_order?: number
+          uom?: string
+          wastage_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bom_lines_bom_id_fkey"
+            columns: ["bom_id"]
+            isOneToOne: false
+            referencedRelation: "bill_of_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bom_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
             referencedColumns: ["id"]
           },
         ]
@@ -3318,6 +3429,83 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finished_goods_entries: {
+        Row: {
+          cost_per_unit: number | null
+          created_at: string
+          id: string
+          item_id: string | null
+          notes: string | null
+          organization_id: string
+          posted_at: string
+          product_name: string
+          quantity: number
+          rejected_quantity: number
+          total_cost: number | null
+          warehouse_id: string | null
+          work_order_id: string
+        }
+        Insert: {
+          cost_per_unit?: number | null
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          organization_id: string
+          posted_at?: string
+          product_name: string
+          quantity?: number
+          rejected_quantity?: number
+          total_cost?: number | null
+          warehouse_id?: string | null
+          work_order_id: string
+        }
+        Update: {
+          cost_per_unit?: number | null
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          posted_at?: string
+          product_name?: string
+          quantity?: number
+          rejected_quantity?: number
+          total_cost?: number | null
+          warehouse_id?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finished_goods_entries_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finished_goods_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finished_goods_entries_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finished_goods_entries_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4743,6 +4931,77 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_consumption: {
+        Row: {
+          actual_quantity: number
+          consumed_at: string
+          created_at: string
+          id: string
+          item_id: string | null
+          material_name: string
+          organization_id: string
+          planned_quantity: number
+          warehouse_id: string | null
+          wastage_quantity: number
+          work_order_id: string
+        }
+        Insert: {
+          actual_quantity?: number
+          consumed_at?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          material_name: string
+          organization_id: string
+          planned_quantity?: number
+          warehouse_id?: string | null
+          wastage_quantity?: number
+          work_order_id: string
+        }
+        Update: {
+          actual_quantity?: number
+          consumed_at?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          material_name?: string
+          organization_id?: string
+          planned_quantity?: number
+          warehouse_id?: string | null
+          wastage_quantity?: number
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_consumption_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -7506,6 +7765,104 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_orders: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          bom_id: string | null
+          completed_quantity: number
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          organization_id: string
+          planned_end: string | null
+          planned_quantity: number
+          planned_start: string | null
+          priority: string
+          product_item_id: string | null
+          product_name: string
+          rejected_quantity: number
+          status: string
+          updated_at: string
+          warehouse_id: string | null
+          wo_number: string
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          bom_id?: string | null
+          completed_quantity?: number
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          planned_end?: string | null
+          planned_quantity?: number
+          planned_start?: string | null
+          priority?: string
+          product_item_id?: string | null
+          product_name: string
+          rejected_quantity?: number
+          status?: string
+          updated_at?: string
+          warehouse_id?: string | null
+          wo_number: string
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          bom_id?: string | null
+          completed_quantity?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          planned_end?: string | null
+          planned_quantity?: number
+          planned_start?: string | null
+          priority?: string
+          product_item_id?: string | null
+          product_name?: string
+          rejected_quantity?: number
+          status?: string
+          updated_at?: string
+          warehouse_id?: string | null
+          wo_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_bom_id_fkey"
+            columns: ["bom_id"]
+            isOneToOne: false
+            referencedRelation: "bill_of_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_product_item_id_fkey"
+            columns: ["product_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
