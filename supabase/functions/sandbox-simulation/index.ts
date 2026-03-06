@@ -496,19 +496,19 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "Sales Executive": 65000, "QA Engineer": 68000,
   };
   let compCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const basic = salaryByTitle[p.job_title] ?? 50000;
+  for (const vu of verifiedUsers) {
+    const basic = salaryByTitle[vu.jobTitle] ?? 50000;
     const annualCTC = Math.round(basic * 12 * 1.55);
     const { data: existingComp } = await client.from("compensation_structures")
-      .select("id").eq("profile_id", p.id).eq("effective_from", "2024-06-01").maybeSingle();
+      .select("id").eq("profile_id", vu.profileId).eq("effective_from", "2024-06-01").maybeSingle();
     if (!existingComp) {
       const { error: compErr } = await client.from("compensation_structures").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         annual_ctc: annualCTC, created_by: userId,
         effective_from: "2024-06-01", is_active: true,
       });
       if (!compErr) compCount++;
-      else console.warn(`Comp structure for ${p.full_name}:`, compErr.message);
+      else console.warn(`Comp structure for ${vu.name}:`, compErr.message);
     } else {
       compCount++;
     }
@@ -518,27 +518,24 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== GAP FIX #2: SEED MANAGER HIERARCHY =====
   // Tech Lead (Vikram Singh) and Operations Lead (Rahul Verma) are managers
   // Assign manager_id on profiles so subordinates report to them
-  const managers = (allProfilesList ?? []).filter((p: any) =>
-    p.job_title === "Tech Lead" || p.job_title === "Operations Lead"
-  );
-  const engineeringManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Tech Lead");
-  const opsManager = (allProfilesList ?? []).find((p: any) => p.job_title === "Operations Lead");
+  const engineeringManager = verifiedUsers.find((vu) => vu.jobTitle === "Tech Lead");
+  const opsManager = verifiedUsers.find((vu) => vu.jobTitle === "Operations Lead");
 
   const managerAssignment: Record<string, any> = {
     "Engineering": engineeringManager,
     "Marketing": opsManager,
     "Sales": opsManager,
-    "Finance": engineeringManager, // cross-dept reporting for sim
+    "Finance": engineeringManager,
     "HR": opsManager,
   };
 
   let managerHierarchyCount = 0;
-  for (const p of (allProfilesList ?? [])) {
-    const mgr = managerAssignment[p.department];
-    if (mgr && mgr.id !== p.id) {
+  for (const vu of verifiedUsers) {
+    const mgr = managerAssignment[vu.dept];
+    if (mgr && mgr.profileId !== vu.profileId) {
       const { error } = await client.from("profiles").update({
-        manager_id: mgr.id,
-      }).eq("id", p.id);
+        manager_id: mgr.authId,
+      }).eq("id", vu.profileId);
       if (!error) managerHierarchyCount++;
     }
   }
@@ -551,11 +548,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { type: "earned", total: 15 },
   ];
   let leaveBalCount = 0;
-  for (const p of (allProfilesList ?? [])) {
+  for (const vu of verifiedUsers) {
     for (const lb of leaveBalanceTypes) {
       const usedDays = Math.floor(Math.random() * Math.min(lb.total, 4));
       const { error } = await client.from("leave_balances").insert({
-        user_id: p.user_id, profile_id: p.id, organization_id: orgId,
+        user_id: vu.authId, profile_id: vu.profileId, organization_id: orgId,
         leave_type: lb.type, total_days: lb.total,
         used_days: usedDays, year: 2026,
       });
@@ -585,15 +582,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const d = new Date(attToday);
     d.setDate(d.getDate() - dayOffset);
     const dateStr = d.toISOString().split("T")[0];
-    for (const p of (allProfilesList ?? []).slice(0, 5)) {
+    for (const vu of verifiedUsers.slice(0, 5)) {
       // Delete any existing record for this profile+date to avoid duplicates
       await client.from("attendance_daily").delete()
-        .eq("profile_id", p.id).eq("attendance_date", dateStr);
+        .eq("profile_id", vu.profileId).eq("attendance_date", dateStr);
       const lateMin = Math.floor(Math.random() * 20);
       const otMin = Math.floor(Math.random() * 60);
       const workMin = 480 + otMin - lateMin;
       const { error } = await client.from("attendance_daily").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         attendance_date: dateStr, status: "P",
         first_in_time: `09:${String(lateMin).padStart(2, "0")}:00`,
         last_out_time: `18:${String(otMin).padStart(2, "0")}:00`,
@@ -697,8 +694,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     if (!hrErr && histRun) {
       histPayrollCount++;
       // Create payroll records for each historical month
-      for (let pi = 0; pi < Math.min(5, (allProfilesList ?? []).length); pi++) {
-        const p = allProfilesList![pi];
+      for (let pi = 0; pi < Math.min(5, verifiedUsers.length); pi++) {
+        const vu = verifiedUsers[pi];
         const basic = [50000, 65000, 80000, 45000, 95000][pi % 5];
         const hra = Math.round(basic * 0.4);
         const gross = basic + hra + 1600 + Math.round(basic * 0.15);
@@ -706,7 +703,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         const tax = Math.round(gross * 0.1);
         const net = gross - pf - tax - 500;
         await client.from("payroll_records").insert({
-          user_id: p.user_id, profile_id: p.id,
+          user_id: vu.authId, profile_id: vu.profileId,
           organization_id: orgId, pay_period: hm.period,
           basic_salary: basic, hra, transport_allowance: 1600,
           other_allowances: Math.round(basic * 0.15),
@@ -726,15 +723,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     const d = new Date(attToday);
     d.setDate(d.getDate() - dayOffset);
     const dateStr = d.toISOString().split("T")[0];
-    for (let pi = 0; pi < Math.min(8, (allProfilesList ?? []).length); pi++) {
-      const p = allProfilesList![pi];
+    for (let pi = 0; pi < Math.min(8, verifiedUsers.length); pi++) {
+      const vu = verifiedUsers[pi];
       const st = attStatuses[(dayOffset + pi) % attStatuses.length];
       const isPresent = st === "P" || st === "HD";
       // Delete any existing record for this profile+date to avoid duplicates
       await client.from("attendance_daily").delete()
-        .eq("profile_id", p.id).eq("attendance_date", dateStr);
+        .eq("profile_id", vu.profileId).eq("attendance_date", dateStr);
       const { error } = await client.from("attendance_daily").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         attendance_date: dateStr, status: st,
         first_in_time: isPresent ? "09:05:00" : null,
         last_out_time: isPresent ? (st === "HD" ? "13:00:00" : "18:10:00") : null,
@@ -755,14 +752,14 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     { type: "aadhaar", name: "Aadhaar Card" },
     { type: "bank_details", name: "Cancelled Cheque" },
   ];
-  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
-    const p = allProfilesList![pi];
+  for (let pi = 0; pi < Math.min(4, verifiedUsers.length); pi++) {
+    const vu = verifiedUsers[pi];
     for (const doc of docTypes) {
       const { error } = await client.from("employee_documents").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         uploaded_by: userId, document_type: doc.type,
-        document_name: `${doc.name} - ${p.full_name}`,
-        file_path: `sandbox/${orgId}/${p.id}/${doc.type}.pdf`,
+        document_name: `${doc.name} - ${vu.name}`,
+        file_path: `sandbox/${orgId}/${vu.profileId}/${doc.type}.pdf`,
         file_size: Math.round(50000 + Math.random() * 200000),
         mime_type: "application/pdf",
       });
@@ -774,11 +771,11 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED INVESTMENT DECLARATIONS =====
   let invDeclCount = 0;
   const sections = ["80C", "80D", "80G", "HRA"];
-  for (let pi = 0; pi < Math.min(4, (allProfilesList ?? []).length); pi++) {
-    const p = allProfilesList![pi];
+  for (let pi = 0; pi < Math.min(4, verifiedUsers.length); pi++) {
+    const vu = verifiedUsers[pi];
     for (const sec of sections.slice(0, 2 + pi % 2)) {
       const { error } = await client.from("investment_declarations").insert({
-        profile_id: p.id, organization_id: orgId,
+        profile_id: vu.profileId, organization_id: orgId,
         financial_year: "2025-2026", section_type: sec,
         declared_amount: Math.round(20000 + Math.random() * 130000),
         status: pi < 2 ? "submitted" : "approved",
