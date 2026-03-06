@@ -526,8 +526,8 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast.success(`Bill ${variables.status === "approved" ? "approved" : variables.status === "paid" ? "marked as paid" : "status updated"} successfully`);
-      if (["approved", "paid"].includes(variables.status)) {
+      toast.success(`Bill ${variables.status === "paid" ? "marked as paid" : variables.status === "received" ? "marked as received" : "status updated"} successfully`);
+      if (["received", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {
           body: { type: "bill_status_changed", payload: { bill_id: variables.id, new_status: variables.status } },
         }).catch((err) => console.warn("Failed to send bill notification:", err));
