@@ -5,6 +5,7 @@ import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { mockScheduledPayments } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
+import { createBankTransaction } from "@/lib/bank-transaction-sync";
 
 export interface ScheduledPayment {
   id: string;
