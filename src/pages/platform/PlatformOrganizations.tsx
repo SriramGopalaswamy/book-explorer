@@ -27,7 +27,11 @@ function getStateBadge(status: string, orgState: string) {
   return <Badge variant="outline">{orgState}</Badge>;
 }
 
-export default function PlatformOrganizations() {
+export function TenantsContent() {
+  return <TenantsContentInner />;
+}
+
+function TenantsContentInner() {
   const navigate = useNavigate();
   const { data: orgs, isLoading } = useOrganizations();
   const { data: memberCounts } = useOrgMemberCounts();
@@ -62,7 +66,7 @@ export default function PlatformOrganizations() {
   };
 
   return (
-    <MainLayout title="Tenants" subtitle="All registered tenants in the platform">
+    <>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="pb-2">
@@ -163,6 +167,14 @@ export default function PlatformOrganizations() {
           )}
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+export default function PlatformOrganizations() {
+  return (
+    <MainLayout title="Tenants" subtitle="All registered tenants in the platform">
+      <TenantsContent />
     </MainLayout>
   );
 }
