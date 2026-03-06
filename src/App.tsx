@@ -168,6 +168,8 @@ const App = () => (
                 <Route path="/financial/journal-entry" element={<Guarded><FinanceRoute><JournalEntry /></FinanceRoute></Guarded>} />
                 <Route path="/financial/ledger" element={<Guarded><FinanceRoute><LedgerExplorer /></FinanceRoute></Guarded>} />
                 <Route path="/financial/ca-dashboard" element={<Guarded><FinanceRoute><CADashboard /></FinanceRoute></Guarded>} />
+                <Route path="/financial/payment-receipts" element={<Guarded><FinanceRoute><PaymentReceipts /></FinanceRoute></Guarded>} />
+                <Route path="/financial/vendor-payments" element={<Guarded><FinanceRoute><VendorPaymentsPage /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
                 <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />
