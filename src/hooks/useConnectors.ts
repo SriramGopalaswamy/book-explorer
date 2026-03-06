@@ -30,11 +30,11 @@ export function useIntegrations() {
     queryKey: ["integrations"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("integrations" as any)
+        .from("integrations")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as Integration[];
+      return (data || []) as Integration[];
     },
   });
 }
@@ -44,12 +44,12 @@ export function useIntegration(provider: string) {
     queryKey: ["integrations", provider],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("integrations" as any)
+        .from("integrations")
         .select("*")
         .eq("provider", provider)
         .maybeSingle();
       if (error) throw error;
-      return data as unknown as Integration | null;
+      return data as Integration | null;
     },
   });
 }
@@ -63,7 +63,7 @@ export function useConnectProvider() {
         : null;
 
       const { data, error } = await supabase
-        .from("integrations" as any)
+        .from("integrations")
         .upsert(
           {
             provider,
@@ -78,18 +78,19 @@ export function useConnectProvider() {
         .single();
       if (error) throw error;
 
-      await supabase.from("connector_logs" as any).insert({
+      // Log the connection event
+      await supabase.from("connector_logs").insert({
         provider,
         event_type: "oauth",
         status: "success",
         message: `Connected ${provider}${domain ? `: ${domain}` : ""}`,
       } as any);
 
-      return data as unknown as Integration;
+      return data as Integration;
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["integrations"] });
-      toast.success(`${vars.provider.charAt(0).toUpperCase() + vars.provider.slice(1)} connected successfully`);
+      toast.success(`${vars.provider.charAt(0).toUpperCase() + vars.provider.slice(1).replace(/_/g, " ")} connected successfully`);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -100,16 +101,16 @@ export function useDisconnectIntegration() {
   return useMutation({
     mutationFn: async ({ provider }: { provider: string }) => {
       const { error } = await supabase
-        .from("integrations" as any)
+        .from("integrations")
         .update({
           status: "disconnected",
           access_token: null,
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq("provider", provider);
       if (error) throw error;
 
-      await supabase.from("connector_logs" as any).insert({
+      await supabase.from("connector_logs").insert({
         provider,
         event_type: "oauth",
         status: "info",
@@ -124,20 +125,32 @@ export function useDisconnectIntegration() {
   });
 }
 
+// Map provider to the correct edge function
+const SYNC_FUNCTIONS: Record<string, string> = {
+  shopify: "shopify-sync",
+  zoho_books: "zoho-sync",
+  // Other providers share the shopify-sync generic handler for now
+  amazon: "shopify-sync",
+  woocommerce: "shopify-sync",
+  stripe: "shopify-sync",
+  razorpay: "shopify-sync",
+};
+
 export function useTriggerSync() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ provider }: { provider: string }) => {
-      // Call edge function for sync
-      const { data, error } = await supabase.functions.invoke("shopify-sync", {
+      const fnName = SYNC_FUNCTIONS[provider] || "shopify-sync";
+      const { data, error } = await supabase.functions.invoke(fnName, {
         body: { provider },
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["integrations"] });
       qc.invalidateQueries({ queryKey: ["shopify-stats"] });
+      qc.invalidateQueries({ queryKey: ["connector-logs", vars.provider] });
       toast.success("Sync triggered successfully");
     },
     onError: (e: any) => toast.error(e.message),
@@ -149,9 +162,9 @@ export function useShopifyStats() {
     queryKey: ["shopify-stats"],
     queryFn: async () => {
       const [orders, customers, products] = await Promise.all([
-        supabase.from("shopify_orders" as any).select("id, order_total", { count: "exact" }),
-        supabase.from("shopify_customers" as any).select("id", { count: "exact" }),
-        supabase.from("shopify_products" as any).select("id", { count: "exact" }),
+        supabase.from("shopify_orders").select("id, order_total", { count: "exact" }),
+        supabase.from("shopify_customers").select("id", { count: "exact" }),
+        supabase.from("shopify_products").select("id", { count: "exact" }),
       ]);
       const totalRevenue = ((orders.data || []) as any[]).reduce(
         (s: number, o: any) => s + Number(o.order_total || 0),
@@ -172,14 +185,14 @@ export function useConnectorLogs(provider?: string) {
     queryKey: ["connector-logs", provider],
     queryFn: async () => {
       let q = supabase
-        .from("connector_logs" as any)
+        .from("connector_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50);
       if (provider) q = q.eq("provider", provider);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as unknown as ConnectorLog[];
+      return (data || []) as ConnectorLog[];
     },
   });
 }
@@ -190,12 +203,12 @@ export function useAllIntegrations() {
     queryKey: ["all-integrations"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("integrations" as any)
+        .from("integrations")
         .select("*")
         .eq("status", "connected")
         .order("connected_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as Integration[];
+      return (data || []) as Integration[];
     },
   });
 }
