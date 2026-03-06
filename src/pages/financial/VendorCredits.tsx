@@ -41,7 +41,7 @@ const formatCurrency = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(2
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   draft:   ["issued", "void"],
   issued:  ["applied", "void"],
-  applied: [],
+  applied: ["void"],
   void:    [],
 };
 
