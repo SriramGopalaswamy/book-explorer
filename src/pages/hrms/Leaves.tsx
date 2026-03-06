@@ -243,7 +243,13 @@ export default function Leaves() {
             <Skeleton key={i} className="h-32" />
           ))
         ) : (
-          leaveBalances.map((leave) => {
+          leaveBalances
+            .filter((leave) => {
+              // Only show KPI cards for active leave types
+              const activeKeys = new Set(activeLeaveTypes.map((lt) => lt.key));
+              return activeKeys.size === 0 || activeKeys.has(leave.leave_type);
+            })
+            .map((leave) => {
             const config = leaveTypeConfig[leave.leave_type] || { icon: Briefcase, color: "text-muted-foreground", label: leave.leave_type };
             const Icon = config.icon;
             const remaining = leave.total_days - leave.used_days;
