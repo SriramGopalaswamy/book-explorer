@@ -134,6 +134,7 @@ function exportToCSV(data: any[], filename: string) {
 
 export default function AuditConsole() {
   const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedTheme, setSelectedTheme] = useState<any>(null);
   const fyOptions = getFinancialYearOptions();
 
   const { data: latestRun, isLoading: runLoading } = useLatestComplianceRun(selectedFY);
