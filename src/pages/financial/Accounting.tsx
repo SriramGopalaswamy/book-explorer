@@ -813,27 +813,7 @@ export default function Accounting() {
     <MainLayout title="Accounting" subtitle="Manage transactions and general ledger entries">
       <div className="space-y-6 animate-fade-in">
         <OnboardingBanner />
-
-        <Tabs defaultValue="transactions" className="w-full">
-          <TabsList className="w-full max-w-md">
-            <TabsTrigger value="transactions" className="flex-1 flex items-center justify-center gap-1.5">
-              <Receipt className="h-4 w-4 hidden sm:block flex-shrink-0" />
-              <span>Transactions</span>
-            </TabsTrigger>
-            <TabsTrigger value="journal" className="flex-1 flex items-center justify-center gap-1.5">
-              <BookOpen className="h-4 w-4 hidden sm:block flex-shrink-0" />
-              <span>Journal Entries</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="transactions" className="mt-6">
-            <TransactionsTab />
-          </TabsContent>
-
-          <TabsContent value="journal" className="mt-6">
-            <JournalEntriesTab />
-          </TabsContent>
-        </Tabs>
+        <TransactionsTab />
       </div>
     </MainLayout>
   );
