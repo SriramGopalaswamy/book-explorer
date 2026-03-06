@@ -3946,6 +3946,102 @@ export type Database = {
           },
         ]
       }
+      items: {
+        Row: {
+          barcode: string | null
+          category: string
+          created_at: string
+          current_stock: number | null
+          description: string | null
+          hsn_code: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          item_type: string
+          metadata: Json | null
+          name: string
+          opening_stock: number | null
+          organization_id: string
+          purchase_price: number
+          reorder_level: number | null
+          reorder_quantity: number | null
+          selling_price: number
+          sku: string
+          stock_value: number | null
+          tax_rate: number | null
+          uom_id: string | null
+          updated_at: string
+          valuation_method: string
+        }
+        Insert: {
+          barcode?: string | null
+          category?: string
+          created_at?: string
+          current_stock?: number | null
+          description?: string | null
+          hsn_code?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          item_type?: string
+          metadata?: Json | null
+          name: string
+          opening_stock?: number | null
+          organization_id: string
+          purchase_price?: number
+          reorder_level?: number | null
+          reorder_quantity?: number | null
+          selling_price?: number
+          sku: string
+          stock_value?: number | null
+          tax_rate?: number | null
+          uom_id?: string | null
+          updated_at?: string
+          valuation_method?: string
+        }
+        Update: {
+          barcode?: string | null
+          category?: string
+          created_at?: string
+          current_stock?: number | null
+          description?: string | null
+          hsn_code?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          item_type?: string
+          metadata?: Json | null
+          name?: string
+          opening_stock?: number | null
+          organization_id?: string
+          purchase_price?: number
+          reorder_level?: number | null
+          reorder_quantity?: number | null
+          selling_price?: number
+          sku?: string
+          stock_value?: number | null
+          tax_rate?: number | null
+          uom_id?: string | null
+          updated_at?: string
+          valuation_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_uom_id_fkey"
+            columns: ["uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           created_at: string
@@ -6157,6 +6253,208 @@ export type Database = {
           },
         ]
       }
+      stock_adjustment_items: {
+        Row: {
+          adjustment_id: string
+          created_at: string
+          current_qty: number
+          difference_qty: number | null
+          id: string
+          item_id: string
+          new_qty: number
+          rate: number
+          reason: string | null
+          value_impact: number | null
+        }
+        Insert: {
+          adjustment_id: string
+          created_at?: string
+          current_qty?: number
+          difference_qty?: number | null
+          id?: string
+          item_id: string
+          new_qty?: number
+          rate?: number
+          reason?: string | null
+          value_impact?: number | null
+        }
+        Update: {
+          adjustment_id?: string
+          created_at?: string
+          current_qty?: number
+          difference_qty?: number | null
+          id?: string
+          item_id?: string
+          new_qty?: number
+          rate?: number
+          reason?: string | null
+          value_impact?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_adjustment_items_adjustment_id_fkey"
+            columns: ["adjustment_id"]
+            isOneToOne: false
+            referencedRelation: "stock_adjustments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_adjustments: {
+        Row: {
+          adjustment_date: string
+          adjustment_number: string
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          organization_id: string
+          reason: string
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          adjustment_date?: string
+          adjustment_number: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          reason: string
+          status?: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          adjustment_date?: string
+          adjustment_number?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          reason?: string
+          status?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_ledger: {
+        Row: {
+          balance_qty: number
+          balance_value: number
+          batch_no: string | null
+          created_at: string
+          id: string
+          item_id: string
+          notes: string | null
+          organization_id: string
+          posted_at: string
+          posted_by: string | null
+          quantity: number
+          rate: number
+          reference_id: string | null
+          reference_type: string | null
+          serial_no: string | null
+          transaction_type: string
+          value: number
+          warehouse_id: string
+        }
+        Insert: {
+          balance_qty?: number
+          balance_value?: number
+          batch_no?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          notes?: string | null
+          organization_id: string
+          posted_at?: string
+          posted_by?: string | null
+          quantity: number
+          rate?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          serial_no?: string | null
+          transaction_type: string
+          value?: number
+          warehouse_id: string
+        }
+        Update: {
+          balance_qty?: number
+          balance_value?: number
+          batch_no?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          notes?: string | null
+          organization_id?: string
+          posted_at?: string
+          posted_by?: string | null
+          quantity?: number
+          rate?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          serial_no?: string | null
+          transaction_type?: string
+          value?: number
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_ledger_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subledger_reconciliation_log: {
         Row: {
           created_at: string
@@ -6391,6 +6689,47 @@ export type Database = {
           },
         ]
       }
+      units_of_measure: {
+        Row: {
+          abbreviation: string
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          abbreviation: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          abbreviation?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "units_of_measure_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -6568,6 +6907,77 @@ export type Database = {
           },
           {
             foreignKeyName: "vendors_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouses: {
+        Row: {
+          address: string | null
+          capacity_units: number | null
+          city: string | null
+          code: string
+          contact_email: string | null
+          contact_person: string | null
+          contact_phone: string | null
+          country: string | null
+          created_at: string
+          current_utilization: number | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          organization_id: string
+          pincode: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          capacity_units?: number | null
+          city?: string | null
+          code: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          created_at?: string
+          current_utilization?: number | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          organization_id: string
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          capacity_units?: number | null
+          city?: string | null
+          code?: string
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          created_at?: string
+          current_utilization?: number | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
