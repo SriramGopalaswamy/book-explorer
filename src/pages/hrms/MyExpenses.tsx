@@ -262,30 +262,38 @@ export default function MyExpenses() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search by category..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search by category..." value={search} onChange={(e) => { setSearch(e.target.value); allPagination.setPage(1); }} />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); allPagination.setPage(1); }}>
+              <SelectTrigger className="w-[150px] h-9 text-sm">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending ({pendingExpenses.length})</SelectItem>
+                <SelectItem value="approved">Approved ({approvedExpenses.length})</SelectItem>
+                <SelectItem value="paid">Paid ({paidExpenses.length})</SelectItem>
+                <SelectItem value="rejected">Rejected ({rejectedExpenses.length})</SelectItem>
+              </SelectContent>
+            </Select>
+            {(search || statusFilter !== "all") && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground h-9"
+                onClick={() => { setSearch(""); setStatusFilter("all"); allPagination.setPage(1); }}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />Clear
+              </Button>
+            )}
           </div>
           <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
             <Plus className="h-4 w-4" /> Create Expense
           </Button>
         </div>
 
-        <Tabs defaultValue="all">
-          <TabsList>
-            <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
-            <TabsTrigger value="pending" className="gap-2">
-              Pending
-              {pendingExpenses.length > 0 && <span className="ml-1 rounded-full bg-warning/20 text-warning text-xs px-1.5 py-0.5 font-semibold">{pendingExpenses.length}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="approved">Approved ({approvedExpenses.length})</TabsTrigger>
-            <TabsTrigger value="paid">Paid ({paidExpenses.length})</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all">{renderExpenseTable(allFiltered, allPagination)}</TabsContent>
-          <TabsContent value="pending">{renderExpenseTable(pendingExpenses, pendingPagination)}</TabsContent>
-          <TabsContent value="approved">{renderExpenseTable(approvedExpenses, approvedPagination)}</TabsContent>
-          <TabsContent value="paid">{renderExpenseTable(paidExpenses, paidPagination)}</TabsContent>
-        </Tabs>
+        {renderExpenseTable(allFiltered, allPagination)}
       </div>
 
       {/* Create Expense Dialog */}
