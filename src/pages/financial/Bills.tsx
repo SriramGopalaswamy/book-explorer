@@ -892,9 +892,14 @@ export default function Bills() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
                               {b.status === "draft" && (
-                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
-                                  <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem onClick={() => openEditDialog(b)}>
+                                    <Pencil className="h-4 w-4 mr-2 text-muted-foreground" /> Edit Bill
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
+                                    <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               {(b.status === "received" || b.effectiveStatus === "overdue") && (
                                 <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "paid" })}>
