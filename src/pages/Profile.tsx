@@ -315,29 +315,29 @@ export default function Profile() {
           {/* Tabs */}
           <Tabs defaultValue="personal" className="space-y-6">
             <TabsList className="grid w-full grid-cols-6 glass-morphism">
-              <TabsTrigger value="personal" className="rounded-lg text-xs sm:text-sm">
-                <User className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Personal
+              <TabsTrigger value="personal" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <User className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Personal</span>
               </TabsTrigger>
-              <TabsTrigger value="address" className="rounded-lg text-xs sm:text-sm">
-                <MapPin className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Address
+              <TabsTrigger value="address" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <MapPin className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Address</span>
               </TabsTrigger>
-              <TabsTrigger value="bank" className="rounded-lg text-xs sm:text-sm">
-                <Landmark className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Bank & IDs
+              <TabsTrigger value="bank" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <Landmark className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Bank & IDs</span>
               </TabsTrigger>
-              <TabsTrigger value="documents" className="rounded-lg text-xs sm:text-sm">
-                <FileText className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Documents
+              <TabsTrigger value="documents" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <FileText className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Documents</span>
               </TabsTrigger>
-              <TabsTrigger value="account" className="rounded-lg text-xs sm:text-sm">
-                <Mail className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Account
+              <TabsTrigger value="account" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <Mail className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Account</span>
               </TabsTrigger>
-              <TabsTrigger value="requests" className="rounded-lg text-xs sm:text-sm relative">
-                <Clock className="mr-1.5 h-4 w-4 hidden sm:block" />
-                Requests
+              <TabsTrigger value="requests" className="rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5 relative">
+                <Clock className="h-4 w-4 hidden sm:block flex-shrink-0" />
+                <span>Requests</span>
                 {pendingCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center">
                     {pendingCount}
