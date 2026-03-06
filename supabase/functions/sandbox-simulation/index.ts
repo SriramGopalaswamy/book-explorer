@@ -95,23 +95,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
   if (jdErr) console.warn("Force delete journal data:", jdErr.message);
 
-  // Clean up previously seeded sandbox simulation users
-  const { data: simProfiles } = await client.from("profiles")
-    .select("id, user_id, email")
-    .eq("organization_id", orgId)
-    .like("email", "%@sandbox-sim.local");
-  for (const sp of (simProfiles ?? [])) {
-    try {
-      await client.from("organization_members").delete().eq("user_id", sp.user_id).eq("organization_id", orgId);
-      await client.from("compensation_structures").delete().eq("profile_id", sp.id);
-      await client.from("profiles").delete().eq("id", sp.id);
-      await client.auth.admin.deleteUser(sp.user_id);
-    } catch (e) {
-      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
-    }
-  }
-
-  // Clear existing transactional data (order matters for FK constraints)
+  // ===== PHASE 1: Clear ALL transactional data FIRST (before touching profiles) =====
   const orgScopedTables = [
     "payslip_disputes", "payroll_records", "payroll_runs",
     "reimbursement_requests",
@@ -127,9 +111,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "bank_transactions", "bank_accounts", "expenses", "budgets",
     "financial_records", "assets", "audit_logs",
     "compensation_revision_requests", "compensation_components", "compensation_structures",
-     "holidays", "user_roles", "organization_members",
-     "profile_change_requests", "payslip_disputes",
-     "chart_of_accounts",
+    "holidays", "user_roles", "organization_members",
+    "profile_change_requests",
+    "chart_of_accounts",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -151,12 +135,27 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     }
   }
 
-  // Now clear org-scoped tables
+  // Clear all org-scoped tables (this removes FK dependencies on profiles)
   for (const table of orgScopedTables) {
     try {
       const { error } = await client.from(table).delete().eq("organization_id", orgId);
       if (error) console.warn(`Clear ${table}:`, error.message);
     } catch (_) { /* table may not exist */ }
+  }
+
+  // ===== PHASE 2: Now safely delete sim profiles and auth users =====
+  const { data: simProfiles } = await client.from("profiles")
+    .select("id, user_id, email")
+    .eq("organization_id", orgId)
+    .like("email", "%@sandbox-sim.local");
+  for (const sp of (simProfiles ?? [])) {
+    try {
+      // Profile FK dependencies are already cleared above, so this will succeed
+      await client.from("profiles").delete().eq("id", sp.id);
+      await client.auth.admin.deleteUser(sp.user_id);
+    } catch (e) {
+      console.warn(`Cleanup user ${sp.email}:`, (e as Error).message);
+    }
   }
 
   // ===== SEED VENDORS =====
