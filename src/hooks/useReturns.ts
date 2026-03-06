@@ -1,0 +1,196 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+export interface SalesReturn {
+  id: string;
+  organization_id: string;
+  return_number: string;
+  sales_order_id: string | null;
+  delivery_note_id: string | null;
+  customer_id: string | null;
+  customer_name: string;
+  return_date: string;
+  reason: string | null;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  credit_note_id: string | null;
+  status: string;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface SalesReturnItem {
+  id: string;
+  sales_return_id: string;
+  item_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  amount: number;
+  reason: string | null;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  organization_id: string;
+  return_number: string;
+  purchase_order_id: string | null;
+  goods_receipt_id: string | null;
+  vendor_id: string | null;
+  vendor_name: string;
+  return_date: string;
+  reason: string | null;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  vendor_credit_id: string | null;
+  status: string;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export function useSalesReturns() {
+  return useQuery({
+    queryKey: ["sales-returns"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sales_returns" as any).select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as SalesReturn[];
+    },
+  });
+}
+
+export function useCreateSalesReturn() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (r: { customer_name: string; customer_id?: string; sales_order_id?: string; delivery_note_id?: string; return_date: string; reason?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string; reason?: string }[] }) => {
+      const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
+      const num = `SR-${Date.now().toString(36).toUpperCase()}`;
+
+      const { data, error } = await supabase.from("sales_returns" as any).insert({
+        return_number: num,
+        customer_name: r.customer_name,
+        customer_id: r.customer_id || null,
+        sales_order_id: r.sales_order_id || null,
+        delivery_note_id: r.delivery_note_id || null,
+        return_date: r.return_date,
+        reason: r.reason || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+        notes: r.notes || null,
+        created_by: user?.id,
+      } as any).select().single();
+      if (error) throw error;
+
+      const items = r.items.map((i) => ({
+        sales_return_id: (data as any).id,
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        tax_rate: i.tax_rate,
+        amount: Math.round(i.quantity * i.unit_price * (1 + i.tax_rate / 100) * 100) / 100,
+        item_id: i.item_id || null,
+        reason: i.reason || null,
+      }));
+
+      if (items.length > 0) {
+        const { error: ie } = await supabase.from("sales_return_items" as any).insert(items as any);
+        if (ie) throw ie;
+      }
+      return data;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-returns"] }); toast.success("Sales return created"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdateSalesReturnStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("sales_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-returns"] }); toast.success("Status updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function usePurchaseReturns() {
+  return useQuery({
+    queryKey: ["purchase-returns"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("purchase_returns" as any).select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as PurchaseReturn[];
+    },
+  });
+}
+
+export function useCreatePurchaseReturn() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (r: { vendor_name: string; vendor_id?: string; purchase_order_id?: string; goods_receipt_id?: string; return_date: string; reason?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string; reason?: string }[] }) => {
+      const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
+      const num = `PR-${Date.now().toString(36).toUpperCase()}`;
+
+      const { data, error } = await supabase.from("purchase_returns" as any).insert({
+        return_number: num,
+        vendor_name: r.vendor_name,
+        vendor_id: r.vendor_id || null,
+        purchase_order_id: r.purchase_order_id || null,
+        goods_receipt_id: r.goods_receipt_id || null,
+        return_date: r.return_date,
+        reason: r.reason || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+        notes: r.notes || null,
+        created_by: user?.id,
+      } as any).select().single();
+      if (error) throw error;
+
+      const items = r.items.map((i) => ({
+        purchase_return_id: (data as any).id,
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        tax_rate: i.tax_rate,
+        amount: Math.round(i.quantity * i.unit_price * (1 + i.tax_rate / 100) * 100) / 100,
+        item_id: i.item_id || null,
+        reason: i.reason || null,
+      }));
+
+      if (items.length > 0) {
+        const { error: ie } = await supabase.from("purchase_return_items" as any).insert(items as any);
+        if (ie) throw ie;
+      }
+      return data;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-returns"] }); toast.success("Purchase return created"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdatePurchaseReturnStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("purchase_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-returns"] }); toast.success("Status updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}

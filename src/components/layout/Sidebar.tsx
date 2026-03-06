@@ -61,6 +61,9 @@ import {
   Flame,
   MapPin,
   ArrowRightLeft,
+  RotateCcw,
+  Banknote,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -94,6 +97,8 @@ const financialNav: NavItem[] = [
   { name: "Vendor Credits", path: "/financial/vendor-credits", icon: Receipt, module: "financial" },
   { name: "Banking", path: "/financial/banking", icon: Building2, module: "financial" },
   { name: "Cash Flow", path: "/financial/cashflow", icon: TrendingUp, module: "financial" },
+  { name: "Payment Receipts", path: "/financial/payment-receipts", icon: Banknote, module: "financial" },
+  { name: "Vendor Payments", path: "/financial/vendor-payments", icon: Banknote, module: "financial" },
   { name: "Assets", path: "/financial/assets", icon: Package, module: "financial" },
   { name: "Statutory Filings", path: "/financial/statutory", icon: Landmark, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
@@ -160,11 +165,13 @@ const inventoryNav: NavItem[] = [
 const procurementNav: NavItem[] = [
   { name: "Purchase Orders", path: "/procurement/purchase-orders", icon: ShoppingCart, module: "financial" },
   { name: "Goods Receipts", path: "/procurement/goods-receipts", icon: PackageCheck, module: "financial" },
+  { name: "Purchase Returns", path: "/procurement/returns", icon: RotateCcw, module: "financial" },
 ];
 
 const salesNav: NavItem[] = [
   { name: "Sales Orders", path: "/sales/orders", icon: ShoppingBag, module: "financial" },
   { name: "Deliveries", path: "/sales/deliveries", icon: Truck, module: "financial" },
+  { name: "Sales Returns", path: "/sales/returns", icon: RotateCcw, module: "financial" },
 ];
 
 const manufacturingNav: NavItem[] = [
@@ -470,7 +477,10 @@ export function Sidebar() {
             {(currentRole === "admin" || currentRole === "hr") && (
               <NavSection
                 title="Admin"
-                items={[{ name: "Audit Log", path: "/admin/audit-log", icon: Shield }]}
+                items={[
+                  { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
+                  { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
+                ]}
                 sectionId="admin"
                 collapsed={collapsed}
                 onItemClick={closeMobile}
