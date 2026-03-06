@@ -520,12 +520,33 @@ export default function Bills() {
       if (!data || data.length === 0) {
         throw new Error("Update failed — bill status did not change. This may be a permissions issue.");
       }
+
+      // Auto-create bank transaction when bill is marked as paid (debit/money out)
+      if (status === "paid" && data[0]) {
+        const bill = data[0] as any;
+        const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          await createBankTransaction({
+            userId: authUser.id,
+            amount: Number(bill.total_amount),
+            type: "debit",
+            description: `Bill paid: ${bill.bill_number} — ${bill.vendor_name}`,
+            reference: bill.bill_number,
+            category: "Bill Payment",
+            date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       toast.success(`Bill ${variables.status === "paid" ? "marked as paid" : variables.status === "received" ? "marked as received" : "status updated"} successfully`);
       if (["received", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {

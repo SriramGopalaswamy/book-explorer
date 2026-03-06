@@ -134,6 +134,18 @@ export default function Expenses() {
         user_id: user!.id,
       });
       if (frError) console.warn("Failed to sync expense to financial_records:", frError);
+
+      // Auto-create bank transaction (debit/money out)
+      const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+      await createBankTransaction({
+        userId: user!.id,
+        amount: Number(expense.amount),
+        type: "debit",
+        description: `Expense paid: ${expense.category}${expense.description ? ` — ${expense.description}` : ""}`,
+        reference: id.slice(0, 8),
+        category: expense.category,
+        date: expense.expense_date,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
@@ -142,6 +154,8 @@ export default function Expenses() {
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       toast({ title: "Expense marked as Paid" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),

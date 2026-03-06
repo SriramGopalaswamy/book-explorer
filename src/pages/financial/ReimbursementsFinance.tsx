@@ -205,6 +205,18 @@ export default function ReimbursementsFinance() {
 
       if (updErr) throw updErr;
 
+      // Auto-create bank transaction (debit/money out)
+      const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+      await createBankTransaction({
+        userId: user.id,
+        amount: Number(approveDialog.amount),
+        type: "debit",
+        description: `Reimbursement paid: ${approveDialog.vendor_name} — ${approveDialog.profiles?.full_name || "employee"}`,
+        reference: approveDialog.id.slice(0, 8),
+        category: category,
+        date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
+      });
+
       // Notify
       supabase.functions.invoke("send-notification-email", {
         body: {
