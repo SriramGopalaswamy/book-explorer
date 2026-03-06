@@ -916,7 +916,106 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* ======= DELETE CONFIRM ======= */}
+        {/* ======= MAINTENANCE DIALOG ======= */}
+        <Dialog open={maintenanceOpen} onOpenChange={setMaintenanceOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-amber-400" /> Mark Under Maintenance
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Moving <strong>{selectedAsset?.name}</strong> ({selectedAsset?.asset_tag}) to maintenance. Depreciation will continue but the asset won't be available for use.
+            </p>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Textarea value={maintenanceForm.reason} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, reason: e.target.value })} placeholder="e.g. Screen replacement, hardware upgrade..." rows={2} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Expected Return Date</Label>
+                <Input type="date" value={maintenanceForm.expected_return} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, expected_return: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMaintenanceOpen(false)}>Cancel</Button>
+              <Button onClick={handleMaintenance} disabled={!maintenanceForm.reason.trim() || updateAsset.isPending}>
+                Confirm Maintenance
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ======= WRITE OFF DIALOG ======= */}
+        <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Ban className="h-5 w-5" /> Write Off Asset
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Writing off <strong>{selectedAsset?.name}</strong> will set its recoverable value to ₹0 and remove it from active use.
+              Current book value: <strong>{formatCurrency(Number(selectedAsset?.current_book_value || 0))}</strong>
+            </p>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Write-Off Date</Label>
+                <Input type="date" value={writeOffForm.date} onChange={(e) => setWriteOffForm({ ...writeOffForm, date: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Textarea value={writeOffForm.reason} onChange={(e) => setWriteOffForm({ ...writeOffForm, reason: e.target.value })} placeholder="e.g. Obsolete, irreparable damage, lost..." rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleWriteOff} disabled={!writeOffForm.reason.trim() || updateAsset.isPending}>
+                Confirm Write Off
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ======= TRANSFER DIALOG ======= */}
+        <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5 text-primary" /> Transfer Asset
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Transfer <strong>{selectedAsset?.name}</strong> ({selectedAsset?.asset_tag}) to a new location, department, or custodian.
+            </p>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div className="space-y-1.5">
+                <Label>New Location</Label>
+                <Input value={transferForm.location} onChange={(e) => setTransferForm({ ...transferForm, location: e.target.value })} placeholder={selectedAsset?.location || "Enter location"} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>New Department</Label>
+                <Input value={transferForm.department} onChange={(e) => setTransferForm({ ...transferForm, department: e.target.value })} placeholder={selectedAsset?.department || "Enter department"} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>New Custodian</Label>
+                <Input value={transferForm.custodian} onChange={(e) => setTransferForm({ ...transferForm, custodian: e.target.value })} placeholder={selectedAsset?.custodian || "Enter custodian"} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Transfer Notes</Label>
+                <Textarea value={transferForm.notes} onChange={(e) => setTransferForm({ ...transferForm, notes: e.target.value })} placeholder="Reason for transfer..." rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTransferOpen(false)}>Cancel</Button>
+              <Button onClick={handleTransfer} disabled={updateAsset.isPending}>
+                Confirm Transfer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
