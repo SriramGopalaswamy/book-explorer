@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useIntegration, useDisconnectIntegration, useTriggerSync, useShopifyStats, useConnectorLogs } from "@/hooks/useConnectors";
-import { ShoppingBag, Users, Package, IndianRupee, RefreshCw, Unplug, Activity, ArrowLeft, CreditCard, Globe } from "lucide-react";
+import { ShoppingBag, Users, Package, IndianRupee, RefreshCw, Unplug, Activity, ArrowLeft, CreditCard, Globe, Store } from "lucide-react";
 import { format } from "date-fns";
 
 const PROVIDER_ICONS: Record<string, React.ElementType> = {
@@ -16,6 +16,7 @@ const PROVIDER_ICONS: Record<string, React.ElementType> = {
   woocommerce: Globe,
   stripe: CreditCard,
   razorpay: CreditCard,
+  zoho_books: Store,
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -24,6 +25,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   woocommerce: "WooCommerce",
   stripe: "Stripe",
   razorpay: "Razorpay",
+  zoho_books: "Zoho Books",
 };
 
 export default function ConnectorDetail() {
