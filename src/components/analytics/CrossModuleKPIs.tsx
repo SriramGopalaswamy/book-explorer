@@ -132,7 +132,9 @@ export function CrossModuleKPIs() {
                     </Pie>
                     <Tooltip
                       formatter={(value: number) => [value, "Employees"]}
-                      contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+                      labelStyle={{ color: "hsl(var(--popover-foreground))", fontWeight: 600 }}
+                      itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                     />
                     <Legend
                       layout="vertical"
