@@ -63,6 +63,7 @@ export default function CashFlow() {
   const deletePayment = useDeleteScheduledPayment();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewPayment, setViewPayment] = useState<ScheduledPayment | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     amount: "",
