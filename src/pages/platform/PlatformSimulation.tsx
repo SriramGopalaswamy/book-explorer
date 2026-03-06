@@ -1099,6 +1099,14 @@ function SimulationContentInner() {
           )}
         </div>
       )}
+    </>
+  );
+}
+
+export default function PlatformSimulation() {
+  return (
+    <MainLayout title="Sandbox System Simulation" subtitle="Enterprise-grade validation against ISA, COSO, SOX/ITGC & AICPA SOC 1 standards">
+      <SimulationContent />
     </MainLayout>
   );
 }
