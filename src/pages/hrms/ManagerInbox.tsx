@@ -323,6 +323,30 @@ function PendingLeaves() {
                     {leave.reason && (
                       <p className="text-xs text-muted-foreground mt-2 italic">"{leave.reason}"</p>
                     )}
+                    {leave.attachment_url && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">{leave.attachment_url.split("/").pop()}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase.storage
+                                .from("leave-attachments")
+                                .createSignedUrl(leave.attachment_url, 3600);
+                              if (error || !data?.signedUrl) throw error || new Error("No URL");
+                              window.open(data.signedUrl, "_blank");
+                            } catch {
+                              toast.error("Failed to open attachment");
+                            }
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" /> View
+                        </Button>
+                      </div>
+                    )}
                     {isExpired && (
                       <p className="text-xs text-yellow-400 mt-2">Leave date has passed — action no longer available.</p>
                     )}
