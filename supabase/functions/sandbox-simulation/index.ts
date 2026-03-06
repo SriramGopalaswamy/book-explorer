@@ -622,6 +622,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   // ===== GAP FIX #7: SEED ATTENDANCE DAILY RECORDS =====
   // Create computed attendance_daily records for past 5 days for first 5 profiles
+  // Clean existing records first to ensure idempotency
   let attDailyCount = 0;
   const attToday = new Date();
   for (let dayOffset = 1; dayOffset <= 5; dayOffset++) {
@@ -629,6 +630,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     d.setDate(d.getDate() - dayOffset);
     const dateStr = d.toISOString().split("T")[0];
     for (const p of (allProfilesList ?? []).slice(0, 5)) {
+      // Delete any existing record for this profile+date to avoid duplicates
+      await client.from("attendance_daily").delete()
+        .eq("profile_id", p.id).eq("attendance_date", dateStr);
       const lateMin = Math.floor(Math.random() * 20);
       const otMin = Math.floor(Math.random() * 60);
       const workMin = 480 + otMin - lateMin;
