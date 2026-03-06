@@ -523,9 +523,10 @@ serve(async (req) => {
           sigImage = await pdfDoc.embedJpg(sigBytes);
         }
         const sigScale = 40 / sigImage.height;
+        const sigY = authorizedSignatoryName ? 92 : 80;
         page.drawImage(sigImage, {
           x: rightEdge - 120,
-          y: 80,
+          y: sigY,
           width: sigImage.width * sigScale,
           height: 40,
         });
