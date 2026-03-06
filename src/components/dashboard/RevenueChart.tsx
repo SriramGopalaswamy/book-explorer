@@ -43,7 +43,7 @@ export function RevenueChart({ dateRange }: RevenueChartProps) {
             <span className="text-muted-foreground">Revenue</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-secondary" />
+            <div className="h-3 w-3 rounded-full bg-[hsl(346,77%,76%)]" />
             <span className="text-muted-foreground">Expenses</span>
           </div>
         </div>
