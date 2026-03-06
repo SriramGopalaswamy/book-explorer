@@ -115,7 +115,7 @@ export function useDisconnectIntegration() {
         event_type: "oauth",
         status: "info",
         message: `Disconnected ${provider} store`,
-      });
+      } as any);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["integrations"] });
