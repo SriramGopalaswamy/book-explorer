@@ -245,9 +245,9 @@ export default function Leaves() {
         ) : (
           leaveBalances
             .filter((leave) => {
-              // Only show KPI cards for active leave types
+              // Only show KPI cards for active leave types (hide deactivated ones, preserve balance history)
               const activeKeys = new Set(activeLeaveTypes.map((lt) => lt.key));
-              return activeKeys.size === 0 || activeKeys.has(leave.leave_type);
+              return activeKeys.has(leave.leave_type);
             })
             .map((leave) => {
             const config = leaveTypeConfig[leave.leave_type] || { icon: Briefcase, color: "text-muted-foreground", label: leave.leave_type };
