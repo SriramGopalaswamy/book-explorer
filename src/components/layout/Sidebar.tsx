@@ -60,7 +60,6 @@ import {
   Wrench,
   Flame,
 } from "lucide-react";
-} from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import grx10Icon from "@/assets/grx10-icon.png";
