@@ -64,6 +64,7 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
   }
 
   const total = expenseData?.reduce((sum, item) => sum + item.value, 0) || 0;
+  const hasData = expenseData && expenseData.length > 0;
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">
@@ -71,6 +72,11 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
         <h3 className="text-lg font-semibold text-foreground">Expense Breakdown</h3>
         <p className="text-sm text-muted-foreground">This month's spending by category</p>
       </div>
+      {!hasData ? (
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">No expense data for this period</p>
+        </div>
+      ) : (
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -114,6 +120,7 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
           </PieChart>
         </ResponsiveContainer>
       </div>
+      )}
       <div className="mt-4 pt-4 border-t">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-muted-foreground">Total Expenses</span>
