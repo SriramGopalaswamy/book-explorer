@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +134,7 @@ function exportToCSV(data: any[], filename: string) {
 
 export default function AuditConsole() {
   const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedTheme, setSelectedTheme] = useState<any>(null);
   const fyOptions = getFinancialYearOptions();
 
   const { data: latestRun, isLoading: runLoading } = useLatestComplianceRun(selectedFY);
@@ -443,7 +445,7 @@ export default function AuditConsole() {
                               </p>
                               <p className="text-xs text-muted-foreground">Risk Score</p>
                             </div>
-                            <Button size="sm" variant="ghost"><Eye className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => setSelectedTheme(theme)}><Eye className="h-4 w-4" /></Button>
                           </div>
                         </motion.div>
                       ))}
@@ -681,6 +683,68 @@ export default function AuditConsole() {
           </Tabs>
         )}
       </div>
+
+      {/* Risk Theme Detail Dialog */}
+      <Dialog open={!!selectedTheme} onOpenChange={(open) => !open && setSelectedTheme(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-primary" />
+              {selectedTheme?.theme_name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedTheme && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <p className="text-xs text-muted-foreground mb-1">Risk Score</p>
+                  <p className={cn("text-2xl font-bold", selectedTheme.risk_score > 60 ? "text-destructive" : selectedTheme.risk_score > 30 ? "text-amber-500" : "text-green-500")}>
+                    {selectedTheme.risk_score}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <p className="text-xs text-muted-foreground mb-1">Confidence</p>
+                  <p className="text-2xl font-bold">{selectedTheme.confidence_score}%</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <p className="text-xs text-muted-foreground mb-1">Transactions</p>
+                  <p className="text-2xl font-bold">{selectedTheme.transaction_count ?? 0}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/40">
+                  <p className="text-xs text-muted-foreground mb-1">Impacted Value</p>
+                  <p className="text-2xl font-bold">{fmtCurrency(selectedTheme.impacted_value)}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Impact Area</p>
+                <Badge variant="outline" className="capitalize">{selectedTheme.impact_area}</Badge>
+              </div>
+
+              {selectedTheme.explanation && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Explanation</p>
+                  <p className="text-sm leading-relaxed">{selectedTheme.explanation}</p>
+                </div>
+              )}
+
+              {selectedTheme.suggested_action && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Action</p>
+                  <p className="text-sm leading-relaxed text-primary">{selectedTheme.suggested_action}</p>
+                </div>
+              )}
+
+              {selectedTheme.contributing_flags && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Contributing Flags</p>
+                  <pre className="text-xs bg-muted/40 p-2 rounded overflow-auto max-h-32">{JSON.stringify(selectedTheme.contributing_flags, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
