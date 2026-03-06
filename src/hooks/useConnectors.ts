@@ -71,7 +71,7 @@ export function useConnectProvider() {
             status: "connected",
             connected_at: new Date().toISOString(),
             metadata: metadata || {},
-          },
+          } as any,
           { onConflict: "organization_id,provider" }
         )
         .select()
@@ -84,7 +84,7 @@ export function useConnectProvider() {
         event_type: "oauth",
         status: "success",
         message: `Connected ${provider}${domain ? `: ${domain}` : ""}`,
-      });
+      } as any);
 
       return data as Integration;
     },
