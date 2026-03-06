@@ -377,6 +377,10 @@ export function useDeleteLeaveRequest() {
     onSuccess: (_data, requestId) => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-attendance-stats"] });
       toast.success("Leave request cancelled");
       if (user) writeAudit({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "leave_cancelled", entity_type: "leave_request", entity_id: requestId });
     },

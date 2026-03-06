@@ -137,7 +137,7 @@ export default function CreditNotes() {
       const { error } = await supabase.from("credit_notes").update({ status }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Status Updated" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Status Updated" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -169,7 +169,8 @@ export default function CreditNotes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
-      toast({ title: "Credit Note Updated" });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       setIsEditDialogOpen(false);
       setEditingCreditNote(null);
     },
@@ -178,7 +179,7 @@ export default function CreditNotes() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { const { error } = await supabase.from("credit_notes").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Credit Note Deleted" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Credit Note Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 

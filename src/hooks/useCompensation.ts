@@ -119,7 +119,9 @@ export function useCreateCompensationRevision() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["compensation-history", variables.profile_id] });
-      toast.success("Salary revision created successfully");
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (err: any) => {
       toast.error("Failed to create revision: " + err.message);

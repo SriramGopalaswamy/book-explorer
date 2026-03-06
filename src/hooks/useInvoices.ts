@@ -189,6 +189,9 @@ export function useCreateInvoice() {
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
       toast({
         title: "Invoice Created",
         description: `Invoice ${invoice.invoice_number} has been created.`,
@@ -220,6 +223,9 @@ export function useUpdateInvoiceStatus() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
       toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
       // Fire financial notification
       if (["sent", "paid"].includes(variables.status)) {
@@ -309,6 +315,8 @@ export function useUpdateInvoice() {
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast({ title: "Invoice Updated", description: `Invoice ${invoice.invoice_number} has been updated.` });
     },
     onError: (error) => {
@@ -327,6 +335,8 @@ export function useDeleteInvoice() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast({ title: "Invoice Deleted", description: "The invoice has been removed." });
     },
     onError: (error) => {

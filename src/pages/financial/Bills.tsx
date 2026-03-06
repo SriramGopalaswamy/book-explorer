@@ -463,6 +463,8 @@ export default function Bills() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast.success("Bill saved successfully");
       closeDialog();
     },
@@ -477,7 +479,8 @@ export default function Bills() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
-      toast.success("Bill deleted");
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -520,6 +523,8 @@ export default function Bills() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast.success(`Bill ${variables.status === "approved" ? "approved" : variables.status === "paid" ? "marked as paid" : "status updated"} successfully`);
       if (["approved", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {

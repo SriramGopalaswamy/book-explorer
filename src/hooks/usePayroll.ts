@@ -194,7 +194,9 @@ export function useCreatePayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
-      toast({ title: "Payroll Created", description: "Payroll record has been added." });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -224,7 +226,9 @@ export function useUpdatePayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
-      toast({ title: "Payroll Updated", description: "Payroll record has been updated." });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -246,7 +250,9 @@ export function useDeletePayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
-      toast({ title: "Payroll Deleted", description: "Payroll record has been removed." });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -285,7 +291,9 @@ export function useProcessPayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
-      toast({ title: "Payroll Processed", description: "Selected records have been marked as processed." });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });

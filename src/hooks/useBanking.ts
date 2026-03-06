@@ -103,6 +103,7 @@ export function useCreateBankAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({ title: "Account Added", description: "Bank account has been added successfully." });
     },
     onError: (error) => {
@@ -121,7 +122,7 @@ export function useDeleteBankAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
-      toast({ title: "Account Deleted", description: "Bank account has been removed." });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -200,6 +201,10 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-transaction-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-flow-data"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       toast({ title: "Transaction Added", description: "Transaction recorded successfully." });
     },
     onError: (error) => {

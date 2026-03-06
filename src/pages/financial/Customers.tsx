@@ -99,7 +99,7 @@ export default function Customers() {
       const { error } = await supabase.from("customers").insert({ ...values, user_id: user.id });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "Customer Added" }); setIsDialogOpen(false); setForm(emptyForm); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Added" }); setIsDialogOpen(false); setForm(emptyForm); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -137,7 +137,7 @@ export default function Customers() {
       const { error } = await supabase.from("customers").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "Customer Removed" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
