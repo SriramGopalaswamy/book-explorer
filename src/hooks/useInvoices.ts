@@ -219,6 +219,24 @@ export function useUpdateInvoiceStatus() {
         .select()
         .single();
       if (error) throw error;
+
+      // Auto-create bank transaction when invoice is marked as paid (money in)
+      if (status === "paid" && data) {
+        const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await createBankTransaction({
+            userId: user.id,
+            amount: Number(data.amount),
+            type: "credit",
+            description: `Invoice payment: ${data.invoice_number} — ${data.client_name}`,
+            reference: data.invoice_number,
+            category: "Invoice Payment",
+            date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
       return data;
     },
     onSuccess: (data, variables) => {
