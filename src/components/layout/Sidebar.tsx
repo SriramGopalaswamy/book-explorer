@@ -56,6 +56,10 @@ import {
   Boxes,
   Warehouse,
   PackageCheck,
+  Layers,
+  Wrench,
+  Flame,
+} from "lucide-react";
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -160,6 +164,13 @@ const procurementNav: NavItem[] = [
 const salesNav: NavItem[] = [
   { name: "Sales Orders", path: "/sales/orders", icon: ShoppingBag, module: "financial" },
   { name: "Deliveries", path: "/sales/deliveries", icon: Truck, module: "financial" },
+];
+
+const manufacturingNav: NavItem[] = [
+  { name: "BOM", path: "/manufacturing/bom", icon: Layers, module: "financial" },
+  { name: "Work Orders", path: "/manufacturing/work-orders", icon: Wrench, module: "financial" },
+  { name: "Consumption", path: "/manufacturing/consumption", icon: Flame, module: "financial" },
+  { name: "Finished Goods", path: "/manufacturing/finished-goods", icon: PackageCheck, module: "financial" },
 ];
 
 const performanceNav: NavItem[] = [
