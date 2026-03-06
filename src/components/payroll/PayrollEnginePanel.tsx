@@ -145,11 +145,11 @@ export function PayrollEnginePanel() {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
-          ) : runs.length === 0 ? (
+          ) : runs.filter((r) => r.pay_period === selectedPeriod).length === 0 ? (
             <div className="text-center py-8">
               <Zap className="mx-auto h-10 w-10 text-muted-foreground" />
               <p className="mt-2 text-sm text-muted-foreground">
-                No payroll runs yet. Select a period and generate payroll.
+                No payroll run for {periodLabel(selectedPeriod)}. Select a period and generate payroll.
               </p>
             </div>
           ) : (
@@ -167,7 +167,7 @@ export function PayrollEnginePanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {runs.map((run) => {
+                  {runs.filter((run) => run.pay_period === selectedPeriod).map((run) => {
                     const sc = statusConfig[run.status] || statusConfig.draft;
                     return (
                       <TableRow key={run.id}>
