@@ -59,6 +59,9 @@ import {
   Layers,
   Wrench,
   Flame,
+  MapPin,
+  ArrowRightLeft,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -170,6 +173,13 @@ const manufacturingNav: NavItem[] = [
   { name: "Work Orders", path: "/manufacturing/work-orders", icon: Wrench, module: "financial" },
   { name: "Consumption", path: "/manufacturing/consumption", icon: Flame, module: "financial" },
   { name: "Finished Goods", path: "/manufacturing/finished-goods", icon: PackageCheck, module: "financial" },
+];
+
+const warehouseNav: NavItem[] = [
+  { name: "Bin Locations", path: "/warehouse/bins", icon: MapPin, module: "financial" },
+  { name: "Transfers", path: "/warehouse/transfers", icon: ArrowRightLeft, module: "financial" },
+  { name: "Picking Lists", path: "/warehouse/picking", icon: ClipboardList, module: "financial" },
+  { name: "Inv. Counts", path: "/warehouse/counts", icon: ClipboardCheck, module: "financial" },
 ];
 
 const performanceNav: NavItem[] = [
@@ -388,7 +398,10 @@ export function Sidebar() {
   const visibleManufacturingNav = (isEmployee || isManager || isHR) ? []
     : isModuleEnabled("financial") ? manufacturingNav
     : [];
-  const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
+  const visibleWarehouseNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? warehouseNav
+    : [];
+  const visibleHrmsNav = !isModuleEnabled("hrms") ? []
     : isManager
     ? managerHrmsNav
     : isEmployee
@@ -447,6 +460,9 @@ export function Sidebar() {
             )}
             {visibleManufacturingNav.length > 0 && (
               <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
+            {visibleWarehouseNav.length > 0 && (
+              <NavSection title="Warehouse" items={visibleWarehouseNav} sectionId="warehouse" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
             {visiblePerformanceNav.length > 0 && (
