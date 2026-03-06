@@ -445,6 +445,9 @@ export function Sidebar() {
             {visibleSalesNav.length > 0 && (
               <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
             )}
+            {visibleManufacturingNav.length > 0 && (
+              <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
             {visiblePerformanceNav.length > 0 && (
               <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
