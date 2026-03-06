@@ -55,6 +55,7 @@ export default function MyExpenses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [newAmount, setNewAmount] = useState("");
