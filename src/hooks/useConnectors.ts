@@ -54,24 +54,23 @@ export function useIntegration(provider: string) {
   });
 }
 
-export function useConnectShopify() {
+export function useConnectProvider() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ shopDomain }: { shopDomain: string }) => {
-      // Normalize domain
+    mutationFn: async ({ provider, shopDomain, metadata }: { provider: string; shopDomain?: string; metadata?: Record<string, string> }) => {
       const domain = shopDomain
-        .replace(/^https?:\/\//, "")
-        .replace(/\/$/, "")
-        .trim();
+        ? shopDomain.replace(/^https?:\/\//, "").replace(/\/$/, "").trim()
+        : null;
 
       const { data, error } = await supabase
         .from("integrations" as any)
         .upsert(
           {
-            provider: "shopify",
+            provider,
             shop_domain: domain,
             status: "connected",
             connected_at: new Date().toISOString(),
+            metadata: metadata || {},
           } as any,
           { onConflict: "organization_id,provider" }
         )
@@ -79,19 +78,18 @@ export function useConnectShopify() {
         .single();
       if (error) throw error;
 
-      // Log event
       await supabase.from("connector_logs" as any).insert({
-        provider: "shopify",
+        provider,
         event_type: "oauth",
         status: "success",
-        message: `Connected Shopify store: ${domain}`,
+        message: `Connected ${provider}${domain ? `: ${domain}` : ""}`,
       } as any);
 
       return data as unknown as Integration;
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["integrations"] });
-      toast.success("Shopify store connected successfully");
+      toast.success(`${vars.provider.charAt(0).toUpperCase() + vars.provider.slice(1)} connected successfully`);
     },
     onError: (e: any) => toast.error(e.message),
   });
