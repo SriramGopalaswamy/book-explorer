@@ -29,14 +29,14 @@ function MetricCard({
   );
 }
 
-export default function PlatformHealth() {
+export function HealthContent() {
   const { data: orgs, isLoading: orgsLoading } = useOrganizations();
   const { data: globalMetrics, isLoading: metricsLoading } = useTenantHealthMetrics();
 
   const isLoading = orgsLoading || metricsLoading;
 
   return (
-    <MainLayout title="Tenant Health" subtitle="Platform-wide health metrics and activity">
+    <>
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -86,6 +86,14 @@ export default function PlatformHealth() {
           </Card>
         </>
       )}
+    </>
+  );
+}
+
+export default function PlatformHealth() {
+  return (
+    <MainLayout title="Tenant Health" subtitle="Platform-wide health metrics and activity">
+      <HealthContent />
     </MainLayout>
   );
 }
