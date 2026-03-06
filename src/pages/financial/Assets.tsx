@@ -55,6 +55,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Calendar,
+  Wrench,
+  ArrowRightLeft,
+  Ban,
 } from "lucide-react";
 import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/BulkUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -180,6 +183,9 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
   const [depScheduleOpen, setDepScheduleOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [disposeOpen, setDisposeOpen] = useState(false);
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -223,6 +229,15 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
     disposal_method: "sale",
     disposal_notes: "",
   });
+
+  // Maintenance form
+  const [maintenanceForm, setMaintenanceForm] = useState({ reason: "", expected_return: "" });
+
+  // Write-off form
+  const [writeOffForm, setWriteOffForm] = useState({ date: new Date().toISOString().split("T")[0], reason: "" });
+
+  // Transfer form
+  const [transferForm, setTransferForm] = useState({ location: "", department: "", custodian: "", notes: "" });
 
   // Filter + search
   const filtered = useMemo(() => {
@@ -360,6 +375,48 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
     );
   };
 
+  const handleMaintenance = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "under_maintenance",
+        notes: [selectedAsset.notes, `[Maintenance] ${maintenanceForm.reason}${maintenanceForm.expected_return ? ` | Expected return: ${maintenanceForm.expected_return}` : ""}`].filter(Boolean).join("\n"),
+      } as any,
+      { onSuccess: () => { setMaintenanceOpen(false); setSelectedAsset(null); setMaintenanceForm({ reason: "", expected_return: "" }); } }
+    );
+  };
+
+  const handleWriteOff = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "written_off",
+        disposal_date: writeOffForm.date,
+        disposal_method: "write_off",
+        disposal_price: 0,
+        disposal_notes: writeOffForm.reason,
+      } as any,
+      { onSuccess: () => { setWriteOffOpen(false); setSelectedAsset(null); setWriteOffForm({ date: new Date().toISOString().split("T")[0], reason: "" }); } }
+    );
+  };
+
+  const handleTransfer = () => {
+    if (!selectedAsset) return;
+    updateAsset.mutate(
+      {
+        id: selectedAsset.id,
+        status: "transferred",
+        location: transferForm.location || selectedAsset.location,
+        department: transferForm.department || selectedAsset.department,
+        custodian: transferForm.custodian || selectedAsset.custodian,
+        notes: [selectedAsset.notes, `[Transfer] ${transferForm.notes || "Transferred"} on ${new Date().toISOString().split("T")[0]}`].filter(Boolean).join("\n"),
+      } as any,
+      { onSuccess: () => { setTransferOpen(false); setSelectedAsset(null); setTransferForm({ location: "", department: "", custodian: "", notes: "" }); } }
+    );
+  };
+
   const columns: Column<Asset>[] = [
     {
       key: "asset_tag",
@@ -455,12 +512,42 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
               <Tag className="h-4 w-4 mr-2" /> Mark Tagged
             </DropdownMenuItem>
             {a.status === "active" && (
+              <>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setMaintenanceForm({ reason: "", expected_return: "" });
+                  setMaintenanceOpen(true);
+                }}>
+                  <Wrench className="h-4 w-4 mr-2" /> Mark Under Maintenance
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setTransferForm({ location: a.location || "", department: a.department || "", custodian: a.custodian || "", notes: "" });
+                  setTransferOpen(true);
+                }}>
+                  <ArrowRightLeft className="h-4 w-4 mr-2" /> Transfer
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setWriteOffForm({ date: new Date().toISOString().split("T")[0], reason: "" });
+                  setWriteOffOpen(true);
+                }}>
+                  <Ban className="h-4 w-4 mr-2" /> Write Off
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setDisposeForm({ disposal_date: new Date().toISOString().split("T")[0], disposal_price: 0, disposal_method: "sale", disposal_notes: "" });
+                  setDisposeOpen(true);
+                }}>
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Dispose
+                </DropdownMenuItem>
+              </>
+            )}
+            {(a.status === "under_maintenance" || a.status === "transferred") && (
               <DropdownMenuItem onClick={() => {
-                setSelectedAsset(a);
-                setDisposeForm({ disposal_date: new Date().toISOString().split("T")[0], disposal_price: 0, disposal_method: "sale", disposal_notes: "" });
-                setDisposeOpen(true);
+                updateAsset.mutate({ id: a.id, status: "active" } as any);
               }}>
-                <AlertTriangle className="h-4 w-4 mr-2" /> Dispose
+                <CheckCircle className="h-4 w-4 mr-2" /> Reactivate
               </DropdownMenuItem>
             )}
             <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedAsset(a); setDeleteOpen(true); }}>
@@ -836,7 +923,106 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* ======= DELETE CONFIRM ======= */}
+        {/* ======= MAINTENANCE DIALOG ======= */}
+        <Dialog open={maintenanceOpen} onOpenChange={setMaintenanceOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-amber-400" /> Mark Under Maintenance
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Moving <strong>{selectedAsset?.name}</strong> ({selectedAsset?.asset_tag}) to maintenance. Depreciation will continue but the asset won't be available for use.
+            </p>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Textarea value={maintenanceForm.reason} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, reason: e.target.value })} placeholder="e.g. Screen replacement, hardware upgrade..." rows={2} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Expected Return Date</Label>
+                <Input type="date" value={maintenanceForm.expected_return} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, expected_return: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMaintenanceOpen(false)}>Cancel</Button>
+              <Button onClick={handleMaintenance} disabled={!maintenanceForm.reason.trim() || updateAsset.isPending}>
+                Confirm Maintenance
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ======= WRITE OFF DIALOG ======= */}
+        <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Ban className="h-5 w-5" /> Write Off Asset
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Writing off <strong>{selectedAsset?.name}</strong> will set its recoverable value to ₹0 and remove it from active use.
+              Current book value: <strong>{formatCurrency(Number(selectedAsset?.current_book_value || 0))}</strong>
+            </p>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Write-Off Date</Label>
+                <Input type="date" value={writeOffForm.date} onChange={(e) => setWriteOffForm({ ...writeOffForm, date: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Textarea value={writeOffForm.reason} onChange={(e) => setWriteOffForm({ ...writeOffForm, reason: e.target.value })} placeholder="e.g. Obsolete, irreparable damage, lost..." rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleWriteOff} disabled={!writeOffForm.reason.trim() || updateAsset.isPending}>
+                Confirm Write Off
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ======= TRANSFER DIALOG ======= */}
+        <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5 text-primary" /> Transfer Asset
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Transfer <strong>{selectedAsset?.name}</strong> ({selectedAsset?.asset_tag}) to a new location, department, or custodian.
+            </p>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div className="space-y-1.5">
+                <Label>New Location</Label>
+                <Input value={transferForm.location} onChange={(e) => setTransferForm({ ...transferForm, location: e.target.value })} placeholder={selectedAsset?.location || "Enter location"} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>New Department</Label>
+                <Input value={transferForm.department} onChange={(e) => setTransferForm({ ...transferForm, department: e.target.value })} placeholder={selectedAsset?.department || "Enter department"} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>New Custodian</Label>
+                <Input value={transferForm.custodian} onChange={(e) => setTransferForm({ ...transferForm, custodian: e.target.value })} placeholder={selectedAsset?.custodian || "Enter custodian"} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Transfer Notes</Label>
+                <Textarea value={transferForm.notes} onChange={(e) => setTransferForm({ ...transferForm, notes: e.target.value })} placeholder="Reason for transfer..." rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTransferOpen(false)}>Cancel</Button>
+              <Button onClick={handleTransfer} disabled={updateAsset.isPending}>
+                Confirm Transfer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
