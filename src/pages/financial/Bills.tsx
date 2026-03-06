@@ -697,7 +697,7 @@ export default function Bills() {
     return matchSearch && matchStatus;
   });
 
-  const totalPending  = bills.filter((b: any) => ["received", "approved"].includes(b.status)).reduce((s: number, b: any) => s + Number(b.total_amount), 0);
+  const totalPending  = bills.filter((b: any) => b.status === "approved").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalOverdue  = enriched.filter((b: any) => b.effectiveStatus === "overdue").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalPaid     = bills.filter((b: any) => b.status === "paid").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const aiScanned     = bills.filter((b: any) => b.ai_extracted).length;
@@ -715,7 +715,7 @@ export default function Bills() {
         {/* ── Stats ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Bills"       value={bills.length}         sub={`${aiScanned} AI scanned`} />
-          <StatCard label="Pending Payment"   value={fmt(totalPending)}    sub="received + approved" />
+          <StatCard label="Pending Payment"   value={fmt(totalPending)}    sub="approved, awaiting payment" />
           <StatCard label="Overdue"           value={fmt(totalOverdue)}    accent="text-destructive" />
           <StatCard label="Paid (All Time)"   value={fmt(totalPaid)}       accent="text-emerald-400" />
         </div>
