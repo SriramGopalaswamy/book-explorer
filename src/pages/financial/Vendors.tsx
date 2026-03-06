@@ -70,8 +70,8 @@ export default function Vendors() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) {
-        newErrors.tax_number = "Must be exactly 12 alphanumeric characters";
+      if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) {
+        newErrors.tax_number = "Must be exactly 15 alphanumeric characters";
       } else {
         const taxErr = validateTaxNumber(form.tax_number, form.country);
         if (taxErr) newErrors.tax_number = taxErr;
@@ -143,7 +143,7 @@ export default function Vendors() {
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
     if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "Tax / GST number is required.", variant: "destructive" });
-    if (!/^[A-Za-z0-9]{12}$/.test(form.tax_number.trim())) return toast({ title: "Invalid Tax Number", description: "Must be exactly 12 alphanumeric characters.", variant: "destructive" });
+    if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) return toast({ title: "Invalid Tax Number", description: "Must be exactly 15 alphanumeric characters.", variant: "destructive" });
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 
@@ -192,9 +192,9 @@ export default function Vendors() {
           <Label>{taxConfig ? taxConfig.label : "Tax / GST Number"} <span className="text-destructive">*</span></Label>
           <Input
             value={form.tax_number}
-            onChange={(e) => setForm({ ...form, tax_number: e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 12) })}
+            onChange={(e) => setForm({ ...form, tax_number: e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 15) })}
             placeholder={taxConfig?.placeholder || "Tax ID"}
-            maxLength={12}
+            maxLength={15}
           />
           {errors.tax_number && <p className="text-xs text-destructive mt-1">{errors.tax_number}</p>}
         </div>
