@@ -4,7 +4,7 @@ import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
   Eye, ExternalLink, CheckCircle2, Clock, AlertCircle, FileText, X,
   AlertTriangle, Building2, Calendar, ChevronDown, FileCheck, Receipt,
-  ChevronsUpDown, Check as CheckIcon,
+  ChevronsUpDown, Check as CheckIcon, Pencil,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -368,6 +368,7 @@ export default function Bills() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [previewBill, setPreviewBill] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -424,35 +425,54 @@ export default function Bills() {
 
       const matchedVendor = vendors.find((v: any) => v.name === form.vendor_name.trim());
 
-      const { data: bill, error } = await supabase
-        .from("bills")
-        .insert({
-          vendor_name: form.vendor_name.trim(),
-          vendor_id: matchedVendor?.id || null,
-          bill_number: billNum,
-          bill_date: form.bill_date,
-          due_date: form.due_date || null,
-          amount: subtotal,
-          tax_amount: tax,
-          total_amount: total,
-          notes: form.notes || null,
-          status: form.status,
-          attachment_url: uploadedFile?.path || null,
-          ai_extracted: aiExtracted,
-          user_id: user!.id,
-          tds_section: form.tds_section || null,
-          tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
-        } as any)
-        .select()
-        .single();
+      const payload = {
+        vendor_name: form.vendor_name.trim(),
+        vendor_id: matchedVendor?.id || null,
+        bill_number: billNum,
+        bill_date: form.bill_date,
+        due_date: form.due_date || null,
+        amount: subtotal,
+        tax_amount: tax,
+        total_amount: total,
+        notes: form.notes || null,
+        status: form.status,
+        attachment_url: uploadedFile?.path || null,
+        ai_extracted: aiExtracted,
+        tds_section: form.tds_section || null,
+        tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
+      };
 
-      if (error) throw error;
+      let billId: string;
+
+      if (editingBillId) {
+        // Update existing bill
+        const { data: bill, error } = await supabase
+          .from("bills")
+          .update(payload as any)
+          .eq("id", editingBillId)
+          .select()
+          .single();
+        if (error) throw error;
+        billId = bill.id;
+
+        // Delete existing line items and re-insert
+        await supabase.from("bill_items").delete().eq("bill_id", billId);
+      } else {
+        // Insert new bill
+        const { data: bill, error } = await supabase
+          .from("bills")
+          .insert({ ...payload, user_id: user!.id } as any)
+          .select()
+          .single();
+        if (error) throw error;
+        billId = bill.id;
+      }
 
       const validItems = lineItems.filter((i) => i.description.trim());
       if (validItems.length > 0) {
         const { error: itemsError } = await supabase.from("bill_items").insert(
           validItems.map((i) => ({
-            bill_id: bill.id,
+            bill_id: billId,
             description: i.description,
             quantity: i.quantity,
             rate: i.rate,
@@ -466,7 +486,7 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast.success("Bill saved successfully");
+      toast.success(editingBillId ? "Bill updated successfully" : "Bill saved successfully");
       closeDialog();
     },
     onError: (e: any) => toast.error(e.message),
@@ -574,11 +594,46 @@ export default function Bills() {
 
   const closeDialog = () => {
     setDialogOpen(false);
+    setEditingBillId(null);
     resetForm();
   };
 
   const openDialog = () => {
     resetForm();
+    setEditingBillId(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (bill: any) => {
+    setEditingBillId(bill.id);
+    setForm({
+      vendor_name: bill.vendor_name || "",
+      bill_number: bill.bill_number || "",
+      bill_date: bill.bill_date || new Date().toISOString().split("T")[0],
+      due_date: bill.due_date || "",
+      amount: String(bill.amount || ""),
+      tax_amount: String(bill.tax_amount || "0"),
+      notes: bill.notes || "",
+      status: bill.status || "draft",
+      ap_category: "",
+      payment_terms: "",
+      vendor_tax_number: "",
+      tds_section: bill.tds_section || "",
+      tds_rate: bill.tds_rate ? String(bill.tds_rate) : "",
+    });
+    const items = bill.bill_items?.length > 0
+      ? bill.bill_items.map((i: any) => ({
+          description: i.description || "",
+          quantity: i.quantity || 1,
+          rate: i.rate || 0,
+          amount: i.amount || 0,
+        }))
+      : [{ description: "", quantity: 1, rate: 0, amount: 0 }];
+    setLineItems(items);
+    if (bill.attachment_url) {
+      setUploadedFile({ path: bill.attachment_url, name: bill.attachment_url.split("/").pop() || "attachment", type: "" });
+    }
+    setAiExtracted(bill.ai_extracted || false);
     setDialogOpen(true);
   };
 
@@ -837,9 +892,14 @@ export default function Bills() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
                               {b.status === "draft" && (
-                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
-                                  <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem onClick={() => openEditDialog(b)}>
+                                    <Pencil className="h-4 w-4 mr-2 text-muted-foreground" /> Edit Bill
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
+                                    <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               {(b.status === "received" || b.effectiveStatus === "overdue") && (
                                 <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "paid" })}>
@@ -871,11 +931,11 @@ export default function Bills() {
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ScanLine className="h-5 w-5 text-primary" />
-              {aiExtracted ? "AI-Scanned Bill — Review & Save" : "Add Vendor Bill"}
+              {editingBillId ? <Pencil className="h-5 w-5 text-primary" /> : <ScanLine className="h-5 w-5 text-primary" />}
+              {editingBillId ? "Edit Draft Bill" : aiExtracted ? "AI-Scanned Bill — Review & Save" : "Add Vendor Bill"}
             </DialogTitle>
             <DialogDescription>
-              Upload a bill image or PDF for AI extraction, or enter details manually.
+              {editingBillId ? "Update the bill details below." : "Upload a bill image or PDF for AI extraction, or enter details manually."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1156,7 +1216,7 @@ export default function Bills() {
               disabled={saveMutation.isPending || uploading || extracting}
               className="gap-2"
             >
-              {saveMutation.isPending && form.status !== "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save Bill"}
+              {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : editingBillId ? "Update Bill" : "Save Bill"}
             </Button>
           </DialogFooter>
         </DialogContent>
