@@ -30,6 +30,7 @@ import {
   FileText,
   TrendingUp,
   Activity,
+  BarChart3,
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -234,7 +235,16 @@ export default function Dashboard() {
             />
             <h2 className="text-lg font-bold text-foreground">Financial Overview</h2>
           </div>
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <div className="flex items-center gap-3">
+            <a
+              href="/financial/analytics"
+              className="text-sm text-primary hover:underline flex items-center gap-1"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              View Analytics →
+            </a>
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          </div>
         </motion.div>
 
         {/* Charts Grid */}
