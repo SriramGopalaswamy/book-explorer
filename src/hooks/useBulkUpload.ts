@@ -153,6 +153,15 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
+    // Get the user's organization_id
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = currentProfile?.organization_id;
+
     const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name");
     const errors: string[] = [];
     let success = 0;
@@ -200,6 +209,9 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
         continue;
       }
 
+      // user_id is NOT NULL — use the matched profile's user_id, or fall back to current user
+      const resolvedUserId = profile.user_id || user.id;
+
       // Normalize time values — strip any date prefix, ensure HH:mm:ss format
       const normalizeTime = (t: string | undefined): string | null => {
         if (!t || !t.trim()) return null;
@@ -215,17 +227,42 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
       console.log(`[Attendance Upload] ${row.employee_id} | date=${row.date} | raw_in="${row.check_in}" → ${checkInTime} → ${checkInDate} | raw_out="${row.check_out}" → ${checkOutTime} → ${checkOutDate}`);
 
-      const { error } = await supabase.from("attendance_records").upsert({
-        user_id: profile.user_id,
-        profile_id: profile.id,
-        date: row.date,
-        status: row.status || "present",
-        check_in: checkInDate,
-        check_out: checkOutDate,
-        notes: row.notes || null,
-      }, {
-        onConflict: "profile_id,date",
-      });
+      // First try to find an existing record to update (avoids upsert conflict issues)
+      const { data: existing } = await supabase
+        .from("attendance_records")
+        .select("id")
+        .eq("profile_id", profile.id)
+        .eq("date", row.date)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        // Update the existing record
+        const res = await supabase.from("attendance_records")
+          .update({
+            status: row.status || "present",
+            check_in: checkInDate,
+            check_out: checkOutDate,
+            notes: row.notes || null,
+            user_id: resolvedUserId,
+          })
+          .eq("id", existing.id);
+        error = res.error;
+      } else {
+        // Insert a new record
+        const res = await supabase.from("attendance_records")
+          .insert({
+            user_id: resolvedUserId,
+            profile_id: profile.id,
+            date: row.date,
+            status: row.status || "present",
+            check_in: checkInDate,
+            check_out: checkOutDate,
+            notes: row.notes || null,
+            ...(orgId ? { organization_id: orgId } : {}),
+          });
+        error = res.error;
+      }
 
       if (error) errors.push(`Row ${row.employee_id} ${row.date}: ${error.message}`);
       else success++;
