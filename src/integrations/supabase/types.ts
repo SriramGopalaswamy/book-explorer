@@ -2018,7 +2018,9 @@ export type Database = {
           bill_date: string
           bill_number: string
           created_at: string
+          currency_code: string | null
           due_date: string | null
+          exchange_rate: number | null
           goods_receipt_id: string | null
           id: string
           notes: string | null
@@ -2041,7 +2043,9 @@ export type Database = {
           bill_date?: string
           bill_number: string
           created_at?: string
+          currency_code?: string | null
           due_date?: string | null
+          exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
           notes?: string | null
@@ -2064,7 +2068,9 @@ export type Database = {
           bill_date?: string
           bill_number?: string
           created_at?: string
+          currency_code?: string | null
           due_date?: string | null
+          exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
           notes?: string | null
@@ -2894,6 +2900,36 @@ export type Database = {
           },
         ]
       }
+      currencies: {
+        Row: {
+          code: string
+          created_at: string
+          decimal_places: number
+          id: string
+          is_active: boolean
+          name: string
+          symbol: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          decimal_places?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          symbol?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          decimal_places?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -3030,43 +3066,70 @@ export type Database = {
       }
       delivery_notes: {
         Row: {
+          actual_delivery: string | null
+          carrier_name: string | null
           created_at: string
           customer_id: string | null
           delivery_date: string
           dispatched_by: string | null
           dn_number: string
+          estimated_delivery: string | null
           id: string
           notes: string | null
           organization_id: string
+          packages_count: number | null
           sales_order_id: string | null
+          shipping_cost: number | null
+          shipping_method: string | null
           status: string
+          tracking_number: string | null
+          tracking_url: string | null
           updated_at: string
+          weight_kg: number | null
         }
         Insert: {
+          actual_delivery?: string | null
+          carrier_name?: string | null
           created_at?: string
           customer_id?: string | null
           delivery_date?: string
           dispatched_by?: string | null
           dn_number: string
+          estimated_delivery?: string | null
           id?: string
           notes?: string | null
           organization_id: string
+          packages_count?: number | null
           sales_order_id?: string | null
+          shipping_cost?: number | null
+          shipping_method?: string | null
           status?: string
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
+          weight_kg?: number | null
         }
         Update: {
+          actual_delivery?: string | null
+          carrier_name?: string | null
           created_at?: string
           customer_id?: string | null
           delivery_date?: string
           dispatched_by?: string | null
           dn_number?: string
+          estimated_delivery?: string | null
           id?: string
           notes?: string | null
           organization_id?: string
+          packages_count?: number | null
           sales_order_id?: string | null
+          shipping_cost?: number | null
+          shipping_method?: string | null
           status?: string
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string
+          weight_kg?: number | null
         }
         Relationships: [
           {
@@ -3388,6 +3451,50 @@ export type Database = {
             columns: ["regime_id"]
             isOneToOne: false
             referencedRelation: "tax_regimes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exchange_rates: {
+        Row: {
+          created_at: string
+          effective_date: string
+          from_currency: string
+          id: string
+          organization_id: string
+          rate: number
+          source: string | null
+          to_currency: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          effective_date?: string
+          from_currency?: string
+          id?: string
+          organization_id: string
+          rate?: number
+          source?: string | null
+          to_currency: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          effective_date?: string
+          from_currency?: string
+          id?: string
+          organization_id?: string
+          rate?: number
+          source?: string | null
+          to_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exchange_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -4186,6 +4293,77 @@ export type Database = {
           },
         ]
       }
+      gst_filing_status: {
+        Row: {
+          arn_number: string | null
+          challan_date: string | null
+          challan_number: string | null
+          created_at: string
+          filed_by: string | null
+          filed_date: string | null
+          filing_type: string
+          financial_year: string
+          id: string
+          net_tax_payable: number | null
+          notes: string | null
+          organization_id: string
+          period_month: number
+          period_year: number
+          status: string
+          total_itc_claimed: number | null
+          total_tax_liability: number | null
+          updated_at: string
+        }
+        Insert: {
+          arn_number?: string | null
+          challan_date?: string | null
+          challan_number?: string | null
+          created_at?: string
+          filed_by?: string | null
+          filed_date?: string | null
+          filing_type: string
+          financial_year: string
+          id?: string
+          net_tax_payable?: number | null
+          notes?: string | null
+          organization_id: string
+          period_month: number
+          period_year: number
+          status?: string
+          total_itc_claimed?: number | null
+          total_tax_liability?: number | null
+          updated_at?: string
+        }
+        Update: {
+          arn_number?: string | null
+          challan_date?: string | null
+          challan_number?: string | null
+          created_at?: string
+          filed_by?: string | null
+          filed_date?: string | null
+          filing_type?: string
+          financial_year?: string
+          id?: string
+          net_tax_payable?: number | null
+          notes?: string | null
+          organization_id?: string
+          period_month?: number
+          period_year?: number
+          status?: string
+          total_itc_claimed?: number | null
+          total_tax_liability?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gst_filing_status_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       holidays: {
         Row: {
           created_at: string
@@ -4596,10 +4774,12 @@ export type Database = {
           client_email: string
           client_name: string
           created_at: string
+          currency_code: string | null
           customer_gstin: string | null
           customer_id: string | null
           delivery_note_id: string | null
           due_date: string
+          exchange_rate: number | null
           id: string
           igst_total: number
           invoice_date: string
@@ -4622,10 +4802,12 @@ export type Database = {
           client_email: string
           client_name: string
           created_at?: string
+          currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
           delivery_note_id?: string | null
           due_date: string
+          exchange_rate?: number | null
           id?: string
           igst_total?: number
           invoice_date?: string
@@ -4648,10 +4830,12 @@ export type Database = {
           client_email?: string
           client_name?: string
           created_at?: string
+          currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
           delivery_note_id?: string | null
           due_date?: string
+          exchange_rate?: number | null
           id?: string
           igst_total?: number
           invoice_date?: string
@@ -6841,6 +7025,8 @@ export type Database = {
           approved_by: string | null
           created_at: string
           created_by: string
+          currency_code: string | null
+          exchange_rate: number | null
           expected_delivery: string | null
           id: string
           notes: string | null
@@ -6860,6 +7046,8 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           created_by: string
+          currency_code?: string | null
+          exchange_rate?: number | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -6879,6 +7067,8 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           created_by?: string
+          currency_code?: string | null
+          exchange_rate?: number | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -7399,8 +7589,10 @@ export type Database = {
           approved_by: string | null
           created_at: string
           created_by: string
+          currency_code: string | null
           customer_id: string | null
           customer_name: string
+          exchange_rate: number | null
           expected_delivery: string | null
           id: string
           notes: string | null
@@ -7419,8 +7611,10 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           created_by: string
+          currency_code?: string | null
           customer_id?: string | null
           customer_name: string
+          exchange_rate?: number | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -7439,8 +7633,10 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           created_by?: string
+          currency_code?: string | null
           customer_id?: string | null
           customer_name?: string
+          exchange_rate?: number | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null

@@ -110,6 +110,7 @@ import PaymentReceipts from "./pages/financial/PaymentReceipts";
 import VendorPaymentsPage from "./pages/financial/VendorPayments";
 import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
 import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
+import ExchangeRatesPage from "./pages/financial/ExchangeRates";
 
 // Profile
 import Profile from "./pages/Profile";
@@ -170,6 +171,7 @@ const App = () => (
                 <Route path="/financial/ca-dashboard" element={<Guarded><FinanceRoute><CADashboard /></FinanceRoute></Guarded>} />
                 <Route path="/financial/payment-receipts" element={<Guarded><FinanceRoute><PaymentReceipts /></FinanceRoute></Guarded>} />
                 <Route path="/financial/vendor-payments" element={<Guarded><FinanceRoute><VendorPaymentsPage /></FinanceRoute></Guarded>} />
+                <Route path="/financial/exchange-rates" element={<Guarded><FinanceRoute><ExchangeRatesPage /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
                 <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />

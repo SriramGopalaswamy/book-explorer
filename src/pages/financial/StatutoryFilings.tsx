@@ -54,6 +54,10 @@ import {
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+import { useGSTFilingStatus, useUpdateFilingStatus } from "@/hooks/useCurrencyAndFiling";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
@@ -197,6 +201,10 @@ export default function StatutoryFilings() {
   const [quarter, setQuarter] = useState(defaults.currentQuarter);
   const [month, setMonth] = useState(defaults.currentMonth);
   const { data: payrollFlags } = usePayrollFlags();
+  const { data: filingStatuses = [] } = useGSTFilingStatus(fy);
+  const updateFiling = useUpdateFilingStatus();
+  const [filingDialog, setFilingDialog] = useState<{ type: string; open: boolean }>({ type: "", open: false });
+  const [filingForm, setFilingForm] = useState({ status: "not_started", arn_number: "", challan_number: "", filed_date: "" });
 
   // Compute date ranges
   const fyRange = useMemo(() => getFinancialYearRange(fy), [fy]);
@@ -472,12 +480,43 @@ export default function StatutoryFilings() {
           {activeTab === "gstr1" && (
             <div className="space-y-4">
               <FilingHeader filingId="gstr1" title="GSTR-1 — Outward Supplies" desc="Details of outward supplies of goods/services. Upload to GST Portal → Returns → GSTR-1." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
+              <GSTFilingStatusPanel filingType="gstr1" month={parseInt(month)} fy={fy} statuses={filingStatuses} onUpdate={updateFiling} filingDialog={filingDialog} setFilingDialog={setFilingDialog} filingForm={filingForm} setFilingForm={setFilingForm} />
               {gstr1.data && gstr1.data.length > 0 && (
-                <div className="grid grid-cols-3 gap-3">
-                  <SummaryCard label="Total Invoices" value={String(new Set(gstr1.data.map(r => r.invoice_number)).size)} />
-                  <SummaryCard label="B2B Invoices" value={String(gstr1.data.filter(r => r.invoice_type === "B2B").length)} />
-                  <SummaryCard label="Total Taxable" value={formatCurrency(gstr1.data.reduce((s, r) => s + r.taxable_value, 0))} />
-                </div>
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <SummaryCard label="Total Invoices" value={String(new Set(gstr1.data.map(r => r.invoice_number)).size)} />
+                    <SummaryCard label="B2B Invoices" value={String(gstr1.data.filter(r => r.invoice_type === "B2B").length)} />
+                    <SummaryCard label="Total Taxable" value={formatCurrency(gstr1.data.reduce((s, r) => s + r.taxable_value, 0))} />
+                  </div>
+                  {/* HSN Summary */}
+                  <Card className="bg-card border-border">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">HSN-wise Summary</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="rounded-md border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead><tr className="bg-muted/50 text-muted-foreground"><th className="px-4 py-2 text-left">HSN/SAC</th><th className="px-4 py-2 text-right">Count</th><th className="px-4 py-2 text-right">Taxable Value</th><th className="px-4 py-2 text-right">Total Tax</th></tr></thead>
+                          <tbody>
+                            {Object.entries(gstr1.data.reduce((acc, r) => {
+                              const hsn = r.hsn_sac || "N/A";
+                              if (!acc[hsn]) acc[hsn] = { count: 0, taxable: 0, tax: 0 };
+                              acc[hsn].count++;
+                              acc[hsn].taxable += r.taxable_value;
+                              acc[hsn].tax += r.cgst_amount + r.sgst_amount + r.igst_amount;
+                              return acc;
+                            }, {} as Record<string, { count: number; taxable: number; tax: number }>)).map(([hsn, d]) => (
+                              <tr key={hsn} className="border-t border-border">
+                                <td className="px-4 py-2 font-mono text-foreground">{hsn}</td>
+                                <td className="px-4 py-2 text-right text-foreground">{d.count}</td>
+                                <td className="px-4 py-2 text-right text-foreground">{formatCurrency(d.taxable)}</td>
+                                <td className="px-4 py-2 text-right font-medium text-foreground">{formatCurrency(d.tax)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
               )}
               <DataTable columns={gstr1Cols} data={gstr1.data || []} isLoading={gstr1.isLoading} emptyMessage="No outward supplies found for this period" />
             </div>
@@ -486,6 +525,7 @@ export default function StatutoryFilings() {
           {activeTab === "gstr3b" && (
             <div className="space-y-4">
               <FilingHeader filingId="gstr3b" title="GSTR-3B — Summary Return" desc="Monthly summary of outward/inward supplies and tax liability. Upload to GST Portal → Returns → GSTR-3B." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
+              <GSTFilingStatusPanel filingType="gstr3b" month={parseInt(month)} fy={fy} statuses={filingStatuses} onUpdate={updateFiling} filingDialog={filingDialog} setFilingDialog={setFilingDialog} filingForm={filingForm} setFilingForm={setFilingForm} />
               {gstr3b.data && <GSTR3BSummaryCards data={gstr3b.data} />}
             </div>
           )}
@@ -774,5 +814,94 @@ function GSTR3BSummaryCards({ data }: { data: GSTR3BSummary }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── GST Filing Status Panel ──────────────────────────────────────────────────
+
+const FILING_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  not_started: { label: "Not Started", variant: "secondary" },
+  preparing: { label: "Preparing", variant: "outline" },
+  ready: { label: "Ready to File", variant: "default" },
+  filed: { label: "Filed", variant: "default" },
+  acknowledged: { label: "Acknowledged", variant: "default" },
+};
+
+function GSTFilingStatusPanel({ filingType, month, fy, statuses, onUpdate, filingDialog, setFilingDialog, filingForm, setFilingForm }: {
+  filingType: string;
+  month: number;
+  fy: string;
+  statuses: any[];
+  onUpdate: any;
+  filingDialog: { type: string; open: boolean };
+  setFilingDialog: (v: { type: string; open: boolean }) => void;
+  filingForm: any;
+  setFilingForm: (v: any) => void;
+}) {
+  const fyStartYear = parseInt(fy.split("-")[0]);
+  const periodYear = month >= 4 ? fyStartYear : fyStartYear + 1;
+  const existing = statuses.find(s => s.filing_type === filingType && s.period_month === month);
+  const currentStatus = existing?.status || "not_started";
+  const statusInfo = FILING_STATUS_LABELS[currentStatus] || FILING_STATUS_LABELS.not_started;
+
+  const handleUpdate = () => {
+    onUpdate.mutate({
+      id: existing?.id,
+      filing_type: filingType,
+      period_month: month,
+      period_year: periodYear,
+      financial_year: fy,
+      status: filingForm.status,
+      arn_number: filingForm.arn_number,
+      challan_number: filingForm.challan_number,
+      filed_date: filingForm.filed_date || undefined,
+    });
+    setFilingDialog({ type: "", open: false });
+  };
+
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Filing Status:</span>
+            <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+            {existing?.arn_number && <span className="text-xs text-muted-foreground">ARN: <span className="font-mono">{existing.arn_number}</span></span>}
+            {existing?.filed_date && <span className="text-xs text-muted-foreground">Filed: {existing.filed_date}</span>}
+          </div>
+          <Dialog open={filingDialog.type === filingType && filingDialog.open} onOpenChange={v => setFilingDialog({ type: filingType, open: v })}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => {
+                setFilingForm({ status: currentStatus, arn_number: existing?.arn_number || "", challan_number: existing?.challan_number || "", filed_date: existing?.filed_date || "" });
+                setFilingDialog({ type: filingType, open: true });
+              }}>
+                Update Filing Status
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Update {filingType.toUpperCase()} Filing Status</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div><Label>Status</Label>
+                  <Select value={filingForm.status} onValueChange={(v: string) => setFilingForm((p: any) => ({ ...p, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_started">Not Started</SelectItem>
+                      <SelectItem value="preparing">Preparing</SelectItem>
+                      <SelectItem value="ready">Ready to File</SelectItem>
+                      <SelectItem value="filed">Filed</SelectItem>
+                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Filed Date</Label><Input type="date" value={filingForm.filed_date} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, filed_date: e.target.value }))} /></div>
+                <div><Label>ARN Number</Label><Input value={filingForm.arn_number} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, arn_number: e.target.value }))} placeholder="Acknowledgement Reference Number" /></div>
+                <div><Label>Challan Number</Label><Input value={filingForm.challan_number} onChange={(e: any) => setFilingForm((p: any) => ({ ...p, challan_number: e.target.value }))} placeholder="Tax payment challan number" /></div>
+                <Button onClick={handleUpdate} disabled={onUpdate.isPending} className="w-full">{onUpdate.isPending ? "Saving..." : "Update Status"}</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
