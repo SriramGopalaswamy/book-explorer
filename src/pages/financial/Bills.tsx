@@ -78,7 +78,7 @@ interface AIExtracted {
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
   draft:    { label: "Draft",    className: "bg-muted text-muted-foreground border-border",           icon: FileText },
   received: { label: "Received", className: "bg-primary/10 text-primary border-primary/30",           icon: Receipt },
-  approved: { label: "Approved", className: "bg-secondary/20 text-secondary-foreground border-secondary/30", icon: FileCheck },
+  
   paid:     { label: "Paid",     className: "bg-accent/40 text-accent-foreground border-accent/50",   icon: CheckCircle2 },
   overdue:  { label: "Overdue",  className: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertCircle },
 };
@@ -138,7 +138,7 @@ function fmt(v: number) {
 }
 
 function isOverdue(bill: any) {
-  return bill.due_date && !["paid", "approved"].includes(bill.status) && new Date(bill.due_date) < new Date();
+  return bill.due_date && bill.status !== "paid" && new Date(bill.due_date) < new Date();
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -526,8 +526,8 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast.success(`Bill ${variables.status === "approved" ? "approved" : variables.status === "paid" ? "marked as paid" : "status updated"} successfully`);
-      if (["approved", "paid"].includes(variables.status)) {
+      toast.success(`Bill ${variables.status === "paid" ? "marked as paid" : variables.status === "received" ? "marked as received" : "status updated"} successfully`);
+      if (["received", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {
           body: { type: "bill_status_changed", payload: { bill_id: variables.id, new_status: variables.status } },
         }).catch((err) => console.warn("Failed to send bill notification:", err));
@@ -697,7 +697,7 @@ export default function Bills() {
     return matchSearch && matchStatus;
   });
 
-  const totalPending  = bills.filter((b: any) => b.status === "approved").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
+  const totalPending  = bills.filter((b: any) => b.status === "received").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalOverdue  = enriched.filter((b: any) => b.effectiveStatus === "overdue").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalPaid     = bills.filter((b: any) => b.status === "paid").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const aiScanned     = bills.filter((b: any) => b.ai_extracted).length;
@@ -715,7 +715,7 @@ export default function Bills() {
         {/* ── Stats ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Bills"       value={bills.length}         sub={`${aiScanned} AI scanned`} />
-          <StatCard label="Pending Payment"   value={fmt(totalPending)}    sub="approved, awaiting payment" />
+          <StatCard label="Pending Payment"   value={fmt(totalPending)}    sub="received, awaiting payment" />
           <StatCard label="Overdue"           value={fmt(totalOverdue)}    accent="text-destructive" />
           <StatCard label="Paid (All Time)"   value={fmt(totalPaid)}       accent="text-emerald-400" />
         </div>
@@ -820,12 +820,7 @@ export default function Bills() {
                                   <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
                                 </DropdownMenuItem>
                               )}
-                              {b.status === "received" && (
-                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "approved" })}>
-                                  <FileCheck className="h-4 w-4 mr-2 text-secondary-foreground" /> Approve
-                                </DropdownMenuItem>
-                              )}
-                              {(b.status === "approved" || b.effectiveStatus === "overdue") && (
+                              {(b.status === "received" || b.effectiveStatus === "overdue") && (
                                 <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "paid" })}>
                                   <CheckCircle2 className="h-4 w-4 mr-2 text-accent-foreground" /> Mark Paid
                                 </DropdownMenuItem>
@@ -1249,12 +1244,6 @@ export default function Bills() {
             </div>
 
             <DialogFooter className="gap-2 flex-wrap">
-              {previewBill.status === "received" && (
-                <Button variant="outline" className="border-secondary/40 text-secondary-foreground hover:bg-secondary/10"
-                  onClick={() => { updateStatusMutation.mutate({ id: previewBill.id, status: "approved" }); setPreviewBill(null); }}>
-                  <FileCheck className="h-4 w-4 mr-1" /> Approve
-                </Button>
-              )}
               {previewBill.status !== "paid" && (
                 <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10"
                   onClick={() => { updateStatusMutation.mutate({ id: previewBill.id, status: "paid" }); setPreviewBill(null); }}>
