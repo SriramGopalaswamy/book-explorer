@@ -705,7 +705,11 @@ function EnhancedResultsCard({ lastResult, expandedSections, toggleSection }: {
 }
 
 // ── Main Page ──
-export default function PlatformSimulation() {
+export function SimulationContent() {
+  return <SimulationContentInner />;
+}
+
+function SimulationContentInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
@@ -825,7 +829,7 @@ export default function PlatformSimulation() {
   ];
 
   return (
-    <MainLayout title="Sandbox System Simulation" subtitle="Enterprise-grade validation against ISA, COSO, SOX/ITGC & AICPA SOC 1 standards">
+    <>
       {/* Org Selector */}
       <Card className="mb-6">
         <CardContent className="pt-6">
