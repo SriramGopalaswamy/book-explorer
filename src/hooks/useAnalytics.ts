@@ -275,11 +275,13 @@ export function useARAging() {
 
 export function useMonthlyTrend() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
 
   return useQuery({
-    queryKey: ["monthly-trend-gl", user?.id],
+    queryKey: ["monthly-trend-gl", orgId],
     queryFn: async (): Promise<MonthlyTrendData[]> => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
       const twelveMonthsAgo = new Date();
       twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
@@ -287,14 +289,20 @@ export function useMonthlyTrend() {
       const { data: glAccounts } = await supabase
         .from("gl_accounts")
         .select("id, account_type")
-        .in("account_type", ["revenue", "expense"]);
+        .eq("organization_id", orgId)
+        .in("account_type", ["revenue", "expense"])
+        .eq("is_active", true);
 
       const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
       const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
 
+      if (revenueIds.size === 0 && expenseIds.size === 0) return [];
+
       const { data: lines, error } = await supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date)")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
+        .eq("journal_entries.is_posted", true)
+        .eq("journal_entries.organization_id", orgId)
         .gte("journal_entries.entry_date", twelveMonthsAgo.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -317,8 +325,8 @@ export function useMonthlyTrend() {
         const key = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
         const entry = map.get(key);
         if (entry) {
-          if (revenueIds.has(l.gl_account_id)) entry.revenue += Number(l.credit || 0);
-          if (expenseIds.has(l.gl_account_id)) entry.expenses += Number(l.debit || 0);
+          if (revenueIds.has(l.gl_account_id)) entry.revenue += Number(l.credit || 0) - Number(l.debit || 0);
+          if (expenseIds.has(l.gl_account_id)) entry.expenses += Number(l.debit || 0) - Number(l.credit || 0);
         }
       });
 
@@ -329,7 +337,7 @@ export function useMonthlyTrend() {
         profit: data.revenue - data.expenses,
       }));
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
