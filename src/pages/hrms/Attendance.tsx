@@ -267,20 +267,24 @@ export default function Attendance() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pagination.paginatedItems.map((record, idx) => (
-                      <tr key={record.id} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
+                    {pagination.paginatedItems.map((record, idx) => {
+                      const isInferred = record.id.startsWith("inferred-");
+                      return (
+                      <tr key={record.id} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${idx % 2 === 1 ? "bg-muted/10" : ""} ${isInferred ? "opacity-70" : ""}`}>
                         <td className="px-6 py-3 align-middle font-semibold w-48 text-card-foreground">{record.profiles?.full_name || "Unknown"}</td>
                         <td className="px-4 py-3 align-middle w-36 text-muted-foreground">{record.profiles?.department || "-"}</td>
-                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{formatTime(record.check_in)}</td>
-                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{formatTime(record.check_out)}</td>
-                        <td className="px-4 py-3 align-middle w-32 text-card-foreground">{calculateHours(record.check_in, record.check_out)}</td>
+                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{isInferred ? "-" : formatTime(record.check_in)}</td>
+                        <td className="px-4 py-3 align-middle w-28 text-card-foreground">{isInferred ? "-" : formatTime(record.check_out)}</td>
+                        <td className="px-4 py-3 align-middle w-32 text-card-foreground">{isInferred ? "-" : calculateHours(record.check_in, record.check_out)}</td>
                         <td className="px-4 py-3 align-middle w-28">
                           <Badge variant="outline" className={getStatusBadge(record.status)}>
                             {record.status.charAt(0).toUpperCase() + record.status.slice(1).replace("_", " ")}
+                            {isInferred ? " ●" : ""}
                           </Badge>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

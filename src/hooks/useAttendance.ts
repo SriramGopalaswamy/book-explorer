@@ -39,20 +39,62 @@ export function useAttendance(date?: string) {
     queryKey: ["attendance", selectedDate, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockAttendanceRecords;
-      const { data, error } = await supabase
-        .from("attendance_records")
-        .select(`
-          *,
-          profiles!profile_id (
-            full_name,
-            department
-          )
-        `)
-        .eq("date", selectedDate)
-        .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      return data as AttendanceRecord[];
+      // Fetch attendance records, active profiles, and approved leaves in parallel
+      const [attendanceRes, profilesRes, leavesRes] = await Promise.all([
+        supabase
+          .from("attendance_records")
+          .select(`
+            *,
+            profiles!profile_id (
+              full_name,
+              department
+            )
+          `)
+          .eq("date", selectedDate)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("id, full_name, department")
+          .eq("status", "active"),
+        supabase
+          .from("leave_requests")
+          .select("profile_id, user_id")
+          .eq("status", "approved")
+          .lte("from_date", selectedDate)
+          .gte("to_date", selectedDate),
+      ]);
+
+      if (attendanceRes.error) throw attendanceRes.error;
+      const records = attendanceRes.data as AttendanceRecord[];
+      const activeProfiles = profilesRes.data || [];
+      const approvedLeaves = leavesRes.data || [];
+
+      // Build sets of profile_ids that already have a record or are on approved leave
+      const recordedProfileIds = new Set(records.map((r) => r.profile_id).filter(Boolean));
+      const leaveProfileIds = new Set(approvedLeaves.map((l) => l.profile_id).filter(Boolean));
+
+      // Generate inferred records for missing employees
+      const inferredRecords: AttendanceRecord[] = activeProfiles
+        .filter((p) => !recordedProfileIds.has(p.id))
+        .map((p) => {
+          const isOnLeave = leaveProfileIds.has(p.id);
+          return {
+            id: `inferred-${p.id}`,
+            user_id: "",
+            profile_id: p.id,
+            date: selectedDate,
+            check_in: null,
+            check_out: null,
+            status: isOnLeave ? "leave" as const : "absent" as const,
+            notes: isOnLeave ? "Approved leave" : "No record found",
+            created_at: "",
+            updated_at: "",
+            profiles: { full_name: p.full_name, department: p.department },
+          };
+        });
+
+      return [...records, ...inferredRecords];
     },
     enabled: !!user || isDevMode,
   });
@@ -68,12 +110,16 @@ export function useAttendanceStats(date?: string) {
     queryFn: async () => {
       if (isDevMode) return mockAttendanceStats;
 
-      // Fetch attendance records and approved leave requests in parallel
-      const [attendanceRes, leaveRes] = await Promise.all([
+      // Fetch attendance records, active profiles, and approved leaves in parallel
+      const [attendanceRes, profilesRes, leaveRes] = await Promise.all([
         supabase
           .from("attendance_records")
           .select("status, user_id, profile_id")
           .eq("date", selectedDate),
+        supabase
+          .from("profiles")
+          .select("id")
+          .eq("status", "active"),
         supabase
           .from("leave_requests")
           .select("user_id, profile_id")
@@ -84,20 +130,23 @@ export function useAttendanceStats(date?: string) {
 
       if (attendanceRes.error) throw attendanceRes.error;
       const data = attendanceRes.data;
+      const totalActive = profilesRes.data?.length || 0;
+      const approvedLeaves = leaveRes.data || [];
 
       const stats: AttendanceStats = {
         present: 0,
         absent: 0,
         late: 0,
         leave: 0,
-        total: data.length,
+        total: totalActive,
       };
 
-      // Track profile_ids already marked as leave in attendance_records
-      // (profile_id is the reliable employee identifier; user_id may be the admin who created the record)
+      const recordedProfileIds = new Set<string>();
       const leaveProfileIds = new Set<string>();
 
       data.forEach((record) => {
+        if (record.profile_id) recordedProfileIds.add(record.profile_id);
+
         if (record.status === "present" || record.status === "half_day" || record.status === "late") {
           stats.present++;
           if (record.status === "late") {
@@ -111,25 +160,26 @@ export function useAttendanceStats(date?: string) {
         }
       });
 
-      // Add approved leaves that don't already have an attendance record with status 'leave'
-      // Use both profile_id and user_id for deduplication to handle data with either identifier
-      if (leaveRes.data) {
-        const leaveUserIds = new Set<string>();
-        data.forEach((record) => {
-          if (record.status === "leave" && record.user_id) leaveUserIds.add(record.user_id);
-        });
+      // Add approved leaves without attendance records
+      const leaveUserIds = new Set<string>();
+      data.forEach((r) => { if (r.status === "leave" && r.user_id) leaveUserIds.add(r.user_id); });
 
-        const extraLeaves = leaveRes.data.filter((lr) => {
-          // Skip if already counted via profile_id match
-          if (lr.profile_id && leaveProfileIds.has(lr.profile_id)) return false;
-          // Skip if already counted via user_id match
-          if (lr.user_id && leaveUserIds.has(lr.user_id)) return false;
-          // Only count if the leave request has at least one identifier
-          return !!(lr.profile_id || lr.user_id);
-        });
-        stats.leave += extraLeaves.length;
-        stats.total += extraLeaves.length;
-      }
+      approvedLeaves.forEach((lr) => {
+        const alreadyCounted =
+          (lr.profile_id && leaveProfileIds.has(lr.profile_id)) ||
+          (lr.user_id && leaveUserIds.has(lr.user_id));
+        if (!alreadyCounted && (lr.profile_id || lr.user_id)) {
+          stats.leave++;
+          if (lr.profile_id) {
+            recordedProfileIds.add(lr.profile_id);
+            leaveProfileIds.add(lr.profile_id);
+          }
+        }
+      });
+
+      // Everyone not recorded and not on leave is absent
+      const inferredAbsent = totalActive - recordedProfileIds.size;
+      stats.absent += Math.max(0, inferredAbsent);
 
       return stats;
     },
