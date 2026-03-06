@@ -411,6 +411,72 @@ export default function CashFlow() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Details Dialog */}
+      <Dialog open={!!viewPayment} onOpenChange={(o) => !o && setViewPayment(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewPayment?.payment_type === "outflow" ? (
+                <ArrowUpRight className="h-5 w-5 text-destructive" />
+              ) : (
+                <ArrowDownLeft className="h-5 w-5 text-success" />
+              )}
+              {viewPayment?.name}
+            </DialogTitle>
+            <DialogDescription>Scheduled payment details</DialogDescription>
+          </DialogHeader>
+          {viewPayment && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Type</p>
+                  <Badge variant="outline" className={viewPayment.payment_type === "outflow" ? "border-destructive/30 text-destructive" : "border-success/50 text-success"}>
+                    {viewPayment.payment_type === "outflow" ? "Outflow (Payment)" : "Inflow (Expected)"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge variant={viewPayment.status === "scheduled" ? "default" : "secondary"}>
+                    {viewPayment.status}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Amount</p>
+                  <p className={`text-lg font-semibold ${viewPayment.payment_type === "outflow" ? "text-destructive" : "text-success"}`}>
+                    {viewPayment.payment_type === "outflow" ? "-" : "+"}{formatCurrency(Number(viewPayment.amount))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Due Date</p>
+                  <p className="text-sm font-medium">
+                    {new Date(viewPayment.due_date).toLocaleDateString("en-IN", { weekday: "short", month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Category</p>
+                  <p className="text-sm font-medium">{viewPayment.category || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Recurring</p>
+                  <p className="text-sm font-medium">{viewPayment.recurring ? (viewPayment.recurrence_interval || "Yes") : "No"}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Created</p>
+                <p className="text-sm">{new Date(viewPayment.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewPayment(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
