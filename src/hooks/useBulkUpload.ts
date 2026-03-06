@@ -215,7 +215,7 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
       console.log(`[Attendance Upload] ${row.employee_id} | date=${row.date} | raw_in="${row.check_in}" → ${checkInTime} → ${checkInDate} | raw_out="${row.check_out}" → ${checkOutTime} → ${checkOutDate}`);
 
-      const { error } = await supabase.from("attendance_records").insert({
+      const { error } = await supabase.from("attendance_records").upsert({
         user_id: profile.user_id,
         profile_id: profile.id,
         date: row.date,
@@ -223,6 +223,8 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
         check_in: checkInDate,
         check_out: checkOutDate,
         notes: row.notes || null,
+      }, {
+        onConflict: "profile_id,date",
       });
 
       if (error) errors.push(`Row ${row.employee_id} ${row.date}: ${error.message}`);
