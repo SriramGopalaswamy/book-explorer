@@ -110,6 +110,7 @@ import PaymentReceipts from "./pages/financial/PaymentReceipts";
 import VendorPaymentsPage from "./pages/financial/VendorPayments";
 import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
 import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
+import ExchangeRatesPage from "./pages/financial/ExchangeRates";
 
 // Profile
 import Profile from "./pages/Profile";
