@@ -149,6 +149,16 @@ const inventoryNav: NavItem[] = [
   { name: "Adjustments", path: "/inventory/adjustments", icon: ClipboardList, module: "financial" },
 ];
 
+const procurementNav: NavItem[] = [
+  { name: "Purchase Orders", path: "/procurement/purchase-orders", icon: ShoppingCart, module: "financial" },
+  { name: "Goods Receipts", path: "/procurement/goods-receipts", icon: PackageCheck, module: "financial" },
+];
+
+const salesNav: NavItem[] = [
+  { name: "Sales Orders", path: "/sales/orders", icon: ShoppingBag, module: "financial" },
+  { name: "Deliveries", path: "/sales/deliveries", icon: Truck, module: "financial" },
+];
+
 const performanceNav: NavItem[] = [
   { name: "Goals", path: "/performance/goals", icon: Target, module: "performance" },
   { name: "Memos", path: "/performance/memos", icon: FileText, module: "performance" },
