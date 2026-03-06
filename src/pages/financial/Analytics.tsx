@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, FileText, Layers,
+  Brain, Users,
 } from "lucide-react";
 import { useProfitLoss, useBalanceSheet, useExpenseByCategory, useProfitLossForPeriod, useProfitLossAllTime } from "@/hooks/useAnalytics";
 import { useIsFinance } from "@/hooks/useRoles";
@@ -18,6 +19,8 @@ import { ExpenseBreakdownDonut, RevenueSourceDonut } from "@/components/analytic
 import { AccountsReceivableAging } from "@/components/analytics/AccountsReceivableAging";
 import { ChartOfAccountsTable } from "@/components/analytics/ChartOfAccountsTable";
 import { ReportsDateFilter } from "@/components/analytics/ReportsDateFilter";
+import { CrossModuleKPIs } from "@/components/analytics/CrossModuleKPIs";
+import { AICommandCenter } from "@/components/analytics/AICommandCenter";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -26,45 +29,40 @@ const formatCurrency = (v: number) => {
 };
 
 export default function Analytics() {
-  // Role-based access control
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
-  
-  const pl = useProfitLoss(); // CoA-based — used for Reports tab P&L statement
+
+  const pl = useProfitLoss();
   const bs = useBalanceSheet();
   const expenses = useExpenseByCategory();
-  const [activeTab, setActiveTab] = useState("coa");
-  
+  const [activeTab, setActiveTab] = useState("ai");
+
   // Date range filter for Reports tab
   const [reportFrom, setReportFrom] = useState<Date | undefined>();
   const [reportTo, setReportTo] = useState<Date | undefined>();
   const { data: periodPL } = useProfitLossForPeriod(reportFrom, reportTo);
   const hasDateFilter = !!(reportFrom || reportTo);
 
-  // KPI cards always use financial_records (same source as the main dashboard)
   const { data: allTimePL } = useProfitLossAllTime();
   const kpiData = hasDateFilter ? periodPL : allTimePL;
 
-
-  // Show loading state while checking permissions
   if (isCheckingRole) {
     return (
       <MainLayout title="Analytics">
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             <p className="text-muted-foreground">Checking permissions...</p>
           </div>
         </div>
       </MainLayout>
     );
   }
-  
-  // Deny access if user doesn't have finance role
+
   if (!hasFinanceAccess) {
     return (
-      <AccessDenied 
+      <AccessDenied
         message="Finance Access Required"
-        description="You need finance or admin role to access the Analytics module. Contact your administrator for access."
+        description="You need finance or admin role to access the Analytics module."
       />
     );
   }
@@ -75,30 +73,31 @@ export default function Analytics() {
     : expenses.length > 0 ? { name: expenses.reduce((a, b) => a.value > b.value ? a : b).name } : null;
 
   return (
-    <MainLayout title="Analytics & Reports" subtitle="Comprehensive financial intelligence and standard reports">
+    <MainLayout title="Analytics & Intelligence" subtitle="AI-powered holistic analysis across Finance, HR, Payroll & Operations">
       <div className="space-y-6 animate-fade-in">
         <OnboardingBanner />
+
+        {/* Unified KPIs from GL */}
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            {hasDateFilter ? `Filtered period` : "All-time totals · same source as dashboard"}
+            {hasDateFilter ? "Filtered period" : "All-time GL totals · unified source of truth"}
           </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(kpiData?.totalRevenue ?? 0)}</div>
-              <p className="text-xs text-muted-foreground">From {kpiData?.revenue.length ?? 0} categories</p>
+              <p className="text-xs text-muted-foreground">From {kpiData?.revenue.length ?? 0} accounts</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(kpiData?.totalExpenses ?? 0)}</div>
@@ -113,7 +112,7 @@ export default function Analytics() {
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${(kpiData?.netIncome ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className={`text-2xl font-bold ${(kpiData?.netIncome ?? 0) >= 0 ? "text-success" : "text-destructive"}`}>
                 {formatCurrency(kpiData?.netIncome ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground">{(kpiData?.grossMargin ?? 0).toFixed(1)}% margin</p>
@@ -122,7 +121,7 @@ export default function Analytics() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Assets</CardTitle>
-              <Layers className="h-4 w-4 text-blue-500" />
+              <Layers className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(bs.totalAssets)}</div>
@@ -131,10 +130,17 @@ export default function Analytics() {
           </Card>
         </div>
 
-
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 max-w-lg">
+          <TabsList className="grid w-full grid-cols-6 max-w-2xl">
+            <TabsTrigger value="ai" className="flex items-center gap-1.5">
+              <Brain className="h-3.5 w-3.5" />
+              AI Insights
+            </TabsTrigger>
+            <TabsTrigger value="cross" className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              HR & Payroll
+            </TabsTrigger>
             <TabsTrigger value="coa" className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5" />
               CoA
@@ -152,6 +158,21 @@ export default function Analytics() {
               Charts
             </TabsTrigger>
           </TabsList>
+
+          {/* AI Command Center Tab */}
+          <TabsContent value="ai" className="space-y-6 mt-6">
+            <AICommandCenter />
+          </TabsContent>
+
+          {/* Cross-Module Analytics Tab */}
+          <TabsContent value="cross" className="space-y-6 mt-6">
+            <CrossModuleKPIs />
+          </TabsContent>
+
+          {/* Chart of Accounts Tab */}
+          <TabsContent value="coa" className="space-y-6 mt-6">
+            <ChartOfAccountsTable />
+          </TabsContent>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6 mt-6">
@@ -193,11 +214,6 @@ export default function Analytics() {
             </div>
             <ProfitBarChart />
             <AccountsReceivableAging />
-          </TabsContent>
-
-          {/* Chart of Accounts Tab */}
-          <TabsContent value="coa" className="space-y-6 mt-6">
-            <ChartOfAccountsTable />
           </TabsContent>
         </Tabs>
       </div>
