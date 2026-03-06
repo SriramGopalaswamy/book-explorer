@@ -214,8 +214,8 @@ export function useWeeklyAttendanceStats() {
         days.push(date.toISOString().split("T")[0]);
       }
 
-      // Fetch attendance records AND approved leave requests for the week
-      const [attendanceRes, leaveRes] = await Promise.all([
+      // Fetch attendance records, approved leave requests, AND active profiles for the week
+      const [attendanceRes, leaveRes, profilesRes] = await Promise.all([
         supabase
           .from("attendance_records")
           .select("date, status, profile_id, user_id")
@@ -227,23 +227,38 @@ export function useWeeklyAttendanceStats() {
           .eq("status", "approved")
           .lte("from_date", days[4])
           .gte("to_date", days[0]),
+        supabase
+          .from("profiles")
+          .select("id")
+          .eq("status", "active"),
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
       const data = attendanceRes.data;
       const leaveData = leaveRes.data || [];
+      const totalActive = profilesRes.data?.length || 0;
 
       const weekData = days.map((day, idx) => {
         const dayRecords = data.filter((r) => r.date === day);
         const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
-        // Count leaves from attendance_records
+        // Track which profile_ids have a record for this day
+        const recordedProfileIds = new Set<string>();
         const attendanceLeaveProfileIds = new Set<string>();
         const attendanceLeaveUserIds = new Set<string>();
         let leaveCount = 0;
+        let presentCount = 0;
+        let lateCount = 0;
+        let explicitAbsentCount = 0;
 
         dayRecords.forEach((r) => {
-          if (r.status === "leave") {
+          if (r.profile_id) recordedProfileIds.add(r.profile_id);
+          if (r.status === "present" || r.status === "half_day" || r.status === "late") {
+            presentCount++;
+            if (r.status === "late") lateCount++;
+          } else if (r.status === "absent") {
+            explicitAbsentCount++;
+          } else if (r.status === "leave") {
             leaveCount++;
             if (r.profile_id) attendanceLeaveProfileIds.add(r.profile_id);
             if (r.user_id) attendanceLeaveUserIds.add(r.user_id);
@@ -258,15 +273,19 @@ export function useWeeklyAttendanceStats() {
               (lr.user_id && attendanceLeaveUserIds.has(lr.user_id));
             if (!alreadyCounted && (lr.profile_id || lr.user_id)) {
               leaveCount++;
+              if (lr.profile_id) recordedProfileIds.add(lr.profile_id);
             }
           }
         });
 
+        // Infer absent = total active employees minus those with any record or leave
+        const inferredAbsent = Math.max(0, totalActive - recordedProfileIds.size);
+
         return {
           day: dayNames[idx],
-          present: dayRecords.filter((r) => r.status === "present" || r.status === "half_day" || r.status === "late").length,
-          absent: dayRecords.filter((r) => r.status === "absent").length,
-          late: dayRecords.filter((r) => r.status === "late").length,
+          present: presentCount,
+          absent: explicitAbsentCount + inferredAbsent,
+          late: lateCount,
           leave: leaveCount,
         };
       });
