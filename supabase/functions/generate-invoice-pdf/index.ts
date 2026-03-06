@@ -191,62 +191,88 @@ serve(async (req) => {
 
     // ========== COMPANY HEADER ==========
     if (logoImage) {
-      const logoScale = 40 / logoImage.height;
+      const logoMaxH = 40;
+      const logoScale = logoMaxH / logoImage.height;
+      const logoW = logoImage.width * logoScale;
       page.drawImage(logoImage, {
         x: leftMargin,
         y: y - 35,
-        width: logoImage.width * logoScale,
-        height: 40,
+        width: logoW,
+        height: logoMaxH,
       });
-      y -= 5;
-    }
+      // Push all header text to the right of the logo
+      const textOffsetX = leftMargin + logoW + 10;
 
-    const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
-    drawText(page, companyName, leftMargin + (logoImage ? 50 : 0), y, bold, 12, BRAND_COLORS.text);
-    y -= 14;
+      const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
+      drawText(page, companyName, textOffsetX, y, bold, 12, BRAND_COLORS.text);
+      y -= 14;
 
-    if (s.cin) {
-      drawText(page, `CIN: ${s.cin}`, leftMargin, y, regular, 8, BRAND_COLORS.muted);
-      y -= 11;
-    }
-
-    const addressParts: string[] = [];
-    if (s.address_line1) addressParts.push(s.address_line1);
-    if (s.address_line2) addressParts.push(s.address_line2);
-    if (s.city) addressParts.push(s.city);
-    if (s.state) addressParts.push(s.state);
-    if (s.pincode) addressParts.push(s.pincode);
-    if (s.country) addressParts.push(s.country);
-
-    if (addressParts.length > 0) {
-      // Split into max 2 lines
-      const addr = addressParts.join(", ");
-      if (addr.length > 70) {
-        drawText(page, addr.substring(0, 70), leftMargin, y, regular, 8, BRAND_COLORS.muted);
-        y -= 11;
-        drawText(page, addr.substring(70), leftMargin, y, regular, 8, BRAND_COLORS.muted);
-        y -= 11;
-      } else {
-        drawText(page, addr, leftMargin, y, regular, 8, BRAND_COLORS.muted);
+      if (s.cin) {
+        drawText(page, `CIN: ${s.cin}`, textOffsetX, y, regular, 8, BRAND_COLORS.muted);
         y -= 11;
       }
-    }
 
-    if (s.gstin) {
-      drawText(page, `GSTIN ${s.gstin}`, leftMargin, y, regular, 8, BRAND_COLORS.muted);
-      y -= 11;
-    }
-    if (s.phone) {
-      drawText(page, s.phone, leftMargin, y, regular, 8, BRAND_COLORS.muted);
-      y -= 11;
-    }
-    if (s.email) {
-      drawText(page, s.email, leftMargin, y, regular, 8, BRAND_COLORS.muted);
-      y -= 11;
-    }
-    if (s.website) {
-      drawText(page, s.website, leftMargin, y, regular, 8, BRAND_COLORS.muted);
-      y -= 11;
+      const addressParts: string[] = [];
+      if (s.address_line1) addressParts.push(s.address_line1);
+      if (s.address_line2) addressParts.push(s.address_line2);
+      if (s.city) addressParts.push(s.city);
+      if (s.state) addressParts.push(s.state);
+      if (s.pincode) addressParts.push(s.pincode);
+      if (s.country) addressParts.push(s.country);
+
+      if (addressParts.length > 0) {
+        const addr = addressParts.join(", ");
+        const maxLen = 60;
+        if (addr.length > maxLen) {
+          drawText(page, addr.substring(0, maxLen), textOffsetX, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+          drawText(page, addr.substring(maxLen), textOffsetX, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+        } else {
+          drawText(page, addr, textOffsetX, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+        }
+      }
+
+      if (s.gstin) { drawText(page, `GSTIN ${s.gstin}`, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.phone) { drawText(page, s.phone, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.email) { drawText(page, s.email, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.website) { drawText(page, s.website, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+    } else {
+      const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
+      drawText(page, companyName, leftMargin, y, bold, 12, BRAND_COLORS.text);
+      y -= 14;
+
+      if (s.cin) {
+        drawText(page, `CIN: ${s.cin}`, leftMargin, y, regular, 8, BRAND_COLORS.muted);
+        y -= 11;
+      }
+
+      const addressParts: string[] = [];
+      if (s.address_line1) addressParts.push(s.address_line1);
+      if (s.address_line2) addressParts.push(s.address_line2);
+      if (s.city) addressParts.push(s.city);
+      if (s.state) addressParts.push(s.state);
+      if (s.pincode) addressParts.push(s.pincode);
+      if (s.country) addressParts.push(s.country);
+
+      if (addressParts.length > 0) {
+        const addr = addressParts.join(", ");
+        if (addr.length > 70) {
+          drawText(page, addr.substring(0, 70), leftMargin, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+          drawText(page, addr.substring(70), leftMargin, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+        } else {
+          drawText(page, addr, leftMargin, y, regular, 8, BRAND_COLORS.muted);
+          y -= 11;
+        }
+      }
+
+      if (s.gstin) { drawText(page, `GSTIN ${s.gstin}`, leftMargin, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.phone) { drawText(page, s.phone, leftMargin, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.email) { drawText(page, s.email, leftMargin, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
+      if (s.website) { drawText(page, s.website, leftMargin, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
     }
 
     // Invoice details on the right side (aligned with header)
