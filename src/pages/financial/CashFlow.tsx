@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TrendingUp, TrendingDown, Wallet, AlertTriangle, ArrowUpRight, ArrowDownLeft, Calendar, Plus, MoreHorizontal, Check, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, AlertTriangle, ArrowUpRight, ArrowDownLeft, Calendar, Plus, MoreHorizontal, Check, Trash2, Eye } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "@/hooks/use-toast";
 import { useCashFlowData } from "@/hooks/useBanking";
