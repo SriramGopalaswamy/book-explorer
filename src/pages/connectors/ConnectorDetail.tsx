@@ -7,8 +7,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useIntegration, useDisconnectIntegration, useTriggerSync, useShopifyStats, useConnectorLogs } from "@/hooks/useConnectors";
-import { ShoppingBag, Users, Package, IndianRupee, RefreshCw, Unplug, Activity, ArrowLeft } from "lucide-react";
+import { ShoppingBag, Users, Package, IndianRupee, RefreshCw, Unplug, Activity, ArrowLeft, CreditCard, Globe } from "lucide-react";
 import { format } from "date-fns";
+
+const PROVIDER_ICONS: Record<string, React.ElementType> = {
+  shopify: ShoppingBag,
+  amazon: Package,
+  woocommerce: Globe,
+  stripe: CreditCard,
+  razorpay: CreditCard,
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  shopify: "Shopify",
+  amazon: "Amazon",
+  woocommerce: "WooCommerce",
+  stripe: "Stripe",
+  razorpay: "Razorpay",
+};
 
 export default function ConnectorDetail() {
   const { provider } = useParams<{ provider: string }>();
@@ -42,8 +58,11 @@ export default function ConnectorDetail() {
     );
   }
 
+  const ProviderIcon = PROVIDER_ICONS[provider || "shopify"] || ShoppingBag;
+  const providerLabel = PROVIDER_LABELS[provider || "shopify"] || provider;
+
   const statusColor = integration.status === "connected"
-    ? "bg-green-500/20 text-green-400"
+    ? "bg-primary/20 text-primary"
     : integration.status === "sync_error"
     ? "bg-destructive/20 text-destructive"
     : "bg-muted text-muted-foreground";
@@ -64,7 +83,10 @@ export default function ConnectorDetail() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground capitalize">{provider} Integration</h1>
+              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <ProviderIcon className="h-6 w-6 text-primary" />
+                {providerLabel} Integration
+              </h1>
               <p className="text-muted-foreground">{integration.shop_domain}</p>
             </div>
           </div>
@@ -139,7 +161,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <Users className="h-8 w-8 text-blue-500" />
+                <Users className="h-8 w-8 text-accent-foreground" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats?.customersCount || 0}</p>
                   <p className="text-xs text-muted-foreground">Customers Imported</p>
@@ -150,7 +172,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <Package className="h-8 w-8 text-amber-500" />
+                <Package className="h-8 w-8 text-muted-foreground" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats?.productsCount || 0}</p>
                   <p className="text-xs text-muted-foreground">Products Imported</p>
@@ -161,7 +183,7 @@ export default function ConnectorDetail() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <IndianRupee className="h-8 w-8 text-green-500" />
+                <IndianRupee className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-2xl font-bold text-foreground">
                     ₹{(stats?.totalRevenue || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
