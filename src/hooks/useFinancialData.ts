@@ -168,7 +168,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   });
 }
 
-// Expense breakdown — org-scoped via RLS
+// Expense breakdown — pulls from expenses table (source of truth) + financial_records fallback
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
@@ -183,26 +183,43 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         return new Date(d.getFullYear(), d.getMonth(), 1);
       })();
       const toDate = dateRange?.to || new Date();
+      const fromStr = fromDate.toISOString().split("T")[0];
+      const toStr = toDate.toISOString().split("T")[0];
 
-      const { data, error } = await supabase
-        .from("financial_records")
-        .select("*")
-        .eq("type", "expense")
-        .gte("record_date", fromDate.toISOString().split("T")[0])
-        .lte("record_date", toDate.toISOString().split("T")[0]);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        return getDefaultExpenseData();
-      }
+      // Fetch from both expenses table and financial_records
+      const [expensesRes, financialRes] = await Promise.all([
+        supabase
+          .from("expenses")
+          .select("category, amount")
+          .gte("expense_date", fromStr)
+          .lte("expense_date", toStr),
+        supabase
+          .from("financial_records")
+          .select("category, amount")
+          .eq("type", "expense")
+          .gte("record_date", fromStr)
+          .lte("record_date", toStr),
+      ]);
 
       const categoryMap = new Map<string, number>();
-      
-      data.forEach((record) => {
-        const current = categoryMap.get(record.category) || 0;
-        categoryMap.set(record.category, current + Number(record.amount));
+
+      // Primary source: expenses table (all statuses)
+      (expensesRes.data || []).forEach((record) => {
+        const cat = record.category || "Uncategorized";
+        categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
       });
+
+      // Fallback: if no expenses found, use financial_records (manual journal entries)
+      if (categoryMap.size === 0 && financialRes.data) {
+        financialRes.data.forEach((record) => {
+          const cat = record.category || "Uncategorized";
+          categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
+        });
+      }
+
+      if (categoryMap.size === 0) {
+        return getDefaultExpenseData();
+      }
 
       return Array.from(categoryMap.entries()).map(([name, value]) => ({
         name,
