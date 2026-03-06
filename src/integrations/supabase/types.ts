@@ -5569,6 +5569,7 @@ export type Database = {
           created_at: string
           department: string | null
           email: string | null
+          esi_eligible: boolean | null
           full_name: string | null
           id: string
           job_title: string | null
@@ -5585,6 +5586,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email?: string | null
+          esi_eligible?: boolean | null
           full_name?: string | null
           id?: string
           job_title?: string | null
@@ -5601,6 +5603,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email?: string | null
+          esi_eligible?: boolean | null
           full_name?: string | null
           id?: string
           job_title?: string | null
