@@ -369,6 +369,12 @@ export function Sidebar() {
   const visibleInventoryNav = (isEmployee || isManager || isHR) ? []
     : isModuleEnabled("financial") ? inventoryNav
     : [];
+  const visibleProcurementNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? procurementNav
+    : [];
+  const visibleSalesNav = (isEmployee || isManager || isHR) ? []
+    : isModuleEnabled("financial") ? salesNav
+    : [];
   const visibleHrmsNav = !isModuleEnabled("hrms") ? [] 
     : isManager
     ? managerHrmsNav
@@ -419,6 +425,12 @@ export function Sidebar() {
             )}
             {visibleInventoryNav.length > 0 && (
               <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
+            {visibleProcurementNav.length > 0 && (
+              <NavSection title="Procurement" items={visibleProcurementNav} sectionId="procurement" collapsed={collapsed} onItemClick={closeMobile} />
+            )}
+            {visibleSalesNav.length > 0 && (
+              <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
             )}
             <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
             {visiblePerformanceNav.length > 0 && (
