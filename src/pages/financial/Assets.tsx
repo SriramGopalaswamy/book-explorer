@@ -512,13 +512,36 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
               <Tag className="h-4 w-4 mr-2" /> Mark Tagged
             </DropdownMenuItem>
             {a.status === "active" && (
-              <DropdownMenuItem onClick={() => {
-                setSelectedAsset(a);
-                setDisposeForm({ disposal_date: new Date().toISOString().split("T")[0], disposal_price: 0, disposal_method: "sale", disposal_notes: "" });
-                setDisposeOpen(true);
-              }}>
-                <AlertTriangle className="h-4 w-4 mr-2" /> Dispose
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setMaintenanceForm({ reason: "", expected_return: "" });
+                  setMaintenanceOpen(true);
+                }}>
+                  <Wrench className="h-4 w-4 mr-2" /> Mark Under Maintenance
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setTransferForm({ location: a.location || "", department: a.department || "", custodian: a.custodian || "", notes: "" });
+                  setTransferOpen(true);
+                }}>
+                  <ArrowRightLeft className="h-4 w-4 mr-2" /> Transfer
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setWriteOffForm({ date: new Date().toISOString().split("T")[0], reason: "" });
+                  setWriteOffOpen(true);
+                }}>
+                  <Ban className="h-4 w-4 mr-2" /> Write Off
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedAsset(a);
+                  setDisposeForm({ disposal_date: new Date().toISOString().split("T")[0], disposal_price: 0, disposal_method: "sale", disposal_notes: "" });
+                  setDisposeOpen(true);
+                }}>
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Dispose
+                </DropdownMenuItem>
+              </>
             )}
             <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedAsset(a); setDeleteOpen(true); }}>
               <Trash2 className="h-4 w-4 mr-2" /> Delete
