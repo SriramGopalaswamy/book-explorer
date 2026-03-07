@@ -115,12 +115,18 @@ function useSeedingSummary(orgId: string | null) {
         { key: "vendors", table: "vendors" as const, label: "Vendors", icon: <Users className="h-4 w-4" /> },
         { key: "assets", table: "assets" as const, label: "Assets", icon: <Package className="h-4 w-4" /> },
         { key: "compensation_structures", table: "compensation_structures" as const, label: "Comp. Structures", icon: <Briefcase className="h-4 w-4" /> },
+        { key: "items", table: "items" as const, label: "Inventory Items", icon: <Package className="h-4 w-4" /> },
+        { key: "warehouses", table: "warehouses" as const, label: "Warehouses", icon: <Landmark className="h-4 w-4" /> },
+        { key: "purchase_orders", table: "purchase_orders" as const, label: "Purchase Orders", icon: <FileText className="h-4 w-4" /> },
+        { key: "sales_orders", table: "sales_orders" as const, label: "Sales Orders", icon: <FileText className="h-4 w-4" /> },
+        { key: "work_orders", table: "work_orders" as const, label: "Work Orders", icon: <Package className="h-4 w-4" /> },
+        { key: "connectors", table: "connectors" as const, label: "Connectors", icon: <Database className="h-4 w-4" /> },
       ];
 
       const results: SeedingStat[] = await Promise.all(
         tables.map(async (t) => {
           const { count, error } = await supabase
-            .from(t.table)
+            .from(t.table as any)
             .select("id", { count: "exact", head: true })
             .eq("organization_id", orgId);
           return { label: t.label, icon: t.icon, count: error ? null : (count ?? 0) };

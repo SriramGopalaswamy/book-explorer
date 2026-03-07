@@ -187,6 +187,23 @@ const COMPLIANCE_STANDARDS = [
       { id: "ITA_PF", name: "PF/ESI Statutory Remittance Verification", assertion: "EPF Act §38" },
     ],
   },
+  {
+    code: "SCM",
+    name: "Supply Chain & Operations",
+    body: "Inventory, Warehouse, Procurement, Sales, Manufacturing",
+    icon: Layers,
+    color: "text-pink-600",
+    bgColor: "bg-pink-500/10",
+    borderColor: "border-pink-500/30",
+    tests: [
+      { id: "NM1_ITEM_SKU", name: "Item SKU Integrity Check", assertion: "Inventory" },
+      { id: "NM2_WH_BIN", name: "Warehouse ↔ Bin Location Coverage", assertion: "Warehouse" },
+      { id: "NM3_PO_GRN", name: "PO → Goods Receipt Linkage", assertion: "Procurement" },
+      { id: "NM4_SO_DN", name: "SO → Delivery Note Linkage", assertion: "Sales" },
+      { id: "NM5_BOM", name: "BOM Component Coverage", assertion: "Manufacturing" },
+      { id: "NM7_CONN", name: "Connector Health & Status", assertion: "Integrations" },
+    ],
+  },
 ];
 
 const ALL_STANDARD_TESTS = COMPLIANCE_STANDARDS.flatMap(s =>
@@ -200,6 +217,7 @@ const WORKFLOW_CATEGORIES = [
   { key: "payroll", label: "Payroll & Statutory", icon: TrendingUp, color: "text-amber-500" },
   { key: "compliance", label: "Compliance & Audit", icon: ShieldCheck, color: "text-purple-500" },
   { key: "operations", label: "Operations & Stress", icon: Layers, color: "text-pink-500" },
+  { key: "supply_chain", label: "Supply Chain & Ops", icon: Activity, color: "text-orange-500" },
 ];
 
 function categorizeWorkflow(name: string): string {
@@ -208,6 +226,7 @@ function categorizeWorkflow(name: string): string {
   if (n.includes("PAYROLL") || n.includes("LOP") || n.includes("CTC") || n.includes("COMPENSATION") || n.includes("TDS") || n.includes("PF_") || n.includes("ESI_") || n.includes("STATUTORY")) return "payroll";
   if (n.includes("EMPLOYEE") || n.includes("LEAVE") || n.includes("ATTENDANCE") || n.includes("HOLIDAY") || n.includes("DOCUMENT") || n.includes("HR_")) return "hr";
   if (n.includes("STRESS") || n.includes("CHAOS") || n.includes("CONCURRENT")) return "operations";
+  if (n.includes("INVENTORY") || n.includes("WAREHOUSE") || n.includes("PROCUREMENT") || n.includes("SALES:") || n.includes("MANUFACTURING") || n.includes("CONNECTOR") || n.includes("BOM") || n.includes("STOCK") || n.includes("NM1") || n.includes("NM2") || n.includes("NM3") || n.includes("NM4") || n.includes("NM5") || n.includes("NM6") || n.includes("NM7") || n.includes("NM8")) return "supply_chain";
   return "finance";
 }
 

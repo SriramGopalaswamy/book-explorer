@@ -114,6 +114,22 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "holidays", "user_roles", "organization_members",
     "profile_change_requests",
     "chart_of_accounts",
+    // New modules
+    "picking_list_items", "picking_lists",
+    "stock_transfer_items", "stock_transfers",
+    "inventory_count_items", "inventory_counts",
+    "material_consumption_items", "material_consumptions",
+    "work_orders", "bom_lines", "bill_of_materials",
+    "delivery_note_items", "delivery_notes",
+    "goods_receipt_items", "goods_receipts",
+    "purchase_return_items", "purchase_returns",
+    "sales_return_items", "sales_returns",
+    "sales_order_items", "sales_orders",
+    "purchase_order_items", "purchase_orders",
+    "stock_adjustments", "stock_ledger",
+    "bin_locations", "warehouses",
+    "items",
+    "connector_logs", "connectors",
   ];
 
   // Delete child tables that lack organization_id (use parent FK)
@@ -666,6 +682,246 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     authorized_signatory_name: "Arjun Mehta",
   }, { onConflict: "organization_id" });
   summary.organization_compliance = complianceErr ? 0 : 1;
+
+  // ===== SEED ITEMS (Inventory) =====
+  const seededItemIds: string[] = [];
+  const itemSeeds = [
+    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", type: "goods", unit: "pcs", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
+    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", type: "goods", unit: "pcs", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
+    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", type: "goods", unit: "pcs", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
+    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", type: "goods", unit: "reams", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
+    { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", type: "service", unit: "months", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
+    { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", type: "raw_material", unit: "kg", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
+    { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", type: "raw_material", unit: "bags", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
+    { name: "Assembled Server Unit", sku: "SIM-SU-008", type: "finished_goods", unit: "pcs", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
+  ];
+  for (const item of itemSeeds) {
+    const { data } = await client.from("items").insert({
+      ...item, organization_id: orgId, created_by: userId, status: "active",
+      tax_rate: 18, reorder_level: Math.round(item.opening_stock * 0.2),
+    }).select("id").single();
+    if (data) seededItemIds.push(data.id);
+  }
+  summary.items = seededItemIds.length;
+
+  // ===== SEED WAREHOUSES =====
+  const seededWarehouseIds: string[] = [];
+  const warehouseSeeds = [
+    { name: "Main Warehouse - Bengaluru", code: "WH-BLR-01", address: "Plot 45, Electronic City Phase 2, Bengaluru 560100", is_default: true },
+    { name: "Regional Hub - Mumbai", code: "WH-MUM-01", address: "Unit 12, MIDC Andheri East, Mumbai 400093", is_default: false },
+    { name: "Raw Materials Store", code: "WH-RM-01", address: "Godown 3, Industrial Area, Whitefield, Bengaluru", is_default: false },
+  ];
+  for (const wh of warehouseSeeds) {
+    const { data } = await client.from("warehouses").insert({
+      ...wh, organization_id: orgId, created_by: userId, status: "active",
+    }).select("id").single();
+    if (data) seededWarehouseIds.push(data.id);
+  }
+  summary.warehouses = seededWarehouseIds.length;
+
+  // ===== SEED BIN LOCATIONS =====
+  let binCount = 0;
+  for (const whId of seededWarehouseIds) {
+    const zones = ["A", "B", "C"];
+    for (const zone of zones) {
+      for (let rack = 1; rack <= 2; rack++) {
+        const { error } = await client.from("bin_locations").insert({
+          warehouse_id: whId, organization_id: orgId,
+          bin_code: `${zone}-R${rack}-L1`, zone, rack: `R${rack}`, level: "L1", aisle: zone,
+          capacity_units: 100, current_units: Math.floor(Math.random() * 50),
+          is_active: true,
+        });
+        if (!error) binCount++;
+      }
+    }
+  }
+  summary.bin_locations = binCount;
+
+  // ===== SEED PURCHASE ORDERS =====
+  const seededPOIds: string[] = [];
+  for (let i = 0; i < Math.min(3, vendors.length); i++) {
+    const { data: po } = await client.from("purchase_orders").insert({
+      po_number: `SIM-PO-${Date.now()}-${i}`,
+      vendor_id: vendors[i], organization_id: orgId, created_by: userId,
+      status: i === 0 ? "approved" : "draft",
+      order_date: new Date(Date.now() - 10 * 86400000).toISOString().split("T")[0],
+      expected_date: new Date(Date.now() + 20 * 86400000).toISOString().split("T")[0],
+      total_amount: 0, subtotal: 0, tax_total: 0,
+    }).select("id").single();
+    if (po) {
+      seededPOIds.push(po.id);
+      let poTotal = 0;
+      for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
+        const qty = 10 + Math.floor(Math.random() * 40);
+        const rate = itemSeeds[j]?.purchase_price ?? 1000;
+        const lineTotal = qty * rate;
+        poTotal += lineTotal;
+        await client.from("purchase_order_items").insert({
+          purchase_order_id: po.id, item_id: seededItemIds[j],
+          description: itemSeeds[j]?.name ?? `Item ${j}`,
+          quantity: qty, rate, amount: lineTotal,
+          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+        });
+      }
+      await client.from("purchase_orders").update({
+        subtotal: poTotal, tax_total: Math.round(poTotal * 0.18), total_amount: Math.round(poTotal * 1.18),
+      }).eq("id", po.id);
+    }
+  }
+  summary.purchase_orders = seededPOIds.length;
+
+  // ===== SEED GOODS RECEIPTS =====
+  let grCount = 0;
+  if (seededPOIds.length > 0) {
+    const { data: gr } = await client.from("goods_receipts").insert({
+      grn_number: `SIM-GRN-${Date.now()}`,
+      purchase_order_id: seededPOIds[0], organization_id: orgId, created_by: userId,
+      status: "completed", received_date: new Date().toISOString().split("T")[0],
+      warehouse_id: seededWarehouseIds[0] ?? null,
+    }).select("id").single();
+    if (gr) {
+      grCount = 1;
+      for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
+        await client.from("goods_receipt_items").insert({
+          goods_receipt_id: gr.id, item_id: seededItemIds[j],
+          description: itemSeeds[j]?.name ?? `Item ${j}`,
+          ordered_quantity: 20, received_quantity: 20, accepted_quantity: 18, rejected_quantity: 2,
+        });
+      }
+    }
+  }
+  summary.goods_receipts = grCount;
+
+  // ===== SEED SALES ORDERS =====
+  const seededSOIds: string[] = [];
+  for (let i = 0; i < Math.min(3, customers.length); i++) {
+    const { data: so } = await client.from("sales_orders").insert({
+      so_number: `SIM-SO-${Date.now()}-${i}`,
+      customer_id: customers[i], organization_id: orgId, created_by: userId,
+      status: i === 0 ? "confirmed" : "draft",
+      order_date: new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0],
+      expected_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+      total_amount: 0, subtotal: 0, tax_total: 0,
+    }).select("id").single();
+    if (so) {
+      seededSOIds.push(so.id);
+      let soTotal = 0;
+      for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
+        const qty = 5 + Math.floor(Math.random() * 20);
+        const rate = itemSeeds[j]?.selling_price ?? 2000;
+        const lineTotal = qty * rate;
+        soTotal += lineTotal;
+        await client.from("sales_order_items").insert({
+          sales_order_id: so.id, item_id: seededItemIds[j],
+          description: itemSeeds[j]?.name ?? `Item ${j}`,
+          quantity: qty, rate, amount: lineTotal,
+          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+        });
+      }
+      await client.from("sales_orders").update({
+        subtotal: soTotal, tax_total: Math.round(soTotal * 0.18), total_amount: Math.round(soTotal * 1.18),
+      }).eq("id", so.id);
+    }
+  }
+  summary.sales_orders = seededSOIds.length;
+
+  // ===== SEED DELIVERY NOTES =====
+  let dnCount = 0;
+  if (seededSOIds.length > 0) {
+    const { data: dn } = await client.from("delivery_notes").insert({
+      dn_number: `SIM-DN-${Date.now()}`,
+      sales_order_id: seededSOIds[0], organization_id: orgId, created_by: userId,
+      status: "delivered", delivery_date: new Date().toISOString().split("T")[0],
+      warehouse_id: seededWarehouseIds[0] ?? null,
+    }).select("id").single();
+    if (dn) {
+      dnCount = 1;
+      for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
+        await client.from("delivery_note_items").insert({
+          delivery_note_id: dn.id, item_id: seededItemIds[j],
+          description: itemSeeds[j]?.name ?? `Item ${j}`,
+          ordered_quantity: 10, delivered_quantity: 10,
+        });
+      }
+    }
+  }
+  summary.delivery_notes = dnCount;
+
+  // ===== SEED BILL OF MATERIALS =====
+  let bomCount = 0;
+  if (seededItemIds.length >= 4) {
+    const { data: bom } = await client.from("bill_of_materials").insert({
+      bom_code: `SIM-BOM-${Date.now()}`,
+      product_name: "Assembled Server Unit", product_item_id: seededItemIds[7] ?? seededItemIds[0],
+      organization_id: orgId, created_by: userId,
+      status: "active", version: 1,
+    }).select("id").single();
+    if (bom) {
+      bomCount = 1;
+      const rawMaterials = [
+        { item_id: seededItemIds[5], name: "Steel Rod 12mm TMT", qty: 10, uom: "kg" },
+        { item_id: seededItemIds[6], name: "Cement OPC 53 Grade", qty: 5, uom: "bags" },
+      ];
+      for (let i = 0; i < rawMaterials.length; i++) {
+        await client.from("bom_lines").insert({
+          bom_id: bom.id, item_id: rawMaterials[i].item_id,
+          material_name: rawMaterials[i].name, quantity: rawMaterials[i].qty,
+          uom: rawMaterials[i].uom, sort_order: i + 1, wastage_pct: 5,
+        });
+      }
+    }
+  }
+  summary.bill_of_materials = bomCount;
+
+  // ===== SEED WORK ORDERS =====
+  let woCount = 0;
+  if (seededItemIds.length > 0) {
+    for (let i = 0; i < 2; i++) {
+      const { error } = await client.from("work_orders").insert({
+        wo_number: `SIM-WO-${Date.now()}-${i}`,
+        product_name: i === 0 ? "Assembled Server Unit" : "USB-C Hub Assembly",
+        product_item_id: seededItemIds[i < seededItemIds.length ? i : 0],
+        organization_id: orgId, created_by: userId,
+        status: i === 0 ? "in_progress" : "planned",
+        planned_quantity: 10 + i * 5,
+        completed_quantity: i === 0 ? 3 : 0,
+        planned_start: new Date().toISOString().split("T")[0],
+        planned_end: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+      });
+      if (!error) woCount++;
+    }
+  }
+  summary.work_orders = woCount;
+
+  // ===== SEED STOCK TRANSFERS =====
+  let stCount = 0;
+  if (seededWarehouseIds.length >= 2) {
+    const { error } = await client.from("stock_transfers").insert({
+      transfer_number: `SIM-ST-${Date.now()}`,
+      from_warehouse_id: seededWarehouseIds[0], to_warehouse_id: seededWarehouseIds[1],
+      organization_id: orgId, created_by: userId,
+      status: "completed", transfer_date: new Date().toISOString().split("T")[0],
+      notes: "Simulation inter-warehouse transfer",
+    });
+    if (!error) stCount = 1;
+  }
+  summary.stock_transfers = stCount;
+
+  // ===== SEED CONNECTORS =====
+  let connectorCount = 0;
+  const connectorSeeds = [
+    { provider: "shopify", name: "Shopify Store", status: "active" },
+    { provider: "zoho_books", name: "Zoho Books", status: "active" },
+  ];
+  for (const conn of connectorSeeds) {
+    const { error } = await client.from("connectors").insert({
+      organization_id: orgId, user_id: userId,
+      provider: conn.provider, name: conn.name,
+      status: conn.status, config: { domain: "sim-store.myshopify.com" },
+    });
+    if (!error) connectorCount++;
+  }
+  summary.connectors = connectorCount;
 
   // ===== SEED GOAL CYCLE CONFIG =====
   const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
@@ -3563,6 +3819,192 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     }
   }
 
+  // ===== INVENTORY & WAREHOUSE WORKFLOWS =====
+
+  // INV-1: Item CRUD lifecycle
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: newItem, error } = await client.from("items").insert({
+        name: `SIM-WF-Item-${Date.now()}`, sku: `SIM-WF-${Date.now()}`,
+        type: "goods", unit: "pcs", purchase_price: 500, selling_price: 900,
+        opening_stock: 25, organization_id: orgId, created_by: userId,
+        status: "active", tax_rate: 18, hsn_code: "8471",
+      }).select("id").single();
+      if (newItem) {
+        await client.from("items").update({ selling_price: 1000, status: "inactive" }).eq("id", newItem.id);
+        await client.from("items").update({ status: "active" }).eq("id", newItem.id);
+      }
+      results.push({ workflow: "Inventory: Item CRUD lifecycle", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? "Create → update price → deactivate → reactivate", duration_ms: Date.now() - wfStart });
+    } catch (e) { results.push({ workflow: "Item CRUD", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // INV-2: Stock adjustment
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: items } = await client.from("items").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1);
+      if (items && items.length > 0) {
+        const { error } = await client.from("stock_adjustments").insert({
+          item_id: items[0].id, organization_id: orgId, created_by: userId,
+          adjustment_type: "increase", quantity: 10, reason: "Simulation stock count correction",
+          adjustment_date: new Date().toISOString().split("T")[0],
+        });
+        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? `+10 units for ${items[0].name}`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: "warning", detail: "No active items found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Stock adjustment", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // WH-1: Warehouse + bin verification
+  {
+    const wfStart = Date.now();
+    const { count: whCount } = await client.from("warehouses").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+    const { count: binCount } = await client.from("bin_locations").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+    results.push({ workflow: "Warehouse: structure verification", module: "Warehouse", status: (whCount ?? 0) > 0 && (binCount ?? 0) > 0 ? "passed" : "warning", detail: `${whCount ?? 0} warehouses, ${binCount ?? 0} bin locations`, duration_ms: Date.now() - wfStart });
+  }
+
+  // WH-2: Stock transfer workflow
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: whs } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(2);
+      if (whs && whs.length >= 2) {
+        const { error } = await client.from("stock_transfers").insert({
+          transfer_number: `SIM-ST-WF-${Date.now()}`,
+          from_warehouse_id: whs[0].id, to_warehouse_id: whs[1].id,
+          organization_id: orgId, created_by: userId,
+          status: "pending", transfer_date: new Date().toISOString().split("T")[0],
+        });
+        results.push({ workflow: "Warehouse: Stock transfer create", module: "Warehouse", status: error ? "failed" : "passed", detail: error?.message ?? "Inter-warehouse transfer created", duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Warehouse: Stock transfer", module: "Warehouse", status: "warning", detail: "Need ≥2 warehouses", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Stock transfer", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== PROCUREMENT WORKFLOWS =====
+
+  // PO-1: Purchase order full lifecycle
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      if (v) {
+        const { data: po, error: poErr } = await client.from("purchase_orders").insert({
+          po_number: `SIM-PO-WF-${Date.now()}`, vendor_id: v.id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", order_date: new Date().toISOString().split("T")[0],
+          expected_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+          total_amount: 50000, subtotal: 42373, tax_total: 7627,
+        }).select("id").single();
+        if (poErr) throw poErr;
+        // Lifecycle: draft → submitted → approved
+        await client.from("purchase_orders").update({ status: "submitted" }).eq("id", po.id);
+        await client.from("purchase_orders").update({ status: "approved" }).eq("id", po.id);
+        results.push({ workflow: "Procurement: PO lifecycle (draft→approved)", module: "Procurement", status: "passed", detail: `PO for ${v.name} — ₹50,000`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Procurement: PO lifecycle", module: "Procurement", status: "warning", detail: "No active vendors", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "PO lifecycle", module: "Procurement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // PO-2: Goods receipt against PO
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: approvedPO } = await client.from("purchase_orders").select("id").eq("organization_id", orgId).eq("status", "approved").limit(1).maybeSingle();
+      if (approvedPO) {
+        const { error } = await client.from("goods_receipts").insert({
+          grn_number: `SIM-GRN-WF-${Date.now()}`, purchase_order_id: approvedPO.id,
+          organization_id: orgId, created_by: userId,
+          status: "completed", received_date: new Date().toISOString().split("T")[0],
+        });
+        results.push({ workflow: "Procurement: GRN against PO", module: "Procurement", status: error ? "failed" : "passed", detail: error?.message ?? "Goods receipt linked to approved PO", duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Procurement: GRN", module: "Procurement", status: "warning", detail: "No approved PO found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "GRN", module: "Procurement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== SALES WORKFLOWS =====
+
+  // SO-1: Sales order full lifecycle
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      if (c) {
+        const { data: so, error: soErr } = await client.from("sales_orders").insert({
+          so_number: `SIM-SO-WF-${Date.now()}`, customer_id: c.id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", order_date: new Date().toISOString().split("T")[0],
+          expected_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+          total_amount: 75000, subtotal: 63559, tax_total: 11441,
+        }).select("id").single();
+        if (soErr) throw soErr;
+        await client.from("sales_orders").update({ status: "confirmed" }).eq("id", so.id);
+        results.push({ workflow: "Sales: SO lifecycle (draft→confirmed)", module: "Sales", status: "passed", detail: `SO for ${c.name} — ₹75,000`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Sales: SO lifecycle", module: "Sales", status: "warning", detail: "No active customers", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "SO lifecycle", module: "Sales", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // SO-2: Delivery note against SO
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: confirmedSO } = await client.from("sales_orders").select("id").eq("organization_id", orgId).eq("status", "confirmed").limit(1).maybeSingle();
+      if (confirmedSO) {
+        const { error } = await client.from("delivery_notes").insert({
+          dn_number: `SIM-DN-WF-${Date.now()}`, sales_order_id: confirmedSO.id,
+          organization_id: orgId, created_by: userId,
+          status: "dispatched", delivery_date: new Date().toISOString().split("T")[0],
+        });
+        results.push({ workflow: "Sales: Delivery note against SO", module: "Sales", status: error ? "failed" : "passed", detail: error?.message ?? "Delivery note linked to confirmed SO", duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Sales: Delivery note", module: "Sales", status: "warning", detail: "No confirmed SO found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Delivery note", module: "Sales", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== MANUFACTURING WORKFLOWS =====
+
+  // MFG-1: BOM creation + work order
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: bomList } = await client.from("bill_of_materials").select("id, bom_code, status").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      results.push({ workflow: "Manufacturing: BOM verification", module: "Manufacturing", status: bomList ? "passed" : "warning", detail: bomList ? `Active BOM: ${bomList.bom_code}` : "No active BOMs found", duration_ms: Date.now() - wfStart });
+    } catch (e) { results.push({ workflow: "BOM verification", module: "Manufacturing", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // MFG-2: Work order lifecycle
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: wo } = await client.from("work_orders").select("id, wo_number, status").eq("organization_id", orgId).eq("status", "in_progress").limit(1).maybeSingle();
+      if (wo) {
+        const { error } = await client.from("work_orders").update({ status: "completed", completed_quantity: 10 }).eq("id", wo.id);
+        results.push({ workflow: "Manufacturing: WO lifecycle (in_progress→completed)", module: "Manufacturing", status: error ? "failed" : "passed", detail: error?.message ?? `${wo.wo_number} completed`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Manufacturing: WO lifecycle", module: "Manufacturing", status: "warning", detail: "No in-progress work orders", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "WO lifecycle", module: "Manufacturing", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== CONNECTOR WORKFLOWS =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: conns } = await client.from("connectors").select("id, provider, status, name").eq("organization_id", orgId);
+      const activeConns = (conns ?? []).filter((c: any) => c.status === "active");
+      results.push({ workflow: "Connectors: active connector count", module: "Connectors", status: activeConns.length > 0 ? "passed" : "warning", detail: `${activeConns.length} active connectors: ${activeConns.map((c: any) => c.provider).join(", ")}`, duration_ms: Date.now() - wfStart });
+    } catch (e) { results.push({ workflow: "Connector verification", module: "Connectors", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
   // ------- GAP 12: EMPLOYEE DOCUMENTS VERIFICATION -------
   {
     const wfStart = Date.now();
@@ -4867,6 +5309,79 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
       detail: `${(hrAuditLogs ?? []).length} HR/payroll audit entries across ${entityTypes.length} entity types. ${missingTypes.length > 0 ? `Missing: ${missingTypes.join(", ")}` : "All key entity types covered ✓"}`,
     });
   } catch (e: any) { checks.push({ check: "SOX_S5_HR_AUDIT_TRAIL", module: "SOX Controls", status: "failed", detail: e.message }); }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 7: NEW MODULE VALIDATIONS (Inventory, Warehouse, Procurement, Sales, Manufacturing, Connectors)
+  // ═══════════════════════════════════════════════════════════════
+
+  // NM1: Inventory items with valid SKU
+  try {
+    const { data: allItems } = await client.from("items").select("id, sku, name, status").eq("organization_id", orgId);
+    const noSku = (allItems ?? []).filter((i: any) => !i.sku || i.sku.trim() === "");
+    checks.push({ check: "NM1_ITEM_SKU_INTEGRITY", module: "Inventory", status: noSku.length === 0 ? "passed" : "warning", detail: `${(allItems ?? []).length} items, ${noSku.length} missing SKU` });
+  } catch (e: any) { checks.push({ check: "NM1_ITEM_SKU_INTEGRITY", module: "Inventory", status: "failed", detail: e.message }); }
+
+  // NM2: Warehouse-bin coverage
+  try {
+    const { data: warehouses } = await client.from("warehouses").select("id, name").eq("organization_id", orgId).eq("status", "active");
+    let whWithoutBins = 0;
+    for (const wh of (warehouses ?? [])) {
+      const { count } = await client.from("bin_locations").select("id", { count: "exact", head: true }).eq("warehouse_id", wh.id).eq("is_active", true);
+      if ((count ?? 0) === 0) whWithoutBins++;
+    }
+    checks.push({ check: "NM2_WAREHOUSE_BIN_COVERAGE", module: "Warehouse", status: whWithoutBins === 0 ? "passed" : "warning", detail: `${(warehouses ?? []).length} warehouses, ${whWithoutBins} without bin locations` });
+  } catch (e: any) { checks.push({ check: "NM2_WAREHOUSE_BIN_COVERAGE", module: "Warehouse", status: "failed", detail: e.message }); }
+
+  // NM3: PO → GRN linkage
+  try {
+    const { data: approvedPOs } = await client.from("purchase_orders").select("id").eq("organization_id", orgId).in("status", ["approved", "completed"]);
+    const { data: grnPOs } = await client.from("goods_receipts").select("purchase_order_id").eq("organization_id", orgId).not("purchase_order_id", "is", null);
+    const grnPOIds = new Set((grnPOs ?? []).map((g: any) => g.purchase_order_id));
+    const orphanPOs = (approvedPOs ?? []).filter((po: any) => !grnPOIds.has(po.id));
+    checks.push({ check: "NM3_PO_GRN_LINKAGE", module: "Procurement", status: orphanPOs.length === 0 ? "passed" : "warning", detail: `${(approvedPOs ?? []).length} approved POs, ${orphanPOs.length} without GRN` });
+  } catch (e: any) { checks.push({ check: "NM3_PO_GRN_LINKAGE", module: "Procurement", status: "failed", detail: e.message }); }
+
+  // NM4: SO → DN linkage
+  try {
+    const { data: confirmedSOs } = await client.from("sales_orders").select("id").eq("organization_id", orgId).in("status", ["confirmed", "completed"]);
+    const { data: dnSOs } = await client.from("delivery_notes").select("sales_order_id").eq("organization_id", orgId).not("sales_order_id", "is", null);
+    const dnSOIds = new Set((dnSOs ?? []).map((d: any) => d.sales_order_id));
+    const orphanSOs = (confirmedSOs ?? []).filter((so: any) => !dnSOIds.has(so.id));
+    checks.push({ check: "NM4_SO_DN_LINKAGE", module: "Sales", status: orphanSOs.length === 0 ? "passed" : "warning", detail: `${(confirmedSOs ?? []).length} confirmed SOs, ${orphanSOs.length} without delivery note` });
+  } catch (e: any) { checks.push({ check: "NM4_SO_DN_LINKAGE", module: "Sales", status: "failed", detail: e.message }); }
+
+  // NM5: Active BOM with components
+  try {
+    const { data: activeBOMs } = await client.from("bill_of_materials").select("id, bom_code").eq("organization_id", orgId).eq("status", "active");
+    let bomsWithoutLines = 0;
+    for (const bom of (activeBOMs ?? [])) {
+      const { count } = await client.from("bom_lines").select("id", { count: "exact", head: true }).eq("bom_id", bom.id);
+      if ((count ?? 0) === 0) bomsWithoutLines++;
+    }
+    checks.push({ check: "NM5_BOM_COMPONENT_COVERAGE", module: "Manufacturing", status: bomsWithoutLines === 0 ? "passed" : "warning", detail: `${(activeBOMs ?? []).length} active BOMs, ${bomsWithoutLines} without components` });
+  } catch (e: any) { checks.push({ check: "NM5_BOM_COMPONENT_COVERAGE", module: "Manufacturing", status: "failed", detail: e.message }); }
+
+  // NM6: Work order completion rate
+  try {
+    const { data: allWOs } = await client.from("work_orders").select("id, status, planned_quantity, completed_quantity").eq("organization_id", orgId);
+    const completed = (allWOs ?? []).filter((w: any) => w.status === "completed");
+    const stale = (allWOs ?? []).filter((w: any) => w.status === "in_progress" && w.completed_quantity === 0);
+    checks.push({ check: "NM6_WORK_ORDER_STATUS", module: "Manufacturing", status: stale.length === 0 ? "passed" : "warning", detail: `${(allWOs ?? []).length} WOs total, ${completed.length} completed, ${stale.length} stale (in_progress with 0 completion)` });
+  } catch (e: any) { checks.push({ check: "NM6_WORK_ORDER_STATUS", module: "Manufacturing", status: "failed", detail: e.message }); }
+
+  // NM7: Connector health
+  try {
+    const { data: conns } = await client.from("connectors").select("id, provider, status").eq("organization_id", orgId);
+    const errorConns = (conns ?? []).filter((c: any) => c.status === "error");
+    checks.push({ check: "NM7_CONNECTOR_HEALTH", module: "Connectors", status: errorConns.length === 0 ? "passed" : "warning", detail: `${(conns ?? []).length} connectors, ${errorConns.length} in error state` });
+  } catch (e: any) { checks.push({ check: "NM7_CONNECTOR_HEALTH", module: "Connectors", status: "failed", detail: e.message }); }
+
+  // NM8: Stock transfer integrity
+  try {
+    const { data: transfers } = await client.from("stock_transfers").select("id, from_warehouse_id, to_warehouse_id, status").eq("organization_id", orgId);
+    const selfTransfers = (transfers ?? []).filter((t: any) => t.from_warehouse_id === t.to_warehouse_id);
+    checks.push({ check: "NM8_STOCK_TRANSFER_INTEGRITY", module: "Warehouse", status: selfTransfers.length === 0 ? "passed" : "failed", detail: `${(transfers ?? []).length} transfers, ${selfTransfers.length} self-referential (from=to)` });
+  } catch (e: any) { checks.push({ check: "NM8_STOCK_TRANSFER_INTEGRITY", module: "Warehouse", status: "failed", detail: e.message }); }
 
   // ═══════════════════════════════════════════════════════════════
   // RESULTS
