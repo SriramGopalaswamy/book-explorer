@@ -8,6 +8,7 @@ import { useCurrentRole } from "@/hooks/useRoles";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { AlertTriangle } from "lucide-react";
 import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -26,6 +27,7 @@ const roleLandingPages: Record<string, string> = {
 export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed());
   const { data: currentRole } = useCurrentRole();
+  useSessionTimeout();
   const prevRoleRef = useRef<string | null | undefined>(undefined);
   const navigate = useNavigate();
   const location = useLocation();
