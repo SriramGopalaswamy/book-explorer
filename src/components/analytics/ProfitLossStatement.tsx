@@ -31,8 +31,11 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
 
   return (
     <Card className="col-span-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Profit & Loss Statement</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <div>
+          <CardTitle className="text-lg">Statement of Profit & Loss</CardTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">As per Companies Act 2013, Schedule III (Division I) • Ind AS Compliant</p>
+        </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className={pl.netIncome >= 0 ? "bg-green-500/10 text-green-600 border-green-500/30" : "bg-red-500/10 text-red-600 border-red-500/30"}>
             {pl.grossMargin.toFixed(1)}% Margin
@@ -63,9 +66,10 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Revenue */}
+          {/* Revenue from Operations (Note 1 per Schedule III) */}
           <div>
-            <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Revenue</h4>
+            <h4 className="text-sm font-semibold text-muted-foreground mb-1 uppercase tracking-wider">I. Revenue from Operations</h4>
+            <p className="text-xs text-muted-foreground mb-3">Schedule III, Part II — Note 1 (Ind AS 115)</p>
             <div className="space-y-2">
               {pl.revenue.map((r) => (
                 <button key={r.name} onClick={() => setDrillDown({ name: r.name, type: "revenue" })} className="w-full flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left">
@@ -83,9 +87,10 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
             </div>
           </div>
 
-          {/* Expenses */}
+          {/* Expenses (Notes 2-8 per Schedule III) */}
           <div>
-            <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Expenses</h4>
+            <h4 className="text-sm font-semibold text-muted-foreground mb-1 uppercase tracking-wider">II. Expenses</h4>
+            <p className="text-xs text-muted-foreground mb-3">Cost of Materials, Employee Benefits, Depreciation, Other Expenses</p>
             <div className="space-y-2">
               {pl.expenses.map((e) => (
                 <button key={e.name} onClick={() => setDrillDown({ name: e.name, type: "expense" })} className="w-full flex justify-between items-center py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group text-left">
@@ -104,11 +109,12 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
           </div>
         </div>
 
-        {/* Net Income */}
+        {/* III. Profit / (Loss) before Tax */}
         <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+          <p className="text-xs text-muted-foreground mb-2">III. Profit / (Loss) before exceptional items and tax (I - II)</p>
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-muted-foreground">Net Income</p>
+              <p className="text-sm text-muted-foreground">Net Income (Profit after Tax)</p>
               <p className="text-2xl font-bold">{formatCurrency(pl.netIncome)}</p>
             </div>
             <div className="text-right">
@@ -116,6 +122,7 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
               <p className="text-2xl font-bold">{pl.grossMargin.toFixed(1)}%</p>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">IV. Earnings per share (Basic & Diluted) — to be computed based on share capital</p>
         </div>
       </CardContent>
       <PLDrillDownDialog
