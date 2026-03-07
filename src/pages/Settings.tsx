@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
-  Cloud, CheckCircle2, Loader2, Save, History,
+  Cloud, CheckCircle2, Loader2, Save, History, Lock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
