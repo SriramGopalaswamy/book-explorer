@@ -36,6 +36,7 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { Target } from "lucide-react";
+import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
 
 interface UserWithRole {
   user_id: string;
