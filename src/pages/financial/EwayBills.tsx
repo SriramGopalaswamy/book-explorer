@@ -84,11 +84,7 @@ export default function EwayBills() {
       <AnimatedPage>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">GST E-Way Bills</h1>
-              <p className="text-muted-foreground text-sm">Generate, manage and track e-way bills for goods movement</p>
-            </div>
+          <div className="flex justify-end">
             <Button onClick={() => setShowCreate(true)} className="gap-2">
               <Plus className="h-4 w-4" /> New E-Way Bill
             </Button>
