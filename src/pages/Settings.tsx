@@ -1041,6 +1041,10 @@ export default function Settings() {
               <History className="h-4 w-4" />
               Upload History
             </TabsTrigger>
+            <TabsTrigger value="privacy" className="gap-1.5">
+              <Lock className="h-4 w-4" />
+              Privacy & Security
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-6">
@@ -1082,6 +1086,10 @@ export default function Settings() {
               </Card>
               <BulkUploadHistory />
             </div>
+          </TabsContent>
+
+          <TabsContent value="privacy" className="mt-6">
+            <PrivacySecuritySection />
           </TabsContent>
         </Tabs>
       </div>
