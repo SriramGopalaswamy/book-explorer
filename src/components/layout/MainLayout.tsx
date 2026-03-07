@@ -67,6 +67,13 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* WCAG 2.1 AA: Skip to main content link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
       {isPlatform && <PlatformOrgBanner />}
       <Sidebar />
       <div
@@ -74,13 +81,13 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         className={`transition-[padding] duration-300 ${collapsed ? "md:pl-16" : "md:pl-64"}`}
       >
         {readOnlyMode && (
-          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 flex items-center gap-2 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 flex items-center gap-2 text-sm text-destructive" role="alert">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
             <span className="font-medium">Read-only mode — your subscription has expired. Contact your administrator to renew.</span>
           </div>
         )}
         <Header title={title} subtitle={subtitle} />
-        <main className="p-4 md:p-6 pb-24 md:pb-6">
+        <main id="main-content" className="p-4 md:p-6 pb-24 md:pb-6" role="main" aria-label={title}>
           <AnimatedPage>{children}</AnimatedPage>
         </main>
       </div>
