@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
-  Cloud, CheckCircle2, Loader2, Save, History,
+  Cloud, CheckCircle2, Loader2, Save, History, Lock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -36,6 +36,7 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { Target } from "lucide-react";
+import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
 
 interface UserWithRole {
   user_id: string;
@@ -1040,6 +1041,10 @@ export default function Settings() {
               <History className="h-4 w-4" />
               Upload History
             </TabsTrigger>
+            <TabsTrigger value="privacy" className="gap-1.5">
+              <Lock className="h-4 w-4" />
+              Privacy & Security
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-6">
@@ -1081,6 +1086,10 @@ export default function Settings() {
               </Card>
               <BulkUploadHistory />
             </div>
+          </TabsContent>
+
+          <TabsContent value="privacy" className="mt-6">
+            <PrivacySecuritySection />
           </TabsContent>
         </Tabs>
       </div>

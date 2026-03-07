@@ -59,11 +59,14 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
 
   return (
     <Card className="col-span-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">
-          Balance Sheet Summary
-          {asOfDate && <span className="text-sm font-normal text-muted-foreground ml-2">as of {format(asOfDate, "dd MMM yyyy")}</span>}
-        </CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <div>
+          <CardTitle className="text-lg">
+            Balance Sheet
+            {asOfDate && <span className="text-sm font-normal text-muted-foreground ml-2">as of {format(asOfDate, "dd MMM yyyy")}</span>}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">As per Companies Act 2013, Schedule III (Division I) • Ind AS Compliant</p>
+        </div>
         <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
           title: "Balance Sheet",
           subtitle: "Assets = Liabilities + Equity",
@@ -95,9 +98,9 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-3 gap-6">
-          <Section title="Assets" items={bs.assets} total={bs.totalAssets} totalLabel="Total Assets" color="bg-blue-500/10 border border-blue-500/20 text-blue-600" type="asset" />
-          <Section title="Liabilities" items={bs.liabilities} total={bs.totalLiabilities} totalLabel="Total Liabilities" color="bg-amber-500/10 border border-amber-500/20 text-amber-600" type="liability" />
-          <Section title="Equity" items={bs.equity} total={bs.totalEquity} totalLabel="Total Equity" color="bg-green-500/10 border border-green-500/20 text-green-600" type="equity" />
+          <Section title="I. Assets (Non-Current + Current)" items={bs.assets} total={bs.totalAssets} totalLabel="Total Assets" color="bg-blue-500/10 border border-blue-500/20 text-blue-600" type="asset" />
+          <Section title="II. Equity (Share Capital + Reserves)" items={bs.equity} total={bs.totalEquity} totalLabel="Total Equity" color="bg-green-500/10 border border-green-500/20 text-green-600" type="equity" />
+          <Section title="III. Liabilities (Non-Current + Current)" items={bs.liabilities} total={bs.totalLiabilities} totalLabel="Total Liabilities" color="bg-amber-500/10 border border-amber-500/20 text-amber-600" type="liability" />
         </div>
         
         {/* Accounting Equation */}

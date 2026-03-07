@@ -45,6 +45,7 @@ import JournalEntry from "./pages/financial/JournalEntry";
 import LedgerExplorer from "./pages/financial/LedgerExplorer";
 import CADashboard from "./pages/financial/CADashboard";
 import EwayBills from "./pages/financial/EwayBills";
+import EInvoices from "./pages/financial/EInvoices";
 
 // HRMS
 import Employees from "./pages/hrms/Employees";
@@ -178,6 +179,7 @@ const App = () => (
                 <Route path="/financial/vendor-payments" element={<Guarded><FinanceRoute><VendorPaymentsPage /></FinanceRoute></Guarded>} />
                 <Route path="/financial/exchange-rates" element={<Guarded><FinanceRoute><ExchangeRatesPage /></FinanceRoute></Guarded>} />
                 <Route path="/financial/eway-bills" element={<Guarded><FinanceRoute><EwayBills /></FinanceRoute></Guarded>} />
+                <Route path="/financial/e-invoices" element={<Guarded><FinanceRoute><EInvoices /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
                 <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />

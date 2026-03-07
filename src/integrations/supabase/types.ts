@@ -2660,6 +2660,62 @@ export type Database = {
           },
         ]
       }
+      consent_records: {
+        Row: {
+          consent_date: string
+          consent_given: boolean
+          consent_type: string
+          consent_version: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          legal_basis: string | null
+          organization_id: string
+          purpose_description: string | null
+          updated_at: string
+          user_id: string
+          withdrawal_date: string | null
+        }
+        Insert: {
+          consent_date?: string
+          consent_given?: boolean
+          consent_type: string
+          consent_version?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          legal_basis?: string | null
+          organization_id: string
+          purpose_description?: string | null
+          updated_at?: string
+          user_id: string
+          withdrawal_date?: string | null
+        }
+        Update: {
+          consent_date?: string
+          consent_given?: boolean
+          consent_type?: string
+          consent_version?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          legal_basis?: string | null
+          organization_id?: string
+          purpose_description?: string | null
+          updated_at?: string
+          user_id?: string
+          withdrawal_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       control_account_overrides: {
         Row: {
           approved_by: string | null
@@ -3040,6 +3096,145 @@ export type Database = {
           },
         ]
       }
+      data_breach_log: {
+        Row: {
+          affected_data_types: string[] | null
+          authority_notified: boolean | null
+          breach_date: string
+          breach_type: string
+          containment_actions: string | null
+          created_at: string
+          description: string
+          detected_date: string
+          dpo_notified: boolean | null
+          estimated_affected_count: number | null
+          id: string
+          organization_id: string
+          remediation_steps: string | null
+          reported_by: string
+          reported_to_authority_date: string | null
+          reported_to_users_date: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          affected_data_types?: string[] | null
+          authority_notified?: boolean | null
+          breach_date: string
+          breach_type: string
+          containment_actions?: string | null
+          created_at?: string
+          description: string
+          detected_date?: string
+          dpo_notified?: boolean | null
+          estimated_affected_count?: number | null
+          id?: string
+          organization_id: string
+          remediation_steps?: string | null
+          reported_by: string
+          reported_to_authority_date?: string | null
+          reported_to_users_date?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          affected_data_types?: string[] | null
+          authority_notified?: boolean | null
+          breach_date?: string
+          breach_type?: string
+          containment_actions?: string | null
+          created_at?: string
+          description?: string
+          detected_date?: string
+          dpo_notified?: boolean | null
+          estimated_affected_count?: number | null
+          id?: string
+          organization_id?: string
+          remediation_steps?: string | null
+          reported_by?: string
+          reported_to_authority_date?: string | null
+          reported_to_users_date?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_breach_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_erasure_requests: {
+        Row: {
+          acknowledgment_number: string | null
+          completion_notes: string | null
+          created_at: string
+          data_categories: string[] | null
+          deadline_date: string | null
+          id: string
+          organization_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          request_type: string
+          requested_by: string
+          status: string
+          target_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledgment_number?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          data_categories?: string[] | null
+          deadline_date?: string | null
+          id?: string
+          organization_id: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          request_type?: string
+          requested_by: string
+          status?: string
+          target_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledgment_number?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          data_categories?: string[] | null
+          deadline_date?: string | null
+          id?: string
+          organization_id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          request_type?: string
+          requested_by?: string
+          status?: string
+          target_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_erasure_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_note_items: {
         Row: {
           created_at: string
@@ -3227,6 +3422,180 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "document_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      e_invoices: {
+        Row: {
+          ack_date: string | null
+          ack_number: string | null
+          api_response: Json | null
+          buyer_address: string | null
+          buyer_gstin: string | null
+          buyer_legal_name: string
+          buyer_location: string | null
+          buyer_pincode: string | null
+          buyer_pos: string | null
+          buyer_state_code: string | null
+          buyer_trade_name: string | null
+          cancel_reason: string | null
+          cancel_remark: string | null
+          cancelled_at: string | null
+          created_at: string
+          doc_date: string
+          doc_number: string
+          doc_type: string
+          error_details: Json | null
+          eway_bill_date: string | null
+          eway_bill_number: string | null
+          eway_bill_valid_until: string | null
+          id: string
+          invoice_id: string | null
+          irn: string | null
+          irn_generated_at: string | null
+          items: Json
+          organization_id: string
+          round_off_amount: number | null
+          seller_address: string | null
+          seller_gstin: string
+          seller_legal_name: string
+          seller_location: string | null
+          seller_pincode: string | null
+          seller_state_code: string | null
+          seller_trade_name: string | null
+          signed_invoice: string | null
+          signed_qr_code: string | null
+          status: string
+          supply_type: string
+          total_assessable_value: number
+          total_cess: number
+          total_cgst: number
+          total_discount: number
+          total_igst: number
+          total_invoice_value: number
+          total_other_charges: number
+          total_sgst: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ack_date?: string | null
+          ack_number?: string | null
+          api_response?: Json | null
+          buyer_address?: string | null
+          buyer_gstin?: string | null
+          buyer_legal_name: string
+          buyer_location?: string | null
+          buyer_pincode?: string | null
+          buyer_pos?: string | null
+          buyer_state_code?: string | null
+          buyer_trade_name?: string | null
+          cancel_reason?: string | null
+          cancel_remark?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          doc_date: string
+          doc_number: string
+          doc_type?: string
+          error_details?: Json | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          eway_bill_valid_until?: string | null
+          id?: string
+          invoice_id?: string | null
+          irn?: string | null
+          irn_generated_at?: string | null
+          items?: Json
+          organization_id: string
+          round_off_amount?: number | null
+          seller_address?: string | null
+          seller_gstin: string
+          seller_legal_name: string
+          seller_location?: string | null
+          seller_pincode?: string | null
+          seller_state_code?: string | null
+          seller_trade_name?: string | null
+          signed_invoice?: string | null
+          signed_qr_code?: string | null
+          status?: string
+          supply_type?: string
+          total_assessable_value?: number
+          total_cess?: number
+          total_cgst?: number
+          total_discount?: number
+          total_igst?: number
+          total_invoice_value?: number
+          total_other_charges?: number
+          total_sgst?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ack_date?: string | null
+          ack_number?: string | null
+          api_response?: Json | null
+          buyer_address?: string | null
+          buyer_gstin?: string | null
+          buyer_legal_name?: string
+          buyer_location?: string | null
+          buyer_pincode?: string | null
+          buyer_pos?: string | null
+          buyer_state_code?: string | null
+          buyer_trade_name?: string | null
+          cancel_reason?: string | null
+          cancel_remark?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          doc_date?: string
+          doc_number?: string
+          doc_type?: string
+          error_details?: Json | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          eway_bill_valid_until?: string | null
+          id?: string
+          invoice_id?: string | null
+          irn?: string | null
+          irn_generated_at?: string | null
+          items?: Json
+          organization_id?: string
+          round_off_amount?: number | null
+          seller_address?: string | null
+          seller_gstin?: string
+          seller_legal_name?: string
+          seller_location?: string | null
+          seller_pincode?: string | null
+          seller_state_code?: string | null
+          seller_trade_name?: string | null
+          signed_invoice?: string | null
+          signed_qr_code?: string | null
+          status?: string
+          supply_type?: string
+          total_assessable_value?: number
+          total_cess?: number
+          total_cgst?: number
+          total_discount?: number
+          total_igst?: number
+          total_invoice_value?: number
+          total_other_charges?: number
+          total_sgst?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "e_invoices_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "e_invoices_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -8242,6 +8611,62 @@ export type Database = {
             foreignKeyName: "scheduled_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_policies: {
+        Row: {
+          created_at: string
+          enforce_single_session: boolean
+          id: string
+          idle_timeout_minutes: number
+          max_session_hours: number
+          organization_id: string
+          password_min_length: number
+          password_require_number: boolean
+          password_require_special: boolean
+          password_require_uppercase: boolean
+          require_mfa: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          enforce_single_session?: boolean
+          id?: string
+          idle_timeout_minutes?: number
+          max_session_hours?: number
+          organization_id: string
+          password_min_length?: number
+          password_require_number?: boolean
+          password_require_special?: boolean
+          password_require_uppercase?: boolean
+          require_mfa?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          enforce_single_session?: boolean
+          id?: string
+          idle_timeout_minutes?: number
+          max_session_hours?: number
+          organization_id?: string
+          password_min_length?: number
+          password_require_number?: boolean
+          password_require_special?: boolean
+          password_require_uppercase?: boolean
+          require_mfa?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
