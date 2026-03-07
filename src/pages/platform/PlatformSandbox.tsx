@@ -126,7 +126,7 @@ function useSeedingSummary(orgId: string | null) {
       const results: SeedingStat[] = await Promise.all(
         tables.map(async (t) => {
           const { count, error } = await supabase
-            .from(t.table)
+            .from(t.table as any)
             .select("id", { count: "exact", head: true })
             .eq("organization_id", orgId);
           return { label: t.label, icon: t.icon, count: error ? null : (count ?? 0) };
