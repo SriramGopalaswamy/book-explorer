@@ -3496,6 +3496,203 @@ export type Database = {
           },
         ]
       }
+      eway_bills: {
+        Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cess_rate: number | null
+          cgst_rate: number | null
+          created_at: string
+          delivery_note_id: string | null
+          distance_km: number | null
+          document_date: string | null
+          document_number: string | null
+          document_type: string | null
+          eway_bill_date: string | null
+          eway_bill_number: string | null
+          extended_count: number | null
+          from_address: string | null
+          from_gstin: string | null
+          from_name: string | null
+          from_pincode: string | null
+          from_place: string | null
+          from_state_code: string | null
+          hsn_code: string | null
+          id: string
+          igst_rate: number | null
+          invoice_id: string | null
+          metadata: Json | null
+          notes: string | null
+          organization_id: string
+          product_description: string | null
+          product_name: string | null
+          quantity: number | null
+          sales_order_id: string | null
+          sgst_rate: number | null
+          status: string
+          sub_supply_type: string | null
+          supply_type: string
+          taxable_value: number
+          to_address: string | null
+          to_gstin: string | null
+          to_name: string | null
+          to_pincode: string | null
+          to_place: string | null
+          to_state_code: string | null
+          total_value: number
+          transport_doc_date: string | null
+          transport_doc_number: string | null
+          transport_mode: string | null
+          transporter_id: string | null
+          transporter_name: string | null
+          unit: string | null
+          updated_at: string
+          user_id: string
+          valid_until: string | null
+          vehicle_number: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cess_rate?: number | null
+          cgst_rate?: number | null
+          created_at?: string
+          delivery_note_id?: string | null
+          distance_km?: number | null
+          document_date?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          extended_count?: number | null
+          from_address?: string | null
+          from_gstin?: string | null
+          from_name?: string | null
+          from_pincode?: string | null
+          from_place?: string | null
+          from_state_code?: string | null
+          hsn_code?: string | null
+          id?: string
+          igst_rate?: number | null
+          invoice_id?: string | null
+          metadata?: Json | null
+          notes?: string | null
+          organization_id: string
+          product_description?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          sales_order_id?: string | null
+          sgst_rate?: number | null
+          status?: string
+          sub_supply_type?: string | null
+          supply_type?: string
+          taxable_value?: number
+          to_address?: string | null
+          to_gstin?: string | null
+          to_name?: string | null
+          to_pincode?: string | null
+          to_place?: string | null
+          to_state_code?: string | null
+          total_value?: number
+          transport_doc_date?: string | null
+          transport_doc_number?: string | null
+          transport_mode?: string | null
+          transporter_id?: string | null
+          transporter_name?: string | null
+          unit?: string | null
+          updated_at?: string
+          user_id: string
+          valid_until?: string | null
+          vehicle_number?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cess_rate?: number | null
+          cgst_rate?: number | null
+          created_at?: string
+          delivery_note_id?: string | null
+          distance_km?: number | null
+          document_date?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          extended_count?: number | null
+          from_address?: string | null
+          from_gstin?: string | null
+          from_name?: string | null
+          from_pincode?: string | null
+          from_place?: string | null
+          from_state_code?: string | null
+          hsn_code?: string | null
+          id?: string
+          igst_rate?: number | null
+          invoice_id?: string | null
+          metadata?: Json | null
+          notes?: string | null
+          organization_id?: string
+          product_description?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          sales_order_id?: string | null
+          sgst_rate?: number | null
+          status?: string
+          sub_supply_type?: string | null
+          supply_type?: string
+          taxable_value?: number
+          to_address?: string | null
+          to_gstin?: string | null
+          to_name?: string | null
+          to_pincode?: string | null
+          to_place?: string | null
+          to_state_code?: string | null
+          total_value?: number
+          transport_doc_date?: string | null
+          transport_doc_number?: string | null
+          transport_mode?: string | null
+          transporter_id?: string | null
+          transporter_name?: string | null
+          unit?: string | null
+          updated_at?: string
+          user_id?: string
+          valid_until?: string | null
+          vehicle_number?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eway_bills_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exchange_rates: {
         Row: {
           created_at: string
