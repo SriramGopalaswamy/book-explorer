@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AnimatedPage } from "@/components/layout/AnimatedPage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import { useEwayBills, EwayBillInsert } from "@/hooks/useEwayBills";
 import { format, isPast, differenceInHours } from "date-fns";
 
@@ -24,6 +25,34 @@ const STATUS_COLORS: Record<string, string> = {
   extended: "bg-accent/80 text-accent-foreground",
 };
 
+const INDIAN_STATES: { code: string; name: string }[] = [
+  { code: "01", name: "Jammu & Kashmir" }, { code: "02", name: "Himachal Pradesh" },
+  { code: "03", name: "Punjab" }, { code: "04", name: "Chandigarh" },
+  { code: "05", name: "Uttarakhand" }, { code: "06", name: "Haryana" },
+  { code: "07", name: "Delhi" }, { code: "08", name: "Rajasthan" },
+  { code: "09", name: "Uttar Pradesh" }, { code: "10", name: "Bihar" },
+  { code: "11", name: "Sikkim" }, { code: "12", name: "Arunachal Pradesh" },
+  { code: "13", name: "Nagaland" }, { code: "14", name: "Manipur" },
+  { code: "15", name: "Mizoram" }, { code: "16", name: "Tripura" },
+  { code: "17", name: "Meghalaya" }, { code: "18", name: "Assam" },
+  { code: "19", name: "West Bengal" }, { code: "20", name: "Jharkhand" },
+  { code: "21", name: "Odisha" }, { code: "22", name: "Chhattisgarh" },
+  { code: "23", name: "Madhya Pradesh" }, { code: "24", name: "Gujarat" },
+  { code: "25", name: "Daman & Diu" }, { code: "26", name: "Dadra & Nagar Haveli" },
+  { code: "27", name: "Maharashtra" }, { code: "28", name: "Andhra Pradesh (Old)" },
+  { code: "29", name: "Karnataka" }, { code: "30", name: "Goa" },
+  { code: "31", name: "Lakshadweep" }, { code: "32", name: "Kerala" },
+  { code: "33", name: "Tamil Nadu" }, { code: "34", name: "Puducherry" },
+  { code: "35", name: "Andaman & Nicobar" }, { code: "36", name: "Telangana" },
+  { code: "37", name: "Andhra Pradesh" }, { code: "38", name: "Ladakh" },
+];
+
+const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+const PINCODE_REGEX = /^\d{6}$/;
+const VEHICLE_REGEX = /^[A-Z]{2}\d{2}[A-Z]{1,2}\d{4}$/;
+const HSN_REGEX = /^\d{4}$|^\d{6}$|^\d{8}$/;
+const EWAY_BILL_THRESHOLD = 50000; // ₹50,000 threshold per GST rules
+
 const INITIAL_FORM: EwayBillInsert = {
   supply_type: "outward",
   sub_supply_type: "supply",
@@ -35,6 +64,19 @@ const INITIAL_FORM: EwayBillInsert = {
   quantity: 0,
   distance_km: 0,
 };
+
+function validateForm(form: EwayBillInsert): string[] {
+  const errors: string[] = [];
+  if (form.from_gstin && !GSTIN_REGEX.test(form.from_gstin)) errors.push("From GSTIN format is invalid (e.g. 22AAAAA0000A1Z5)");
+  if (form.to_gstin && !GSTIN_REGEX.test(form.to_gstin)) errors.push("To GSTIN format is invalid (e.g. 22AAAAA0000A1Z5)");
+  if (form.from_pincode && !PINCODE_REGEX.test(form.from_pincode)) errors.push("From Pincode must be 6 digits");
+  if (form.to_pincode && !PINCODE_REGEX.test(form.to_pincode)) errors.push("To Pincode must be 6 digits");
+  if (form.vehicle_number && !VEHICLE_REGEX.test(form.vehicle_number)) errors.push("Vehicle Number format invalid (e.g. KA01AB1234)");
+  if (form.hsn_code && !HSN_REGEX.test(form.hsn_code)) errors.push("HSN Code must be 4, 6, or 8 digits");
+  if (!form.taxable_value || form.taxable_value <= 0) errors.push("Taxable value is required");
+  if (!form.total_value || form.total_value <= 0) errors.push("Total value is required");
+  return errors;
+}
 
 export default function EwayBills() {
   const { ewayBills, isLoading, create, update, cancel, isCreating } = useEwayBills();
@@ -63,7 +105,12 @@ export default function EwayBills() {
     cancelled: ewayBills.filter((b) => b.status === "cancelled").length,
   };
 
+  const formErrors = useMemo(() => validateForm(form), [form]);
+  const belowThreshold = (form.total_value ?? 0) > 0 && (form.total_value ?? 0) < EWAY_BILL_THRESHOLD;
+  const isInterState = form.from_state_code && form.to_state_code && form.from_state_code !== form.to_state_code;
+
   const handleCreate = async () => {
+    if (formErrors.length > 0) return;
     await create(form);
     setShowCreate(false);
     setForm(INITIAL_FORM);
@@ -80,11 +127,15 @@ export default function EwayBills() {
   const setField = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <MainLayout title="GST E-Way Bills" subtitle="Generate, manage and track e-way bills for goods movement">
+    <MainLayout title="GST E-Way Bills" subtitle="Generate, manage and track e-way bills for goods movement as per GST Rule 138">
       <AnimatedPage>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5" />
+              <span>E-Way Bill mandatory for goods movement exceeding ₹{EWAY_BILL_THRESHOLD.toLocaleString("en-IN")} (GST Rule 138)</span>
+            </div>
             <Button onClick={() => setShowCreate(true)} className="gap-2">
               <Plus className="h-4 w-4" /> New E-Way Bill
             </Button>
@@ -203,6 +254,27 @@ export default function EwayBills() {
             <DialogHeader>
               <DialogTitle>Generate E-Way Bill</DialogTitle>
             </DialogHeader>
+
+            {/* Threshold Warning */}
+            {belowThreshold && (
+              <Alert variant="destructive" className="border-yellow-500/50 bg-yellow-500/10">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                <AlertDescription className="text-yellow-600 text-sm">
+                  Total value is below ₹{EWAY_BILL_THRESHOLD.toLocaleString("en-IN")}. E-Way Bill is generally mandatory only for consignments exceeding this threshold as per GST Rule 138.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Inter-state indicator */}
+            {isInterState && (
+              <Alert className="border-primary/30 bg-primary/5">
+                <Info className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-sm">
+                  Inter-state supply detected. IGST will apply. Ensure IGST rate is correctly set instead of CGST+SGST.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid grid-cols-3 w-full">
                 <TabsTrigger value="partA">Part A – Supply</TabsTrigger>
@@ -246,19 +318,59 @@ export default function EwayBills() {
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="space-y-3 p-3 rounded-lg border border-border/50">
                     <p className="text-sm font-medium text-muted-foreground">FROM (Consignor)</p>
-                    <Input placeholder="GSTIN" value={form.from_gstin ?? ""} onChange={(e) => setField("from_gstin", e.target.value)} />
+                    <div>
+                      <Input placeholder="GSTIN (e.g. 22AAAAA0000A1Z5)" value={form.from_gstin ?? ""} onChange={(e) => setField("from_gstin", e.target.value.toUpperCase())} maxLength={15} />
+                      {form.from_gstin && !GSTIN_REGEX.test(form.from_gstin) && (
+                        <p className="text-xs text-destructive mt-1">Invalid GSTIN format</p>
+                      )}
+                    </div>
                     <Input placeholder="Name" value={form.from_name ?? ""} onChange={(e) => setField("from_name", e.target.value)} />
                     <Input placeholder="Place" value={form.from_place ?? ""} onChange={(e) => setField("from_place", e.target.value)} />
-                    <Input placeholder="Pincode" value={form.from_pincode ?? ""} onChange={(e) => setField("from_pincode", e.target.value)} />
-                    <Input placeholder="State Code" value={form.from_state_code ?? ""} onChange={(e) => setField("from_state_code", e.target.value)} />
+                    <div>
+                      <Input placeholder="Pincode (6 digits)" value={form.from_pincode ?? ""} onChange={(e) => setField("from_pincode", e.target.value.replace(/\D/g, ""))} maxLength={6} />
+                      {form.from_pincode && !PINCODE_REGEX.test(form.from_pincode) && (
+                        <p className="text-xs text-destructive mt-1">Must be 6 digits</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">State</Label>
+                      <Select value={form.from_state_code ?? ""} onValueChange={(v) => setField("from_state_code", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.code} – {s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-3 p-3 rounded-lg border border-border/50">
                     <p className="text-sm font-medium text-muted-foreground">TO (Consignee)</p>
-                    <Input placeholder="GSTIN" value={form.to_gstin ?? ""} onChange={(e) => setField("to_gstin", e.target.value)} />
+                    <div>
+                      <Input placeholder="GSTIN (e.g. 22AAAAA0000A1Z5)" value={form.to_gstin ?? ""} onChange={(e) => setField("to_gstin", e.target.value.toUpperCase())} maxLength={15} />
+                      {form.to_gstin && !GSTIN_REGEX.test(form.to_gstin) && (
+                        <p className="text-xs text-destructive mt-1">Invalid GSTIN format</p>
+                      )}
+                    </div>
                     <Input placeholder="Name" value={form.to_name ?? ""} onChange={(e) => setField("to_name", e.target.value)} />
                     <Input placeholder="Place" value={form.to_place ?? ""} onChange={(e) => setField("to_place", e.target.value)} />
-                    <Input placeholder="Pincode" value={form.to_pincode ?? ""} onChange={(e) => setField("to_pincode", e.target.value)} />
-                    <Input placeholder="State Code" value={form.to_state_code ?? ""} onChange={(e) => setField("to_state_code", e.target.value)} />
+                    <div>
+                      <Input placeholder="Pincode (6 digits)" value={form.to_pincode ?? ""} onChange={(e) => setField("to_pincode", e.target.value.replace(/\D/g, ""))} maxLength={6} />
+                      {form.to_pincode && !PINCODE_REGEX.test(form.to_pincode) && (
+                        <p className="text-xs text-destructive mt-1">Must be 6 digits</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">State</Label>
+                      <Select value={form.to_state_code ?? ""} onValueChange={(v) => setField("to_state_code", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.code} – {s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -270,8 +382,11 @@ export default function EwayBills() {
                     <Input value={form.product_name ?? ""} onChange={(e) => setField("product_name", e.target.value)} />
                   </div>
                   <div>
-                    <Label>HSN Code</Label>
-                    <Input value={form.hsn_code ?? ""} onChange={(e) => setField("hsn_code", e.target.value)} />
+                    <Label>HSN Code (4/6/8 digits)</Label>
+                    <Input value={form.hsn_code ?? ""} onChange={(e) => setField("hsn_code", e.target.value.replace(/\D/g, ""))} maxLength={8} placeholder="e.g. 84713010" />
+                    {form.hsn_code && !HSN_REGEX.test(form.hsn_code) && (
+                      <p className="text-xs text-destructive mt-1">HSN must be 4, 6, or 8 digits</p>
+                    )}
                   </div>
                   <div>
                     <Label>Quantity</Label>
@@ -282,12 +397,16 @@ export default function EwayBills() {
                     <Select value={form.unit ?? "NOS"} onValueChange={(v) => setField("unit", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="NOS">NOS</SelectItem>
-                        <SelectItem value="KGS">KGS</SelectItem>
-                        <SelectItem value="MTR">MTR</SelectItem>
-                        <SelectItem value="LTR">LTR</SelectItem>
-                        <SelectItem value="PCS">PCS</SelectItem>
-                        <SelectItem value="BOX">BOX</SelectItem>
+                        <SelectItem value="NOS">NOS – Numbers</SelectItem>
+                        <SelectItem value="KGS">KGS – Kilograms</SelectItem>
+                        <SelectItem value="MTR">MTR – Meters</SelectItem>
+                        <SelectItem value="LTR">LTR – Litres</SelectItem>
+                        <SelectItem value="PCS">PCS – Pieces</SelectItem>
+                        <SelectItem value="BOX">BOX – Boxes</SelectItem>
+                        <SelectItem value="QTL">QTL – Quintals</SelectItem>
+                        <SelectItem value="TON">TON – Tonnes</SelectItem>
+                        <SelectItem value="SQF">SQF – Sq. Feet</SelectItem>
+                        <SelectItem value="SQM">SQM – Sq. Meters</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -299,18 +418,30 @@ export default function EwayBills() {
                     <Label>Total Value (₹)</Label>
                     <Input type="number" value={form.total_value} onChange={(e) => setField("total_value", +e.target.value)} />
                   </div>
-                  <div>
-                    <Label>CGST Rate (%)</Label>
-                    <Input type="number" value={form.cgst_rate ?? 0} onChange={(e) => setField("cgst_rate", +e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>SGST Rate (%)</Label>
-                    <Input type="number" value={form.sgst_rate ?? 0} onChange={(e) => setField("sgst_rate", +e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>IGST Rate (%)</Label>
-                    <Input type="number" value={form.igst_rate ?? 0} onChange={(e) => setField("igst_rate", +e.target.value)} />
-                  </div>
+                  {!isInterState && (
+                    <>
+                      <div>
+                        <Label>CGST Rate (%)</Label>
+                        <Input type="number" value={form.cgst_rate ?? 0} onChange={(e) => setField("cgst_rate", +e.target.value)} />
+                      </div>
+                      <div>
+                        <Label>SGST Rate (%)</Label>
+                        <Input type="number" value={form.sgst_rate ?? 0} onChange={(e) => setField("sgst_rate", +e.target.value)} />
+                      </div>
+                    </>
+                  )}
+                  {isInterState && (
+                    <div>
+                      <Label>IGST Rate (%)</Label>
+                      <Input type="number" value={form.igst_rate ?? 0} onChange={(e) => setField("igst_rate", +e.target.value)} />
+                    </div>
+                  )}
+                  {!isInterState && (
+                    <div>
+                      <Label>IGST Rate (%) <span className="text-muted-foreground text-xs">— if applicable</span></Label>
+                      <Input type="number" value={form.igst_rate ?? 0} onChange={(e) => setField("igst_rate", +e.target.value)} />
+                    </div>
+                  )}
                   <div>
                     <Label>Cess Rate (%)</Label>
                     <Input type="number" value={form.cess_rate ?? 0} onChange={(e) => setField("cess_rate", +e.target.value)} />
@@ -332,7 +463,7 @@ export default function EwayBills() {
                         <SelectItem value="road">Road</SelectItem>
                         <SelectItem value="rail">Rail</SelectItem>
                         <SelectItem value="air">Air</SelectItem>
-                        <SelectItem value="ship">Ship</SelectItem>
+                        <SelectItem value="ship">Ship/Inland Waterways</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -342,21 +473,24 @@ export default function EwayBills() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="regular">Regular</SelectItem>
-                        <SelectItem value="over_dimensional">Over Dimensional Cargo</SelectItem>
+                        <SelectItem value="over_dimensional">Over Dimensional Cargo (ODC)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label>Vehicle Number</Label>
-                    <Input placeholder="e.g. KA01AB1234" value={form.vehicle_number ?? ""} onChange={(e) => setField("vehicle_number", e.target.value.toUpperCase())} />
+                    <Input placeholder="e.g. KA01AB1234" value={form.vehicle_number ?? ""} onChange={(e) => setField("vehicle_number", e.target.value.toUpperCase().replace(/\s/g, ""))} />
+                    {form.vehicle_number && !VEHICLE_REGEX.test(form.vehicle_number) && (
+                      <p className="text-xs text-destructive mt-1">Invalid format (e.g. KA01AB1234)</p>
+                    )}
                   </div>
                   <div>
                     <Label>Transporter Name</Label>
                     <Input value={form.transporter_name ?? ""} onChange={(e) => setField("transporter_name", e.target.value)} />
                   </div>
                   <div>
-                    <Label>Transporter ID</Label>
-                    <Input value={form.transporter_id ?? ""} onChange={(e) => setField("transporter_id", e.target.value)} />
+                    <Label>Transporter ID (GSTIN)</Label>
+                    <Input placeholder="Transporter GSTIN" value={form.transporter_id ?? ""} onChange={(e) => setField("transporter_id", e.target.value.toUpperCase())} maxLength={15} />
                   </div>
                   <div>
                     <Label>Transport Doc #</Label>
@@ -367,8 +501,11 @@ export default function EwayBills() {
                     <Input type="date" value={form.transport_doc_date ?? ""} onChange={(e) => setField("transport_doc_date", e.target.value)} />
                   </div>
                   <div>
-                    <Label>Distance (km)</Label>
+                    <Label>Approx. Distance (km)</Label>
                     <Input type="number" value={form.distance_km ?? 0} onChange={(e) => setField("distance_km", +e.target.value)} />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Validity: {(form.distance_km ?? 0) <= 100 ? "1 day" : (form.distance_km ?? 0) <= 300 ? "3 days" : (form.distance_km ?? 0) <= 500 ? "5 days" : "Based on distance"} (per Rule 138(10))
+                    </p>
                   </div>
                 </div>
                 <div>
@@ -377,9 +514,21 @@ export default function EwayBills() {
                 </div>
               </TabsContent>
             </Tabs>
+
+            {/* Validation errors */}
+            {formErrors.length > 0 && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1">
+                {formErrors.map((e, i) => (
+                  <p key={i} className="text-xs text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 flex-shrink-0" /> {e}
+                  </p>
+                ))}
+              </div>
+            )}
+
             <DialogFooter className="pt-4">
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={isCreating}>
+              <Button onClick={handleCreate} disabled={isCreating || formErrors.length > 0}>
                 {isCreating ? "Creating..." : "Generate E-Way Bill"}
               </Button>
             </DialogFooter>
@@ -392,6 +541,7 @@ export default function EwayBills() {
             <DialogHeader>
               <DialogTitle>Cancel E-Way Bill</DialogTitle>
             </DialogHeader>
+            <p className="text-sm text-muted-foreground">As per GST Rule 138(14), an E-Way Bill can be cancelled within 24 hours of generation.</p>
             <div className="space-y-3">
               <Label>Cancellation Reason</Label>
               <Select value={cancelReason} onValueChange={setCancelReason}>
@@ -400,12 +550,13 @@ export default function EwayBills() {
                   <SelectItem value="duplicate">Duplicate</SelectItem>
                   <SelectItem value="data_entry_mistake">Data Entry Mistake</SelectItem>
                   <SelectItem value="order_cancelled">Order Cancelled</SelectItem>
+                  <SelectItem value="goods_not_transported">Goods Not Transported</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCancel(null)}>Back</Button>
+              <Button variant="outline" onClick={() => setShowCancel(null)}>Close</Button>
               <Button variant="destructive" onClick={handleCancel} disabled={!cancelReason}>Confirm Cancel</Button>
             </DialogFooter>
           </DialogContent>
