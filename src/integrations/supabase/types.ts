@@ -3429,6 +3429,180 @@ export type Database = {
           },
         ]
       }
+      e_invoices: {
+        Row: {
+          ack_date: string | null
+          ack_number: string | null
+          api_response: Json | null
+          buyer_address: string | null
+          buyer_gstin: string | null
+          buyer_legal_name: string
+          buyer_location: string | null
+          buyer_pincode: string | null
+          buyer_pos: string | null
+          buyer_state_code: string | null
+          buyer_trade_name: string | null
+          cancel_reason: string | null
+          cancel_remark: string | null
+          cancelled_at: string | null
+          created_at: string
+          doc_date: string
+          doc_number: string
+          doc_type: string
+          error_details: Json | null
+          eway_bill_date: string | null
+          eway_bill_number: string | null
+          eway_bill_valid_until: string | null
+          id: string
+          invoice_id: string | null
+          irn: string | null
+          irn_generated_at: string | null
+          items: Json
+          organization_id: string
+          round_off_amount: number | null
+          seller_address: string | null
+          seller_gstin: string
+          seller_legal_name: string
+          seller_location: string | null
+          seller_pincode: string | null
+          seller_state_code: string | null
+          seller_trade_name: string | null
+          signed_invoice: string | null
+          signed_qr_code: string | null
+          status: string
+          supply_type: string
+          total_assessable_value: number
+          total_cess: number
+          total_cgst: number
+          total_discount: number
+          total_igst: number
+          total_invoice_value: number
+          total_other_charges: number
+          total_sgst: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ack_date?: string | null
+          ack_number?: string | null
+          api_response?: Json | null
+          buyer_address?: string | null
+          buyer_gstin?: string | null
+          buyer_legal_name: string
+          buyer_location?: string | null
+          buyer_pincode?: string | null
+          buyer_pos?: string | null
+          buyer_state_code?: string | null
+          buyer_trade_name?: string | null
+          cancel_reason?: string | null
+          cancel_remark?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          doc_date: string
+          doc_number: string
+          doc_type?: string
+          error_details?: Json | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          eway_bill_valid_until?: string | null
+          id?: string
+          invoice_id?: string | null
+          irn?: string | null
+          irn_generated_at?: string | null
+          items?: Json
+          organization_id: string
+          round_off_amount?: number | null
+          seller_address?: string | null
+          seller_gstin: string
+          seller_legal_name: string
+          seller_location?: string | null
+          seller_pincode?: string | null
+          seller_state_code?: string | null
+          seller_trade_name?: string | null
+          signed_invoice?: string | null
+          signed_qr_code?: string | null
+          status?: string
+          supply_type?: string
+          total_assessable_value?: number
+          total_cess?: number
+          total_cgst?: number
+          total_discount?: number
+          total_igst?: number
+          total_invoice_value?: number
+          total_other_charges?: number
+          total_sgst?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ack_date?: string | null
+          ack_number?: string | null
+          api_response?: Json | null
+          buyer_address?: string | null
+          buyer_gstin?: string | null
+          buyer_legal_name?: string
+          buyer_location?: string | null
+          buyer_pincode?: string | null
+          buyer_pos?: string | null
+          buyer_state_code?: string | null
+          buyer_trade_name?: string | null
+          cancel_reason?: string | null
+          cancel_remark?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          doc_date?: string
+          doc_number?: string
+          doc_type?: string
+          error_details?: Json | null
+          eway_bill_date?: string | null
+          eway_bill_number?: string | null
+          eway_bill_valid_until?: string | null
+          id?: string
+          invoice_id?: string | null
+          irn?: string | null
+          irn_generated_at?: string | null
+          items?: Json
+          organization_id?: string
+          round_off_amount?: number | null
+          seller_address?: string | null
+          seller_gstin?: string
+          seller_legal_name?: string
+          seller_location?: string | null
+          seller_pincode?: string | null
+          seller_state_code?: string | null
+          seller_trade_name?: string | null
+          signed_invoice?: string | null
+          signed_qr_code?: string | null
+          status?: string
+          supply_type?: string
+          total_assessable_value?: number
+          total_cess?: number
+          total_cgst?: number
+          total_discount?: number
+          total_igst?: number
+          total_invoice_value?: number
+          total_other_charges?: number
+          total_sgst?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "e_invoices_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "e_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_details: {
         Row: {
           aadhaar_last_four: string | null
