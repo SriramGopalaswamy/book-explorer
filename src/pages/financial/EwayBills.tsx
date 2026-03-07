@@ -80,7 +80,7 @@ export default function EwayBills() {
   const setField = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <MainLayout>
+    <MainLayout title="GST E-Way Bills" subtitle="Generate, manage and track e-way bills for goods movement">
       <AnimatedPage>
         <div className="space-y-6">
           {/* Header */}
