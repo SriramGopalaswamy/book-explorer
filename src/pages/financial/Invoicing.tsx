@@ -301,7 +301,7 @@ export default function Invoicing() {
         onSuccess: () => {
           setSelectedCustomerId("");
           setLineItems([{ ...emptyLineItem }]);
-          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time", performanceObligation: "" });
           setCreateStatus("draft");
           setIsDialogOpen(false);
         },
