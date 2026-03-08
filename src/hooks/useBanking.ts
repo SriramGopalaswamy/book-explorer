@@ -62,16 +62,20 @@ export interface CreateTransactionData {
 export function useBankAccounts() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["bank-accounts", user?.id, isDevMode],
+    queryKey: ["bank-accounts", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockBankAccounts;
       if (!user) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("bank_accounts")
         .select("*")
         .order("created_at", { ascending: false });
+      if (orgId) query = query.eq("organization_id", orgId);
+      const { data, error } = await query;
       if (error) throw error;
       return data as BankAccount[];
     },

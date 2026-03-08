@@ -74,18 +74,23 @@ function getCategoryColor(name: string): string {
 export function useFinancialRecords() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["financial-records", user?.id, isDevMode],
+    queryKey: ["financial-records", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockFinancialRecords;
       if (!user) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("financial_records")
         .select("*")
         .order("record_date", { ascending: false });
 
+      if (orgId) query = query.eq("organization_id", orgId);
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as FinancialRecord[];
     },

@@ -73,16 +73,8 @@ export function useAttendance(date?: string) {
 
       const [attendanceRes, profilesRes, leavesRes] = await Promise.all([
         attendanceQuery,
-        supabase
-          .from("profiles")
-          .select("id, full_name, department")
-          .eq("status", "active"),
-        supabase
-          .from("leave_requests")
-          .select("profile_id, user_id")
-          .eq("status", "approved")
-          .lte("from_date", selectedDate)
-          .gte("to_date", selectedDate),
+        profilesQuery,
+        leavesQuery,
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;

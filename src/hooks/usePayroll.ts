@@ -82,9 +82,11 @@ export interface UpdatePayrollData extends Partial<CreatePayrollData> {
 export function usePayrollRecords(payPeriod?: string) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["payroll", user?.id, payPeriod, isDevMode],
+    queryKey: ["payroll", user?.id, payPeriod, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) {
         if (payPeriod) return mockPayrollRecords.filter(r => r.pay_period === payPeriod);
@@ -97,9 +99,8 @@ export function usePayrollRecords(payPeriod?: string) {
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .order("created_at", { ascending: false });
 
-      if (payPeriod) {
-        query = query.eq("pay_period", payPeriod);
-      }
+      if (orgId) query = query.eq("organization_id", orgId);
+      if (payPeriod) query = query.eq("pay_period", payPeriod);
 
       const { data, error } = await query;
       if (error) throw error;

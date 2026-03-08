@@ -87,11 +87,19 @@ export function useDashboardStats() {
         : 0;
 
       // Non-financial stats (unchanged)
+      // Org-scoped non-financial stats
+      let empQ = supabase.from("profiles").select("id").eq("status", "active");
+      let invQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]);
+      let invLastQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd);
+      let goalsQ = supabase.from("goals").select("progress, status");
+      if (orgId) {
+        empQ = empQ.eq("organization_id", orgId);
+        invQ = invQ.eq("organization_id", orgId);
+        invLastQ = invLastQ.eq("organization_id", orgId);
+        goalsQ = goalsQ.eq("organization_id", orgId);
+      }
       const [employeesResult, pendingInvoicesResult, lastMonthInvoicesResult, goalsResult] = await Promise.all([
-        supabase.from("profiles").select("id").eq("status", "active"),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd),
-        supabase.from("goals").select("progress, status"),
+        empQ, invQ, invLastQ, goalsQ,
       ]);
 
       const activeEmployees = employeesResult.data?.length || 0;
