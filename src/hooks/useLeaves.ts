@@ -420,6 +420,18 @@ export function useDeleteLeaveRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only allow deleting own pending requests
+      const { data: check } = await supabase
+        .from("leave_requests")
+        .select("status, user_id")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (!check) throw new Error("Leave request not found");
+      if (check.user_id !== user.id) throw new Error("You can only cancel your own leave requests");
+      if (check.status !== "pending") throw new Error("Only pending leave requests can be cancelled");
+
       const { error } = await supabase
         .from("leave_requests")
         .delete()
