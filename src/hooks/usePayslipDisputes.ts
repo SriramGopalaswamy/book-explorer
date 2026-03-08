@@ -80,6 +80,24 @@ export function useRaisePayslipDispute() {
       description: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!input.description?.trim()) throw new Error("Dispute description is required");
+
+      // Validate category
+      const validCategories = DISPUTE_CATEGORIES.map(c => c.value);
+      if (!validCategories.includes(input.dispute_category)) {
+        throw new Error("Invalid dispute category");
+      }
+
+      // Prevent duplicate active disputes for the same payroll record
+      const { data: existing } = await supabase
+        .from("payslip_disputes" as any)
+        .select("id")
+        .eq("payroll_record_id", input.payroll_record_id)
+        .not("status", "in", '("rejected","approved")')
+        .limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error("An active dispute already exists for this payslip. Please wait for it to be resolved.");
+      }
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
