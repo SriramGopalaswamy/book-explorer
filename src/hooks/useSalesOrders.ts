@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface SalesOrder {
@@ -37,13 +38,15 @@ export interface SOItem {
 }
 
 export function useSalesOrders() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["sales-orders"],
+    queryKey: ["sales-orders", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_orders" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = supabase.from("sales_orders" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as SalesOrder[];
     },
@@ -70,6 +73,12 @@ export function useCreateSalesOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (so: { customer_name: string; customer_id?: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
+      // ── Validation ──
+      if (!so.customer_name.trim()) throw new Error("Customer name is required.");
+      if (so.items.length === 0) throw new Error("At least one line item is required.");
+      if (so.items.some(i => i.quantity <= 0)) throw new Error("All quantities must be greater than zero.");
+      if (so.items.some(i => i.unit_price < 0)) throw new Error("Unit prices cannot be negative.");
+
       const subtotal = so.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = so.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const soNum = `SO-${Date.now().toString(36).toUpperCase()}`;
@@ -104,7 +113,10 @@ export function useCreateSalesOrder() {
 
       if (items.length > 0) {
         const { error: itemErr } = await supabase.from("sales_order_items" as any).insert(items as any);
-        if (itemErr) throw itemErr;
+        if (itemErr) {
+          await supabase.from("sales_orders" as any).delete().eq("id", (soData as any).id);
+          throw itemErr;
+        }
       }
       return soData;
     },

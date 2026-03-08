@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface PaymentReceipt {
@@ -42,13 +43,15 @@ export interface VendorPayment {
 }
 
 export function usePaymentReceipts() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["payment-receipts"],
+    queryKey: ["payment-receipts", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_receipts" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = supabase.from("payment_receipts" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as PaymentReceipt[];
     },
@@ -60,6 +63,9 @@ export function useCreatePaymentReceipt() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (r: { customer_name: string; customer_id?: string; invoice_id?: string; payment_date: string; amount: number; payment_method: string; reference_number?: string; bank_account_id?: string; notes?: string }) => {
+      if (r.amount <= 0) throw new Error("Payment amount must be greater than zero.");
+      if (!r.customer_name.trim()) throw new Error("Customer name is required.");
+
       const num = `REC-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("payment_receipts" as any).insert({
         receipt_number: num,
@@ -82,13 +88,15 @@ export function useCreatePaymentReceipt() {
 }
 
 export function useVendorPayments() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["vendor-payments"],
+    queryKey: ["vendor-payments", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vendor_payments" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = supabase.from("vendor_payments" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as VendorPayment[];
     },
@@ -100,6 +108,9 @@ export function useCreateVendorPayment() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (p: { vendor_name: string; vendor_id?: string; bill_id?: string; payment_date: string; amount: number; payment_method: string; reference_number?: string; bank_account_id?: string; notes?: string }) => {
+      if (p.amount <= 0) throw new Error("Payment amount must be greater than zero.");
+      if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
+
       const num = `VPAY-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("vendor_payments" as any).insert({
         payment_number: num,
