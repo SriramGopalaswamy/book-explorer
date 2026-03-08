@@ -462,9 +462,23 @@ export function useLockPayrollRun() {
 
 export function useDeletePayrollRun() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (runId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only draft/completed runs can be deleted — locked/approved cannot
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (["locked", "approved", "under_review"].includes(run.status)) {
+        throw new Error(`Cannot delete a payroll run with status '${run.status}'`);
+      }
+
       const { error } = await supabase.from("payroll_runs").delete().eq("id", runId);
       if (error) throw error;
     },
