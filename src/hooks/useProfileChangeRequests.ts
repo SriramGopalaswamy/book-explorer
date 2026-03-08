@@ -77,16 +77,30 @@ export function useSubmitChangeRequest() {
 
 // HR hooks
 export function useAllChangeRequests() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["profile-change-requests", "all"],
+    queryKey: ["profile-change-requests", "all", user?.id],
     queryFn: async () => {
+      if (!user) return [];
+
+      // Get org for tenant isolation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return [];
+
       const { data, error } = await supabase
         .from("profile_change_requests" as any)
         .select("*")
+        .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as ProfileChangeRequest[];
     },
+    enabled: !!user,
   });
 }
 
