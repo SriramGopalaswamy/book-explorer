@@ -58,8 +58,16 @@ export function useUpsertEmployeeDetails() {
   return useMutation({
     mutationFn: async (input: EmployeeDetailsInput) => {
       if (!user) throw new Error("Not authenticated");
+      if (!input.profile_id) throw new Error("Profile ID is required");
 
-      // Validate PAN format if provided
+      // Validate UAN if provided (12-digit number)
+      if (input.uan_number && !/^\d{12}$/.test(input.uan_number)) {
+        throw new Error("UAN must be exactly 12 digits");
+      }
+      // Validate ESI number if provided
+      if (input.esi_number && !/^\d{17}$/.test(input.esi_number)) {
+        throw new Error("ESI number must be exactly 17 digits");
+      }
       if (input.pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(input.pan_number)) {
         throw new Error("Invalid PAN format (expected: ABCDE1234F)");
       }

@@ -352,6 +352,17 @@ export function useSelfCheckIn() {
       const hour = new Date().getHours();
       const status = hour >= 10 ? "late" : "present";
 
+      // Prevent double check-in
+      const { data: existing } = await supabase
+        .from("attendance_records")
+        .select("id, check_in")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .maybeSingle();
+      if (existing?.check_in) {
+        throw new Error("You have already checked in today");
+      }
+
       // First get user's profile
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -390,10 +401,23 @@ export function useSelfCheckIn() {
 
 export function useSelfCheckOut() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (recordId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const now = new Date().toISOString();
+
+      // Verify record belongs to user and has a check_in but no check_out
+      const { data: record } = await supabase
+        .from("attendance_records")
+        .select("user_id, check_in, check_out")
+        .eq("id", recordId)
+        .single();
+      if (!record) throw new Error("Attendance record not found");
+      if (record.user_id !== user.id) throw new Error("You can only check out your own record");
+      if (!record.check_in) throw new Error("Cannot check out without checking in first");
+      if (record.check_out) throw new Error("You have already checked out today");
 
       const { data, error } = await supabase
         .from("attendance_records")
@@ -495,11 +519,28 @@ export function useCreateAttendance() {
       check_out?: string;
       notes?: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Validate date is not in the future
+      const today = new Date().toISOString().split("T")[0];
+      if (record.date > today) throw new Error("Cannot create attendance records for future dates");
+
+      // Validate check_out is after check_in
+      if (record.check_in && record.check_out && record.check_out <= record.check_in) {
+        throw new Error("Check-out time must be after check-in time");
+      }
+
+      // Validate status whitelist
+      const validStatuses = ["present", "absent", "late", "leave", "half_day"];
+      if (!validStatuses.includes(record.status)) {
+        throw new Error("Invalid attendance status");
+      }
+
       const { data, error } = await supabase
         .from("attendance_records")
         .upsert({
           ...record,
-          user_id: user?.id,
+          user_id: user.id,
         }, {
           onConflict: "profile_id,date",
         })
