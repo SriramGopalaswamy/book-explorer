@@ -140,6 +140,25 @@ export function useCreateInvoice() {
     mutationFn: async (data: CreateInvoiceData) => {
       if (!user) throw new Error("User not authenticated");
 
+      // ── Input validation ──────────────────────────────────────
+      if (!data.client_name?.trim()) throw new Error("Client name is required.");
+      if (!data.due_date) throw new Error("Due date is required.");
+      if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
+      if (!data.items || data.items.length === 0) throw new Error("At least one line item is required.");
+
+      // Validate each line item
+      for (const item of data.items) {
+        if (!item.description?.trim()) throw new Error("All line items must have a description.");
+        if (item.quantity <= 0) throw new Error("Line item quantity must be positive.");
+        if (item.rate < 0) throw new Error("Line item rate cannot be negative.");
+      }
+
+      // Due date must not be before invoice date
+      const invoiceDate = data.invoice_date || new Date().toISOString().split("T")[0];
+      if (data.due_date < invoiceDate) {
+        throw new Error("Due date cannot be before the invoice date.");
+      }
+
       const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
       const { data: invoice, error: invoiceError } = await supabase
@@ -147,11 +166,11 @@ export function useCreateInvoice() {
         .insert({
           user_id: user.id,
           invoice_number: invoiceNumber,
-          client_name: data.client_name,
+          client_name: data.client_name.trim(),
           client_email: data.client_email,
           customer_id: data.customer_id || null,
           amount: data.amount,
-          invoice_date: data.invoice_date || new Date().toISOString().split("T")[0],
+          invoice_date: invoiceDate,
           due_date: data.due_date,
           status: data.status || "draft",
           place_of_supply: data.place_of_supply || null,
@@ -218,6 +237,29 @@ export function useUpdateInvoiceStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Invoice["status"] }) => {
+      // ── Lifecycle state-machine enforcement ───────────────────
+      const VALID_TRANSITIONS: Record<string, string[]> = {
+        draft: ["sent", "cancelled"],
+        sent: ["paid", "overdue", "cancelled"],
+        overdue: ["paid", "cancelled"],
+        paid: [],        // terminal
+        cancelled: [],   // terminal
+      };
+
+      // Fetch current status to validate transition
+      const { data: current, error: fetchErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = current?.status as string;
+
+      const allowed = VALID_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change invoice status from "${currentStatus}" to "${status}".`);
+      }
+
       const { data, error } = await supabase
         .from("invoices")
         .update({ status })
@@ -271,6 +313,20 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      // ── Only drafts can be fully edited ───────────────────────
+      const { data: statusCheck, error: statusErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", data.id)
+        .single();
+      if (statusErr) throw statusErr;
+      if (statusCheck?.status !== "draft") {
+        throw new Error("Only draft invoices can be edited. Change status back to draft first.");
+      }
+
+      if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
+      if (!data.client_name?.trim()) throw new Error("Client name is required.");
+
       // Fetch current version for optimistic locking
       const { data: current, error: fetchErr } = await (supabase as any)
         .from("invoices")
@@ -356,6 +412,17 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // ── Only drafts can be deleted ────────────────────────────
+      const { data: inv, error: checkErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (checkErr) throw checkErr;
+      if (inv?.status && inv.status !== "draft") {
+        throw new Error(`Cannot delete a "${inv.status}" invoice. Only draft invoices can be deleted.`);
+      }
+
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
     },

@@ -115,10 +115,29 @@ export function usePostJournal() {
       memo: string;
       lines: { gl_account_id: string; debit: number; credit: number; description?: string; cost_center?: string; department?: string }[];
     }) => {
+      if (!org?.organizationId) throw new Error("Organization not found");
+      if (!params.date) throw new Error("Entry date is required.");
+      if (!params.memo?.trim()) throw new Error("Memo / narration is required.");
+      if (!params.lines || params.lines.length < 2) throw new Error("A journal entry must have at least two lines.");
+
+      // Validate balanced entry client-side
+      let totalDebit = 0;
+      let totalCredit = 0;
+      for (const line of params.lines) {
+        if (line.debit < 0 || line.credit < 0) throw new Error("Debit and credit amounts cannot be negative.");
+        if (line.debit === 0 && line.credit === 0) throw new Error("Each line must have a debit or credit amount.");
+        if (line.debit > 0 && line.credit > 0) throw new Error("A single line cannot have both debit and credit.");
+        totalDebit += line.debit;
+        totalCredit += line.credit;
+      }
+      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        throw new Error(`Journal entry is not balanced. Debits (₹${totalDebit.toFixed(2)}) ≠ Credits (₹${totalCredit.toFixed(2)})`);
+      }
+
       const { data, error } = await supabase.rpc("post_journal_entry", {
-        p_org_id: org?.organizationId!,
+        p_org_id: org.organizationId,
         p_date: params.date,
-        p_memo: params.memo,
+        p_memo: params.memo.trim(),
         p_doc_type: "manual",
         p_doc_id: null,
         p_lines: params.lines,
