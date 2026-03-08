@@ -747,15 +747,15 @@ export default function Profile() {
               </div>
             </TabsContent>
 
-            {/* Change Requests Tab */}
+            {/* Change Requests Audit Trail Tab */}
             <TabsContent value="requests">
               <Card className="glass-morphism">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Send className="h-5 w-5 text-primary" />
-                    My Change Requests
+                    Change Request Audit Trail
                   </CardTitle>
-                  <CardDescription>Track your submitted profile change requests</CardDescription>
+                  <CardDescription>Complete history of all profile change requests with reviewer decisions and timestamps</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {changeRequests.length === 0 ? (
@@ -765,41 +765,87 @@ export default function Profile() {
                       <p className="text-xs text-muted-foreground mt-1">Use the "Request Change" button on any field to submit a request</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {changeRequests.map((req) => (
-                        <div key={req.id} className="p-3 rounded-lg border border-border/50">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px] h-5 capitalize">{req.section}</Badge>
-                              <span className="text-sm font-medium">{FIELD_LABELS[req.field_name] || req.field_name}</span>
+                    <div className="relative">
+                      {/* Vertical timeline line */}
+                      <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-border" />
+
+                      <div className="space-y-4">
+                        {changeRequests.map((req, idx) => {
+                          const isPending = req.status === "pending";
+                          const isApproved = req.status === "approved";
+                          const isRejected = req.status === "rejected";
+
+                          return (
+                            <div key={req.id} className="relative pl-10">
+                              {/* Timeline dot */}
+                              <div className={`absolute left-[9px] top-3 h-3 w-3 rounded-full border-2 border-background ${
+                                isPending ? "bg-amber-500" : isApproved ? "bg-emerald-500" : "bg-red-500"
+                              }`} />
+
+                              <div className={`p-4 rounded-lg border transition-colors ${
+                                isPending ? "border-amber-500/30 bg-amber-500/5" : 
+                                isApproved ? "border-emerald-500/20 bg-emerald-500/5" : 
+                                "border-red-500/20 bg-red-500/5"
+                              }`}>
+                                {/* Header */}
+                                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-[10px] h-5 capitalize">{req.section}</Badge>
+                                    <span className="text-sm font-medium">{FIELD_LABELS[req.field_name] || req.field_name}</span>
+                                  </div>
+                                  <Badge variant="outline" className={`${statusStyles[req.status]} flex items-center gap-1`}>
+                                    {statusIcons[req.status]}
+                                    {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                                  </Badge>
+                                </div>
+
+                                {/* Value comparison */}
+                                <div className="grid grid-cols-2 gap-3 text-xs mb-2">
+                                  <div className="p-2 rounded bg-muted/30">
+                                    <span className="text-muted-foreground block text-[10px] uppercase tracking-wider mb-0.5">Current Value</span>
+                                    <span className="font-medium">{req.current_value || "—"}</span>
+                                  </div>
+                                  <div className="p-2 rounded bg-primary/5 border border-primary/10">
+                                    <span className="text-muted-foreground block text-[10px] uppercase tracking-wider mb-0.5">Requested Value</span>
+                                    <span className="font-medium text-primary">{req.requested_value || "—"}</span>
+                                  </div>
+                                </div>
+
+                                {req.reason && (
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    <span className="font-medium">Reason:</span> {req.reason}
+                                  </p>
+                                )}
+
+                                {/* Audit trail events */}
+                                <div className="border-t border-border/30 pt-2 mt-2 space-y-1">
+                                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                    <Clock className="h-3 w-3 flex-shrink-0" />
+                                    <span>Submitted on {new Date(req.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at {new Date(req.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                                  </div>
+                                  {req.reviewed_at && (
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      {isApproved ? (
+                                        <CheckCircle className="h-3 w-3 flex-shrink-0 text-emerald-500" />
+                                      ) : (
+                                        <XCircle className="h-3 w-3 flex-shrink-0 text-red-500" />
+                                      )}
+                                      <span className={isApproved ? "text-emerald-600" : "text-red-600"}>
+                                        {isApproved ? "Approved" : "Rejected"} on {new Date(req.reviewed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at {new Date(req.reviewed_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {req.reviewer_notes && (
+                                    <div className="flex items-start gap-2 text-[10px] text-muted-foreground mt-1 ml-5">
+                                      <span className="italic">"{req.reviewer_notes}"</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <Badge variant="outline" className={`${statusStyles[req.status]} flex items-center gap-1`}>
-                              {statusIcons[req.status]}
-                              {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div>
-                              <span className="text-muted-foreground">Current:</span>
-                              <span className="ml-1">{req.current_value || "—"}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Requested:</span>
-                              <span className="ml-1 font-medium">{req.requested_value || "—"}</span>
-                            </div>
-                          </div>
-                          {req.reason && (
-                            <p className="text-xs text-muted-foreground mt-1">Reason: {req.reason}</p>
-                          )}
-                          {req.reviewer_notes && (
-                            <p className="text-xs text-muted-foreground mt-1 italic">HR Notes: {req.reviewer_notes}</p>
-                          )}
-                          <p className="text-[10px] text-muted-foreground mt-2">
-                            Submitted {new Date(req.created_at).toLocaleDateString()}
-                            {req.reviewed_at && ` • Reviewed ${new Date(req.reviewed_at).toLocaleDateString()}`}
-                          </p>
-                        </div>
-                      ))}
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </CardContent>
