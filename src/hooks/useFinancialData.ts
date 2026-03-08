@@ -268,6 +268,10 @@ export function useAddFinancialRecord() {
     mutationFn: async (record: Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">) => {
       if (!user) throw new Error("User not authenticated");
 
+      // ── Fiscal period guard ────────────────────────────────
+      const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
+      await validateFiscalPeriod(record.record_date);
+
       const validated = financialRecordSchema.parse(record);
 
       const { data, error } = await supabase
