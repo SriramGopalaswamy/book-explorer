@@ -1,20 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 // ─── Items ───
 
 export function useItems() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["items"],
+    queryKey: ["items", orgId],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("items" as any)
-        .select("*")
-        .order("name");
+      let q = supabase.from("items" as any).select("*").order("name");
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
@@ -71,14 +74,16 @@ export function useDeleteItem() {
 
 export function useWarehouses() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["warehouses"],
+    queryKey: ["warehouses", orgId],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses" as any)
-        .select("*")
-        .order("name");
+      let q = supabase.from("warehouses" as any).select("*").order("name");
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
@@ -135,11 +140,15 @@ export function useDeleteWarehouse() {
 
 export function useStockLedger(itemId?: string, warehouseId?: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["stock-ledger", itemId, warehouseId],
+    queryKey: ["stock-ledger", itemId, warehouseId, orgId],
     enabled: !!user,
     queryFn: async () => {
       let q = supabase.from("stock_ledger" as any).select("*").order("posted_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
       if (itemId) q = q.eq("item_id", itemId);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q.limit(500);
@@ -153,14 +162,16 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
 
 export function useStockAdjustments() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["stock-adjustments"],
+    queryKey: ["stock-adjustments", orgId],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stock_adjustments" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = supabase.from("stock_adjustments" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
