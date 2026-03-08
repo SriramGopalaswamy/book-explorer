@@ -40,6 +40,7 @@ export function usePayrollAnalytics() {
         .order("pay_period", { ascending: true })
         .limit(24);
 
+      const { data: runs } = await runsQuery;
       const runIds = (runs ?? []).map((r) => r.id);
 
       const { data: entries } = await supabase
