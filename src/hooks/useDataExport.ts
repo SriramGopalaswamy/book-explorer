@@ -42,12 +42,33 @@ export function useRequestDataExport() {
 
   return useMutation({
     mutationFn: async (categories?: string[] | void) => {
+      if (!user?.id) throw new Error("Not authenticated.");
+
+      // Validate categories against whitelist
+      const selectedCategories: string[] = categories ? [...categories] : [...ALL_CATEGORIES];
+      for (const cat of selectedCategories) {
+        if (!(ALL_CATEGORIES as readonly string[]).includes(cat)) {
+          throw new Error(`Invalid data category: "${cat}".`);
+        }
+      }
+
+      // Rate-limit: block if there's already a pending/processing request
+      const { data: pending } = await (supabase as any)
+        .from("data_export_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("status", ["pending", "processing"])
+        .limit(1);
+      if (pending && pending.length > 0) {
+        throw new Error("You already have an export in progress. Please wait for it to complete.");
+      }
+
       const { data, error } = await (supabase as any)
         .from("data_export_requests")
         .insert({
-          user_id: user!.id,
+          user_id: user.id,
           request_type: "full_export",
-          data_categories: categories ?? ALL_CATEGORIES,
+          data_categories: selectedCategories,
         })
         .select()
         .single();

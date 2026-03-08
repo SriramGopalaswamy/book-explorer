@@ -142,6 +142,20 @@ export function useAssetDepreciation(assetId: string | null) {
   });
 }
 
+// ── Asset validation helpers ──
+const TERMINAL_STATUSES = ["disposed", "written_off"] as const;
+
+function validateAssetCreate(asset: Partial<AssetInsert>): void {
+  if (!asset.name?.trim()) throw new Error("Asset name is required.");
+  if (!asset.asset_tag?.trim()) throw new Error("Asset tag is required.");
+  if (asset.purchase_price != null && asset.purchase_price < 0) throw new Error("Purchase price cannot be negative.");
+  if (asset.salvage_value != null && asset.salvage_value < 0) throw new Error("Salvage value cannot be negative.");
+  if (asset.useful_life_months != null && asset.useful_life_months <= 0) throw new Error("Useful life must be greater than zero.");
+  if (asset.purchase_price != null && asset.salvage_value != null && asset.salvage_value > asset.purchase_price) {
+    throw new Error("Salvage value cannot exceed purchase price.");
+  }
+}
+
 export function useCreateAsset() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -149,6 +163,8 @@ export function useCreateAsset() {
   return useMutation({
     mutationFn: async (asset: Partial<AssetInsert>) => {
       if (!user) throw new Error("Not authenticated");
+      validateAssetCreate(asset);
+
       const { data, error } = await supabase
         .from("assets")
         .insert({ ...asset, user_id: user.id } as any)
@@ -175,6 +191,29 @@ export function useUpdateAsset() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<AssetInsert>) => {
+      // Fetch current state to enforce lifecycle rules
+      const { data: current, error: fetchErr } = await supabase
+        .from("assets")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr || !current) throw fetchErr || new Error("Asset not found.");
+
+      const currentStatus = (current as any).status as string;
+
+      // Block edits on terminal assets (except reactivation)
+      if (TERMINAL_STATUSES.includes(currentStatus as any)) {
+        const isReactivation = updates.status === "active";
+        if (!isReactivation) {
+          throw new Error(`Cannot modify a ${currentStatus.replace("_", " ")} asset. Reactivate it first.`);
+        }
+      }
+
+      // Validate disposal requires disposal_date
+      if (updates.status === "disposed" && !(updates as any).disposal_date) {
+        throw new Error("Disposal date is required when disposing an asset.");
+      }
+
       const { data, error } = await supabase
         .from("assets")
         .update(updates as any)
@@ -204,6 +243,27 @@ export function useDeleteAsset() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Block deletion of disposed/written-off assets (audit trail)
+      const { data: asset, error: fetchErr } = await supabase
+        .from("assets")
+        .select("status, name")
+        .eq("id", id)
+        .single();
+      if (fetchErr || !asset) throw fetchErr || new Error("Asset not found.");
+
+      if (TERMINAL_STATUSES.includes((asset as any).status as any)) {
+        throw new Error(`Cannot delete a ${(asset as any).status.replace("_", " ")} asset. It must be retained for audit records.`);
+      }
+
+      // Block deletion if depreciation entries exist
+      const { count } = await supabase
+        .from("asset_depreciation_entries")
+        .select("*", { count: "exact", head: true })
+        .eq("asset_id", id);
+      if ((count || 0) > 0) {
+        throw new Error("Cannot delete an asset with depreciation history. Dispose or write off instead.");
+      }
+
       const { error } = await supabase.from("assets").delete().eq("id", id);
       if (error) throw error;
     },

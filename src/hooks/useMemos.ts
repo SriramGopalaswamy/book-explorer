@@ -201,6 +201,14 @@ export async function uploadMemoAttachment(file: File, userId: string): Promise<
   return fileName; // store the path, not a public URL (bucket is private)
 }
 
+// ── Memo state machine ──
+const MEMO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["pending_approval"],
+  pending_approval: ["published", "rejected"],
+  published: [],  // terminal
+  rejected: ["draft", "pending_approval"], // can revise and resubmit
+};
+
 export function useCreateMemo() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -216,6 +224,12 @@ export function useCreateMemo() {
       attachment_url?: string | null;
     }) => {
       if (!user?.id) throw new Error("You must be logged in to create a memo");
+
+      // Validate required fields
+      if (!memo.title?.trim()) throw new Error("Memo title is required.");
+      if (!memo.subject?.trim()) throw new Error("Memo subject is required.");
+      if (memo.recipients.length === 0) throw new Error("At least one recipient is required.");
+      if (memo.title.length > 200) throw new Error("Memo title must be under 200 characters.");
 
       // Fetch the user's organization_id so the insert passes RLS
       const { data: profile, error: profileError } = await supabase
@@ -235,12 +249,12 @@ export function useCreateMemo() {
       const { data, error } = await supabase
         .from("memos")
         .insert({
-          title: memo.title,
-          subject: memo.subject,
+          title: memo.title.trim(),
+          subject: memo.subject.trim(),
           content: memo.content ?? null,
           excerpt,
-          department: "All",       // kept for DB compat
-          priority: "medium",      // kept for DB compat
+          department: "All",
+          priority: "medium",
           status: memo.status ?? "pending_approval",
           author_name: memo.author_name,
           recipients: memo.recipients,
@@ -260,12 +274,9 @@ export function useCreateMemo() {
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
       if (data.status === "pending_approval") {
         toast.success("Memo submitted for manager approval");
-        // Notify manager via edge function
         supabase.functions.invoke("send-notification-email", {
           body: { type: "memo_submitted_for_approval", payload: { memo_id: data.id } },
         }).catch((err) => console.warn("Failed to send memo notification:", err));
-
-        // In-app notification handled by edge function
       } else {
         toast.success("Memo saved as draft");
       }
@@ -281,6 +292,23 @@ export function useUpdateMemo() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
+      // Enforce state machine on status transitions
+      if (updates.status) {
+        const { data: current, error: fetchErr } = await supabase
+          .from("memos")
+          .select("status")
+          .eq("id", id)
+          .single();
+        if (fetchErr || !current) throw fetchErr || new Error("Memo not found.");
+        const currentStatus = (current as any).status as string;
+        const allowed = MEMO_TRANSITIONS[currentStatus] || [];
+        if (!allowed.includes(updates.status) && updates.status !== currentStatus) {
+          throw new Error(`Cannot transition memo from "${currentStatus}" to "${updates.status}".`);
+        }
+      }
+
+      if (updates.title !== undefined && !updates.title?.trim()) throw new Error("Memo title cannot be empty.");
+
       const excerpt = updates.content
         ? updates.content.substring(0, 150) + (updates.content.length > 150 ? "..." : "")
         : undefined;
@@ -485,6 +513,17 @@ export function useDeleteMemo() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Block deletion of published memos (permanent record)
+      const { data: memo, error: fetchErr } = await supabase
+        .from("memos")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr || !memo) throw fetchErr || new Error("Memo not found.");
+      if ((memo as any).status === "published") {
+        throw new Error("Published memos cannot be deleted. They are part of the official record.");
+      }
+
       const { error } = await supabase.from("memos").delete().eq("id", id);
       if (error) throw error;
     },
