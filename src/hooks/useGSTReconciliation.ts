@@ -246,11 +246,11 @@ export function useForm16AData(fy: string) {
       const vendorIds = [...new Set((bills || []).map(b => b.vendor_id).filter(Boolean))];
       let vendorPans: Record<string, string> = {};
       if (vendorIds.length > 0) {
-        const { data: vendors } = await supabase
+        const { data: vendors } = await (supabase as any)
           .from("vendors")
           .select("id, pan_number")
           .in("id", vendorIds);
-        vendorPans = Object.fromEntries((vendors || []).map(v => [v.id, (v as any).pan_number || ""]));
+        vendorPans = Object.fromEntries((vendors || []).map((v: any) => [v.id, v.pan_number || ""]));
       }
 
       // Group by vendor + section
