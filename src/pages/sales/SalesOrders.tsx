@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2 } from "lucide-react";
-import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, SalesOrder } from "@/hooks/useSalesOrders";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, ArrowRight, PackageCheck } from "lucide-react";
+import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
+import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
