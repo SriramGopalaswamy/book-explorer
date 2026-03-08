@@ -201,6 +201,14 @@ export async function uploadMemoAttachment(file: File, userId: string): Promise<
   return fileName; // store the path, not a public URL (bucket is private)
 }
 
+// ── Memo state machine ──
+const MEMO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["pending_approval"],
+  pending_approval: ["published", "rejected"],
+  published: [],  // terminal
+  rejected: ["draft", "pending_approval"], // can revise and resubmit
+};
+
 export function useCreateMemo() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -216,6 +224,12 @@ export function useCreateMemo() {
       attachment_url?: string | null;
     }) => {
       if (!user?.id) throw new Error("You must be logged in to create a memo");
+
+      // Validate required fields
+      if (!memo.title?.trim()) throw new Error("Memo title is required.");
+      if (!memo.subject?.trim()) throw new Error("Memo subject is required.");
+      if (memo.recipients.length === 0) throw new Error("At least one recipient is required.");
+      if (memo.title.length > 200) throw new Error("Memo title must be under 200 characters.");
 
       // Fetch the user's organization_id so the insert passes RLS
       const { data: profile, error: profileError } = await supabase
@@ -235,12 +249,12 @@ export function useCreateMemo() {
       const { data, error } = await supabase
         .from("memos")
         .insert({
-          title: memo.title,
-          subject: memo.subject,
+          title: memo.title.trim(),
+          subject: memo.subject.trim(),
           content: memo.content ?? null,
           excerpt,
-          department: "All",       // kept for DB compat
-          priority: "medium",      // kept for DB compat
+          department: "All",
+          priority: "medium",
           status: memo.status ?? "pending_approval",
           author_name: memo.author_name,
           recipients: memo.recipients,
@@ -260,12 +274,9 @@ export function useCreateMemo() {
       queryClient.invalidateQueries({ queryKey: ["memo-stats"] });
       if (data.status === "pending_approval") {
         toast.success("Memo submitted for manager approval");
-        // Notify manager via edge function
         supabase.functions.invoke("send-notification-email", {
           body: { type: "memo_submitted_for_approval", payload: { memo_id: data.id } },
         }).catch((err) => console.warn("Failed to send memo notification:", err));
-
-        // In-app notification handled by edge function
       } else {
         toast.success("Memo saved as draft");
       }
