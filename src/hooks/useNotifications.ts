@@ -63,13 +63,15 @@ export function useNotifications() {
     };
   }, [user, queryClient]);
 
-  // Mark single as read
+  // Mark single as read — scoped to current user
   const markAsRead = useMutation({
     mutationFn: async (notificationId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("notifications")
         .update({ read: true })
-        .eq("id", notificationId);
+        .eq("id", notificationId)
+        .eq("user_id", user.id); // Ensure ownership
       if (error) throw error;
     },
     onSuccess: () => {
