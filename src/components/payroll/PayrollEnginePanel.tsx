@@ -39,7 +39,9 @@ import { useGeneratePayslips } from "@/hooks/usePayslipGeneration";
 import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { FileText as FileTextIcon } from "lucide-react";
+import { FileText as FileTextIcon, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -90,10 +92,22 @@ export function PayrollEnginePanel() {
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ run: PayrollRun; action: string } | null>(null);
 
+  const { data: deadlines = [] } = useWageDeadlines();
+
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
   const isHR = currentRole === "hr";
   const isFinanceOrAdmin = isFinance || currentRole === "admin";
+
+  // Wage deadline warning for selected period
+  const deadlineDate = computeDeadlineDate(selectedPeriod, 500); // default <1000 employees
+  const deadlineDt = new Date(deadlineDate);
+  const now = new Date();
+  const daysUntilDeadline = Math.ceil((deadlineDt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isOverdue = daysUntilDeadline < 0;
+  const isUrgent = daysUntilDeadline >= 0 && daysUntilDeadline <= 3;
+  const selectedRunLocked = existingRun?.status === "locked";
+  const showDeadlineWarning = !selectedRunLocked && (isOverdue || isUrgent);
 
   // HR submits for review; Finance/Admin approves and locks
   const canSubmitReview = (run: PayrollRun) => run.status === "completed" && (isHR || isFinanceOrAdmin);
@@ -111,6 +125,16 @@ export function PayrollEnginePanel() {
 
   return (
     <>
+      {showDeadlineWarning && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {isOverdue
+              ? `⚠️ Payment of Wages Act §5: Wages for ${periodLabel(selectedPeriod)} were due by ${deadlineDate}. Immediate disbursement required to avoid penalties.`
+              : `⏰ Wage deadline: Disbursement for ${periodLabel(selectedPeriod)} is due by ${deadlineDate} (${daysUntilDeadline} day${daysUntilDeadline !== 1 ? "s" : ""} remaining). Per Payment of Wages Act §5.`}
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="glass-card">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
