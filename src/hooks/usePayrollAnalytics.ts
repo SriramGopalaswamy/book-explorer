@@ -125,14 +125,14 @@ export function usePayrollAnalytics() {
       });
       const averageSalaryByRole = Array.from(roleMap.entries()).map(([role, v]) => ({
         role,
-        avg_salary: Math.round(v.total / v.count),
+        avg_salary: v.count > 0 ? Math.round(v.total / v.count) : 0,
         count: v.count,
       }));
 
       const totalPayrollCost = allRuns.reduce((s, r) => s + Number(r.total_net), 0);
       const totalEmployees = new Set(allEntries.map((e: any) => e.profile_id)).size;
       const avgCTC = allEntries.length > 0
-        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc), 0) / allEntries.length)
+        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc || 0), 0) / allEntries.length)
         : 0;
 
       return {
