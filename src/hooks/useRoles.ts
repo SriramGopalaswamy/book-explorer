@@ -1,24 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 /**
- * Hook to check if user has Admin or HR role
- * No dev mode bypass — always queries server
+ * Hook to check if user has Admin or HR role — ORG-SCOPED
+ * Prevents cross-tenant role escalation (e.g. admin in prod != admin in sandbox)
  */
 export function useIsAdminOrHR() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "admin-hr"],
+    queryKey: ["user-role", user?.id, "admin-hr", orgId],
     queryFn: async () => {
       if (!user) return false;
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .in("role", ["admin", "hr"]);
+
+      // Scope to the user's current organization to prevent cross-tenant role bleed
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error checking admin/HR role:", error);
@@ -35,21 +45,29 @@ export function useIsAdminOrHR() {
 }
 
 /**
- * Hook to check if user has Finance role or Admin role
+ * Hook to check if user has Finance role or Admin role — ORG-SCOPED
  */
 export function useIsFinance() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "finance"],
+    queryKey: ["user-role", user?.id, "finance", orgId],
     queryFn: async () => {
       if (!user) return false;
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .in("role", ["admin", "finance"]);
+
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error checking finance role:", error);
@@ -66,32 +84,53 @@ export function useIsFinance() {
 }
 
 /**
- * Hook to check if user is a Manager
+ * Hook to check if user is a Manager — ORG-SCOPED
  */
 export function useIsManager() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "manager"],
+    queryKey: ["user-role", user?.id, "manager", orgId],
     queryFn: async () => {
       if (!user) return false;
       
-      // Check user_roles table first
-      const { data: roleData } = await supabase
+      // Check user_roles table — org-scoped
+      let query = supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .eq("role", "manager")
         .limit(1);
 
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data: roleData } = await query;
       if (roleData && roleData.length > 0) return true;
 
-      // Fallback: check if anyone reports to this user
-      const { data, error } = await supabase
+      // Fallback: check if anyone in the SAME org reports to this user
+      const { data: myProfile } = await supabase
         .from("profiles")
         .select("id")
-        .eq("manager_id", user.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!myProfile) return false;
+
+      let reportQuery = supabase
+        .from("profiles")
+        .select("id")
+        .eq("manager_id", myProfile.id)
         .limit(1);
+
+      if (orgId) {
+        reportQuery = reportQuery.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await reportQuery;
 
       if (error) {
         console.error("Error checking manager status:", error);
@@ -108,20 +147,31 @@ export function useIsManager() {
 }
 
 /**
- * Hook to get the current user's primary role
+ * Hook to get the current user's primary role — ORG-SCOPED
+ * Critical: role resolution must be scoped to the active org to prevent
+ * privilege escalation across tenant boundaries (production vs sandbox).
  */
 export function useCurrentRole() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "current-role"],
+    queryKey: ["user-role", user?.id, "current-role", orgId],
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
+
+      // CRITICAL: Scope role resolution to user's current org
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching role:", error);
