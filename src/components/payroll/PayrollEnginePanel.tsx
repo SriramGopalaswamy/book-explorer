@@ -39,7 +39,9 @@ import { useGeneratePayslips } from "@/hooks/usePayslipGeneration";
 import { useIsFinance, useCurrentRole } from "@/hooks/useRoles";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { FileText as FileTextIcon } from "lucide-react";
+import { FileText as FileTextIcon, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
