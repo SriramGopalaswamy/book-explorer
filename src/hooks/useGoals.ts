@@ -87,11 +87,15 @@ export function useCreateGoal() {
       owner?: string;
       due_date?: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!goal.title?.trim()) throw new Error("Goal title is required");
+      if (!goal.category?.trim()) throw new Error("Goal category is required");
+
       const { data, error } = await supabase
         .from("goals")
         .insert({
           ...goal,
-          user_id: user?.id,
+          user_id: user.id,
         })
         .select()
         .single();
