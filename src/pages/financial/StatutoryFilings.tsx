@@ -55,6 +55,7 @@ import {
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { useGSTFilingStatus, useUpdateFilingStatus } from "@/hooks/useCurrencyAndFiling";
+import { useITCReconciliation, useForm16Data, useForm16AData } from "@/hooks/useGSTReconciliation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -219,8 +220,11 @@ export default function StatutoryFilings() {
   // Queries
   const gstr1 = useGSTR1Data(gstPeriod.from, gstPeriod.to);
   const gstr3b = useGSTR3BData(gstPeriod.from, gstPeriod.to);
+  const itcRecon = useITCReconciliation(gstPeriod.from, gstPeriod.to);
   const tds24q = useTDS24QData(tdsPeriod.from, tdsPeriod.to);
   const tds26q = useTDS26QData(tdsPeriod.from, tdsPeriod.to);
+  const form16 = useForm16Data(fy);
+  const form16a = useForm16AData(fy);
   const pfEcr = usePFECRData(pfPeriod.from, pfPeriod.to);
   const esiData = useESIData(pfPeriod.from, pfPeriod.to);
   const profTax = useProfTaxData(pfPeriod.from, pfPeriod.to);
@@ -375,8 +379,10 @@ export default function StatutoryFilings() {
   const allFilingTypes = [
     { id: "gstr1", label: "GSTR-1", icon: FileSpreadsheet, desc: "Outward Supplies", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "gstr3b", label: "GSTR-3B", icon: IndianRupee, desc: "Summary Return", frequency: "Monthly", portal: "gst.gov.in" },
+    { id: "itc_recon", label: "ITC Recon", icon: FileSpreadsheet, desc: "GSTR-2A Match", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "tds24q", label: "TDS 24Q", icon: Users, desc: "Salary TDS", frequency: "Quarterly", portal: "incometax.gov.in" },
     { id: "tds26q", label: "TDS 26Q", icon: Building2, desc: "Non-Salary TDS", frequency: "Quarterly", portal: "incometax.gov.in" },
+    { id: "form16", label: "Form 16", icon: FileText, desc: "TDS Certificates", frequency: "Annual", portal: "incometax.gov.in" },
     { id: "pf", label: "PF ECR", icon: Shield, desc: "PF Contribution", frequency: "Monthly", portal: "epfindia.gov.in" },
     { id: "esi", label: "ESI", icon: Shield, desc: "ESI Return", frequency: "Half-Yearly", portal: "esic.gov.in" },
     { id: "pt", label: "Prof Tax", icon: TrendingDown, desc: "Professional Tax", frequency: "Monthly", portal: "State Portal" },
@@ -387,10 +393,10 @@ export default function StatutoryFilings() {
     if (f.id === "pf") return payrollFlags?.pf_applicable !== false;
     if (f.id === "esi") return payrollFlags?.esi_applicable !== false;
     if (f.id === "pt") return payrollFlags?.professional_tax_applicable !== false;
-    return true; // GST & TDS always shown
+    return true; // GST, TDS, ITC, Form 16 always shown
   });
 
-  const isGST = activeTab === "gstr1" || activeTab === "gstr3b";
+  const isGST = activeTab === "gstr1" || activeTab === "gstr3b" || activeTab === "itc_recon";
   const isTDS = activeTab === "tds24q" || activeTab === "tds26q";
 
   return (
@@ -597,6 +603,106 @@ export default function StatutoryFilings() {
                 </div>
               )}
               <DataTable columns={esiCols} data={esiData.data || []} isLoading={esiData.isLoading} emptyMessage="No ESI-eligible employees for this period." />
+            </div>
+          )}
+
+          {activeTab === "itc_recon" && (
+            <div className="space-y-4">
+              <FilingHeader filingId="gstr3b" title="ITC Reconciliation — GSTR-2A/2B Match" desc="Compare your purchase register against GSTR-2A/2B to identify matched, unmatched, and excess ITC. Helps prevent ITC reversal during GST audit." portal="gst.gov.in" portalUrl="https://www.gst.gov.in" />
+              {itcRecon.data && (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <SummaryCard label="Total Purchase ITC" value={formatCurrency(itcRecon.data.total_purchase_itc)} />
+                  <SummaryCard label="Matched" value={formatCurrency(itcRecon.data.total_matched)} />
+                  <SummaryCard label="Unmatched" value={formatCurrency(itcRecon.data.total_unmatched)} />
+                  <SummaryCard label="Match Rate" value={`${itcRecon.data.match_rate.toFixed(1)}%`} />
+                  <SummaryCard label="Bills" value={String(itcRecon.data.rows.length)} />
+                </div>
+              )}
+              {itcRecon.data && itcRecon.data.rows.length > 0 ? (
+                <DataTable
+                  columns={[
+                    { key: "vendor_name" as any, header: "Vendor" },
+                    { key: "vendor_gstin" as any, header: "GSTIN", render: (r: any) => <span className="font-mono text-xs">{r.vendor_gstin}</span> },
+                    { key: "bill_number" as any, header: "Bill #", render: (r: any) => <span className="font-mono text-xs text-primary">{r.bill_number}</span> },
+                    { key: "bill_date" as any, header: "Date" },
+                    { key: "taxable_value" as any, header: "Taxable", render: (r: any) => formatCurrency(r.taxable_value), className: "text-right", headerClassName: "text-right" },
+                    { key: "total_itc" as any, header: "ITC Claimed", render: (r: any) => formatCurrency(r.total_itc), className: "text-right", headerClassName: "text-right" },
+                    { key: "match_status" as any, header: "Status", render: (r: any) => (
+                      <Badge variant="outline" className={r.match_status === "matched" ? "bg-green-500/10 text-green-600 border-green-500/30" : "bg-destructive/10 text-destructive border-destructive/30"}>
+                        {r.match_status === "matched" ? "✓ Matched" : "⚠ Unmatched"}
+                      </Badge>
+                    )},
+                  ]}
+                  data={itcRecon.data.rows}
+                  isLoading={itcRecon.isLoading}
+                  emptyMessage="No bills for ITC reconciliation"
+                />
+              ) : (
+                <Card className="bg-card border-border">
+                  <CardContent className="p-6 text-center text-muted-foreground">No purchase bills found for this period.</CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {activeTab === "form16" && (
+            <div className="space-y-4">
+              <FilingHeader filingId="tds24q" title="TDS Certificates — Form 16 & 16A" desc="Generate Form 16 (salary) and Form 16A (non-salary) TDS certificates for employees and vendors. Required under Section 203 of the Income Tax Act." portal="incometax.gov.in" portalUrl="https://www.incometax.gov.in" />
+              
+              <Tabs defaultValue="form16_salary">
+                <TabsList>
+                  <TabsTrigger value="form16_salary">Form 16 (Salary)</TabsTrigger>
+                  <TabsTrigger value="form16a_nonsalary">Form 16A (Non-Salary)</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="form16_salary" className="space-y-4 mt-4">
+                  {form16.data && form16.data.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <SummaryCard label="Employees" value={String(form16.data.length)} />
+                      <SummaryCard label="Total Gross Salary" value={formatCurrency(form16.data.reduce((s, r) => s + r.gross_salary, 0))} />
+                      <SummaryCard label="Total TDS Deducted" value={formatCurrency(form16.data.reduce((s, r) => s + r.tds_deducted, 0))} />
+                    </div>
+                  )}
+                  <DataTable
+                    columns={[
+                      { key: "employee_name" as any, header: "Employee" },
+                      { key: "employee_pan" as any, header: "PAN", render: (r: any) => <span className="font-mono text-xs">{r.employee_pan || "—"}</span> },
+                      { key: "gross_salary" as any, header: "Gross Salary", render: (r: any) => formatCurrency(r.gross_salary), className: "text-right", headerClassName: "text-right" },
+                      { key: "standard_deduction" as any, header: "Std Deduction", render: (r: any) => formatCurrency(r.standard_deduction), className: "text-right", headerClassName: "text-right" },
+                      { key: "total_income" as any, header: "Taxable Income", render: (r: any) => formatCurrency(r.total_income), className: "text-right", headerClassName: "text-right" },
+                      { key: "tds_deducted" as any, header: "TDS", render: (r: any) => <span className="font-semibold">{formatCurrency(r.tds_deducted)}</span>, className: "text-right", headerClassName: "text-right" },
+                      { key: "cess" as any, header: "Cess (4%)", render: (r: any) => formatCurrency(r.cess), className: "text-right", headerClassName: "text-right" },
+                    ]}
+                    data={form16.data || []}
+                    isLoading={form16.isLoading}
+                    emptyMessage="No Form 16 data for this financial year"
+                  />
+                </TabsContent>
+                
+                <TabsContent value="form16a_nonsalary" className="space-y-4 mt-4">
+                  {form16a.data && form16a.data.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <SummaryCard label="Deductees" value={String(form16a.data.length)} />
+                      <SummaryCard label="Total Paid" value={formatCurrency(form16a.data.reduce((s, r) => s + r.total_paid, 0))} />
+                      <SummaryCard label="Total TDS" value={formatCurrency(form16a.data.reduce((s, r) => s + r.tds_deducted, 0))} />
+                    </div>
+                  )}
+                  <DataTable
+                    columns={[
+                      { key: "deductee_name" as any, header: "Vendor/Deductee" },
+                      { key: "deductee_pan" as any, header: "PAN", render: (r: any) => <span className="font-mono text-xs">{r.deductee_pan || "—"}</span> },
+                      { key: "section" as any, header: "Section", render: (r: any) => <Badge variant="outline">{r.section}</Badge> },
+                      { key: "total_paid" as any, header: "Amount Paid", render: (r: any) => formatCurrency(r.total_paid), className: "text-right", headerClassName: "text-right" },
+                      { key: "tds_rate" as any, header: "Rate (%)", render: (r: any) => `${r.tds_rate}%`, className: "text-right", headerClassName: "text-right" },
+                      { key: "tds_deducted" as any, header: "TDS", render: (r: any) => <span className="font-semibold">{formatCurrency(r.tds_deducted)}</span>, className: "text-right", headerClassName: "text-right" },
+                      { key: "certificate_number" as any, header: "Certificate #", render: (r: any) => <span className="font-mono text-xs">{r.certificate_number}</span> },
+                    ]}
+                    data={form16a.data || []}
+                    isLoading={form16a.isLoading}
+                    emptyMessage="No Form 16A data for this financial year"
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 
