@@ -116,7 +116,7 @@ export function useApproveRequest() {
       // Double-review guard: verify request is still pending
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status")
+        .select("status, document_type, document_id")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
@@ -131,8 +131,38 @@ export function useApproveRequest() {
         updated_at: new Date().toISOString(),
       } as any).eq("id", id);
       if (error) throw error;
+
+      // ── Auto-execute: propagate approval back to source document ──
+      const docType = (current as any)?.document_type;
+      const docId = (current as any)?.document_id;
+      if (docType && docId) {
+        const tableMap: Record<string, string> = {
+          invoice: "invoices",
+          bill: "bills",
+          expense: "expenses",
+          purchase_order: "purchase_orders",
+        };
+        const statusMap: Record<string, string> = {
+          invoice: "sent",
+          bill: "Received",
+          expense: "approved",
+          purchase_order: "approved",
+        };
+        const table = tableMap[docType];
+        const newStatus = statusMap[docType];
+        if (table && newStatus) {
+          await supabase.from(table as any).update({ status: newStatus } as any).eq("id", docId);
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["approval-requests"] }); toast.success("Request approved"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["approval-requests"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+      toast.success("Request approved — document status updated");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }
