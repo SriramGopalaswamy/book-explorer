@@ -205,6 +205,22 @@ export function useCreateLeaveRequest() {
         throw new Error("You already have a leave request overlapping with these dates");
       }
 
+      // Check leave balance — block if insufficient
+      const currentYear = new Date().getFullYear();
+      const { data: balances } = await supabase
+        .from("leave_balances")
+        .select("total_days, used_days")
+        .eq("user_id", user.id)
+        .eq("leave_type", request.leave_type)
+        .eq("year", currentYear)
+        .maybeSingle();
+      if (balances) {
+        const remaining = Number(balances.total_days) - Number(balances.used_days);
+        if (days > remaining) {
+          throw new Error(`Insufficient ${request.leave_type} leave balance. Available: ${remaining} days, Requested: ${days} days.`);
+        }
+      }
+
       // Check against holidays — warn but don't block
       const { data: holidays } = await supabase
         .from("holidays")
