@@ -151,6 +151,17 @@ export function useDeleteWarehouse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Prevent deleting warehouses with stock
+      const { data: stock, error: stockErr } = await supabase
+        .from("stock_ledger" as any)
+        .select("id")
+        .eq("warehouse_id", id)
+        .limit(1);
+      if (stockErr) throw stockErr;
+      if (stock && stock.length > 0) {
+        throw new Error("Cannot delete a warehouse with existing stock entries. Transfer stock out first.");
+      }
+
       const { error } = await supabase.from("warehouses" as any).delete().eq("id", id);
       if (error) throw error;
     },
