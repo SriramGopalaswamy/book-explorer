@@ -165,8 +165,15 @@ export default function AuditLog() {
       title="Audit Log"
       subtitle="Full record of all workflow actions performed in the system"
     >
+      <Tabs defaultValue="events" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="events"><Activity className="h-4 w-4 mr-1" />Event Log</TabsTrigger>
+          <TabsTrigger value="integrity"><ShieldCheck className="h-4 w-4 mr-1" />Integrity Verification</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="events" className="space-y-6">
       {/* Header Stats */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Events</CardTitle>
