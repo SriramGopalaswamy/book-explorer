@@ -44,11 +44,25 @@ export function useSubmitForReview() {
 
 export function useApprovePayroll() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (runId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only under_review runs can be approved
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (run.status !== "under_review") {
+        throw new Error(`Cannot approve: current status is '${run.status}'. Must be under_review.`);
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
-        .update({ status: "approved" } as any)
+        .update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() } as any)
         .eq("id", runId);
       if (error) throw error;
     },
