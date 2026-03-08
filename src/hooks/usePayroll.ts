@@ -276,7 +276,18 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Hard delete since deleted_at column doesn't exist in schema
+      // ── Only draft/cancelled records can be deleted ────────
+      const { data: check, error: checkErr } = await supabase
+        .from("payroll_records")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (checkErr) throw checkErr;
+      const status = check?.status as string;
+      if (status && !["draft", "cancelled"].includes(status)) {
+        throw new Error(`Cannot delete a "${status}" payroll record. Only draft or cancelled records can be deleted.`);
+      }
+
       const { error } = await supabase
         .from("payroll_records")
         .delete()

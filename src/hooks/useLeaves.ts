@@ -314,6 +314,28 @@ export function useApproveLeaveRequest() {
 
       if (error) throw error;
 
+      // ── CRITICAL: Decrement leave balance ──────────────────────
+      try {
+        const currentYear = new Date().getFullYear();
+        const { data: balance } = await supabase
+          .from("leave_balances")
+          .select("id, used_days")
+          .eq("user_id", data.user_id)
+          .eq("leave_type", data.leave_type)
+          .eq("year", currentYear)
+          .maybeSingle();
+
+        if (balance) {
+          const newUsed = Number(balance.used_days) + Number(data.days);
+          await supabase
+            .from("leave_balances")
+            .update({ used_days: newUsed })
+            .eq("id", balance.id);
+        }
+      } catch (balErr) {
+        console.warn("Failed to update leave balance:", balErr);
+      }
+
       // Create attendance_records with status='leave' for each day in the leave range
       try {
         const fromDate = new Date(data.from_date);

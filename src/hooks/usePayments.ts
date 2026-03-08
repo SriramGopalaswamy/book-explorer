@@ -203,8 +203,44 @@ export function useCreateVendorPayment() {
         created_by: user.id,
       } as any);
       if (error) throw error;
+
+      // ── Auto-update linked bill to "Paid" ─────────────────
+      if (p.bill_id) {
+        const { data: bill } = await supabase
+          .from("bills")
+          .select("status, total_amount")
+          .eq("id", p.bill_id)
+          .single();
+        if (bill && bill.status !== "Paid" && bill.status !== "Cancelled") {
+          if (p.amount >= Number(bill.total_amount)) {
+            await supabase
+              .from("bills")
+              .update({ status: "Paid" })
+              .eq("id", p.bill_id);
+
+            // Create bank transaction for outgoing payment
+            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+            await createBankTransaction({
+              userId: user.id,
+              amount: p.amount,
+              type: "debit",
+              description: `Vendor payment: ${num} — ${p.vendor_name}`,
+              reference: num,
+              category: "Bill Payment",
+              date: p.payment_date,
+            });
+          }
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vendor-payments"] }); toast.success("Vendor payment recorded"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["vendor-payments"] });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Vendor payment recorded");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }
