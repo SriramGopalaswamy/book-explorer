@@ -213,10 +213,29 @@ export function useCreateWorkOrder() {
   });
 }
 
+const VALID_WO_STATUSES = ["draft", "planned", "in_progress", "completed", "cancelled", "on_hold"] as const;
+const WO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["planned", "cancelled"],
+  planned: ["in_progress", "cancelled", "on_hold"],
+  in_progress: ["completed", "on_hold", "cancelled"],
+  on_hold: ["in_progress", "cancelled"],
+};
+
 export function useUpdateWOStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_WO_STATUSES.includes(status as any)) throw new Error(`Invalid work order status: ${status}`);
+
+      // Verify transition is allowed
+      const { data: current } = await supabase.from("work_orders" as any).select("status").eq("id", id).maybeSingle();
+      const currentStatus = (current as any)?.status;
+      if (currentStatus && WO_TRANSITIONS[currentStatus] && !WO_TRANSITIONS[currentStatus].includes(status)) {
+        throw new Error(`Cannot transition work order from '${currentStatus}' to '${status}'`);
+      }
+
       const updates: any = { status, updated_at: new Date().toISOString() };
       if (status === "in_progress" && !updates.actual_start) updates.actual_start = new Date().toISOString();
       if (status === "completed") updates.actual_end = new Date().toISOString();
