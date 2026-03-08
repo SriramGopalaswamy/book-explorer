@@ -117,11 +117,14 @@ export function useOrgDetail(orgId: string | null) {
 
 /**
  * Override org_state with audit logging.
+ * Enforces valid state transitions and requires a reason.
  */
 export function useOrgStateOverride() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const logAction = useLogPlatformAction();
+
+  const VALID_STATES = ["onboarding", "active", "suspended", "locked", "archived"];
 
   return useMutation({
     mutationFn: async (params: {
@@ -131,6 +134,15 @@ export function useOrgStateOverride() {
       newState: string;
       reason: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!params.reason?.trim()) throw new Error("Reason is required for state overrides");
+      if (!VALID_STATES.includes(params.newState)) {
+        throw new Error(`Invalid state: '${params.newState}'. Must be one of: ${VALID_STATES.join(", ")}`);
+      }
+      if (params.newState === params.previousState) {
+        throw new Error("New state must differ from current state");
+      }
+
       const { error } = await supabase
         .from("organizations")
         .update({ org_state: params.newState })
@@ -140,7 +152,7 @@ export function useOrgStateOverride() {
       // Log to audit_logs
       const { error: auditError } = await supabase.from("audit_logs").insert([
         {
-          actor_id: user!.id,
+          actor_id: user.id,
           organization_id: params.orgId,
           action: "ORG_STATE_OVERRIDE",
           entity_type: "organization",
