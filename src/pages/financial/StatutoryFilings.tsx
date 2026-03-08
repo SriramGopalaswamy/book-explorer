@@ -375,8 +375,10 @@ export default function StatutoryFilings() {
   const allFilingTypes = [
     { id: "gstr1", label: "GSTR-1", icon: FileSpreadsheet, desc: "Outward Supplies", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "gstr3b", label: "GSTR-3B", icon: IndianRupee, desc: "Summary Return", frequency: "Monthly", portal: "gst.gov.in" },
+    { id: "itc_recon", label: "ITC Recon", icon: FileSpreadsheet, desc: "GSTR-2A Match", frequency: "Monthly", portal: "gst.gov.in" },
     { id: "tds24q", label: "TDS 24Q", icon: Users, desc: "Salary TDS", frequency: "Quarterly", portal: "incometax.gov.in" },
     { id: "tds26q", label: "TDS 26Q", icon: Building2, desc: "Non-Salary TDS", frequency: "Quarterly", portal: "incometax.gov.in" },
+    { id: "form16", label: "Form 16", icon: FileText, desc: "TDS Certificates", frequency: "Annual", portal: "incometax.gov.in" },
     { id: "pf", label: "PF ECR", icon: Shield, desc: "PF Contribution", frequency: "Monthly", portal: "epfindia.gov.in" },
     { id: "esi", label: "ESI", icon: Shield, desc: "ESI Return", frequency: "Half-Yearly", portal: "esic.gov.in" },
     { id: "pt", label: "Prof Tax", icon: TrendingDown, desc: "Professional Tax", frequency: "Monthly", portal: "State Portal" },
@@ -387,10 +389,10 @@ export default function StatutoryFilings() {
     if (f.id === "pf") return payrollFlags?.pf_applicable !== false;
     if (f.id === "esi") return payrollFlags?.esi_applicable !== false;
     if (f.id === "pt") return payrollFlags?.professional_tax_applicable !== false;
-    return true; // GST & TDS always shown
+    return true; // GST, TDS, ITC, Form 16 always shown
   });
 
-  const isGST = activeTab === "gstr1" || activeTab === "gstr3b";
+  const isGST = activeTab === "gstr1" || activeTab === "gstr3b" || activeTab === "itc_recon";
   const isTDS = activeTab === "tds24q" || activeTab === "tds26q";
 
   return (
