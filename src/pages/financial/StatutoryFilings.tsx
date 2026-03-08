@@ -706,7 +706,7 @@ export default function StatutoryFilings() {
             </div>
           )}
 
-
+          {activeTab === "pt" && (
             <div className="space-y-4">
               <FilingHeader filingId="pt" title="Professional Tax" desc="Monthly Professional Tax deduction as per state slabs. Upload to respective State Commercial Tax Portal." portal="State Portal" />
               {profTax.data && profTax.data.length > 0 && (
