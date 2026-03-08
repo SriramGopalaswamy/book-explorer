@@ -54,6 +54,23 @@ export function useSubmitChangeRequest() {
       reason?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!input.requested_value?.trim()) throw new Error("Requested value cannot be empty");
+      if (input.requested_value === input.current_value) {
+        throw new Error("New value must differ from current value");
+      }
+
+      // Check for existing pending request on same field
+      const { data: existing } = await supabase
+        .from("profile_change_requests" as any)
+        .select("id")
+        .eq("profile_id", input.profile_id)
+        .eq("field_name", input.field_name)
+        .eq("status", "pending")
+        .limit(1);
+      if (existing && (existing as any[]).length > 0) {
+        throw new Error("A pending change request already exists for this field");
+      }
+
       const { error } = await supabase
         .from("profile_change_requests" as any)
         .insert({

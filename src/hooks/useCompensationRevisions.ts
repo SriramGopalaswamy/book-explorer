@@ -154,6 +154,19 @@ export function useReviewRevisionRequest() {
   return useMutation({
     mutationFn: async (data: { id: string; status: "approved" | "rejected"; reviewer_notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!["approved", "rejected"].includes(data.status)) {
+        throw new Error("Invalid review status");
+      }
+
+      // Verify request is still pending before updating
+      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
+        .select("status")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (current?.status !== "pending") {
+        throw new Error("This request has already been reviewed");
+      }
+
       const { error } = await (supabase.from("compensation_revision_requests" as any) as any)
         .update({
           status: data.status,

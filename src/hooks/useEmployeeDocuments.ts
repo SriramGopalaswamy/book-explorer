@@ -122,8 +122,11 @@ export function useUploadEmployeeDocument() {
 export function useDeleteEmployeeDocument() {
   const queryClient = useQueryClient();
 
+  const { user } = useAuth();
+
   return useMutation({
     mutationFn: async ({ id, filePath, profileId }: { id: string; filePath: string; profileId: string }) => {
+      if (!user) throw new Error("Not authenticated");
       await supabase.storage.from("employee-documents").remove([filePath]);
       const { error } = await supabase.from("employee_documents").delete().eq("id", id);
       if (error) throw error;
