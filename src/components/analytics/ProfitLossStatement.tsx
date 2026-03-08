@@ -63,6 +63,20 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
           })}>
             <Download className="h-4 w-4 mr-1" /> Export PDF
           </Button>
+          <Button variant="outline" size="sm" onClick={() => exportScheduleIIIProfitLoss({
+            companyName: "Organization",
+            cin: "",
+            periodFrom: from ? format(from, "dd MMM yyyy") : "Start of FY",
+            periodTo: to ? format(to, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
+            revenue: pl.revenue,
+            expenses: pl.expenses,
+            totalRevenue: pl.totalRevenue,
+            totalExpenses: pl.totalExpenses,
+            netIncome: pl.netIncome,
+            grossMargin: pl.grossMargin,
+          })}>
+            <FileText className="h-4 w-4 mr-1" /> Schedule III
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

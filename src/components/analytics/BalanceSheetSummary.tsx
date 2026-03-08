@@ -96,6 +96,19 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
         })}>
           <Download className="h-4 w-4 mr-1" /> Export PDF
         </Button>
+        <Button variant="outline" size="sm" onClick={() => exportScheduleIIIBalanceSheet({
+          companyName: "Organization",
+          cin: "",
+          asOfDate: asOfDate ? format(asOfDate, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
+          assets: bs.assets,
+          liabilities: bs.liabilities,
+          equity: bs.equity,
+          totalAssets: bs.totalAssets,
+          totalLiabilities: bs.totalLiabilities,
+          totalEquity: bs.totalEquity,
+        })}>
+          <FileText className="h-4 w-4 mr-1" /> Schedule III
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="grid md:grid-cols-3 gap-6">
