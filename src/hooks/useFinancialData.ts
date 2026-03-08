@@ -302,6 +302,11 @@ export function useUpdateFinancialRecord() {
     mutationFn: async ({ id, ...record }: { id: string } & Partial<Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">>) => {
       if (!user) throw new Error("User not authenticated");
 
+      // Validate amount if provided
+      if (record.amount !== undefined && record.amount <= 0) {
+        throw new Error("Amount must be a positive number");
+      }
+
       const { data, error } = await supabase
         .from("financial_records")
         .update(record)

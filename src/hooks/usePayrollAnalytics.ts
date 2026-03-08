@@ -151,3 +151,17 @@ export function usePayrollAnalytics() {
     staleTime: 1000 * 60 * 5,
   });
 }
+
+function getEmptyPayrollAnalytics(): PayrollAnalyticsData {
+  return {
+    monthlyCostTrend: [],
+    departmentCosts: [],
+    tdsCollectedTrend: [],
+    pfContributionTrend: [],
+    lwpImpact: [],
+    averageSalaryByRole: [],
+    totalEmployees: 0,
+    totalPayrollCost: 0,
+    avgCTC: 0,
+  };
+}
