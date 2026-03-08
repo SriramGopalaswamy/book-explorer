@@ -259,8 +259,15 @@ export function useUpdateWOStatus() {
       }
 
       const updates: any = { status, updated_at: new Date().toISOString() };
-      if (status === "in_progress" && !updates.actual_start) updates.actual_start = new Date().toISOString();
-      if (status === "completed") updates.actual_end = new Date().toISOString();
+      if (status === "in_progress" && !(current as any)?.actual_start) updates.actual_start = new Date().toISOString();
+      if (status === "completed") {
+        updates.actual_end = new Date().toISOString();
+        // Validate: completed_quantity should be > 0 for completion
+        const wo = current as any;
+        if (wo && Number(wo.completed_quantity || 0) === 0) {
+          throw new Error("Cannot mark work order as completed with zero completed quantity. Record production first.");
+        }
+      }
       const { error } = await supabase.from("work_orders" as any).update(updates).eq("id", id);
       if (error) throw error;
     },

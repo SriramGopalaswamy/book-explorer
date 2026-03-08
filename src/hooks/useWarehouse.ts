@@ -168,6 +168,24 @@ export function useUpdateTransferStatus() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
+
+      // ── Lifecycle state-machine ───────────────────────────────
+      const TRANSFER_TRANSITIONS: Record<string, string[]> = {
+        draft: ["in_transit", "cancelled"],
+        in_transit: ["received", "cancelled"],
+        received: [],    // terminal
+        cancelled: [],   // terminal
+      };
+
+      const { data: current, error: fetchErr } = await supabase
+        .from("stock_transfers" as any).select("status").eq("id", id).single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = (current as any)?.status;
+      const allowed = TRANSFER_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
+      }
+
       const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
