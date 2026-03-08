@@ -216,6 +216,18 @@ export function useDeleteGoal() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Prevent deleting completed goals — they should be archived
+      const { data: goal, error: fetchErr } = await supabase
+        .from("goals")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (goal?.status === "completed") {
+        throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
+      }
+
       const { error } = await supabase
         .from("goals")
         .delete()

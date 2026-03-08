@@ -142,11 +142,25 @@ export function useRejectRequest() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!reason?.trim()) throw new Error("A rejection reason is required.");
+
+      // Double-review guard
+      const { data: current, error: fetchErr } = await supabase
+        .from("approval_requests" as any)
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if ((current as any)?.status !== "pending") {
+        throw new Error("This request has already been reviewed.");
+      }
+
       const { error } = await supabase.from("approval_requests" as any).update({
         status: "rejected",
-        rejected_by: user?.id,
+        rejected_by: user.id,
         rejected_at: new Date().toISOString(),
-        rejection_reason: reason,
+        rejection_reason: reason.trim(),
         updated_at: new Date().toISOString(),
       } as any).eq("id", id);
       if (error) throw error;
