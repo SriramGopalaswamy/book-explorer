@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useConvertQuoteToSO } from "@/hooks/useDocumentChains";
 
 // ─── Types ───────────────────────────────────────────────────
 interface Customer { id: string; name: string; email: string | null; }
