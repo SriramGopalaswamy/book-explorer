@@ -237,6 +237,29 @@ export function useUpdateInvoiceStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Invoice["status"] }) => {
+      // ── Lifecycle state-machine enforcement ───────────────────
+      const VALID_TRANSITIONS: Record<string, string[]> = {
+        draft: ["sent", "cancelled"],
+        sent: ["paid", "overdue", "cancelled"],
+        overdue: ["paid", "cancelled"],
+        paid: [],        // terminal
+        cancelled: [],   // terminal
+      };
+
+      // Fetch current status to validate transition
+      const { data: current, error: fetchErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = current?.status as string;
+
+      const allowed = VALID_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change invoice status from "${currentStatus}" to "${status}".`);
+      }
+
       const { data, error } = await supabase
         .from("invoices")
         .update({ status })
