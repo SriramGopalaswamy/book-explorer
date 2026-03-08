@@ -31,6 +31,9 @@ export default function SalesOrders() {
   const { data: orders = [], isLoading } = useSalesOrders();
   const createSO = useCreateSalesOrder();
   const updateStatus = useUpdateSOStatus();
+  const deleteSO = useDeleteSalesOrder();
+  const convertToInvoice = useConvertSOToInvoice();
+  const createDN = useCreateDeliveryNote();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
