@@ -194,11 +194,11 @@ export default function Invoicing() {
   // Create form state
   const [createStatus, setCreateStatus] = useState<"draft" | "sent">("draft");
   const [lineItems, setLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   // Edit form state
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   if (isCheckingRole) {
     return (
@@ -301,7 +301,7 @@ export default function Invoicing() {
         onSuccess: () => {
           setSelectedCustomerId("");
           setLineItems([{ ...emptyLineItem }]);
-          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time", performanceObligation: "" });
           setCreateStatus("draft");
           setIsDialogOpen(false);
         },
@@ -332,6 +332,8 @@ export default function Invoicing() {
       placeOfSupply: (invoice as any).place_of_supply || "",
       paymentTerms: (invoice as any).payment_terms || "Due on Receipt",
       customerGstin: (invoice as any).customer_gstin || "",
+      revenueRecognition: (invoice as any).revenue_recognition || "point_in_time",
+      performanceObligation: (invoice as any).performance_obligation || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -604,6 +606,27 @@ export default function Invoicing() {
                       </div>
                     </div>
 
+                    {/* Ind AS 115 Revenue Recognition */}
+                    <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5">
+                      <div className="col-span-2">
+                        <p className="text-xs font-medium text-primary mb-1">Ind AS 115 — Revenue Recognition</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Recognition Method</Label>
+                        <Select value={formMeta.revenueRecognition} onValueChange={v => setFormMeta(prev => ({ ...prev, revenueRecognition: v as "point_in_time" | "over_time" }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="point_in_time">Point in Time</SelectItem>
+                            <SelectItem value="over_time">Over Time</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Performance Obligation</Label>
+                        <Input placeholder="e.g. Software license delivery" value={formMeta.performanceObligation} onChange={e => setFormMeta(prev => ({ ...prev, performanceObligation: e.target.value }))} />
+                      </div>
+                    </div>
+
                     {renderLineItemsForm(lineItems, updateLineItem, addLineItem, removeLineItem, createSubtotal, createCgst, createSgst, createTotal)}
 
                     <div className="grid gap-2">
@@ -667,6 +690,27 @@ export default function Invoicing() {
                       <div className="grid gap-2">
                         <Label>Customer GSTIN</Label>
                         <Input value={editFormMeta.customerGstin} onChange={e => setEditFormMeta(prev => ({ ...prev, customerGstin: e.target.value }))} />
+                      </div>
+                    </div>
+
+                    {/* Ind AS 115 Revenue Recognition */}
+                    <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5">
+                      <div className="col-span-2">
+                        <p className="text-xs font-medium text-primary mb-1">Ind AS 115 — Revenue Recognition</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Recognition Method</Label>
+                        <Select value={editFormMeta.revenueRecognition} onValueChange={v => setEditFormMeta(prev => ({ ...prev, revenueRecognition: v as "point_in_time" | "over_time" }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="point_in_time">Point in Time</SelectItem>
+                            <SelectItem value="over_time">Over Time</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Performance Obligation</Label>
+                        <Input placeholder="e.g. Software license delivery" value={editFormMeta.performanceObligation} onChange={e => setEditFormMeta(prev => ({ ...prev, performanceObligation: e.target.value }))} />
                       </div>
                     </div>
 

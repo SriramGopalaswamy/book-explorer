@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, ChevronRight } from "lucide-react";
+import { Download, ChevronRight, FileText } from "lucide-react";
 import { useBalanceSheet } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { exportScheduleIIIBalanceSheet } from "@/lib/schedule-iii-export";
 import { BSDrillDownDialog } from "./BSDrillDownDialog";
 import { format } from "date-fns";
 
@@ -94,6 +95,19 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
           ],
         })}>
           <Download className="h-4 w-4 mr-1" /> Export PDF
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => exportScheduleIIIBalanceSheet({
+          companyName: "Organization",
+          cin: "",
+          asOfDate: asOfDate ? format(asOfDate, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
+          assets: bs.assets,
+          liabilities: bs.liabilities,
+          equity: bs.equity,
+          totalAssets: bs.totalAssets,
+          totalLiabilities: bs.totalLiabilities,
+          totalEquity: bs.totalEquity,
+        })}>
+          <FileText className="h-4 w-4 mr-1" /> Schedule III
         </Button>
       </CardHeader>
       <CardContent>
