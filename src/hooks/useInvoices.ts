@@ -313,6 +313,20 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      // ── Only drafts can be fully edited ───────────────────────
+      const { data: statusCheck, error: statusErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", data.id)
+        .single();
+      if (statusErr) throw statusErr;
+      if (statusCheck?.status !== "draft") {
+        throw new Error("Only draft invoices can be edited. Change status back to draft first.");
+      }
+
+      if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
+      if (!data.client_name?.trim()) throw new Error("Client name is required.");
+
       // Fetch current version for optimistic locking
       const { data: current, error: fetchErr } = await (supabase as any)
         .from("invoices")
