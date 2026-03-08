@@ -77,8 +77,12 @@ export function useBinLocations(warehouseId?: string) {
 
 export function useCreateBinLocation() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (bin: { warehouse_id: string; bin_code: string; zone?: string; aisle?: string; rack?: string; level?: string; capacity_units?: number; notes?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!bin.bin_code?.trim()) throw new Error("Bin code is required");
+      if (!bin.warehouse_id) throw new Error("Warehouse is required");
       const { data, error } = await supabase.from("bin_locations" as any).insert(bin as any).select().single();
       if (error) throw error;
       return data;
