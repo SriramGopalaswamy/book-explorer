@@ -79,11 +79,25 @@ export function useApprovePayroll() {
 
 export function useLockApprovedPayroll() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (runId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only approved runs can be locked
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (run.status !== "approved") {
+        throw new Error(`Cannot lock: current status is '${run.status}'. Must be approved.`);
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
-        .update({ status: "locked" } as any)
+        .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id } as any)
         .eq("id", runId);
       if (error) throw error;
     },

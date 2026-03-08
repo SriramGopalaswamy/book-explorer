@@ -498,6 +498,16 @@ export function useUpdateEntryLWP() {
 
   return useMutation({
     mutationFn: async ({ entryId, lwpDays, runId }: { entryId: string; lwpDays: number; runId: string }) => {
+      if (lwpDays < 0) throw new Error("LWP days cannot be negative");
+
+      // Ensure run is not locked
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (run?.status === "locked") throw new Error("Cannot modify entries on a locked payroll run");
+
       // Fetch the current entry to recalculate
       const { data: entry, error: fetchErr } = await supabase
         .from("payroll_entries")

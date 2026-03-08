@@ -169,6 +169,20 @@ export function useApproveDeclaration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, approved_amount }: { id: string; approved_amount: number }) => {
+      if (approved_amount < 0) throw new Error("Approved amount cannot be negative");
+
+      // Verify current status is submitted
+      const { data: decl } = await supabase
+        .from("investment_declarations")
+        .select("status, declared_amount")
+        .eq("id", id)
+        .single();
+      if (!decl) throw new Error("Declaration not found");
+      if (decl.status !== "submitted") throw new Error(`Cannot approve: declaration is already '${decl.status}'`);
+      if (approved_amount > Number(decl.declared_amount)) {
+        throw new Error("Approved amount cannot exceed declared amount");
+      }
+
       const { error } = await supabase
         .from("investment_declarations")
         .update({

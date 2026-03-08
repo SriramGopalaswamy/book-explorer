@@ -198,6 +198,17 @@ export function useManagerReviewDispute() {
   return useMutation({
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "forward" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Double-review guard
+      const { data: check } = await supabase
+        .from("payslip_disputes" as any)
+        .select("status")
+        .eq("id", disputeId)
+        .single();
+      if ((check as any)?.status !== "pending_manager") {
+        throw new Error("This dispute has already been reviewed or is no longer pending manager review");
+      }
+
       const update: any = {
         manager_reviewed_at: new Date().toISOString(),
         manager_reviewed_by: user.id,
