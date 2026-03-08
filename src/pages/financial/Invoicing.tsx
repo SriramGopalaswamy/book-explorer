@@ -332,6 +332,8 @@ export default function Invoicing() {
       placeOfSupply: (invoice as any).place_of_supply || "",
       paymentTerms: (invoice as any).payment_terms || "Due on Receipt",
       customerGstin: (invoice as any).customer_gstin || "",
+      revenueRecognition: (invoice as any).revenue_recognition || "point_in_time",
+      performanceObligation: (invoice as any).performance_obligation || "",
     });
     setIsEditDialogOpen(true);
   };
