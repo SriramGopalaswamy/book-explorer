@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 export interface AuditLog {
   id: string;
@@ -79,15 +80,20 @@ export interface AuditLogFilters {
 
 export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize = 25) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["audit-logs", filters, page, pageSize],
+    queryKey: ["audit-logs", orgId, filters, page, pageSize],
     queryFn: async () => {
       let query = supabase
         .from("audit_logs" as any)
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
+
+      // ── Org-scoping: prevent cross-tenant audit log access ──
+      if (orgId) query = query.eq("organization_id", orgId);
 
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
       if (filters.action)     query = query.eq("action", filters.action);
@@ -124,6 +130,10 @@ export function useWriteAuditLog() {
       metadata?: Record<string, unknown>;
     }) => {
       if (!user) return;
+
+      // Sanitize search-like inputs in metadata to prevent injection
+      const sanitizedMetadata = entry.metadata ? JSON.parse(JSON.stringify(entry.metadata)) : {};
+
       const { error } = await supabase.from("audit_logs" as any).insert({
         actor_id: user.id,
         actor_name: entry.actor_name ?? user.user_metadata?.full_name ?? user.email ?? "Unknown",
@@ -133,7 +143,7 @@ export function useWriteAuditLog() {
         entity_id: entry.entity_id ?? null,
         target_user_id: entry.target_user_id ?? null,
         target_name: entry.target_name ?? null,
-        metadata: entry.metadata ?? {},
+        metadata: sanitizedMetadata,
       } as any);
       if (error) console.warn("Audit log write failed:", error.message);
     },
