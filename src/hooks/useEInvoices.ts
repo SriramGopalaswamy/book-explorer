@@ -1,7 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
+import { isValidGSTIN, isValidHSN } from "@/hooks/useGSTReconciliation";
+
+// ── Pincode validation (6 digits, Indian) ──
+const PINCODE_REGEX = /^\d{6}$/;
+// ── State codes 01-38 ──
+const isValidStateCode = (code: string) => {
+  const n = parseInt(code, 10);
+  return !isNaN(n) && n >= 1 && n <= 38 && code.length === 2;
+};
 
 export interface EInvoiceItem {
   sl_no: number;
@@ -75,17 +85,50 @@ export type EInvoiceInsert = Partial<EInvoice> & {
   total_invoice_value: number;
 };
 
+/** Validates e-invoice data before submission */
+function validateEInvoice(einv: EInvoiceInsert): string | null {
+  if (!isValidGSTIN(einv.seller_gstin)) return "Invalid Seller GSTIN format. Must be 15 characters (e.g., 29ABCDE1234F1Z5).";
+  if (einv.buyer_gstin && !isValidGSTIN(einv.buyer_gstin)) return "Invalid Buyer GSTIN format.";
+  if (einv.seller_pincode && !PINCODE_REGEX.test(einv.seller_pincode)) return "Seller Pincode must be 6 digits.";
+  if (einv.buyer_pincode && !PINCODE_REGEX.test(einv.buyer_pincode)) return "Buyer Pincode must be 6 digits.";
+  if (einv.seller_state_code && !isValidStateCode(einv.seller_state_code)) return "Seller State Code must be 01-38.";
+  if (einv.buyer_state_code && !isValidStateCode(einv.buyer_state_code)) return "Buyer State Code must be 01-38.";
+  if (einv.total_invoice_value <= 0) return "Invoice value must be greater than zero.";
+
+  // HSN validation on items
+  if (einv.items && einv.items.length > 0) {
+    for (const item of einv.items) {
+      if (!isValidHSN(item.hsn_code)) return `Invalid HSN code "${item.hsn_code}" for "${item.product_description}". Must be 4, 6, or 8 digits.`;
+      if (item.quantity <= 0) return `Quantity must be > 0 for "${item.product_description}".`;
+    }
+  }
+
+  // Inter-state / intra-state tax consistency
+  if (einv.seller_state_code && einv.buyer_state_code) {
+    const isInterState = einv.seller_state_code !== einv.buyer_state_code;
+    if (isInterState && ((einv.total_cgst || 0) > 0 || (einv.total_sgst || 0) > 0)) {
+      return "Inter-state supply should use IGST, not CGST/SGST.";
+    }
+    if (!isInterState && (einv.total_igst || 0) > 0) {
+      return "Intra-state supply should use CGST/SGST, not IGST.";
+    }
+  }
+
+  return null;
+}
+
 export function useEInvoices() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["e_invoices"],
+    queryKey: ["e_invoices", orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("e_invoices")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = (supabase as any).from("e_invoices").select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as EInvoice[];
     },
@@ -94,6 +137,9 @@ export function useEInvoices() {
 
   const createMutation = useMutation({
     mutationFn: async (einv: EInvoiceInsert) => {
+      const validationError = validateEInvoice(einv);
+      if (validationError) throw new Error(validationError);
+
       const { data, error } = await (supabase as any)
         .from("e_invoices")
         .insert({ ...einv, user_id: user!.id })
@@ -141,6 +187,23 @@ export function useEInvoices() {
 
   const cancelEInvoice = useMutation({
     mutationFn: async ({ id, reason, remark }: { id: string; reason: string; remark?: string }) => {
+      // Enforce 24-hour cancellation window (Rule 48(4))
+      const { data: existing } = await (supabase as any)
+        .from("e_invoices")
+        .select("irn_generated_at, status")
+        .eq("id", id)
+        .single();
+
+      if (existing?.status === "cancelled") throw new Error("E-Invoice is already cancelled.");
+      if (existing?.irn_generated_at) {
+        const generatedAt = new Date(existing.irn_generated_at).getTime();
+        const now = Date.now();
+        const hoursSinceGeneration = (now - generatedAt) / (1000 * 60 * 60);
+        if (hoursSinceGeneration > 24) {
+          throw new Error("E-Invoice cancellation window expired. IRN was generated more than 24 hours ago per Rule 48(4).");
+        }
+      }
+
       const { data, error } = await (supabase as any)
         .from("e_invoices")
         .update({
