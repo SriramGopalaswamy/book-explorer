@@ -116,12 +116,21 @@ export function useCreateGoal() {
 
 export function useUpdateGoal() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
       id,
       ...updates
     }: Partial<Goal> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Validate status if provided
+      if (updates.status) {
+        const validStatuses: Goal["status"][] = ["on_track", "at_risk", "delayed", "completed"];
+        if (!validStatuses.includes(updates.status)) throw new Error("Invalid goal status");
+      }
+
       const { data, error } = await supabase
         .from("goals")
         .update(updates)
