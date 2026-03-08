@@ -154,10 +154,14 @@ export function useUpdateGoal() {
 
 export function useUpdateGoalProgress() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, progress }: { id: string; progress: number }) => {
-      const status = progress >= 100 ? "completed" : undefined;
+      if (!user) throw new Error("Not authenticated");
+      // Clamp progress to 0-100
+      const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+      const status = clampedProgress >= 100 ? "completed" : undefined;
       
       const { data, error } = await supabase
         .from("goals")
