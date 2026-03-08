@@ -140,6 +140,25 @@ export function useCreateInvoice() {
     mutationFn: async (data: CreateInvoiceData) => {
       if (!user) throw new Error("User not authenticated");
 
+      // ── Input validation ──────────────────────────────────────
+      if (!data.client_name?.trim()) throw new Error("Client name is required.");
+      if (!data.due_date) throw new Error("Due date is required.");
+      if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
+      if (!data.items || data.items.length === 0) throw new Error("At least one line item is required.");
+
+      // Validate each line item
+      for (const item of data.items) {
+        if (!item.description?.trim()) throw new Error("All line items must have a description.");
+        if (item.quantity <= 0) throw new Error("Line item quantity must be positive.");
+        if (item.rate < 0) throw new Error("Line item rate cannot be negative.");
+      }
+
+      // Due date must not be before invoice date
+      const invoiceDate = data.invoice_date || new Date().toISOString().split("T")[0];
+      if (data.due_date < invoiceDate) {
+        throw new Error("Due date cannot be before the invoice date.");
+      }
+
       const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
       const { data: invoice, error: invoiceError } = await supabase
@@ -147,11 +166,11 @@ export function useCreateInvoice() {
         .insert({
           user_id: user.id,
           invoice_number: invoiceNumber,
-          client_name: data.client_name,
+          client_name: data.client_name.trim(),
           client_email: data.client_email,
           customer_id: data.customer_id || null,
           amount: data.amount,
-          invoice_date: data.invoice_date || new Date().toISOString().split("T")[0],
+          invoice_date: invoiceDate,
           due_date: data.due_date,
           status: data.status || "draft",
           place_of_supply: data.place_of_supply || null,
