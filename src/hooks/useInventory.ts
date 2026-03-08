@@ -47,8 +47,12 @@ export function useCreateItem() {
 
 export function useUpdateItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (updates.selling_price !== undefined && updates.selling_price < 0) throw new Error("Selling price cannot be negative");
+      if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const { error } = await supabase.from("items" as any).update(updates).eq("id", id);
       if (error) throw error;
     },
