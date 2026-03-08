@@ -498,7 +498,7 @@ export function useUpdateEntryLWP() {
       const totalDeductions = deductionsBreakdown.reduce((s: number, c: any) => s + c.monthly, 0);
       const perDaySalary = workingDays > 0 ? Math.round((Number(entry.annual_ctc) / 12) / workingDays) : 0;
       const lwpDeduction = lwpDays * perDaySalary;
-      const netPay = grossEarnings - totalDeductions;
+      const netPay = Math.max(grossEarnings - totalDeductions, 0);
 
       const { error: updateErr } = await supabase
         .from("payroll_entries")
