@@ -3235,6 +3235,56 @@ export type Database = {
           },
         ]
       }
+      data_export_requests: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          data_categories: string[] | null
+          expires_at: string | null
+          file_url: string | null
+          id: string
+          organization_id: string
+          request_type: string
+          requested_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          data_categories?: string[] | null
+          expires_at?: string | null
+          file_url?: string | null
+          id?: string
+          organization_id: string
+          request_type?: string
+          requested_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          data_categories?: string[] | null
+          expires_at?: string | null
+          file_url?: string | null
+          id?: string
+          organization_id?: string
+          request_type?: string
+          requested_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_export_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_note_items: {
         Row: {
           created_at: string
@@ -4202,12 +4252,15 @@ export type Database = {
           debit: number
           description: string | null
           id: string
+          ind_as_category: string | null
           is_posted: boolean
           journal_entry_id: string | null
           memo: string | null
           organization_id: string
+          performance_obligation: string | null
           posted_at: string | null
           posting_date: string | null
+          recognition_method: string | null
           record_date: string
           reference_id: string | null
           reference_type: string | null
@@ -4224,12 +4277,15 @@ export type Database = {
           debit?: number
           description?: string | null
           id?: string
+          ind_as_category?: string | null
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
           organization_id?: string
+          performance_obligation?: string | null
           posted_at?: string | null
           posting_date?: string | null
+          recognition_method?: string | null
           record_date?: string
           reference_id?: string | null
           reference_type?: string | null
@@ -4246,12 +4302,15 @@ export type Database = {
           debit?: number
           description?: string | null
           id?: string
+          ind_as_category?: string | null
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
           organization_id?: string
+          performance_obligation?: string | null
           posted_at?: string | null
           posting_date?: string | null
+          recognition_method?: string | null
           record_date?: string
           reference_id?: string | null
           reference_type?: string | null
@@ -8905,6 +8964,80 @@ export type Database = {
           },
         ]
       }
+      state_leave_rules: {
+        Row: {
+          carry_forward_allowed: boolean | null
+          casual_leave_days: number
+          created_at: string | null
+          earned_leave_days: number
+          effective_from: string
+          id: string
+          maternity_leave_days: number
+          max_carry_forward_days: number | null
+          max_work_hours_per_week: number | null
+          min_days_for_el_accrual: number | null
+          notes: string | null
+          organization_id: string
+          overtime_rate_multiplier: number | null
+          paternity_leave_days: number
+          sick_leave_days: number
+          state_code: string
+          state_name: string
+          updated_at: string | null
+          weekly_off_count: number | null
+        }
+        Insert: {
+          carry_forward_allowed?: boolean | null
+          casual_leave_days?: number
+          created_at?: string | null
+          earned_leave_days?: number
+          effective_from?: string
+          id?: string
+          maternity_leave_days?: number
+          max_carry_forward_days?: number | null
+          max_work_hours_per_week?: number | null
+          min_days_for_el_accrual?: number | null
+          notes?: string | null
+          organization_id: string
+          overtime_rate_multiplier?: number | null
+          paternity_leave_days?: number
+          sick_leave_days?: number
+          state_code: string
+          state_name: string
+          updated_at?: string | null
+          weekly_off_count?: number | null
+        }
+        Update: {
+          carry_forward_allowed?: boolean | null
+          casual_leave_days?: number
+          created_at?: string | null
+          earned_leave_days?: number
+          effective_from?: string
+          id?: string
+          maternity_leave_days?: number
+          max_carry_forward_days?: number | null
+          max_work_hours_per_week?: number | null
+          min_days_for_el_accrual?: number | null
+          notes?: string | null
+          organization_id?: string
+          overtime_rate_multiplier?: number | null
+          paternity_leave_days?: number
+          sick_leave_days?: number
+          state_code?: string
+          state_name?: string
+          updated_at?: string | null
+          weekly_off_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "state_leave_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_adjustment_items: {
         Row: {
           adjustment_id: string
@@ -9777,6 +9910,59 @@ export type Database = {
           },
           {
             foreignKeyName: "vendors_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wage_payment_deadlines: {
+        Row: {
+          actual_payment_date: string | null
+          created_at: string | null
+          deadline_date: string
+          employee_count: number
+          employee_threshold: number
+          id: string
+          notes: string | null
+          organization_id: string
+          pay_period: string
+          penalty_applicable: boolean | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_payment_date?: string | null
+          created_at?: string | null
+          deadline_date: string
+          employee_count?: number
+          employee_threshold?: number
+          id?: string
+          notes?: string | null
+          organization_id: string
+          pay_period: string
+          penalty_applicable?: boolean | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_payment_date?: string | null
+          created_at?: string | null
+          deadline_date?: string
+          employee_count?: number
+          employee_threshold?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          pay_period?: string
+          penalty_applicable?: boolean | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wage_payment_deadlines_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
