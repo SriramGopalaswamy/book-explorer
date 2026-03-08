@@ -10,14 +10,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
-import { useFinancialData } from "@/hooks/useFinancialData";
+import { useFinancialRecords } from "@/hooks/useFinancialData";
 import { format } from "date-fns";
+
+interface UnrealizedFXLine {
+  id: string;
+  description: string;
+  currency: string;
+  originalAmount: number;
+  bookRate: number;
+  bookValueINR: number;
+  currentRate: number;
+  currentValueINR: number;
+  unrealizedGainLoss: number;
+}
 
 export default function ExchangeRatesPage() {
   const { data: currencies = [], isLoading: curLoading } = useCurrencies();
   const { data: rates = [], isLoading: rateLoading } = useExchangeRates();
+  const { data: financialRecords = [] } = useFinancialRecords();
   const createRate = useCreateExchangeRate();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] });
@@ -26,6 +39,45 @@ export default function ExchangeRatesPage() {
     if (!form.rate) return;
     createRate.mutate({ ...form, rate: Number(form.rate) }, { onSuccess: () => { setOpen(false); setForm({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] }); } });
   };
+
+  // IAS 21: Compute unrealized FX gain/loss for foreign-currency financial records
+  const unrealizedLines = useMemo<UnrealizedFXLine[]>(() => {
+    // Build a map of latest rates per currency pair → INR
+    const latestRates: Record<string, number> = {};
+    const sortedRates = [...rates].sort((a, b) => b.effective_date.localeCompare(a.effective_date));
+    for (const r of sortedRates) {
+      const key = `${r.from_currency}_${r.to_currency}`;
+      if (!latestRates[key]) latestRates[key] = Number(r.rate);
+    }
+
+    // Filter financial records with foreign currency
+    const foreignRecords = financialRecords.filter(
+      (rec: any) => rec.currency_code && rec.currency_code !== "INR" && rec.exchange_rate
+    );
+
+    return foreignRecords.map((rec: any) => {
+      const bookRate = Number(rec.exchange_rate) || 1;
+      const amount = Number(rec.amount) || 0;
+      const bookValueINR = amount * bookRate;
+      const currentRate = latestRates[`${rec.currency_code}_INR`] || bookRate;
+      const currentValueINR = amount * currentRate;
+      const unrealizedGainLoss = currentValueINR - bookValueINR;
+
+      return {
+        id: rec.id,
+        description: rec.description || rec.reference_number || "Transaction",
+        currency: rec.currency_code,
+        originalAmount: amount,
+        bookRate,
+        bookValueINR,
+        currentRate,
+        currentValueINR,
+        unrealizedGainLoss,
+      };
+    });
+  }, [financialRecords, rates]);
+
+  const totalUnrealizedGL = unrealizedLines.reduce((sum, l) => sum + l.unrealizedGainLoss, 0);
 
   const isLoading = curLoading || rateLoading;
   if (isLoading) return <MainLayout title="Exchange Rates"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
@@ -36,7 +88,7 @@ export default function ExchangeRatesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Multi-Currency & Exchange Rates</h1>
-            <p className="text-muted-foreground">Manage currencies and conversion rates for international transactions</p>
+            <p className="text-muted-foreground">Manage currencies, conversion rates, and IAS 21 FX exposure</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Rate</Button></DialogTrigger>
@@ -103,6 +155,98 @@ export default function ExchangeRatesPage() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* IAS 21 Unrealized FX Gain/Loss */}
+          <TabsContent value="unrealized">
+            <div className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>IAS 21 — Effects of Changes in Foreign Exchange Rates</AlertTitle>
+                <AlertDescription>
+                  Open monetary items denominated in foreign currencies are revalued at the closing rate.
+                  Unrealized gains/losses are recognized in profit or loss per IAS 21.28.
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Foreign Currency Items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{unrealizedLines.length}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Net Unrealized FX Gain/Loss</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold flex items-center gap-2 ${totalUnrealizedGL >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {totalUnrealizedGL >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                      ₹{Math.abs(totalUnrealizedGL).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{totalUnrealizedGL >= 0 ? "Gain" : "Loss"} (to be recognized in P&L)</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Reporting Standard</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge variant="outline" className="text-sm">IAS 21 / Ind AS 21</Badge>
+                    <p className="text-xs text-muted-foreground mt-1">Closing rate method applied</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Open Foreign Currency Monetary Items</CardTitle>
+                  <CardDescription>Revalued at the latest closing rate per IAS 21.23(a)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead className="text-right">FC Amount</TableHead>
+                        <TableHead className="text-right">Book Rate</TableHead>
+                        <TableHead className="text-right">Book Value (₹)</TableHead>
+                        <TableHead className="text-right">Closing Rate</TableHead>
+                        <TableHead className="text-right">Revalued (₹)</TableHead>
+                        <TableHead className="text-right">Unrealized G/L (₹)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {unrealizedLines.map(line => (
+                        <TableRow key={line.id}>
+                          <TableCell className="text-foreground max-w-48 truncate">{line.description}</TableCell>
+                          <TableCell className="font-mono text-foreground">{line.currency}</TableCell>
+                          <TableCell className="text-right tabular-nums text-foreground">{line.originalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{line.bookRate.toFixed(4)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-foreground">₹{line.bookValueINR.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{line.currentRate.toFixed(4)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-foreground">₹{line.currentValueINR.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${line.unrealizedGainLoss >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {line.unrealizedGainLoss >= 0 ? "+" : ""}₹{line.unrealizedGainLoss.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {unrealizedLines.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                            No open foreign currency monetary items. Foreign-denominated invoices and bills will appear here for IAS 21 revaluation.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="currencies">
