@@ -162,22 +162,26 @@ export function useCashFlowSummary() {
   return useQuery({
     queryKey: ["cash-flow-summary", user?.id],
     queryFn: async () => {
-      if (!user) {
-        return {
-          totalInflow: 9250000,
-          totalOutflow: 7830000,
-          netCashFlow: 1420000,
-          runway: 8.5,
-        };
-      }
+      if (!user) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
+
+      // Resolve org for scoping
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const orgId = profile?.organization_id;
 
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      const { data, error } = await supabase
+      let txQuery = supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
         .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
+      if (orgId) txQuery = txQuery.eq("organization_id", orgId);
+
+      const { data, error } = await txQuery;
 
       if (error) throw error;
 
