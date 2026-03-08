@@ -115,29 +115,37 @@ export function useAttendance(date?: string) {
 export function useAttendanceStats(date?: string) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const selectedDate = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance-stats", selectedDate, isDevMode],
+    queryKey: ["attendance-stats", selectedDate, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockAttendanceStats;
 
-      // Fetch attendance records, active profiles, and approved leaves in parallel
-      const [attendanceRes, profilesRes, leaveRes] = await Promise.all([
-        supabase
+      let attQ = supabase
           .from("attendance_records")
           .select("status, user_id, profile_id")
-          .eq("date", selectedDate),
-        supabase
+          .eq("date", selectedDate);
+      if (orgId) attQ = attQ.eq("organization_id", orgId);
+
+      let profQ = supabase
           .from("profiles")
           .select("id")
-          .eq("status", "active"),
-        supabase
+          .eq("status", "active");
+      if (orgId) profQ = profQ.eq("organization_id", orgId);
+
+      let leaveQ = supabase
           .from("leave_requests")
           .select("user_id, profile_id")
           .eq("status", "approved")
           .lte("from_date", selectedDate)
-          .gte("to_date", selectedDate),
+          .gte("to_date", selectedDate);
+      if (orgId) leaveQ = leaveQ.eq("organization_id", orgId);
+
+      const [attendanceRes, profilesRes, leaveRes] = await Promise.all([
+        attQ, profQ, leaveQ,
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
