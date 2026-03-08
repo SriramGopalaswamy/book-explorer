@@ -388,6 +388,11 @@ export default function AuditLog() {
           )}
         </CardContent>
       </Card>
-    </MainLayout>
+        </TabsContent>
+
+        <TabsContent value="integrity">
+          <AuditIntegrityVerifier />
+        </TabsContent>
+      </Tabs>
   );
 }
