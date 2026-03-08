@@ -55,8 +55,18 @@ export function useCompensationRevisionRequests(filter?: "pending" | "all") {
     queryKey: ["compensation-revision-requests", user?.id, filter],
     queryFn: async () => {
       if (!user) return [];
+
+      // Get user's org for tenant isolation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return [];
+
       let query = (supabase.from("compensation_revision_requests" as any) as any)
         .select("*")
+        .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
       if (filter === "pending") query = query.eq("status", "pending");
       const { data, error } = await query;
