@@ -47,8 +47,30 @@ export function useApprovalWorkflows() {
 
 export function useCreateApprovalWorkflow() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (w: { workflow_type: string; threshold_amount: number; required_role: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!w.workflow_type?.trim()) throw new Error("Workflow type is required.");
+      if (w.threshold_amount < 0) throw new Error("Threshold amount cannot be negative.");
+      if (!w.required_role?.trim()) throw new Error("Required role is required.");
+
+      const VALID_TYPES = ["invoice", "bill", "expense", "purchase_order", "payroll", "leave", "compensation"];
+      if (!VALID_TYPES.includes(w.workflow_type)) {
+        throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
+      }
+
+      // Prevent duplicate active workflows for same type
+      const { data: existing } = await supabase
+        .from("approval_workflows")
+        .select("id")
+        .eq("workflow_type", w.workflow_type)
+        .eq("is_active", true)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists. Deactivate it first.`);
+      }
+
       const { error } = await supabase.from("approval_workflows").insert([{
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
@@ -89,9 +111,22 @@ export function useApproveRequest() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Double-review guard: verify request is still pending
+      const { data: current, error: fetchErr } = await supabase
+        .from("approval_requests" as any)
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if ((current as any)?.status !== "pending") {
+        throw new Error("This request has already been reviewed.");
+      }
+
       const { error } = await supabase.from("approval_requests" as any).update({
         status: "approved",
-        approved_by: user?.id,
+        approved_by: user.id,
         approved_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as any).eq("id", id);
@@ -107,11 +142,25 @@ export function useRejectRequest() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!reason?.trim()) throw new Error("A rejection reason is required.");
+
+      // Double-review guard
+      const { data: current, error: fetchErr } = await supabase
+        .from("approval_requests" as any)
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if ((current as any)?.status !== "pending") {
+        throw new Error("This request has already been reviewed.");
+      }
+
       const { error } = await supabase.from("approval_requests" as any).update({
         status: "rejected",
-        rejected_by: user?.id,
+        rejected_by: user.id,
         rejected_at: new Date().toISOString(),
-        rejection_reason: reason,
+        rejection_reason: reason.trim(),
         updated_at: new Date().toISOString(),
       } as any).eq("id", id);
       if (error) throw error;

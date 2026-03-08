@@ -111,8 +111,31 @@ export function useCreateRevisionRequest() {
     }) => {
       if (!user) throw new Error("Not authenticated");
       if (data.proposed_ctc <= 0) throw new Error("Proposed CTC must be positive");
+      if (data.current_ctc <= 0) throw new Error("Current CTC must be positive");
       if (!data.revision_reason?.trim()) throw new Error("Revision reason is required");
       if (!data.effective_from) throw new Error("Effective date is required");
+      if (!data.profile_id) throw new Error("Employee profile is required");
+
+      // Effective date must be in the future
+      const today = new Date().toISOString().split("T")[0];
+      if (data.effective_from < today) {
+        throw new Error("Effective date must be today or in the future.");
+      }
+
+      // Cap revision increase at 200% of current CTC
+      if (data.proposed_ctc > data.current_ctc * 3) {
+        throw new Error("Proposed CTC cannot exceed 3x the current CTC. Contact Finance for exceptional cases.");
+      }
+
+      // Cannot request revision for yourself
+      const { data: selfProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (selfProfile?.id === data.profile_id) {
+        throw new Error("You cannot submit a compensation revision request for yourself.");
+      }
 
       // Prevent duplicate pending requests for same employee
       const { data: existing } = await (supabase.from("compensation_revision_requests" as any) as any)
@@ -130,7 +153,7 @@ export function useCreateRevisionRequest() {
         requested_by_role: data.requested_by_role,
         current_ctc: data.current_ctc,
         proposed_ctc: data.proposed_ctc,
-        revision_reason: data.revision_reason,
+        revision_reason: data.revision_reason.trim(),
         effective_from: data.effective_from,
         proposed_components: data.proposed_components,
       });
