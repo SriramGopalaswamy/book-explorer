@@ -206,8 +206,31 @@ export function useCreatePurchaseReturn() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (r: { vendor_name: string; vendor_id?: string; purchase_order_id?: string; goods_receipt_id?: string; return_date: string; reason?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string; reason?: string }[] }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!r.vendor_name?.trim()) throw new Error("Vendor name is required.");
+      if (!r.return_date) throw new Error("Return date is required.");
       if (r.items.length === 0) throw new Error("At least one return item is required.");
       if (r.items.some(i => i.quantity <= 0)) throw new Error("All return quantities must be greater than zero.");
+      if (r.items.some(i => !i.description?.trim())) throw new Error("All return items must have a description.");
+      if (r.items.some(i => i.tax_rate < 0 || i.tax_rate > 100)) throw new Error("Tax rates must be between 0% and 100%.");
+
+      // If linked to a PO, validate return quantities don't exceed received quantities
+      if (r.purchase_order_id) {
+        const { data: poItems, error: poErr } = await supabase
+          .from("purchase_order_items" as any)
+          .select("item_id, quantity, received_quantity")
+          .eq("purchase_order_id", r.purchase_order_id);
+        if (!poErr && poItems) {
+          for (const returnItem of r.items) {
+            if (returnItem.item_id) {
+              const poItem = (poItems as any[]).find((p: any) => p.item_id === returnItem.item_id);
+              if (poItem && returnItem.quantity > Number(poItem.received_quantity || poItem.quantity)) {
+                throw new Error(`Return quantity for "${returnItem.description}" exceeds received quantity.`);
+              }
+            }
+          }
+        }
+      }
 
       const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
@@ -215,7 +238,7 @@ export function useCreatePurchaseReturn() {
 
       const { data, error } = await supabase.from("purchase_returns" as any).insert({
         return_number: num,
-        vendor_name: r.vendor_name,
+        vendor_name: r.vendor_name.trim(),
         vendor_id: r.vendor_id || null,
         purchase_order_id: r.purchase_order_id || null,
         goods_receipt_id: r.goods_receipt_id || null,
@@ -225,7 +248,7 @@ export function useCreatePurchaseReturn() {
         tax_amount: Math.round(tax * 100) / 100,
         total_amount: Math.round((subtotal + tax) * 100) / 100,
         notes: r.notes || null,
-        created_by: user?.id,
+        created_by: user.id,
       } as any).select().single();
       if (error) throw error;
 
