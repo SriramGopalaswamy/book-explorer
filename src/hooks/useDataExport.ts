@@ -45,7 +45,7 @@ export function useRequestDataExport() {
       if (!user?.id) throw new Error("Not authenticated.");
 
       // Validate categories against whitelist
-      const selectedCategories = categories ?? [...ALL_CATEGORIES];
+      const selectedCategories: string[] = categories ? [...categories] : [...ALL_CATEGORIES];
       for (const cat of selectedCategories) {
         if (!(ALL_CATEGORIES as readonly string[]).includes(cat)) {
           throw new Error(`Invalid data category: "${cat}".`);
