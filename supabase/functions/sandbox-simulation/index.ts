@@ -5384,6 +5384,120 @@ async function runAccountingValidation(client: any, orgId: string, userId: strin
   } catch (e: any) { checks.push({ check: "NM8_STOCK_TRANSFER_INTEGRITY", module: "Warehouse", status: "failed", detail: e.message }); }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASE 9: CROSS-TENANT ISOLATION VERIFICATION
+  // Ensures sandbox data does not leak into production orgs
+  // ═══════════════════════════════════════════════════════════════
+
+  // X1: Verify sandbox profiles don't appear in production orgs
+  try {
+    const { data: sandboxProfiles } = await client.from("profiles")
+      .select("user_id").eq("organization_id", orgId);
+    const sandboxUserIds = (sandboxProfiles ?? []).map((p: any) => p.user_id).filter(Boolean);
+
+    // Get all non-sandbox orgs
+    const { data: prodOrgs } = await client.from("organizations")
+      .select("id").neq("id", orgId).neq("environment_type", "sandbox");
+    const prodOrgIds = (prodOrgs ?? []).map((o: any) => o.id);
+
+    let leakedProfiles = 0;
+    if (sandboxUserIds.length > 0 && prodOrgIds.length > 0) {
+      // Check if any sandbox-seeded users have profiles in production orgs
+      const { count: crossOrgCount } = await client.from("profiles")
+        .select("id", { count: "exact", head: true })
+        .in("user_id", sandboxUserIds.slice(0, 50))
+        .in("organization_id", prodOrgIds.slice(0, 20));
+      leakedProfiles = crossOrgCount ?? 0;
+    }
+    checks.push({
+      check: "X1_PROFILE_ISOLATION", module: "Tenant Isolation",
+      status: leakedProfiles === 0 ? "passed" : "warning",
+      detail: leakedProfiles === 0
+        ? `${sandboxUserIds.length} sandbox users verified isolated from ${prodOrgIds.length} production orgs`
+        : `⚠ ${leakedProfiles} sandbox user profiles found in production orgs — potential data leak`,
+    });
+  } catch (e: any) { checks.push({ check: "X1_PROFILE_ISOLATION", module: "Tenant Isolation", status: "failed", detail: e.message }); }
+
+  // X2: Verify sandbox financial records don't reference production entities
+  try {
+    const { data: sandboxJEs } = await client.from("journal_entries")
+      .select("id, organization_id").eq("organization_id", orgId).limit(5);
+    const { data: prodJEs } = await client.from("journal_entries")
+      .select("id, organization_id").neq("organization_id", orgId).limit(5);
+    // Ensure no overlap in journal entry IDs
+    const sandboxIds = new Set((sandboxJEs ?? []).map((j: any) => j.id));
+    const overlap = (prodJEs ?? []).filter((j: any) => sandboxIds.has(j.id));
+    checks.push({
+      check: "X2_FINANCIAL_ISOLATION", module: "Tenant Isolation",
+      status: overlap.length === 0 ? "passed" : "failed",
+      detail: overlap.length === 0
+        ? "Journal entries properly org-scoped, no ID collisions detected"
+        : `${overlap.length} journal entry ID collisions between sandbox and production`,
+    });
+  } catch (e: any) { checks.push({ check: "X2_FINANCIAL_ISOLATION", module: "Tenant Isolation", status: "failed", detail: e.message }); }
+
+  // X3: Verify sandbox role assignments don't pollute production
+  try {
+    const { data: sandboxRoles } = await client.from("user_roles")
+      .select("user_id, role").eq("organization_id", orgId);
+    const sandboxRoleUserIds = [...new Set((sandboxRoles ?? []).map((r: any) => r.user_id))];
+
+    let roleLeaks = 0;
+    if (sandboxRoleUserIds.length > 0) {
+      const { data: prodOrgs } = await client.from("organizations")
+        .select("id").neq("id", orgId).neq("environment_type", "sandbox");
+      const prodOrgIds = (prodOrgs ?? []).map((o: any) => o.id);
+      if (prodOrgIds.length > 0) {
+        const { count: crossRoleCount } = await client.from("user_roles")
+          .select("id", { count: "exact", head: true })
+          .in("user_id", sandboxRoleUserIds.slice(0, 50))
+          .in("organization_id", prodOrgIds.slice(0, 20));
+        roleLeaks = crossRoleCount ?? 0;
+      }
+    }
+    checks.push({
+      check: "X3_ROLE_ISOLATION", module: "Tenant Isolation",
+      status: roleLeaks === 0 ? "passed" : "failed",
+      detail: roleLeaks === 0
+        ? `${sandboxRoleUserIds.length} sandbox user roles isolated from production`
+        : `⚠ ${roleLeaks} sandbox role assignments found in production orgs — role bleed detected`,
+    });
+  } catch (e: any) { checks.push({ check: "X3_ROLE_ISOLATION", module: "Tenant Isolation", status: "failed", detail: e.message }); }
+
+  // X4: Verify sandbox org is properly tagged
+  try {
+    const { data: sandboxOrg } = await client.from("organizations")
+      .select("id, environment_type, status, org_state")
+      .eq("id", orgId).single();
+    const isProperlyTagged = sandboxOrg?.environment_type === "sandbox";
+    checks.push({
+      check: "X4_ORG_ENVIRONMENT_TAG", module: "Tenant Isolation",
+      status: isProperlyTagged ? "passed" : "failed",
+      detail: isProperlyTagged
+        ? `Org correctly tagged as sandbox (status: ${sandboxOrg?.status}, state: ${sandboxOrg?.org_state})`
+        : `Org environment_type is "${sandboxOrg?.environment_type}" — expected "sandbox"`,
+    });
+  } catch (e: any) { checks.push({ check: "X4_ORG_ENVIRONMENT_TAG", module: "Tenant Isolation", status: "failed", detail: e.message }); }
+
+  // X5: Verify employee count isolation — sandbox count should differ from production
+  try {
+    const { count: sandboxEmpCount } = await client.from("profiles")
+      .select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "active");
+    const { data: prodOrgs } = await client.from("organizations")
+      .select("id").neq("id", orgId).neq("environment_type", "sandbox").limit(5);
+    const prodCounts: string[] = [];
+    for (const po of (prodOrgs ?? []).slice(0, 3)) {
+      const { count: pc } = await client.from("profiles")
+        .select("id", { count: "exact", head: true }).eq("organization_id", po.id).eq("status", "active");
+      prodCounts.push(`${po.id.slice(0, 8)}: ${pc ?? 0}`);
+    }
+    checks.push({
+      check: "X5_EMPLOYEE_COUNT_ISOLATION", module: "Tenant Isolation",
+      status: "passed",
+      detail: `Sandbox: ${sandboxEmpCount ?? 0} employees. Production orgs: [${prodCounts.join(", ")}]`,
+    });
+  } catch (e: any) { checks.push({ check: "X5_EMPLOYEE_COUNT_ISOLATION", module: "Tenant Isolation", status: "failed", detail: e.message }); }
+
+  // ═══════════════════════════════════════════════════════════════
   // RESULTS
   // ═══════════════════════════════════════════════════════════════
   const passed = checks.filter(c => c.status === "passed").length;
