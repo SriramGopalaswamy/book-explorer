@@ -352,6 +352,17 @@ export function useSelfCheckIn() {
       const hour = new Date().getHours();
       const status = hour >= 10 ? "late" : "present";
 
+      // Prevent double check-in
+      const { data: existing } = await supabase
+        .from("attendance_records")
+        .select("id, check_in")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .maybeSingle();
+      if (existing?.check_in) {
+        throw new Error("You have already checked in today");
+      }
+
       // First get user's profile
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
