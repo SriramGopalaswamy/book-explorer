@@ -166,7 +166,7 @@ export function useUpdateGoalProgress() {
       const { data, error } = await supabase
         .from("goals")
         .update({ 
-          progress,
+          progress: clampedProgress,
           ...(status && { status }),
         })
         .eq("id", id)
