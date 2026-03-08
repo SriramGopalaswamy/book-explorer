@@ -70,6 +70,7 @@ export default function ExchangeRatesPage() {
         <Tabs defaultValue="rates">
           <TabsList>
             <TabsTrigger value="rates"><ArrowRightLeft className="h-4 w-4 mr-1" />Exchange Rates</TabsTrigger>
+            <TabsTrigger value="unrealized"><TrendingUp className="h-4 w-4 mr-1" />Unrealized FX Gain/Loss</TabsTrigger>
             <TabsTrigger value="currencies"><Globe className="h-4 w-4 mr-1" />Currencies</TabsTrigger>
           </TabsList>
 
