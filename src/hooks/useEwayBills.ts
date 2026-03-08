@@ -1,7 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
+import { isValidGSTIN, isValidHSN } from "@/hooks/useGSTReconciliation";
+
+// ── Vehicle number: AA00AA0000 format ──
+const VEHICLE_REGEX = /^[A-Z]{2}\d{2}[A-Z]{1,2}\d{4}$/;
+// ── Pincode: 6 digits ──
+const PINCODE_REGEX = /^\d{6}$/;
+
+// ── Distance-based validity (Rule 138) ──
+function getEwayValidityDays(distanceKm: number): number {
+  if (distanceKm <= 200) return 1;
+  return 1 + Math.ceil((distanceKm - 200) / 200);
+}
 
 export interface EwayBill {
   id: string;
@@ -64,17 +77,47 @@ export type EwayBillInsert = Partial<EwayBill> & {
   total_value: number;
 };
 
+/** Validates e-way bill data before creation/update */
+function validateEwayBill(bill: EwayBillInsert): string | null {
+  if (bill.total_value < 50000) {
+    console.warn(`E-Way Bill created below ₹50,000 threshold (₹${bill.total_value}). Not mandatory per Rule 138.`);
+  }
+  if (bill.from_gstin && !isValidGSTIN(bill.from_gstin)) return "Invalid consignor GSTIN format.";
+  if (bill.to_gstin && !isValidGSTIN(bill.to_gstin)) return "Invalid consignee GSTIN format.";
+  if (bill.from_pincode && !PINCODE_REGEX.test(bill.from_pincode)) return "Origin Pincode must be 6 digits.";
+  if (bill.to_pincode && !PINCODE_REGEX.test(bill.to_pincode)) return "Destination Pincode must be 6 digits.";
+  if (bill.vehicle_number && !VEHICLE_REGEX.test(bill.vehicle_number.replace(/\s/g, "").toUpperCase())) {
+    return "Vehicle number format invalid. Expected: AA00AA0000.";
+  }
+  if (bill.hsn_code && !isValidHSN(bill.hsn_code)) return "HSN code must be 4, 6, or 8 digits.";
+  if (bill.distance_km !== undefined && bill.distance_km < 0) return "Distance cannot be negative.";
+
+  // Inter-state / intra-state tax consistency
+  if (bill.from_state_code && bill.to_state_code) {
+    const isInterState = bill.from_state_code !== bill.to_state_code;
+    if (isInterState && ((bill.cgst_rate || 0) > 0 || (bill.sgst_rate || 0) > 0)) {
+      return "Inter-state supply should use IGST, not CGST/SGST.";
+    }
+    if (!isInterState && (bill.igst_rate || 0) > 0) {
+      return "Intra-state supply should use CGST/SGST, not IGST.";
+    }
+  }
+
+  return null;
+}
+
 export function useEwayBills() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["eway_bills"],
+    queryKey: ["eway_bills", orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("eway_bills")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = (supabase as any).from("eway_bills").select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as EwayBill[];
     },
@@ -83,12 +126,29 @@ export function useEwayBills() {
 
   const createMutation = useMutation({
     mutationFn: async (bill: EwayBillInsert) => {
+      const validationError = validateEwayBill(bill);
+      if (validationError) throw new Error(validationError);
+
+      // Normalize vehicle number
+      if (bill.vehicle_number) {
+        bill.vehicle_number = bill.vehicle_number.replace(/\s/g, "").toUpperCase();
+      }
+
+      // Auto-calculate validity based on distance
+      const validityDays = getEwayValidityDays(bill.distance_km || 0);
+
       const { data, error } = await (supabase as any)
         .from("eway_bills")
         .insert({ ...bill, user_id: user!.id })
         .select()
         .single();
       if (error) throw error;
+
+      // Log validity guidance
+      if (bill.distance_km) {
+        console.info(`E-Way Bill validity: ${validityDays} day(s) for ${bill.distance_km} km distance`);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -100,6 +160,14 @@ export function useEwayBills() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<EwayBill> & { id: string }) => {
+      // Validate vehicle number if being updated
+      if (updates.vehicle_number) {
+        updates.vehicle_number = updates.vehicle_number.replace(/\s/g, "").toUpperCase();
+        if (!VEHICLE_REGEX.test(updates.vehicle_number)) {
+          throw new Error("Vehicle number format invalid. Expected: AA00AA0000.");
+        }
+      }
+
       const { data, error } = await (supabase as any)
         .from("eway_bills")
         .update(updates)
@@ -118,6 +186,22 @@ export function useEwayBills() {
 
   const cancelMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      // Enforce 24-hour cancellation window
+      const { data: existing } = await (supabase as any)
+        .from("eway_bills")
+        .select("eway_bill_date, status")
+        .eq("id", id)
+        .single();
+
+      if (existing?.status === "cancelled") throw new Error("E-Way Bill is already cancelled.");
+      if (existing?.eway_bill_date) {
+        const billDate = new Date(existing.eway_bill_date).getTime();
+        const hoursSince = (Date.now() - billDate) / (1000 * 60 * 60);
+        if (hoursSince > 24) {
+          throw new Error("E-Way Bill cancellation window expired (24 hours from generation).");
+        }
+      }
+
       const { data, error } = await (supabase as any)
         .from("eway_bills")
         .update({
@@ -145,5 +229,6 @@ export function useEwayBills() {
     update: updateMutation.mutateAsync,
     cancel: cancelMutation.mutateAsync,
     isCreating: createMutation.isPending,
+    getValidityDays: getEwayValidityDays,
   };
 }
