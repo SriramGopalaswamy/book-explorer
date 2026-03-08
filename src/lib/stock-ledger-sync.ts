@@ -103,7 +103,7 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
     .from("warehouses" as any)
     .select("id")
     .limit(1);
-  const warehouseId = defaultWh?.[0]?.id;
+  const warehouseId = (defaultWh as any)?.[0]?.id;
   if (!warehouseId) return;
 
   const entries: StockEntry[] = (dnItems as any[])
