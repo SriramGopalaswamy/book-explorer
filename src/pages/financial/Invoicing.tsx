@@ -194,11 +194,11 @@ export default function Invoicing() {
   // Create form state
   const [createStatus, setCreateStatus] = useState<"draft" | "sent">("draft");
   const [lineItems, setLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   // Edit form state
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "" });
+  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   if (isCheckingRole) {
     return (
