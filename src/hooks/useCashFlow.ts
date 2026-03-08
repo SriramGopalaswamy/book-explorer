@@ -137,9 +137,11 @@ export function useUpdatePaymentStatus() {
 
 export function useDeleteScheduledPayment() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
       if (error) throw error;
     },
