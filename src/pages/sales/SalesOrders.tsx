@@ -77,13 +77,37 @@ export default function SalesOrders() {
     { key: "total_amount", header: "Total", render: (r) => <span className="font-semibold">₹{Number(r.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> },
     {
       key: "status", header: "Status",
+      render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>,
+    },
+    {
+      key: "id" as any, header: "Actions",
       render: (r) => (
-        <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-          <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.keys(statusColors).map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
+            {["confirmed", "processing"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
+                <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
+              </DropdownMenuItem>
+            )}
+            {["delivered", "shipped"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => convertToInvoice.mutate(r)}>
+                <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
+                Cancel Order
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => deleteSO.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];

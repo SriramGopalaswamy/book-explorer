@@ -573,6 +573,7 @@ export default function Quotes() {
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "accepted" })}><CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Accepted</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "rejected" })}><XCircle className="h-4 w-4 mr-2" /> Mark as Rejected</DropdownMenuItem>}
                               {q.status !== "converted" && <DropdownMenuItem onClick={() => convertToInvoice.mutate(q)}><ArrowRight className="h-4 w-4 mr-2" /> Convert to Invoice</DropdownMenuItem>}
+                              {(q.status === "accepted" || q.status === "sent") && q.status !== "converted" && <DropdownMenuItem onClick={() => convertToSO.mutate(q)}><ShoppingBag className="h-4 w-4 mr-2" /> Convert to Sales Order</DropdownMenuItem>}
                               <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(q.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
