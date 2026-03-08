@@ -113,6 +113,8 @@ export function useCreateStockTransfer() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string }[] }) => {
+      if (!user) throw new Error("Not authenticated");
+
       // ── Validation: prevent self-transfers ──
       if (t.from_warehouse_id === t.to_warehouse_id) {
         throw new Error("Source and destination warehouse cannot be the same.");
@@ -125,10 +127,19 @@ export function useCreateStockTransfer() {
       if (t.items.some(i => i.quantity <= 0)) {
         throw new Error("All transfer quantities must be greater than zero.");
       }
+      if (t.items.some(i => !i.item_name?.trim())) {
+        throw new Error("All transfer items must have a name.");
+      }
+
+      // Prevent future-dated transfers
+      const today = new Date().toISOString().split("T")[0];
+      if (t.transfer_date > today) {
+        throw new Error("Transfer date cannot be in the future.");
+      }
 
       const num = `TRF-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase.from("stock_transfers" as any)
-        .insert({ transfer_number: num, from_warehouse_id: t.from_warehouse_id, to_warehouse_id: t.to_warehouse_id, transfer_date: t.transfer_date, notes: t.notes || null, created_by: user?.id } as any)
+        .insert({ transfer_number: num, from_warehouse_id: t.from_warehouse_id, to_warehouse_id: t.to_warehouse_id, transfer_date: t.transfer_date, notes: t.notes || null, created_by: user.id } as any)
         .select().single();
       if (error) throw error;
 
@@ -157,6 +168,24 @@ export function useUpdateTransferStatus() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
+
+      // ── Lifecycle state-machine ───────────────────────────────
+      const TRANSFER_TRANSITIONS: Record<string, string[]> = {
+        draft: ["in_transit", "cancelled"],
+        in_transit: ["received", "cancelled"],
+        received: [],    // terminal
+        cancelled: [],   // terminal
+      };
+
+      const { data: current, error: fetchErr } = await supabase
+        .from("stock_transfers" as any).select("status").eq("id", id).single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = (current as any)?.status;
+      const allowed = TRANSFER_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
+      }
+
       const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
