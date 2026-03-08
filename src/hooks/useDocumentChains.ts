@@ -332,6 +332,15 @@ export function useUpdateDNStatus() {
       const { error } = await supabase.from("delivery_notes" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
 
+      // ── Auto stock-out when DN is delivered ──
+      if (status === "delivered") {
+        try {
+          await postDeliveryNoteStock(id);
+        } catch (stockErr) {
+          console.warn("Stock ledger sync failed for DN:", stockErr);
+        }
+      }
+
       // Auto-update SO status when DN is delivered
       const soId = (current as any)?.sales_order_id;
       if (status === "delivered" && soId) {
@@ -346,6 +355,7 @@ export function useUpdateDNStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["delivery-notes"] });
       qc.invalidateQueries({ queryKey: ["sales-orders"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       toast.success("Delivery note status updated");
     },
     onError: (e: any) => toast.error(e.message),
