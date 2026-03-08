@@ -64,14 +64,19 @@ export interface PayrollEntry {
 
 export function usePayrollRuns() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["payroll-runs"],
+    queryKey: ["payroll-runs", orgId],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("payroll_runs")
         .select("*")
         .order("pay_period", { ascending: false });
+      if (orgId) query = query.eq("organization_id", orgId);
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as PayrollRun[];
     },
