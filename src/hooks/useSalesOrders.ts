@@ -125,10 +125,30 @@ export function useCreateSalesOrder() {
   });
 }
 
+const VALID_SO_STATUSES = ["draft", "confirmed", "processing", "partially_shipped", "shipped", "delivered", "cancelled", "closed"] as const;
+const SO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["confirmed", "cancelled"],
+  confirmed: ["processing", "cancelled"],
+  processing: ["partially_shipped", "shipped", "cancelled"],
+  partially_shipped: ["shipped", "delivered"],
+  shipped: ["delivered", "closed"],
+  delivered: ["closed"],
+};
+
 export function useUpdateSOStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_SO_STATUSES.includes(status as any)) throw new Error(`Invalid SO status: ${status}`);
+
+      const { data: current } = await supabase.from("sales_orders" as any).select("status").eq("id", id).maybeSingle();
+      const currentStatus = (current as any)?.status;
+      if (currentStatus && SO_TRANSITIONS[currentStatus] && !SO_TRANSITIONS[currentStatus].includes(status)) {
+        throw new Error(`Cannot transition SO from '${currentStatus}' to '${status}'`);
+      }
+
       const { error } = await supabase.from("sales_orders" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },

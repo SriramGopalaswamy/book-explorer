@@ -194,14 +194,18 @@ export function useStockAdjustments() {
 
 export function useCreateStockAdjustment() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (adj: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (adj.quantity === undefined || adj.quantity === 0) throw new Error("Adjustment quantity cannot be zero");
       const { data, error } = await supabase.from("stock_adjustments" as any).insert(adj).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock-adjustments"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       toast.success("Stock adjustment created");
     },
     onError: (e: any) => toast.error(e.message),

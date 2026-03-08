@@ -148,10 +148,15 @@ export function useCreateStockTransfer() {
   });
 }
 
+const VALID_TRANSFER_STATUSES = ["draft", "in_transit", "received", "cancelled"] as const;
+
 export function useUpdateTransferStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
       const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
