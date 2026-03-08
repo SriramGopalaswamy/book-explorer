@@ -519,9 +519,15 @@ export function useAllLeaveTypes() {
 
 export function useCreateLeaveType() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!leaveType.key?.trim()) throw new Error("Leave type key is required");
+      if (!leaveType.label?.trim()) throw new Error("Leave type label is required");
+      if (leaveType.default_days < 0) throw new Error("Default days cannot be negative");
+
       const { data, error } = await supabase
         .from("leave_types")
         .insert(leaveType as any)

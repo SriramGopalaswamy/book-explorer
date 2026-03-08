@@ -458,8 +458,23 @@ export function useRejectGoalPlan() {
 
 export function useDeleteGoalPlan() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (planId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only allow deleting draft plans
+      const { data: plan } = await supabase
+        .from("goal_plans")
+        .select("status, user_id")
+        .eq("id", planId)
+        .maybeSingle();
+      if (!plan) throw new Error("Goal plan not found");
+      if (plan.user_id !== user.id) throw new Error("You can only delete your own goal plans");
+      if (plan.status !== "draft" && plan.status !== "rejected") {
+        throw new Error("Only draft or rejected goal plans can be deleted");
+      }
+
       const { error } = await supabase.from("goal_plans").delete().eq("id", planId);
       if (error) throw error;
     },

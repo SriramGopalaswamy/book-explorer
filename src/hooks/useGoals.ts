@@ -188,9 +188,11 @@ export function useUpdateGoalProgress() {
 
 export function useDeleteGoal() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("goals")
         .delete()

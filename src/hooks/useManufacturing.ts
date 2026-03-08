@@ -199,11 +199,19 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (wo: { product_name: string; bom_id?: string; product_item_id?: string; planned_quantity: number; priority: string; planned_start?: string; planned_end?: string; warehouse_id?: string; notes?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!wo.product_name?.trim()) throw new Error("Product name is required");
       if (wo.planned_quantity <= 0) throw new Error("Planned quantity must be greater than zero.");
+      if (wo.planned_start && wo.planned_end && wo.planned_start > wo.planned_end) {
+        throw new Error("Planned start date cannot be after planned end date");
+      }
+      const validPriorities = ["low", "medium", "high", "urgent"];
+      if (!validPriorities.includes(wo.priority)) throw new Error("Invalid priority level");
+
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase
         .from("work_orders" as any)
-        .insert({ wo_number: woNum, product_name: wo.product_name, bom_id: wo.bom_id || null, product_item_id: wo.product_item_id || null, planned_quantity: wo.planned_quantity, priority: wo.priority, planned_start: wo.planned_start || null, planned_end: wo.planned_end || null, warehouse_id: wo.warehouse_id || null, notes: wo.notes || null, created_by: user?.id } as any)
+        .insert({ wo_number: woNum, product_name: wo.product_name, bom_id: wo.bom_id || null, product_item_id: wo.product_item_id || null, planned_quantity: wo.planned_quantity, priority: wo.priority, planned_start: wo.planned_start || null, planned_end: wo.planned_end || null, warehouse_id: wo.warehouse_id || null, notes: wo.notes || null, created_by: user.id } as any)
         .select().single();
       if (error) throw error;
       return data;
