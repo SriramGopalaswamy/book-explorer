@@ -179,7 +179,7 @@ export function useUpdateTransferStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("stock_transfers" as any).select("status").eq("id", id).single();
+        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = TRANSFER_TRANSITIONS[currentStatus];
@@ -189,8 +189,21 @@ export function useUpdateTransferStatus() {
 
       const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
+
+      // ── Auto stock ledger entries when transfer is received ──
+      if (status === "received") {
+        try {
+          await postStockTransferEntries(
+            id,
+            (current as any).from_warehouse_id,
+            (current as any).to_warehouse_id
+          );
+        } catch (stockErr) {
+          console.warn("Stock ledger sync failed for transfer:", stockErr);
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-transfers"] }); toast.success("Status updated"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-transfers"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("Status updated"); },
     onError: (e: any) => toast.error(e.message),
   });
 }
