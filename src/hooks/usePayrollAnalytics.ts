@@ -18,12 +18,24 @@ export function usePayrollAnalytics() {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["payroll-analytics"],
+    queryKey: ["payroll-analytics", user?.id],
     queryFn: async (): Promise<PayrollAnalyticsData> => {
-      // Fetch all locked payroll runs with entries
-      const { data: runs } = await supabase
+      if (!user) throw new Error("Not authenticated");
+
+      // Resolve org for tenant isolation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const orgId = profile?.organization_id;
+      if (!orgId) return getEmptyPayrollAnalytics();
+
+      // Fetch org-scoped locked payroll runs
+      let runsQuery = supabase
         .from("payroll_runs")
         .select("id, pay_period, total_gross, total_deductions, total_net, employee_count, status")
+        .eq("organization_id", orgId)
         .in("status", ["locked", "approved", "completed"])
         .order("pay_period", { ascending: true })
         .limit(24);
