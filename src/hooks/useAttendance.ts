@@ -401,10 +401,23 @@ export function useSelfCheckIn() {
 
 export function useSelfCheckOut() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (recordId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const now = new Date().toISOString();
+
+      // Verify record belongs to user and has a check_in but no check_out
+      const { data: record } = await supabase
+        .from("attendance_records")
+        .select("user_id, check_in, check_out")
+        .eq("id", recordId)
+        .single();
+      if (!record) throw new Error("Attendance record not found");
+      if (record.user_id !== user.id) throw new Error("You can only check out your own record");
+      if (!record.check_in) throw new Error("Cannot check out without checking in first");
+      if (record.check_out) throw new Error("You have already checked out today");
 
       const { data, error } = await supabase
         .from("attendance_records")
