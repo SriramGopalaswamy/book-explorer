@@ -55,40 +55,28 @@ export function useHRAnalytics() {
       const active = all.filter((p) => p.status === "active");
       const onLeave = all.filter((p) => p.status === "on_leave");
 
-      // Department breakdown
       const deptMap = new Map<string, number>();
       active.forEach((p) => {
         const dept = p.department || "Unassigned";
         deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
       });
       const departments = Array.from(deptMap.entries()).map(([name, count]) => ({
-        name,
-        count,
-        cost: 0, // Will be enriched with payroll data
+        name, count, cost: 0,
       }));
 
-      // Tenure calculation
       const now = new Date();
       const tenures = active
         .filter((p) => p.join_date)
-        .map((p) => {
-          const join = new Date(p.join_date!);
-          return (now.getTime() - join.getTime()) / (1000 * 60 * 60 * 24 * 30);
-        });
+        .map((p) => (now.getTime() - new Date(p.join_date!).getTime()) / (1000 * 60 * 60 * 24 * 30));
       const avgTenureMonths = tenures.length > 0
-        ? Math.round(tenures.reduce((a, b) => a + b, 0) / tenures.length)
-        : 0;
+        ? Math.round(tenures.reduce((a, b) => a + b, 0) / tenures.length) : 0;
 
-      // New hires last 90 days
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
       const newHires = all.filter(
         (p) => p.join_date && new Date(p.join_date) >= ninetyDaysAgo && p.status === "active"
       ).length;
-
-      const inactive = all.filter(
-        (p) => p.status === "inactive"
-      ).length;
+      const inactive = all.filter((p) => p.status === "inactive").length;
 
       return {
         totalEmployees: all.length,
@@ -107,17 +95,21 @@ export function useHRAnalytics() {
 
 export function usePayrollSummary() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
 
   return useQuery({
-    queryKey: ["payroll-summary-cross"],
+    queryKey: ["payroll-summary-cross", orgId],
     queryFn: async (): Promise<PayrollSummary> => {
-      const { data: runs } = await supabase
+      let runsQ = supabase
         .from("payroll_runs")
         .select("id, pay_period, total_gross, total_net, total_deductions, employee_count, status")
         .in("status", ["locked", "approved", "completed"])
         .order("pay_period", { ascending: true })
         .limit(12);
+      if (orgId) runsQ = runsQ.eq("organization_id", orgId);
 
+      const { data: runs } = await runsQ;
       const allRuns = runs || [];
       const runIds = allRuns.map((r) => r.id);
 
@@ -134,7 +126,6 @@ export function usePayrollSummary() {
         net: Number(r.total_net),
       }));
 
-      // Department costs
       const deptMap = new Map<string, { total: number; count: number }>();
       allEntries.forEach((e: any) => {
         const dept = e.profiles?.department || "Unassigned";
@@ -145,28 +136,23 @@ export function usePayrollSummary() {
       });
 
       const departmentCosts = Array.from(deptMap.entries()).map(([department, v]) => ({
-        department,
-        total: v.total,
-        count: v.count,
+        department, total: v.total, count: v.count,
         avgPerHead: v.count > 0 ? Math.round(v.total / v.count) : 0,
       }));
 
       const totalPayrollCost = allRuns.reduce((s, r) => s + Number(r.total_gross), 0);
       const uniqueEmployees = new Set(allEntries.map((e: any) => e.profile_id)).size;
       const avgCTC = allEntries.length > 0
-        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc || 0), 0) / allEntries.length)
-        : 0;
+        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc || 0), 0) / allEntries.length) : 0;
 
       return {
-        totalPayrollCost,
-        avgCTC,
+        totalPayrollCost, avgCTC,
         costPerEmployee: uniqueEmployees > 0 ? Math.round(totalPayrollCost / uniqueEmployees) : 0,
         totalEmployeesOnPayroll: uniqueEmployees,
-        monthlyCostTrend,
-        departmentCosts,
+        monthlyCostTrend, departmentCosts,
       };
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -230,19 +216,15 @@ export function useCrossModuleInsights() {
       if (hr) {
         if (hr.newHiresLast90Days > 0) {
           insights.push({
-            id: "new-hires",
-            type: "info",
-            module: "HR",
+            id: "new-hires", type: "info", module: "HR",
             title: "Growing Team",
             description: `${hr.newHiresLast90Days} new hires in the last 90 days.`,
             metric: `+${hr.newHiresLast90Days}`,
           });
         }
-        if (hr.onLeave > hr.activeEmployees * 0.15) {
+        if (hr.activeEmployees > 0 && hr.onLeave > hr.activeEmployees * 0.15) {
           insights.push({
-            id: "high-leave",
-            type: "warning",
-            module: "HR",
+            id: "high-leave", type: "warning", module: "HR",
             title: "High Leave Rate",
             description: `${hr.onLeave} employees currently on leave (${Math.round((hr.onLeave / hr.activeEmployees) * 100)}%).`,
             metric: `${hr.onLeave} on leave`,
@@ -253,9 +235,7 @@ export function useCrossModuleInsights() {
       if (payroll) {
         if (payroll.costPerEmployee > 0) {
           insights.push({
-            id: "cost-per-head",
-            type: "info",
-            module: "Payroll",
+            id: "cost-per-head", type: "info", module: "Payroll",
             title: "Cost Per Employee",
             description: `Average cost per employee: ₹${(payroll.costPerEmployee / 100000).toFixed(1)}L.`,
             metric: `₹${(payroll.costPerEmployee / 100000).toFixed(1)}L`,
@@ -266,9 +246,7 @@ export function useCrossModuleInsights() {
       if (attendance) {
         if (attendance.avgAttendanceRate < 80 && attendance.avgAttendanceRate > 0) {
           insights.push({
-            id: "low-attendance",
-            type: "warning",
-            module: "Attendance",
+            id: "low-attendance", type: "warning", module: "Attendance",
             title: "Low Attendance Rate",
             description: `Today's attendance rate is ${attendance.avgAttendanceRate}%, below the 80% threshold.`,
             metric: `${attendance.avgAttendanceRate}%`,
@@ -276,9 +254,7 @@ export function useCrossModuleInsights() {
         }
         if (attendance.totalOTMinutesThisMonth > 1000) {
           insights.push({
-            id: "high-ot",
-            type: "warning",
-            module: "Operations",
+            id: "high-ot", type: "warning", module: "Operations",
             title: "High Overtime",
             description: `${Math.round(attendance.totalOTMinutesThisMonth / 60)} overtime hours logged this month.`,
             metric: `${Math.round(attendance.totalOTMinutesThisMonth / 60)}h`,
