@@ -147,8 +147,12 @@ export function useCreateBOM() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (bom: { product_name: string; product_item_id?: string; notes?: string; lines: { material_name: string; quantity: number; uom: string; wastage_pct: number; item_id?: string }[] }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!bom.product_name?.trim()) throw new Error("Product name is required.");
+      if (!bom.lines || bom.lines.length === 0) throw new Error("At least one material line is required.");
+
       // Validate: no duplicate materials
-      const names = bom.lines.map(l => l.material_name.toLowerCase());
+      const names = bom.lines.map(l => l.material_name.toLowerCase().trim());
       const uniqueNames = new Set(names);
       if (uniqueNames.size !== names.length) {
         throw new Error("Duplicate materials in BOM lines. Each material should appear only once.");
@@ -159,10 +163,20 @@ export function useCreateBOM() {
         throw new Error("All material quantities must be greater than zero.");
       }
 
+      // Validate: wastage percentage bounds
+      if (bom.lines.some(l => l.wastage_pct < 0 || l.wastage_pct > 100)) {
+        throw new Error("Wastage percentage must be between 0% and 100%.");
+      }
+
+      // Validate: material names required
+      if (bom.lines.some(l => !l.material_name?.trim())) {
+        throw new Error("All BOM lines must have a material name.");
+      }
+
       const bomCode = `BOM-${Date.now().toString(36).toUpperCase()}`;
       const { data: bomData, error: bomErr } = await supabase
         .from("bill_of_materials" as any)
-        .insert({ bom_code: bomCode, product_name: bom.product_name, product_item_id: bom.product_item_id || null, notes: bom.notes || null, created_by: user?.id } as any)
+        .insert({ bom_code: bomCode, product_name: bom.product_name.trim(), product_item_id: bom.product_item_id || null, notes: bom.notes || null, created_by: user.id } as any)
         .select().single();
       if (bomErr) throw bomErr;
 
