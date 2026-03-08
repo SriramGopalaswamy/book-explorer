@@ -125,10 +125,15 @@ export function useCreateSalesReturn() {
   });
 }
 
+const VALID_RETURN_STATUSES = ["draft", "submitted", "approved", "processed", "cancelled", "closed"] as const;
+
 export function useUpdateSalesReturnStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_RETURN_STATUSES.includes(status as any)) throw new Error(`Invalid return status: ${status}`);
       const { error } = await supabase.from("sales_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
