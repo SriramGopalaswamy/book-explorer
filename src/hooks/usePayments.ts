@@ -63,13 +63,33 @@ export function useCreatePaymentReceipt() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (r: { customer_name: string; customer_id?: string; invoice_id?: string; payment_date: string; amount: number; payment_method: string; reference_number?: string; bank_account_id?: string; notes?: string }) => {
+      if (!user) throw new Error("User not authenticated");
       if (r.amount <= 0) throw new Error("Payment amount must be greater than zero.");
       if (!r.customer_name.trim()) throw new Error("Customer name is required.");
+      if (!r.payment_date) throw new Error("Payment date is required.");
+
+      // Prevent future-dated payments
+      const today = new Date().toISOString().split("T")[0];
+      if (r.payment_date > today) throw new Error("Payment date cannot be in the future.");
+
+      // If linked to invoice, verify invoice exists and payment doesn't exceed balance
+      if (r.invoice_id) {
+        const { data: inv, error: invErr } = await supabase
+          .from("invoices")
+          .select("amount, status")
+          .eq("id", r.invoice_id)
+          .single();
+        if (invErr || !inv) throw new Error("Linked invoice not found.");
+        if (inv.status === "paid") throw new Error("This invoice has already been fully paid.");
+        if (r.amount > Number(inv.amount)) {
+          throw new Error(`Payment (₹${r.amount}) exceeds invoice amount (₹${inv.amount}).`);
+        }
+      }
 
       const num = `REC-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("payment_receipts" as any).insert({
         receipt_number: num,
-        customer_name: r.customer_name,
+        customer_name: r.customer_name.trim(),
         customer_id: r.customer_id || null,
         invoice_id: r.invoice_id || null,
         payment_date: r.payment_date,
@@ -78,7 +98,7 @@ export function useCreatePaymentReceipt() {
         reference_number: r.reference_number || null,
         bank_account_id: r.bank_account_id || null,
         notes: r.notes || null,
-        created_by: user?.id,
+        created_by: user.id,
       } as any);
       if (error) throw error;
     },
