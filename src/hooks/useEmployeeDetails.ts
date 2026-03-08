@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 export interface EmployeeDetails {
@@ -52,9 +53,25 @@ export function useEmployeeDetails(profileId: string | null) {
 
 export function useUpsertEmployeeDetails() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (input: EmployeeDetailsInput) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Validate PAN format if provided
+      if (input.pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(input.pan_number)) {
+        throw new Error("Invalid PAN format (expected: ABCDE1234F)");
+      }
+      // Validate IFSC if provided
+      if (input.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.bank_ifsc)) {
+        throw new Error("Invalid IFSC format (expected: ABCD0123456)");
+      }
+      // Validate Aadhaar last four
+      if (input.aadhaar_last_four && !/^\d{4}$/.test(input.aadhaar_last_four)) {
+        throw new Error("Aadhaar last four must be exactly 4 digits");
+      }
+
       const { data, error } = await supabase
         .from("employee_details")
         .upsert(input, { onConflict: "profile_id" })

@@ -54,6 +54,23 @@ export function useSubmitChangeRequest() {
       reason?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!input.requested_value?.trim()) throw new Error("Requested value cannot be empty");
+      if (input.requested_value === input.current_value) {
+        throw new Error("New value must differ from current value");
+      }
+
+      // Check for existing pending request on same field
+      const { data: existing } = await supabase
+        .from("profile_change_requests" as any)
+        .select("id")
+        .eq("profile_id", input.profile_id)
+        .eq("field_name", input.field_name)
+        .eq("status", "pending")
+        .limit(1);
+      if (existing && (existing as any[]).length > 0) {
+        throw new Error("A pending change request already exists for this field");
+      }
+
       const { error } = await supabase
         .from("profile_change_requests" as any)
         .insert({
@@ -77,16 +94,30 @@ export function useSubmitChangeRequest() {
 
 // HR hooks
 export function useAllChangeRequests() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["profile-change-requests", "all"],
+    queryKey: ["profile-change-requests", "all", user?.id],
     queryFn: async () => {
+      if (!user) return [];
+
+      // Get org for tenant isolation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return [];
+
       const { data, error } = await supabase
         .from("profile_change_requests" as any)
         .select("*")
+        .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as ProfileChangeRequest[];
     },
+    enabled: !!user,
   });
 }
 

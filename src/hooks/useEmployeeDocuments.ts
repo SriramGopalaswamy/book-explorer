@@ -74,7 +74,21 @@ export function useUploadEmployeeDocument() {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
 
-      const filePath = `${profileId}/${Date.now()}_${file.name}`;
+      // Validate file size (max 10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error("File size exceeds 10MB limit");
+      }
+
+      // Validate file type
+      const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        throw new Error("Unsupported file type. Allowed: PDF, JPEG, PNG, WebP, DOC, DOCX");
+      }
+
+      // Sanitize filename
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath = `${profileId}/${Date.now()}_${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from("employee-documents")
         .upload(filePath, file);
@@ -108,8 +122,11 @@ export function useUploadEmployeeDocument() {
 export function useDeleteEmployeeDocument() {
   const queryClient = useQueryClient();
 
+  const { user } = useAuth();
+
   return useMutation({
     mutationFn: async ({ id, filePath, profileId }: { id: string; filePath: string; profileId: string }) => {
+      if (!user) throw new Error("Not authenticated");
       await supabase.storage.from("employee-documents").remove([filePath]);
       const { error } = await supabase.from("employee_documents").delete().eq("id", id);
       if (error) throw error;

@@ -79,7 +79,38 @@ export function useCreateCompensationRevision() {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
 
-      // 1. Insert new compensation structure
+      // Validate CTC
+      if (!input.annual_ctc || input.annual_ctc <= 0) {
+        throw new Error("Annual CTC must be a positive number");
+      }
+      if (!input.effective_from) {
+        throw new Error("Effective date is required");
+      }
+      // Validate component totals match CTC
+      if (input.components.length > 0) {
+        const totalEarnings = input.components
+          .filter(c => c.component_type === "earning")
+          .reduce((sum, c) => sum + (c.annual_amount || 0), 0);
+        const totalDeductions = input.components
+          .filter(c => c.component_type === "deduction")
+          .reduce((sum, c) => sum + (c.annual_amount || 0), 0);
+        if (totalEarnings <= 0) {
+          throw new Error("Total earnings must be greater than zero");
+        }
+        if (totalDeductions > totalEarnings) {
+          throw new Error("Total deductions cannot exceed total earnings");
+        }
+      }
+
+      // 1. Deactivate previous active structures for this profile
+      await supabase
+        .from("compensation_structures")
+        .update({ is_active: false, effective_to: input.effective_from })
+        .eq("profile_id", input.profile_id)
+        .eq("organization_id", orgId)
+        .eq("is_active", true);
+
+      // 2. Insert new compensation structure
       const { data: structure, error: sErr } = await supabase
         .from("compensation_structures")
         .insert({
