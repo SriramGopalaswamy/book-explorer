@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface PurchaseOrder {
@@ -37,13 +38,15 @@ export interface POItem {
 }
 
 export function usePurchaseOrders() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["purchase-orders"],
+    queryKey: ["purchase-orders", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_orders" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      let q = supabase.from("purchase_orders" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];
     },
@@ -70,6 +73,12 @@ export function useCreatePurchaseOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (po: { vendor_name: string; vendor_id?: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
+      // ── Validation ──
+      if (!po.vendor_name.trim()) throw new Error("Vendor name is required.");
+      if (po.items.length === 0) throw new Error("At least one line item is required.");
+      if (po.items.some(i => i.quantity <= 0)) throw new Error("All quantities must be greater than zero.");
+      if (po.items.some(i => i.unit_price < 0)) throw new Error("Unit prices cannot be negative.");
+
       const subtotal = po.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = po.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const poNum = `PO-${Date.now().toString(36).toUpperCase()}`;
@@ -104,7 +113,11 @@ export function useCreatePurchaseOrder() {
 
       if (items.length > 0) {
         const { error: itemErr } = await supabase.from("purchase_order_items" as any).insert(items as any);
-        if (itemErr) throw itemErr;
+        if (itemErr) {
+          // Rollback header on item insert failure
+          await supabase.from("purchase_orders" as any).delete().eq("id", (poData as any).id);
+          throw itemErr;
+        }
       }
       return poData;
     },

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface SalesReturn {
@@ -56,10 +57,15 @@ export interface PurchaseReturn {
 }
 
 export function useSalesReturns() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["sales-returns"],
+    queryKey: ["sales-returns", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sales_returns" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("sales_returns" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as SalesReturn[];
     },
@@ -71,6 +77,9 @@ export function useCreateSalesReturn() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (r: { customer_name: string; customer_id?: string; sales_order_id?: string; delivery_note_id?: string; return_date: string; reason?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string; reason?: string }[] }) => {
+      if (r.items.length === 0) throw new Error("At least one return item is required.");
+      if (r.items.some(i => i.quantity <= 0)) throw new Error("All return quantities must be greater than zero.");
+
       const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const num = `SR-${Date.now().toString(36).toUpperCase()}`;
@@ -104,7 +113,10 @@ export function useCreateSalesReturn() {
 
       if (items.length > 0) {
         const { error: ie } = await supabase.from("sales_return_items" as any).insert(items as any);
-        if (ie) throw ie;
+        if (ie) {
+          await supabase.from("sales_returns" as any).delete().eq("id", (data as any).id);
+          throw ie;
+        }
       }
       return data;
     },
@@ -126,10 +138,15 @@ export function useUpdateSalesReturnStatus() {
 }
 
 export function usePurchaseReturns() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["purchase-returns"],
+    queryKey: ["purchase-returns", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("purchase_returns" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("purchase_returns" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as PurchaseReturn[];
     },
@@ -141,6 +158,9 @@ export function useCreatePurchaseReturn() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (r: { vendor_name: string; vendor_id?: string; purchase_order_id?: string; goods_receipt_id?: string; return_date: string; reason?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string; reason?: string }[] }) => {
+      if (r.items.length === 0) throw new Error("At least one return item is required.");
+      if (r.items.some(i => i.quantity <= 0)) throw new Error("All return quantities must be greater than zero.");
+
       const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const num = `PR-${Date.now().toString(36).toUpperCase()}`;
@@ -174,7 +194,10 @@ export function useCreatePurchaseReturn() {
 
       if (items.length > 0) {
         const { error: ie } = await supabase.from("purchase_return_items" as any).insert(items as any);
-        if (ie) throw ie;
+        if (ie) {
+          await supabase.from("purchase_returns" as any).delete().eq("id", (data as any).id);
+          throw ie;
+        }
       }
       return data;
     },
