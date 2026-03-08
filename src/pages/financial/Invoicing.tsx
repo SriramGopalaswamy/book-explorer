@@ -693,6 +693,27 @@ export default function Invoicing() {
                       </div>
                     </div>
 
+                    {/* Ind AS 115 Revenue Recognition */}
+                    <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5">
+                      <div className="col-span-2">
+                        <p className="text-xs font-medium text-primary mb-1">Ind AS 115 — Revenue Recognition</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Recognition Method</Label>
+                        <Select value={editFormMeta.revenueRecognition} onValueChange={v => setEditFormMeta(prev => ({ ...prev, revenueRecognition: v as "point_in_time" | "over_time" }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="point_in_time">Point in Time</SelectItem>
+                            <SelectItem value="over_time">Over Time</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-xs">Performance Obligation</Label>
+                        <Input placeholder="e.g. Software license delivery" value={editFormMeta.performanceObligation} onChange={e => setEditFormMeta(prev => ({ ...prev, performanceObligation: e.target.value }))} />
+                      </div>
+                    </div>
+
                     {renderLineItemsForm(editLineItems, updateEditLineItem, addEditLineItem, removeEditLineItem, editSubtotal, editCgst, editSgst, editTotal)}
                   </div>
                   <DialogFooter>
