@@ -222,6 +222,9 @@ export function useCreateStockAdjustment() {
     mutationFn: async (adj: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
       if (adj.quantity === undefined || adj.quantity === 0) throw new Error("Adjustment quantity cannot be zero");
+      if (!adj.item_id) throw new Error("Item is required for stock adjustment.");
+      if (!adj.reason?.trim()) throw new Error("A reason is required for stock adjustments.");
+
       const { data, error } = await supabase.from("stock_adjustments" as any).insert(adj).select().single();
       if (error) throw error;
       return data;

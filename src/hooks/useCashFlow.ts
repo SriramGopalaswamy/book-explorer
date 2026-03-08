@@ -164,6 +164,18 @@ export function useDeleteScheduledPayment() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Only scheduled/pending payments can be deleted; completed ones are immutable
+      const { data: payment, error: fetchErr } = await supabase
+        .from("scheduled_payments")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (payment?.status === "completed") {
+        throw new Error("Completed payments cannot be deleted. They form part of the cash flow record.");
+      }
+
       const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
       if (error) throw error;
     },

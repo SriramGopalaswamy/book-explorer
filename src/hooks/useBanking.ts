@@ -189,6 +189,23 @@ export function useCreateTransaction() {
 
       const validated = createTransactionSchema.parse(data);
 
+      // Prevent future-dated transactions
+      const today = new Date().toISOString().split("T")[0];
+      if (validated.transaction_date > today) {
+        throw new Error("Transaction date cannot be in the future.");
+      }
+
+      // Verify the linked bank account exists and is active
+      const { data: account, error: acctErr } = await supabase
+        .from("bank_accounts")
+        .select("balance, status")
+        .eq("id", validated.account_id)
+        .single();
+      if (acctErr || !account) throw new Error("Bank account not found.");
+      if ((account as any).status === "Closed") {
+        throw new Error("Cannot add transactions to a closed bank account.");
+      }
+
       // Create transaction
       const { data: transaction, error } = await supabase
         .from("bank_transactions")
@@ -206,22 +223,14 @@ export function useCreateTransaction() {
       if (error) throw error;
 
       // Update account balance
-      const { data: account } = await supabase
+      const newBalance = validated.transaction_type === "credit"
+        ? Number(account.balance) + Number(validated.amount)
+        : Number(account.balance) - Number(validated.amount);
+
+      await supabase
         .from("bank_accounts")
-        .select("balance")
-        .eq("id", validated.account_id)
-        .single();
-
-      if (account) {
-        const newBalance = validated.transaction_type === "credit"
-          ? Number(account.balance) + Number(validated.amount)
-          : Number(account.balance) - Number(validated.amount);
-
-        await supabase
-          .from("bank_accounts")
-          .update({ balance: newBalance })
-          .eq("id", validated.account_id);
-      }
+        .update({ balance: newBalance })
+        .eq("id", validated.account_id);
 
       return transaction;
     },
