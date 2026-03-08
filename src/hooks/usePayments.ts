@@ -231,7 +231,7 @@ export function useCreateVendorPayment() {
       } as any);
       if (error) throw error;
 
-      // ── Auto-update linked bill to "Paid" ─────────────────
+      // ── Auto-update linked bill status (partial → Partially Paid, full → Paid) ──
       if (p.bill_id) {
         const { data: bill } = await supabase
           .from("bills")
@@ -239,24 +239,32 @@ export function useCreateVendorPayment() {
           .eq("id", p.bill_id)
           .single();
         if (bill && bill.status !== "Paid" && bill.status !== "Cancelled") {
-          if (p.amount >= Number(bill.total_amount)) {
-            await supabase
-              .from("bills")
-              .update({ status: "Paid" })
-              .eq("id", p.bill_id);
+          // Sum ALL payments including the one just inserted
+          const { data: allPayments } = await supabase
+            .from("vendor_payments" as any)
+            .select("amount")
+            .eq("bill_id", p.bill_id)
+            .eq("status", "completed");
+          const totalPaid = (allPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
+          const billAmount = Number(bill.total_amount);
+          const newStatus = totalPaid >= billAmount ? "Paid" : "Partially Paid";
 
-            // Create bank transaction for outgoing payment
-            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-            await createBankTransaction({
-              userId: user.id,
-              amount: p.amount,
-              type: "debit",
-              description: `Vendor payment: ${num} — ${p.vendor_name}`,
-              reference: num,
-              category: "Bill Payment",
-              date: p.payment_date,
-            });
-          }
+          await supabase
+            .from("bills")
+            .update({ status: newStatus })
+            .eq("id", p.bill_id);
+
+          // Create bank transaction for every payment (partial or full)
+          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+          await createBankTransaction({
+            userId: user.id,
+            amount: p.amount,
+            type: "debit",
+            description: `Vendor payment: ${num} — ${p.vendor_name}`,
+            reference: num,
+            category: "Bill Payment",
+            date: p.payment_date,
+          });
         }
       }
     },

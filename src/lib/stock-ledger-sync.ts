@@ -139,7 +139,6 @@ export async function postStockTransferEntries(
   const entries: StockEntry[] = [];
   for (const item of items as any[]) {
     if (!item.item_id) continue;
-    // Stock OUT from source warehouse
     entries.push({
       item_id: item.item_id,
       warehouse_id: fromWarehouseId,
@@ -149,7 +148,6 @@ export async function postStockTransferEntries(
       reference_id: transferId,
       notes: `Transfer out: ${item.item_name}`,
     });
-    // Stock IN to destination warehouse
     entries.push({
       item_id: item.item_id,
       warehouse_id: toWarehouseId,
@@ -162,4 +160,88 @@ export async function postStockTransferEntries(
   }
 
   await postStockEntries(entries);
+}
+
+/**
+ * Auto-consume BOM materials when a Work Order is completed.
+ * Deducts (quantity_per_unit × completed_quantity × (1 + wastage_pct/100))
+ * from the WO warehouse (or default warehouse).
+ */
+export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void> {
+  // Fetch work order details
+  const { data: wo, error: woErr } = await supabase
+    .from("work_orders" as any)
+    .select("id, bom_id, completed_quantity, warehouse_id")
+    .eq("id", workOrderId)
+    .single();
+  if (woErr || !wo) return;
+  const woData = wo as any;
+  if (!woData.bom_id || Number(woData.completed_quantity) <= 0) return;
+
+  // Fetch BOM lines
+  const { data: lines, error: lErr } = await supabase
+    .from("bom_lines" as any)
+    .select("item_id, material_name, quantity, wastage_pct")
+    .eq("bom_id", woData.bom_id);
+  if (lErr || !lines || lines.length === 0) return;
+
+  // Resolve warehouse
+  let warehouseId = woData.warehouse_id;
+  if (!warehouseId) {
+    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").limit(1);
+    warehouseId = (defaultWh as any)?.[0]?.id;
+  }
+  if (!warehouseId) return;
+
+  const entries: StockEntry[] = (lines as any[])
+    .filter((l: any) => l.item_id)
+    .map((l: any) => {
+      const effectiveQty = l.quantity * Number(woData.completed_quantity) * (1 + (l.wastage_pct || 0) / 100);
+      return {
+        item_id: l.item_id,
+        warehouse_id: warehouseId,
+        quantity: Math.round(effectiveQty * 100) / 100,
+        entry_type: "out" as const,
+        reference_type: "work_order",
+        reference_id: workOrderId,
+        notes: `BOM consumption: ${l.material_name}`,
+      };
+    });
+
+  await postStockEntries(entries);
+}
+
+/**
+ * Check items below reorder level and return alerts.
+ */
+export async function checkReorderAlerts(organizationId: string): Promise<
+  { itemId: string; itemName: string; currentStock: number; reorderLevel: number }[]
+> {
+  // Get items with reorder_level set
+  const { data: items, error: iErr } = await supabase
+    .from("items" as any)
+    .select("id, name, reorder_level")
+    .eq("organization_id", organizationId)
+    .gt("reorder_level", 0);
+  if (iErr || !items || items.length === 0) return [];
+
+  // For each item, calculate current stock from stock_ledger
+  const alerts: { itemId: string; itemName: string; currentStock: number; reorderLevel: number }[] = [];
+  for (const item of items as any[]) {
+    const { data: ledger } = await supabase
+      .from("stock_ledger" as any)
+      .select("quantity")
+      .eq("item_id", item.id)
+      .eq("organization_id", organizationId);
+    const currentStock = (ledger || []).reduce((sum: number, e: any) => sum + Number(e.quantity), 0);
+    if (currentStock <= Number(item.reorder_level)) {
+      alerts.push({
+        itemId: item.id,
+        itemName: item.name,
+        currentStock,
+        reorderLevel: Number(item.reorder_level),
+      });
+    }
+  }
+  return alerts;
 }
