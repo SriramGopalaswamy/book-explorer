@@ -190,8 +190,17 @@ export function useUpdateGRStatus() {
       }
       const { error } = await supabase.from("goods_receipts" as any).update({ status } as any).eq("id", id);
       if (error) throw error;
+
+      // ── Auto stock-in when GR is accepted ──
+      if (status === "accepted") {
+        try {
+          await postGoodsReceiptStock(id);
+        } catch (stockErr) {
+          console.warn("Stock ledger sync failed for GR:", stockErr);
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); toast.success("GR status updated"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("GR status updated"); },
     onError: (e: any) => toast.error(e.message),
   });
 }
