@@ -77,8 +77,12 @@ export function useBinLocations(warehouseId?: string) {
 
 export function useCreateBinLocation() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (bin: { warehouse_id: string; bin_code: string; zone?: string; aisle?: string; rack?: string; level?: string; capacity_units?: number; notes?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!bin.bin_code?.trim()) throw new Error("Bin code is required");
+      if (!bin.warehouse_id) throw new Error("Warehouse is required");
       const { data, error } = await supabase.from("bin_locations" as any).insert(bin as any).select().single();
       if (error) throw error;
       return data;
@@ -144,10 +148,15 @@ export function useCreateStockTransfer() {
   });
 }
 
+const VALID_TRANSFER_STATUSES = ["draft", "in_transit", "received", "cancelled"] as const;
+
 export function useUpdateTransferStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
       const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },

@@ -26,8 +26,13 @@ export function useItems() {
 
 export function useCreateItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (item: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!item.name?.trim()) throw new Error("Item name is required");
+      if (item.selling_price !== undefined && item.selling_price < 0) throw new Error("Selling price cannot be negative");
+      if (item.purchase_price !== undefined && item.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const { data, error } = await supabase.from("items" as any).insert(item).select().single();
       if (error) throw error;
       return data;
@@ -42,8 +47,12 @@ export function useCreateItem() {
 
 export function useUpdateItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (updates.selling_price !== undefined && updates.selling_price < 0) throw new Error("Selling price cannot be negative");
+      if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const { error } = await supabase.from("items" as any).update(updates).eq("id", id);
       if (error) throw error;
     },
@@ -57,8 +66,10 @@ export function useUpdateItem() {
 
 export function useDeleteItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("items" as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -92,8 +103,11 @@ export function useWarehouses() {
 
 export function useCreateWarehouse() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (wh: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!wh.name?.trim()) throw new Error("Warehouse name is required");
       const { data, error } = await supabase.from("warehouses" as any).insert(wh).select().single();
       if (error) throw error;
       return data;
@@ -180,14 +194,18 @@ export function useStockAdjustments() {
 
 export function useCreateStockAdjustment() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (adj: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (adj.quantity === undefined || adj.quantity === 0) throw new Error("Adjustment quantity cannot be zero");
       const { data, error } = await supabase.from("stock_adjustments" as any).insert(adj).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock-adjustments"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       toast.success("Stock adjustment created");
     },
     onError: (e: any) => toast.error(e.message),

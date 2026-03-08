@@ -126,10 +126,30 @@ export function useCreatePurchaseOrder() {
   });
 }
 
+const VALID_PO_STATUSES = ["draft", "submitted", "approved", "partially_received", "received", "cancelled", "closed"] as const;
+const PO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["submitted", "cancelled"],
+  submitted: ["approved", "cancelled"],
+  approved: ["partially_received", "received", "cancelled"],
+  partially_received: ["received", "closed"],
+  received: ["closed"],
+};
+
 export function useUpdatePOStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_PO_STATUSES.includes(status as any)) throw new Error(`Invalid PO status: ${status}`);
+
+      // Verify current status allows transition
+      const { data: current } = await supabase.from("purchase_orders" as any).select("status").eq("id", id).maybeSingle();
+      const currentStatus = (current as any)?.status;
+      if (currentStatus && PO_TRANSITIONS[currentStatus] && !PO_TRANSITIONS[currentStatus].includes(status)) {
+        throw new Error(`Cannot transition PO from '${currentStatus}' to '${status}'`);
+      }
+
       const { error } = await supabase.from("purchase_orders" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
