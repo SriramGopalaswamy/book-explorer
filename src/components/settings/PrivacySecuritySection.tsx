@@ -479,20 +479,34 @@ function BreachLogSection() {
 
         {breaches.length > 0 && (
           <div className="space-y-2">
-            {breaches.map((b: any) => (
-              <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium capitalize">{b.breach_type?.replace("_", " ")}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-1">{b.description}</p>
-                  <p className="text-xs text-muted-foreground">{format(new Date(b.breach_date), "dd MMM yyyy")}</p>
+            {breaches.map((b: any) => {
+              const breachTime = new Date(b.breach_date).getTime();
+              const deadlineTime = breachTime + (72 * 60 * 60 * 1000);
+              const now = Date.now();
+              const hoursLeft = Math.max(0, Math.ceil((deadlineTime - now) / (1000 * 60 * 60)));
+              const isExpired = hoursLeft <= 0;
+              const isUrgent = hoursLeft > 0 && hoursLeft <= 24;
+
+              return (
+                <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium capitalize">{b.breach_type?.replace("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{b.description}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(b.breach_date), "dd MMM yyyy")}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!b.authority_notified && (
+                      <Badge variant="outline" className={isExpired ? "bg-destructive/10 text-destructive border-destructive/20" : isUrgent ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/20" : "bg-blue-500/10 text-blue-700 border-blue-500/20"}>
+                        {isExpired ? "72h deadline passed!" : `${hoursLeft}h to notify DPB`}
+                      </Badge>
+                    )}
+                    {b.authority_notified && <CheckCircle2 className="h-4 w-4 text-green-600" />}
+                    <Badge variant="outline" className={severityColors[b.severity] || ""}>{b.severity}</Badge>
+                    <Badge variant="outline">{b.status}</Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {b.authority_notified && <CheckCircle2 className="h-4 w-4 text-green-600" />}
-                  <Badge variant="outline" className={severityColors[b.severity] || ""}>{b.severity}</Badge>
-                  <Badge variant="outline">{b.status}</Badge>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
