@@ -4,12 +4,24 @@ import { toast } from "sonner";
 
 /**
  * Generate payslips for a locked payroll run via edge function.
+ * Only locked runs are eligible for payslip generation.
  */
 export function useGeneratePayslips() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (payrollRunId: string) => {
+      // Verify run is locked before generating payslips
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", payrollRunId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (run.status !== "locked") {
+        throw new Error(`Payslips can only be generated for locked runs. Current status: '${run.status}'`);
+      }
+
       const { data, error } = await supabase.functions.invoke("generate-payslip", {
         body: { payroll_run_id: payrollRunId },
       });

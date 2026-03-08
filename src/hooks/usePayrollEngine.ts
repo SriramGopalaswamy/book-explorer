@@ -432,6 +432,18 @@ export function useLockPayrollRun() {
   return useMutation({
     mutationFn: async (runId: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Only approved runs can be locked
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (!["approved", "completed"].includes(run.status)) {
+        throw new Error(`Cannot lock a payroll run with status '${run.status}'. Must be approved first.`);
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id })
@@ -450,9 +462,23 @@ export function useLockPayrollRun() {
 
 export function useDeletePayrollRun() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (runId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only draft/completed runs can be deleted — locked/approved cannot
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (["locked", "approved", "under_review"].includes(run.status)) {
+        throw new Error(`Cannot delete a payroll run with status '${run.status}'`);
+      }
+
       const { error } = await supabase.from("payroll_runs").delete().eq("id", runId);
       if (error) throw error;
     },
@@ -472,6 +498,16 @@ export function useUpdateEntryLWP() {
 
   return useMutation({
     mutationFn: async ({ entryId, lwpDays, runId }: { entryId: string; lwpDays: number; runId: string }) => {
+      if (lwpDays < 0) throw new Error("LWP days cannot be negative");
+
+      // Ensure run is not locked
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (run?.status === "locked") throw new Error("Cannot modify entries on a locked payroll run");
+
       // Fetch the current entry to recalculate
       const { data: entry, error: fetchErr } = await supabase
         .from("payroll_entries")

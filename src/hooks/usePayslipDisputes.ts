@@ -80,6 +80,24 @@ export function useRaisePayslipDispute() {
       description: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!input.description?.trim()) throw new Error("Dispute description is required");
+
+      // Validate category
+      const validCategories: string[] = DISPUTE_CATEGORIES.map(c => c.value);
+      if (!validCategories.includes(input.dispute_category)) {
+        throw new Error("Invalid dispute category");
+      }
+
+      // Prevent duplicate active disputes for the same payroll record
+      const { data: existing } = await supabase
+        .from("payslip_disputes" as any)
+        .select("id")
+        .eq("payroll_record_id", input.payroll_record_id)
+        .not("status", "in", '("rejected","approved")')
+        .limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error("An active dispute already exists for this payslip. Please wait for it to be resolved.");
+      }
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
@@ -180,6 +198,17 @@ export function useManagerReviewDispute() {
   return useMutation({
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "forward" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Double-review guard
+      const { data: check } = await supabase
+        .from("payslip_disputes" as any)
+        .select("status")
+        .eq("id", disputeId)
+        .single();
+      if ((check as any)?.status !== "pending_manager") {
+        throw new Error("This dispute has already been reviewed or is no longer pending manager review");
+      }
+
       const update: any = {
         manager_reviewed_at: new Date().toISOString(),
         manager_reviewed_by: user.id,

@@ -122,6 +122,7 @@ export function useInvestmentDeclarations(profileId: string | null, fy: string) 
 
 export function useSaveInvestmentDeclaration() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: org } = useUserOrganization();
 
   return useMutation({
@@ -132,7 +133,23 @@ export function useSaveInvestmentDeclaration() {
       declared_amount: number;
       proof_url?: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
       if (!org?.organizationId) throw new Error("Organization not found");
+      if (decl.declared_amount < 0) throw new Error("Declaration amount cannot be negative");
+
+      // Enforce statutory caps
+      const SECTION_CAPS: Record<string, number> = {
+        "80C": 150000,
+        "80D": 100000,
+        "80CCD": 50000,
+        "80G": 0, // no fixed cap
+        "80E": 0,
+      };
+      const cap = SECTION_CAPS[decl.section_type];
+      if (cap && cap > 0 && decl.declared_amount > cap) {
+        throw new Error(`Section ${decl.section_type} declaration cannot exceed ₹${cap.toLocaleString("en-IN")}`);
+      }
+
       const { error } = await supabase.from("investment_declarations").insert({
         ...decl,
         organization_id: org.organizationId,
@@ -152,6 +169,20 @@ export function useApproveDeclaration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, approved_amount }: { id: string; approved_amount: number }) => {
+      if (approved_amount < 0) throw new Error("Approved amount cannot be negative");
+
+      // Verify current status is submitted
+      const { data: decl } = await supabase
+        .from("investment_declarations")
+        .select("status, declared_amount")
+        .eq("id", id)
+        .single();
+      if (!decl) throw new Error("Declaration not found");
+      if (decl.status !== "submitted") throw new Error(`Cannot approve: declaration is already '${decl.status}'`);
+      if (approved_amount > Number(decl.declared_amount)) {
+        throw new Error("Approved amount cannot exceed declared amount");
+      }
+
       const { error } = await supabase
         .from("investment_declarations")
         .update({
