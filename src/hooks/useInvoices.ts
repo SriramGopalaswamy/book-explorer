@@ -412,6 +412,17 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // ── Only drafts can be deleted ────────────────────────────
+      const { data: inv, error: checkErr } = await supabase
+        .from("invoices")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (checkErr) throw checkErr;
+      if (inv?.status && inv.status !== "draft") {
+        throw new Error(`Cannot delete a "${inv.status}" invoice. Only draft invoices can be deleted.`);
+      }
+
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
     },

@@ -128,13 +128,33 @@ export function useCreateVendorPayment() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (p: { vendor_name: string; vendor_id?: string; bill_id?: string; payment_date: string; amount: number; payment_method: string; reference_number?: string; bank_account_id?: string; notes?: string }) => {
+      if (!user) throw new Error("User not authenticated");
       if (p.amount <= 0) throw new Error("Payment amount must be greater than zero.");
       if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
+      if (!p.payment_date) throw new Error("Payment date is required.");
+
+      // Prevent future-dated payments
+      const today = new Date().toISOString().split("T")[0];
+      if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
+
+      // If linked to bill, verify bill exists and payment doesn't exceed balance
+      if (p.bill_id) {
+        const { data: bill, error: billErr } = await supabase
+          .from("bills")
+          .select("total_amount, status")
+          .eq("id", p.bill_id)
+          .single();
+        if (billErr || !bill) throw new Error("Linked bill not found.");
+        if (bill.status === "Paid") throw new Error("This bill has already been fully paid.");
+        if (p.amount > Number(bill.total_amount)) {
+          throw new Error(`Payment (₹${p.amount}) exceeds bill amount (₹${bill.total_amount}).`);
+        }
+      }
 
       const num = `VPAY-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("vendor_payments" as any).insert({
         payment_number: num,
-        vendor_name: p.vendor_name,
+        vendor_name: p.vendor_name.trim(),
         vendor_id: p.vendor_id || null,
         bill_id: p.bill_id || null,
         payment_date: p.payment_date,
@@ -143,7 +163,7 @@ export function useCreateVendorPayment() {
         reference_number: p.reference_number || null,
         bank_account_id: p.bank_account_id || null,
         notes: p.notes || null,
-        created_by: user?.id,
+        created_by: user.id,
       } as any);
       if (error) throw error;
     },
