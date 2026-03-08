@@ -394,5 +394,6 @@ export default function AuditLog() {
           <AuditIntegrityVerifier />
         </TabsContent>
       </Tabs>
+    </MainLayout>
   );
 }
