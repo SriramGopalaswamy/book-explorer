@@ -27,9 +27,11 @@ export interface DashboardStats {
 export function useDashboardStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["dashboard-stats", user?.id, isDevMode],
+    queryKey: ["dashboard-stats", user?.id, orgId, isDevMode],
     queryFn: async (): Promise<DashboardStats> => {
       if (!user && !isDevMode) return getEmptyStats();
       if (isDevMode) return getEmptyStats();
@@ -40,11 +42,13 @@ export function useDashboardStats() {
       const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
       const lastMonthEnd = endOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
 
-      // Get GL accounts to identify revenue vs expense
-      const { data: glAccounts } = await supabase
+      // Get GL accounts to identify revenue vs expense — org-scoped
+      let glQuery = supabase
         .from("gl_accounts")
         .select("id, account_type")
         .in("account_type", ["revenue", "expense"]);
+      if (orgId) glQuery = glQuery.eq("organization_id", orgId);
+      const { data: glAccounts } = await glQuery;
 
       const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
       const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
