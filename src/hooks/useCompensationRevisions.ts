@@ -110,6 +110,20 @@ export function useCreateRevisionRequest() {
       requested_by_role: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+      if (data.proposed_ctc <= 0) throw new Error("Proposed CTC must be positive");
+      if (!data.revision_reason?.trim()) throw new Error("Revision reason is required");
+      if (!data.effective_from) throw new Error("Effective date is required");
+
+      // Prevent duplicate pending requests for same employee
+      const { data: existing } = await (supabase.from("compensation_revision_requests" as any) as any)
+        .select("id")
+        .eq("profile_id", data.profile_id)
+        .eq("status", "pending")
+        .limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error("A pending revision request already exists for this employee");
+      }
+
       const { error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
         profile_id: data.profile_id,
         requested_by: user.id,
