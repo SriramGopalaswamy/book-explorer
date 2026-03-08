@@ -66,8 +66,10 @@ export function useUpdateItem() {
 
 export function useDeleteItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("items" as any).delete().eq("id", id);
       if (error) throw error;
     },
