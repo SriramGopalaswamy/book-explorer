@@ -131,6 +131,29 @@ export function useUpdateGoal() {
         if (!validStatuses.includes(updates.status)) throw new Error("Invalid goal status");
       }
 
+      // Validate progress bounds
+      if (updates.progress !== undefined) {
+        if (updates.progress < 0 || updates.progress > 100) {
+          throw new Error("Progress must be between 0 and 100.");
+        }
+      }
+
+      // Prevent editing completed goals (except to reopen)
+      const { data: current, error: fetchErr } = await supabase
+        .from("goals")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (current?.status === "completed" && updates.status !== "on_track" && updates.status !== "at_risk" && updates.status !== "delayed") {
+        throw new Error("Completed goals cannot be modified. Reopen the goal first by changing its status.");
+      }
+
+      // Title validation if provided
+      if (updates.title !== undefined && !updates.title?.trim()) {
+        throw new Error("Goal title cannot be empty.");
+      }
+
       const { data, error } = await supabase
         .from("goals")
         .update(updates)
