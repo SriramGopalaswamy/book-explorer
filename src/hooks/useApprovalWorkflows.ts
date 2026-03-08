@@ -111,9 +111,22 @@ export function useApproveRequest() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Double-review guard: verify request is still pending
+      const { data: current, error: fetchErr } = await supabase
+        .from("approval_requests" as any)
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if ((current as any)?.status !== "pending") {
+        throw new Error("This request has already been reviewed.");
+      }
+
       const { error } = await supabase.from("approval_requests" as any).update({
         status: "approved",
-        approved_by: user?.id,
+        approved_by: user.id,
         approved_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as any).eq("id", id);
