@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, ChevronRight } from "lucide-react";
+import { Download, ChevronRight, FileText } from "lucide-react";
 import { useBalanceSheet } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { exportScheduleIIIBalanceSheet } from "@/lib/schedule-iii-export";
 import { BSDrillDownDialog } from "./BSDrillDownDialog";
 import { format } from "date-fns";
 
