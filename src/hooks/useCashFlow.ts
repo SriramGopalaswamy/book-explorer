@@ -186,12 +186,7 @@ export function useCashFlowSummary() {
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        return {
-          totalInflow: 9250000,
-          totalOutflow: 7830000,
-          netCashFlow: 1420000,
-          runway: 8.5,
-        };
+        return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
       }
 
       const stats = data.reduce(
