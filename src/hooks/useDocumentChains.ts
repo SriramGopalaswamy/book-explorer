@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { postGoodsReceiptStock, postDeliveryNoteStock } from "@/lib/stock-ledger-sync";
 
 // ─── State machines ──────────────────────────────────────────────
 const GR_TRANSITIONS: Record<string, string[]> = {
@@ -189,8 +190,17 @@ export function useUpdateGRStatus() {
       }
       const { error } = await supabase.from("goods_receipts" as any).update({ status } as any).eq("id", id);
       if (error) throw error;
+
+      // ── Auto stock-in when GR is accepted ──
+      if (status === "accepted") {
+        try {
+          await postGoodsReceiptStock(id);
+        } catch (stockErr) {
+          console.warn("Stock ledger sync failed for GR:", stockErr);
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); toast.success("GR status updated"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("GR status updated"); },
     onError: (e: any) => toast.error(e.message),
   });
 }
@@ -322,6 +332,15 @@ export function useUpdateDNStatus() {
       const { error } = await supabase.from("delivery_notes" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
 
+      // ── Auto stock-out when DN is delivered ──
+      if (status === "delivered") {
+        try {
+          await postDeliveryNoteStock(id);
+        } catch (stockErr) {
+          console.warn("Stock ledger sync failed for DN:", stockErr);
+        }
+      }
+
       // Auto-update SO status when DN is delivered
       const soId = (current as any)?.sales_order_id;
       if (status === "delivered" && soId) {
@@ -336,6 +355,7 @@ export function useUpdateDNStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["delivery-notes"] });
       qc.invalidateQueries({ queryKey: ["sales-orders"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       toast.success("Delivery note status updated");
     },
     onError: (e: any) => toast.error(e.message),
