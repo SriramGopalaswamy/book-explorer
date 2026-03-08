@@ -88,24 +88,33 @@ export function useIsAdminHROrFinance() {
   });
 }
 
-// Fetch all employees (profiles) - admin/HR/finance get full view, others get limited view
+// Fetch all employees (profiles) - ORGANIZATION-SCOPED to prevent cross-tenant data bleed
 export function useEmployees() {
   const { user } = useAuth();
   const { data: hasAccess, isLoading: isRoleLoading } = useIsAdminHROrFinance();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["employees", user?.id, hasAccess, isDevMode],
+    queryKey: ["employees", user?.id, hasAccess, isDevMode, orgId],
     queryFn: async () => {
       if (isDevMode) return mockEmployees;
       if (!user) return [];
 
       if (hasAccess) {
-        const { data, error } = await supabase
+        // CRITICAL: Always filter by organization_id to enforce tenant isolation
+        let query = supabase
           .from("profiles")
           .select("*")
           .order("full_name", { ascending: true });
 
+        // Apply org filter — this is the critical fix for sandbox/production isolation
+        if (orgId) {
+          query = query.eq("organization_id", orgId);
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
         const employees = data as Employee[];
 
@@ -147,11 +156,17 @@ export function useEmployees() {
 
         return employees;
       } else {
-        const { data, error } = await supabase
+        // Non-admin view: use safe view, also org-scoped
+        let query = supabase
           .from("profiles_safe" as any)
           .select("*")
           .order("full_name", { ascending: true });
 
+        if (orgId) {
+          query = query.eq("organization_id", orgId);
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
         return (data as any[]).map((d) => ({
           ...d,
@@ -160,7 +175,7 @@ export function useEmployees() {
         })) as Employee[];
       }
     },
-    enabled: (!!user && !isRoleLoading) || isDevMode,
+    enabled: (!!user && !isRoleLoading && !!orgId) || isDevMode,
   });
 }
 
