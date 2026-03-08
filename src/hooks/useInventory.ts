@@ -26,8 +26,13 @@ export function useItems() {
 
 export function useCreateItem() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (item: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!item.name?.trim()) throw new Error("Item name is required");
+      if (item.selling_price !== undefined && item.selling_price < 0) throw new Error("Selling price cannot be negative");
+      if (item.purchase_price !== undefined && item.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const { data, error } = await supabase.from("items" as any).insert(item).select().single();
       if (error) throw error;
       return data;
