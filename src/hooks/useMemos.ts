@@ -292,6 +292,23 @@ export function useUpdateMemo() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
+      // Enforce state machine on status transitions
+      if (updates.status) {
+        const { data: current, error: fetchErr } = await supabase
+          .from("memos")
+          .select("status")
+          .eq("id", id)
+          .single();
+        if (fetchErr || !current) throw fetchErr || new Error("Memo not found.");
+        const currentStatus = (current as any).status as string;
+        const allowed = MEMO_TRANSITIONS[currentStatus] || [];
+        if (!allowed.includes(updates.status) && updates.status !== currentStatus) {
+          throw new Error(`Cannot transition memo from "${currentStatus}" to "${updates.status}".`);
+        }
+      }
+
+      if (updates.title !== undefined && !updates.title?.trim()) throw new Error("Memo title cannot be empty.");
+
       const excerpt = updates.content
         ? updates.content.substring(0, 150) + (updates.content.length > 150 ? "..." : "")
         : undefined;
