@@ -122,6 +122,7 @@ export function useInvestmentDeclarations(profileId: string | null, fy: string) 
 
 export function useSaveInvestmentDeclaration() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: org } = useUserOrganization();
 
   return useMutation({
@@ -132,7 +133,23 @@ export function useSaveInvestmentDeclaration() {
       declared_amount: number;
       proof_url?: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
       if (!org?.organizationId) throw new Error("Organization not found");
+      if (decl.declared_amount < 0) throw new Error("Declaration amount cannot be negative");
+
+      // Enforce statutory caps
+      const SECTION_CAPS: Record<string, number> = {
+        "80C": 150000,
+        "80D": 100000,
+        "80CCD": 50000,
+        "80G": 0, // no fixed cap
+        "80E": 0,
+      };
+      const cap = SECTION_CAPS[decl.section_type];
+      if (cap && cap > 0 && decl.declared_amount > cap) {
+        throw new Error(`Section ${decl.section_type} declaration cannot exceed ₹${cap.toLocaleString("en-IN")}`);
+      }
+
       const { error } = await supabase.from("investment_declarations").insert({
         ...decl,
         organization_id: org.organizationId,
