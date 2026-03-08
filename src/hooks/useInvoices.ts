@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockInvoices } from "@/lib/mock-data";
+import { checkApprovalGate, createApprovalRequest } from "@/lib/approval-gate";
 import { toast } from "@/hooks/use-toast";
 
 export interface Invoice {
