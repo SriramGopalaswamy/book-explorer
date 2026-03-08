@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockInvoices } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 
@@ -107,18 +108,23 @@ export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
 export function useInvoices() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["invoices", user?.id, isDevMode],
+    queryKey: ["invoices", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockInvoices;
       if (!user) return [];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("invoices")
         .select(`*, invoice_items (*)`)
         .order("created_at", { ascending: false });
 
+      if (orgId) query = query.eq("organization_id", orgId);
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as Invoice[];
     },

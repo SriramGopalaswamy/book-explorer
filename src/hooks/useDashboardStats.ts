@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 export interface DashboardStats {
@@ -26,9 +27,11 @@ export interface DashboardStats {
 export function useDashboardStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["dashboard-stats", user?.id, isDevMode],
+    queryKey: ["dashboard-stats", user?.id, orgId, isDevMode],
     queryFn: async (): Promise<DashboardStats> => {
       if (!user && !isDevMode) return getEmptyStats();
       if (isDevMode) return getEmptyStats();
@@ -39,11 +42,13 @@ export function useDashboardStats() {
       const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
       const lastMonthEnd = endOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
 
-      // Get GL accounts to identify revenue vs expense
-      const { data: glAccounts } = await supabase
+      // Get GL accounts to identify revenue vs expense — org-scoped
+      let glQuery = supabase
         .from("gl_accounts")
         .select("id, account_type")
         .in("account_type", ["revenue", "expense"]);
+      if (orgId) glQuery = glQuery.eq("organization_id", orgId);
+      const { data: glAccounts } = await glQuery;
 
       const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
       const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
@@ -82,11 +87,19 @@ export function useDashboardStats() {
         : 0;
 
       // Non-financial stats (unchanged)
+      // Org-scoped non-financial stats
+      let empQ = supabase.from("profiles").select("id").eq("status", "active");
+      let invQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]);
+      let invLastQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd);
+      let goalsQ = supabase.from("goals").select("progress, status");
+      if (orgId) {
+        empQ = empQ.eq("organization_id", orgId);
+        invQ = invQ.eq("organization_id", orgId);
+        invLastQ = invLastQ.eq("organization_id", orgId);
+        goalsQ = goalsQ.eq("organization_id", orgId);
+      }
       const [employeesResult, pendingInvoicesResult, lastMonthInvoicesResult, goalsResult] = await Promise.all([
-        supabase.from("profiles").select("id").eq("status", "active"),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]),
-        supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd),
-        supabase.from("goals").select("progress, status"),
+        empQ, invQ, invLastQ, goalsQ,
       ]);
 
       const activeEmployees = employeesResult.data?.length || 0;

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockLeaveRequests, mockLeaveBalances, mockHolidays } from "@/lib/mock-data";
 import { toast } from "sonner";
 
@@ -66,9 +67,11 @@ export interface Holiday {
 export function useLeaveRequests(status?: string) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["leave-requests", status, isDevMode],
+    queryKey: ["leave-requests", status, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) {
         if (status && status !== "all") return mockLeaveRequests.filter(r => r.status === status);
@@ -79,9 +82,8 @@ export function useLeaveRequests(status?: string) {
         .select(`*, profiles!profile_id(full_name, department)`)
         .order("created_at", { ascending: false });
 
-      if (status && status !== "all") {
-        query = query.eq("status", status);
-      }
+      if (orgId) query = query.eq("organization_id", orgId);
+      if (status && status !== "all") query = query.eq("status", status);
 
       const { data, error } = await query;
       if (error) throw error;
