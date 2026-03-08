@@ -70,6 +70,18 @@ export function useDeleteItem() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Prevent deleting items with stock ledger entries
+      const { data: ledgerEntries, error: ledgerErr } = await supabase
+        .from("stock_ledger" as any)
+        .select("id")
+        .eq("item_id", id)
+        .limit(1);
+      if (ledgerErr) throw ledgerErr;
+      if (ledgerEntries && ledgerEntries.length > 0) {
+        throw new Error("Cannot delete an item with existing stock movements. Deactivate it instead.");
+      }
+
       const { error } = await supabase.from("items" as any).delete().eq("id", id);
       if (error) throw error;
     },
