@@ -262,6 +262,8 @@ export default function Quotes() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const convertToSO = useConvertQuoteToSO();
+
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
       if (!user) throw new Error("Not authenticated");
