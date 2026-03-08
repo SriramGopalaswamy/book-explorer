@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { postGoodsReceiptStock, postDeliveryNoteStock } from "@/lib/stock-ledger-sync";
 
 // ─── State machines ──────────────────────────────────────────────
 const GR_TRANSITIONS: Record<string, string[]> = {
