@@ -250,7 +250,7 @@ export function useUpdateInvoiceStatus() {
       // Fetch current status to validate transition
       const { data: current, error: fetchErr } = await supabase
         .from("invoices")
-        .select("status")
+        .select("status, amount, invoice_number")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
@@ -259,6 +259,26 @@ export function useUpdateInvoiceStatus() {
       const allowed = VALID_TRANSITIONS[currentStatus];
       if (!allowed || !allowed.includes(status)) {
         throw new Error(`Cannot change invoice status from "${currentStatus}" to "${status}".`);
+      }
+
+      // ── Approval gate: check if this transition requires approval ──
+      if (status === "sent" || status === "paid") {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const gate = await checkApprovalGate("invoice", Number(current?.amount || 0));
+          if (gate.requiresApproval) {
+            await createApprovalRequest({
+              workflowId: gate.workflowId!,
+              documentType: "invoice",
+              documentId: id,
+              documentNumber: current?.invoice_number || null,
+              documentAmount: Number(current?.amount || 0),
+              requestedBy: authUser.id,
+              notes: `Approval required to change status to "${status}"`,
+            });
+            throw new Error(`This invoice exceeds the ₹${gate.thresholdAmount?.toLocaleString()} approval threshold. An approval request has been created.`);
+          }
+        }
       }
 
       const { data, error } = await supabase
