@@ -432,6 +432,18 @@ export function useLockPayrollRun() {
   return useMutation({
     mutationFn: async (runId: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Only approved runs can be locked
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (!["approved", "completed"].includes(run.status)) {
+        throw new Error(`Cannot lock a payroll run with status '${run.status}'. Must be approved first.`);
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id })
