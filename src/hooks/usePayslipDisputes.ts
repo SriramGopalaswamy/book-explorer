@@ -83,7 +83,7 @@ export function useRaisePayslipDispute() {
       if (!input.description?.trim()) throw new Error("Dispute description is required");
 
       // Validate category
-      const validCategories = DISPUTE_CATEGORIES.map(c => c.value);
+      const validCategories: string[] = DISPUTE_CATEGORIES.map(c => c.value);
       if (!validCategories.includes(input.dispute_category)) {
         throw new Error("Invalid dispute category");
       }
