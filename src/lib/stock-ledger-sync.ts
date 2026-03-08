@@ -68,7 +68,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
       .from("warehouses" as any)
       .select("id")
       .limit(1);
-    warehouseId = defaultWh?.[0]?.id;
+    warehouseId = (defaultWh as any)?.[0]?.id;
   }
   if (!warehouseId) return; // No warehouse, skip
 
