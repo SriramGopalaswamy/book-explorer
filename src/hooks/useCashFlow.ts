@@ -94,6 +94,10 @@ export function useUpdatePaymentStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: ScheduledPayment["status"] }) => {
+      if (!user) throw new Error("Not authenticated");
+      const validStatuses: ScheduledPayment["status"][] = ["scheduled", "pending", "completed", "cancelled"];
+      if (!validStatuses.includes(status)) throw new Error("Invalid payment status");
+
       const { data, error } = await supabase
         .from("scheduled_payments")
         .update({ status })
