@@ -9679,6 +9679,33 @@ export type Database = {
           },
         ]
       }
+      user_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen_at: string
+          session_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          session_id: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          session_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       vendor_credits: {
         Row: {
           amount: number
@@ -10291,6 +10318,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      cleanup_stale_sessions: { Args: never; Returns: undefined }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
       close_fiscal_period: {
         Args: { _org_id: string; _period_id: string }

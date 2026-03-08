@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -24,7 +25,9 @@ import {
   User,
   Target,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
+import { AuditIntegrityVerifier } from "@/components/audit/AuditIntegrityVerifier";
 import { format, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
@@ -162,8 +165,15 @@ export default function AuditLog() {
       title="Audit Log"
       subtitle="Full record of all workflow actions performed in the system"
     >
+      <Tabs defaultValue="events" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="events"><Activity className="h-4 w-4 mr-1" />Event Log</TabsTrigger>
+          <TabsTrigger value="integrity"><ShieldCheck className="h-4 w-4 mr-1" />Integrity Verification</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="events" className="space-y-6">
       {/* Header Stats */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Events</CardTitle>
@@ -378,6 +388,12 @@ export default function AuditLog() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="integrity">
+          <AuditIntegrityVerifier />
+        </TabsContent>
+      </Tabs>
     </MainLayout>
   );
 }
