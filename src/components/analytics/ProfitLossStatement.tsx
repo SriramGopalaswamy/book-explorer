@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, ChevronRight } from "lucide-react";
+import { Download, ChevronRight, FileText } from "lucide-react";
 import { useProfitLoss, type ProfitLossData } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { exportScheduleIIIProfitLoss } from "@/lib/schedule-iii-export";
 import { PLDrillDownDialog } from "./PLDrillDownDialog";
 import { format } from "date-fns";
 
