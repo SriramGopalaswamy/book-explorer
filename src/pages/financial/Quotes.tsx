@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, FileText, MoreHorizontal, Trash2, ArrowRight, Search, Eye, Pencil, Download, Send, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Plus, FileText, MoreHorizontal, Trash2, ArrowRight, Search, Eye, Pencil, Download, Send, CheckCircle2, XCircle, Clock, ShoppingBag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
