@@ -157,6 +157,26 @@ export function useUpdateSalesReturnStatus() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_RETURN_STATUSES.includes(status as any)) throw new Error(`Invalid return status: ${status}`);
+
+      // ── Lifecycle state-machine ───────────────────────────────
+      const RETURN_TRANSITIONS: Record<string, string[]> = {
+        draft: ["submitted", "cancelled"],
+        submitted: ["approved", "cancelled"],
+        approved: ["processed", "cancelled"],
+        processed: ["closed"],
+        cancelled: [],  // terminal
+        closed: [],     // terminal
+      };
+
+      const { data: current, error: fetchErr } = await supabase
+        .from("sales_returns" as any).select("status").eq("id", id).single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = (current as any)?.status;
+      const allowed = RETURN_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change sales return from "${currentStatus}" to "${status}".`);
+      }
+
       const { error } = await supabase.from("sales_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
