@@ -103,8 +103,11 @@ export function useWarehouses() {
 
 export function useCreateWarehouse() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (wh: Record<string, any>) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!wh.name?.trim()) throw new Error("Warehouse name is required");
       const { data, error } = await supabase.from("warehouses" as any).insert(wh).select().single();
       if (error) throw error;
       return data;
