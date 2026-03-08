@@ -173,7 +173,16 @@ export function useApproveDeclaration() {
 
 /**
  * Compute monthly TDS for an employee.
+ * Compliant with Indian Income Tax Act — supports both Old & New (2023) regimes.
  * Uses snapshot data — never recalculates after lock.
+ *
+ * Key statutory rules enforced:
+ * - Section 80C cap: ₹1,50,000
+ * - Section 80D cap: ₹1,00,000 (senior: ₹1,00,000 including parents)
+ * - Standard Deduction: ₹50,000 (old), ₹75,000 (new regime FY2024-25+)
+ * - Section 87A rebate: ₹25,000 (new regime, if taxable ≤ ₹7,00,000)
+ * - 4% Health & Education Cess
+ * - Surcharge: 10% (₹50L-₹1Cr), 15% (₹1Cr-₹2Cr), 25% (₹2Cr-₹5Cr), 37% (>₹5Cr)
  */
 export function computeMonthlyTDS(params: {
   annualCTC: number;
@@ -196,34 +205,51 @@ export function computeMonthlyTDS(params: {
 
   let taxableIncome = annualCTC + exemptions.previous_employer_income;
 
-  // Standard deduction
-  taxableIncome -= exemptions.standard_deduction;
+  // Standard deduction (₹50,000 old / ₹75,000 new regime FY2024-25+)
+  const stdDeduction = isOldRegime
+    ? Math.min(exemptions.standard_deduction, 50000)
+    : Math.min(exemptions.standard_deduction || 75000, 75000);
+  taxableIncome -= stdDeduction;
 
-  // Old regime deductions
+  // Old regime deductions (Chapter VI-A)
   if (isOldRegime) {
-    taxableIncome -= Math.min(exemptions.declared_80c, 150000);
-    taxableIncome -= Math.min(exemptions.declared_80d, 100000);
+    taxableIncome -= Math.min(exemptions.declared_80c, 150000);   // 80C cap
+    taxableIncome -= Math.min(exemptions.declared_80d, 100000);   // 80D cap
     taxableIncome -= exemptions.hra_exemption;
     taxableIncome -= exemptions.other_deductions;
   }
 
   taxableIncome = Math.max(taxableIncome, 0);
 
-  // Apply slabs
+  // Apply slabs — use proper progressive slab calculation
   let totalTax = 0;
-  for (const slab of slabs) {
-    if (taxableIncome <= 0) break;
-    const slabRange = slab.income_to - slab.income_from + 1;
-    const taxableInSlab = Math.min(
-      Math.max(taxableIncome - slab.income_from, 0),
-      slabRange
-    );
-    if (taxableInSlab > 0 && taxableIncome >= slab.income_from) {
+  const sortedSlabs = [...slabs].sort((a, b) => a.income_from - b.income_from);
+
+  for (const slab of sortedSlabs) {
+    if (taxableIncome <= slab.income_from) break;
+    const taxableInSlab = Math.min(taxableIncome, slab.income_to) - slab.income_from;
+    if (taxableInSlab > 0) {
       totalTax += taxableInSlab * (slab.tax_percentage / 100);
     }
   }
 
-  // Add 4% health & education cess
+  // Section 87A rebate — New Regime: ₹25,000 if taxable income ≤ ₹7,00,000
+  // Old Regime: ₹12,500 if taxable income ≤ ₹5,00,000
+  if (!isOldRegime && taxableIncome <= 700000) {
+    totalTax = Math.max(totalTax - 25000, 0);
+  } else if (isOldRegime && taxableIncome <= 500000) {
+    totalTax = Math.max(totalTax - 12500, 0);
+  }
+
+  // Surcharge (on tax, before cess)
+  let surcharge = 0;
+  if (taxableIncome > 50000000) surcharge = totalTax * 0.37;
+  else if (taxableIncome > 20000000) surcharge = totalTax * 0.25;
+  else if (taxableIncome > 10000000) surcharge = totalTax * 0.15;
+  else if (taxableIncome > 5000000) surcharge = totalTax * 0.10;
+  totalTax += surcharge;
+
+  // Add 4% Health & Education Cess (on tax + surcharge)
   const cess = totalTax * 0.04;
   totalTax += cess;
 

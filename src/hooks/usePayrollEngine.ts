@@ -64,14 +64,19 @@ export interface PayrollEntry {
 
 export function usePayrollRuns() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["payroll-runs"],
+    queryKey: ["payroll-runs", orgId],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("payroll_runs")
         .select("*")
         .order("pay_period", { ascending: false });
+      if (orgId) query = query.eq("organization_id", orgId);
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as PayrollRun[];
     },
@@ -355,6 +360,13 @@ export function useGeneratePayroll() {
 
         const lwpDeduction = lwpDays > 0 ? Math.round((grossEarnings / paidDays) * lwpDays * (paidDays < workingDays ? 0 : 1)) : 0;
 
+        // Ensure net pay is never negative — cap deductions at gross
+        const rawNetPay = grossEarnings - totalDeductions;
+        const netPay = Math.max(rawNetPay, 0);
+        if (rawNetPay < 0) {
+          console.warn(`[Payroll] Negative net pay for profile ${s.profile_id}: gross=${grossEarnings}, deductions=${totalDeductions}. Clamped to 0.`);
+        }
+
         return {
           payroll_run_id: run.id,
           profile_id: s.profile_id,
@@ -363,7 +375,7 @@ export function useGeneratePayroll() {
           annual_ctc: Number(s.annual_ctc),
           gross_earnings: grossEarnings,
           total_deductions: totalDeductions,
-          net_pay: grossEarnings - totalDeductions,
+          net_pay: netPay,
           lwp_days: lwpDays,
           lwp_deduction: lwpDeduction,
           working_days: workingDays,
@@ -486,7 +498,7 @@ export function useUpdateEntryLWP() {
       const totalDeductions = deductionsBreakdown.reduce((s: number, c: any) => s + c.monthly, 0);
       const perDaySalary = workingDays > 0 ? Math.round((Number(entry.annual_ctc) / 12) / workingDays) : 0;
       const lwpDeduction = lwpDays * perDaySalary;
-      const netPay = grossEarnings - totalDeductions;
+      const netPay = Math.max(grossEarnings - totalDeductions, 0);
 
       const { error: updateErr } = await supabase
         .from("payroll_entries")
