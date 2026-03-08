@@ -24,7 +24,9 @@ import {
   User,
   Target,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
+import { AuditIntegrityVerifier } from "@/components/audit/AuditIntegrityVerifier";
 import { format, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
