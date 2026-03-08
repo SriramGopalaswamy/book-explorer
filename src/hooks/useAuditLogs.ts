@@ -129,20 +129,27 @@ export function useWriteAuditLog() {
       target_name?: string;
       metadata?: Record<string, unknown>;
     }) => {
-      if (!user) return;
+      if (!user) throw new Error("Not authenticated");
 
-      // Sanitize search-like inputs in metadata to prevent injection
+      // Validate required fields
+      if (!entry.action?.trim()) throw new Error("Audit action is required");
+      if (!entry.entity_type?.trim()) throw new Error("Entity type is required");
+
+      // Sanitize string fields to prevent injection via ilike filters
+      const sanitize = (s?: string) => s?.replace(/[%_]/g, "").trim().slice(0, 500);
+
+      // Sanitize metadata — deep-clone to prevent prototype pollution
       const sanitizedMetadata = entry.metadata ? JSON.parse(JSON.stringify(entry.metadata)) : {};
 
       const { error } = await supabase.from("audit_logs" as any).insert({
         actor_id: user.id,
-        actor_name: entry.actor_name ?? user.user_metadata?.full_name ?? user.email ?? "Unknown",
-        actor_role: entry.actor_role ?? null,
-        action: entry.action,
-        entity_type: entry.entity_type,
+        actor_name: sanitize(entry.actor_name) ?? user.user_metadata?.full_name ?? user.email ?? "Unknown",
+        actor_role: sanitize(entry.actor_role) ?? null,
+        action: entry.action.trim(),
+        entity_type: entry.entity_type.trim(),
         entity_id: entry.entity_id ?? null,
         target_user_id: entry.target_user_id ?? null,
-        target_name: entry.target_name ?? null,
+        target_name: sanitize(entry.target_name) ?? null,
         metadata: sanitizedMetadata,
       } as any);
       if (error) console.warn("Audit log write failed:", error.message);
