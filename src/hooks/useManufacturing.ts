@@ -270,8 +270,24 @@ export function useUpdateWOStatus() {
       }
       const { error } = await supabase.from("work_orders" as any).update(updates).eq("id", id);
       if (error) throw error;
+
+      // ── Auto-consume BOM materials on completion ──
+      if (status === "completed") {
+        const { consumeBOMForWorkOrder } = await import("@/lib/stock-ledger-sync");
+        try {
+          await consumeBOMForWorkOrder(id);
+        } catch (consumeErr: any) {
+          console.warn("BOM auto-consumption warning:", consumeErr.message);
+          // Don't fail the status change, but notify
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders"] }); toast.success("Status updated"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["work-orders"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
+      qc.invalidateQueries({ queryKey: ["items"] });
+      toast.success("Status updated");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }

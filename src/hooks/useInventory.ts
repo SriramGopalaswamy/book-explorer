@@ -271,3 +271,21 @@ export function useCreateUOM() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+// ─── Reorder Alerts ───
+
+export function useReorderAlerts() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["reorder-alerts", orgId],
+    enabled: !!user && !!orgId,
+    refetchInterval: 5 * 60 * 1000, // refresh every 5 min
+    queryFn: async () => {
+      const { checkReorderAlerts } = await import("@/lib/stock-ledger-sync");
+      return checkReorderAlerts(orgId!);
+    },
+  });
+}

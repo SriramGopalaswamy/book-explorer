@@ -72,7 +72,7 @@ export function useCreatePaymentReceipt() {
       const today = new Date().toISOString().split("T")[0];
       if (r.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to invoice, verify invoice exists and payment doesn't exceed balance
+      // If linked to invoice, verify invoice exists and payment doesn't exceed remaining balance
       if (r.invoice_id) {
         const { data: inv, error: invErr } = await supabase
           .from("invoices")
@@ -81,8 +81,18 @@ export function useCreatePaymentReceipt() {
           .single();
         if (invErr || !inv) throw new Error("Linked invoice not found.");
         if (inv.status === "paid") throw new Error("This invoice has already been fully paid.");
-        if (r.amount > Number(inv.amount)) {
-          throw new Error(`Payment (₹${r.amount}) exceeds invoice amount (₹${inv.amount}).`);
+
+        // Sum all existing payments against this invoice
+        const { data: existingPayments } = await supabase
+          .from("payment_receipts" as any)
+          .select("amount")
+          .eq("invoice_id", r.invoice_id)
+          .eq("status", "completed");
+        const totalPaid = (existingPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+        const remainingBalance = Number(inv.amount) - totalPaid;
+
+        if (r.amount > remainingBalance) {
+          throw new Error(`Payment (₹${r.amount}) exceeds remaining balance (₹${remainingBalance}).`);
         }
       }
 
@@ -102,7 +112,7 @@ export function useCreatePaymentReceipt() {
       } as any);
       if (error) throw error;
 
-      // ── Auto-update linked invoice to "paid" ──────────────
+      // ── Auto-update linked invoice status (partial → partially_paid, full → paid) ──
       if (r.invoice_id) {
         const { data: inv } = await supabase
           .from("invoices")
@@ -110,25 +120,32 @@ export function useCreatePaymentReceipt() {
           .eq("id", r.invoice_id)
           .single();
         if (inv && inv.status !== "paid" && inv.status !== "cancelled") {
-          // If payment covers the full amount, mark as paid
-          if (r.amount >= Number(inv.amount)) {
-            await supabase
-              .from("invoices")
-              .update({ status: "paid" })
-              .eq("id", r.invoice_id);
+          // Sum ALL payments including the one just inserted
+          const { data: allPayments } = await supabase
+            .from("payment_receipts" as any)
+            .select("amount")
+            .eq("invoice_id", r.invoice_id)
+            .eq("status", "completed");
+          const totalPaid = (allPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+          const invoiceAmount = Number(inv.amount);
+          const newStatus = totalPaid >= invoiceAmount ? "paid" : "partially_paid";
 
-            // Also create bank transaction for the payment
-            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-            await createBankTransaction({
-              userId: user.id,
-              amount: r.amount,
-              type: "credit",
-              description: `Payment received: ${num} — ${r.customer_name}`,
-              reference: num,
-              category: "Invoice Payment",
-              date: r.payment_date,
-            });
-          }
+          await supabase
+            .from("invoices")
+            .update({ status: newStatus })
+            .eq("id", r.invoice_id);
+
+          // Create bank transaction for every payment (partial or full)
+          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+          await createBankTransaction({
+            userId: user.id,
+            amount: r.amount,
+            type: "credit",
+            description: `Payment received: ${num} — ${r.customer_name}`,
+            reference: num,
+            category: "Invoice Payment",
+            date: r.payment_date,
+          });
         }
       }
     },
@@ -174,7 +191,7 @@ export function useCreateVendorPayment() {
       const today = new Date().toISOString().split("T")[0];
       if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to bill, verify bill exists and payment doesn't exceed balance
+      // If linked to bill, verify bill exists and payment doesn't exceed remaining balance
       if (p.bill_id) {
         const { data: bill, error: billErr } = await supabase
           .from("bills")
@@ -183,8 +200,18 @@ export function useCreateVendorPayment() {
           .single();
         if (billErr || !bill) throw new Error("Linked bill not found.");
         if (bill.status === "Paid") throw new Error("This bill has already been fully paid.");
-        if (p.amount > Number(bill.total_amount)) {
-          throw new Error(`Payment (₹${p.amount}) exceeds bill amount (₹${bill.total_amount}).`);
+
+        // Sum all existing vendor payments against this bill
+        const { data: existingPayments } = await supabase
+          .from("vendor_payments" as any)
+          .select("amount")
+          .eq("bill_id", p.bill_id)
+          .eq("status", "completed");
+        const totalPaid = (existingPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
+        const remainingBalance = Number(bill.total_amount) - totalPaid;
+
+        if (p.amount > remainingBalance) {
+          throw new Error(`Payment (₹${p.amount}) exceeds remaining balance (₹${remainingBalance}).`);
         }
       }
 
@@ -204,7 +231,7 @@ export function useCreateVendorPayment() {
       } as any);
       if (error) throw error;
 
-      // ── Auto-update linked bill to "Paid" ─────────────────
+      // ── Auto-update linked bill status (partial → Partially Paid, full → Paid) ──
       if (p.bill_id) {
         const { data: bill } = await supabase
           .from("bills")
@@ -212,24 +239,32 @@ export function useCreateVendorPayment() {
           .eq("id", p.bill_id)
           .single();
         if (bill && bill.status !== "Paid" && bill.status !== "Cancelled") {
-          if (p.amount >= Number(bill.total_amount)) {
-            await supabase
-              .from("bills")
-              .update({ status: "Paid" })
-              .eq("id", p.bill_id);
+          // Sum ALL payments including the one just inserted
+          const { data: allPayments } = await supabase
+            .from("vendor_payments" as any)
+            .select("amount")
+            .eq("bill_id", p.bill_id)
+            .eq("status", "completed");
+          const totalPaid = (allPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
+          const billAmount = Number(bill.total_amount);
+          const newStatus = totalPaid >= billAmount ? "Paid" : "Partially Paid";
 
-            // Create bank transaction for outgoing payment
-            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-            await createBankTransaction({
-              userId: user.id,
-              amount: p.amount,
-              type: "debit",
-              description: `Vendor payment: ${num} — ${p.vendor_name}`,
-              reference: num,
-              category: "Bill Payment",
-              date: p.payment_date,
-            });
-          }
+          await supabase
+            .from("bills")
+            .update({ status: newStatus })
+            .eq("id", p.bill_id);
+
+          // Create bank transaction for every payment (partial or full)
+          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+          await createBankTransaction({
+            userId: user.id,
+            amount: p.amount,
+            type: "debit",
+            description: `Vendor payment: ${num} — ${p.vendor_name}`,
+            reference: num,
+            category: "Bill Payment",
+            date: p.payment_date,
+          });
         }
       }
     },
