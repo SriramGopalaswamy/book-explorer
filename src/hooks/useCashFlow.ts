@@ -98,6 +98,28 @@ export function useUpdatePaymentStatus() {
       const validStatuses: ScheduledPayment["status"][] = ["scheduled", "pending", "completed", "cancelled"];
       if (!validStatuses.includes(status)) throw new Error("Invalid payment status");
 
+      // ── Lifecycle state-machine ───────────────────────────────
+      const SP_TRANSITIONS: Record<string, string[]> = {
+        scheduled: ["pending", "cancelled"],
+        pending: ["completed", "cancelled"],
+        completed: [],   // terminal
+        cancelled: [],   // terminal
+      };
+
+      // Fetch current status to enforce transitions
+      const { data: current, error: fetchErr } = await supabase
+        .from("scheduled_payments")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = current?.status as string;
+
+      const allowed = SP_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change scheduled payment from "${currentStatus}" to "${status}".`);
+      }
+
       const { data, error } = await supabase
         .from("scheduled_payments")
         .update({ status })
