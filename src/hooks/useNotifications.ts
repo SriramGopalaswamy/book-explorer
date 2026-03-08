@@ -95,13 +95,15 @@ export function useNotifications() {
     },
   });
 
-  // Delete notification
+  // Delete notification — scoped to current user
   const deleteNotification = useMutation({
     mutationFn: async (notificationId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("notifications")
         .delete()
-        .eq("id", notificationId);
+        .eq("id", notificationId)
+        .eq("user_id", user.id); // Ensure ownership
       if (error) throw error;
     },
     onSuccess: () => {

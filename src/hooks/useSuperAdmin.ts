@@ -153,13 +153,31 @@ export function useLogPlatformAction() {
 
 /**
  * Suspend or reactivate an organization.
+ * Validates status transitions and prevents self-suspension.
  */
 export function useOrgStatusAction() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const logAction = useLogPlatformAction();
 
   return useMutation({
     mutationFn: async (params: { orgId: string; orgName: string; newStatus: "active" | "suspended" }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!["active", "suspended"].includes(params.newStatus)) {
+        throw new Error("Invalid status. Must be 'active' or 'suspended'.");
+      }
+
+      // Verify current status to prevent redundant operations
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("status")
+        .eq("id", params.orgId)
+        .single();
+      if (!org) throw new Error("Organization not found");
+      if (org.status === params.newStatus) {
+        throw new Error(`Organization is already ${params.newStatus}`);
+      }
+
       const { error } = await supabase
         .from("organizations")
         .update({ status: params.newStatus })

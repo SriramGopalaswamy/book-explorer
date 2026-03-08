@@ -300,9 +300,17 @@ export function getCurrentFinancialYear(): string {
 /** Run a full AI audit */
 export function useRunFullAudit() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (financialYear: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Validate financial year format (e.g., "2024-25")
+      if (!/^\d{4}-\d{2}$/.test(financialYear)) {
+        throw new Error("Invalid financial year format. Expected: YYYY-YY (e.g., 2024-25)");
+      }
+
       const { data, error } = await supabase.functions.invoke("ai-audit-engine", {
         body: { action: "run_full_audit", financial_year: financialYear },
       });
@@ -324,9 +332,16 @@ export function useRunFullAudit() {
 /** Run a pre-audit simulation */
 export function useRunPreAuditSimulation() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (financialYear: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      if (!/^\d{4}-\d{2}$/.test(financialYear)) {
+        throw new Error("Invalid financial year format. Expected: YYYY-YY (e.g., 2024-25)");
+      }
+
       const { data, error } = await supabase.functions.invoke("ai-audit-engine", {
         body: { action: "pre_audit_simulation", financial_year: financialYear },
       });

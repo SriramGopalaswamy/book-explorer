@@ -100,9 +100,13 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
       if (filters.from)       query = query.gte("created_at", filters.from);
       if (filters.to)         query = query.lte("created_at", filters.to + "T23:59:59");
       if (filters.search) {
-        query = query.or(
-          `actor_name.ilike.%${filters.search}%,target_name.ilike.%${filters.search}%,action.ilike.%${filters.search}%`
-        );
+        // Sanitize search input to prevent ilike injection
+        const safeSearch = filters.search.replace(/[%_\\]/g, "").trim().slice(0, 200);
+        if (safeSearch) {
+          query = query.or(
+            `actor_name.ilike.%${safeSearch}%,target_name.ilike.%${safeSearch}%,action.ilike.%${safeSearch}%`
+          );
+        }
       }
 
       const { data, error, count } = await query;
