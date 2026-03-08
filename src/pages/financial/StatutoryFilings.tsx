@@ -220,8 +220,11 @@ export default function StatutoryFilings() {
   // Queries
   const gstr1 = useGSTR1Data(gstPeriod.from, gstPeriod.to);
   const gstr3b = useGSTR3BData(gstPeriod.from, gstPeriod.to);
+  const itcRecon = useITCReconciliation(gstPeriod.from, gstPeriod.to);
   const tds24q = useTDS24QData(tdsPeriod.from, tdsPeriod.to);
   const tds26q = useTDS26QData(tdsPeriod.from, tdsPeriod.to);
+  const form16 = useForm16Data(fy);
+  const form16a = useForm16AData(fy);
   const pfEcr = usePFECRData(pfPeriod.from, pfPeriod.to);
   const esiData = useESIData(pfPeriod.from, pfPeriod.to);
   const profTax = useProfTaxData(pfPeriod.from, pfPeriod.to);
