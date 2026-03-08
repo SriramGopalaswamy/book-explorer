@@ -73,11 +73,21 @@ export function useCreatePurchaseOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (po: { vendor_name: string; vendor_id?: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
+      if (!user) throw new Error("Not authenticated");
+
       // ── Validation ──
       if (!po.vendor_name.trim()) throw new Error("Vendor name is required.");
+      if (!po.order_date) throw new Error("Order date is required.");
       if (po.items.length === 0) throw new Error("At least one line item is required.");
       if (po.items.some(i => i.quantity <= 0)) throw new Error("All quantities must be greater than zero.");
       if (po.items.some(i => i.unit_price < 0)) throw new Error("Unit prices cannot be negative.");
+      if (po.items.some(i => i.tax_rate < 0 || i.tax_rate > 100)) throw new Error("Tax rates must be between 0% and 100%.");
+      if (po.items.some(i => !i.description?.trim())) throw new Error("All line items must have a description.");
+
+      // Expected delivery must be on or after order date
+      if (po.expected_delivery && po.expected_delivery < po.order_date) {
+        throw new Error("Expected delivery date cannot be before the order date.");
+      }
 
       const subtotal = po.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = po.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
@@ -87,7 +97,7 @@ export function useCreatePurchaseOrder() {
         .from("purchase_orders" as any)
         .insert({
           po_number: poNum,
-          vendor_name: po.vendor_name,
+          vendor_name: po.vendor_name.trim(),
           vendor_id: po.vendor_id || null,
           order_date: po.order_date,
           expected_delivery: po.expected_delivery || null,
@@ -95,7 +105,7 @@ export function useCreatePurchaseOrder() {
           subtotal,
           tax_amount: Math.round(tax * 100) / 100,
           total_amount: Math.round((subtotal + tax) * 100) / 100,
-          created_by: user?.id,
+          created_by: user.id,
         } as any)
         .select()
         .single();

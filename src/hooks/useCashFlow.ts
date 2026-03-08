@@ -98,6 +98,28 @@ export function useUpdatePaymentStatus() {
       const validStatuses: ScheduledPayment["status"][] = ["scheduled", "pending", "completed", "cancelled"];
       if (!validStatuses.includes(status)) throw new Error("Invalid payment status");
 
+      // ── Lifecycle state-machine ───────────────────────────────
+      const SP_TRANSITIONS: Record<string, string[]> = {
+        scheduled: ["pending", "cancelled"],
+        pending: ["completed", "cancelled"],
+        completed: [],   // terminal
+        cancelled: [],   // terminal
+      };
+
+      // Fetch current status to enforce transitions
+      const { data: current, error: fetchErr } = await supabase
+        .from("scheduled_payments")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const currentStatus = current?.status as string;
+
+      const allowed = SP_TRANSITIONS[currentStatus];
+      if (!allowed || !allowed.includes(status)) {
+        throw new Error(`Cannot change scheduled payment from "${currentStatus}" to "${status}".`);
+      }
+
       const { data, error } = await supabase
         .from("scheduled_payments")
         .update({ status })
@@ -142,6 +164,18 @@ export function useDeleteScheduledPayment() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Only scheduled/pending payments can be deleted; completed ones are immutable
+      const { data: payment, error: fetchErr } = await supabase
+        .from("scheduled_payments")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (payment?.status === "completed") {
+        throw new Error("Completed payments cannot be deleted. They form part of the cash flow record.");
+      }
+
       const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
       if (error) throw error;
     },

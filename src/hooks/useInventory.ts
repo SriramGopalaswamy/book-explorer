@@ -70,6 +70,18 @@ export function useDeleteItem() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Prevent deleting items with stock ledger entries
+      const { data: ledgerEntries, error: ledgerErr } = await supabase
+        .from("stock_ledger" as any)
+        .select("id")
+        .eq("item_id", id)
+        .limit(1);
+      if (ledgerErr) throw ledgerErr;
+      if (ledgerEntries && ledgerEntries.length > 0) {
+        throw new Error("Cannot delete an item with existing stock movements. Deactivate it instead.");
+      }
+
       const { error } = await supabase.from("items" as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -139,6 +151,17 @@ export function useDeleteWarehouse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Prevent deleting warehouses with stock
+      const { data: stock, error: stockErr } = await supabase
+        .from("stock_ledger" as any)
+        .select("id")
+        .eq("warehouse_id", id)
+        .limit(1);
+      if (stockErr) throw stockErr;
+      if (stock && stock.length > 0) {
+        throw new Error("Cannot delete a warehouse with existing stock entries. Transfer stock out first.");
+      }
+
       const { error } = await supabase.from("warehouses" as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -199,6 +222,9 @@ export function useCreateStockAdjustment() {
     mutationFn: async (adj: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
       if (adj.quantity === undefined || adj.quantity === 0) throw new Error("Adjustment quantity cannot be zero");
+      if (!adj.item_id) throw new Error("Item is required for stock adjustment.");
+      if (!adj.reason?.trim()) throw new Error("A reason is required for stock adjustments.");
+
       const { data, error } = await supabase.from("stock_adjustments" as any).insert(adj).select().single();
       if (error) throw error;
       return data;
