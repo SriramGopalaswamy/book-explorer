@@ -302,6 +302,11 @@ export function useUpdateFinancialRecord() {
     mutationFn: async ({ id, ...record }: { id: string } & Partial<Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">>) => {
       if (!user) throw new Error("User not authenticated");
 
+      // Validate amount if provided
+      if (record.amount !== undefined && record.amount <= 0) {
+        throw new Error("Amount must be a positive number");
+      }
+
       const { data, error } = await supabase
         .from("financial_records")
         .update(record)
@@ -349,12 +354,5 @@ export function useDeleteFinancialRecord() {
 
 
 function getDefaultExpenseData(): CategoryData[] {
-  return [
-    { name: "Salaries",         value: 1850000, color: "hsl(328, 86%, 58%)" },
-    { name: "Operations",       value: 420000,  color: "hsl(262, 70%, 65%)" },
-    { name: "Marketing",        value: 280000,  color: "hsl(38, 95%, 55%)"  },
-    { name: "Rent & Utilities", value: 180000,  color: "hsl(199, 85%, 55%)" },
-    { name: "Software",         value: 120000,  color: "hsl(142, 65%, 48%)" },
-    { name: "Others",           value: 150000,  color: "hsl(220, 25%, 60%)" },
-  ];
+  return [];
 }

@@ -94,6 +94,10 @@ export function useUpdatePaymentStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: ScheduledPayment["status"] }) => {
+      if (!user) throw new Error("Not authenticated");
+      const validStatuses: ScheduledPayment["status"][] = ["scheduled", "pending", "completed", "cancelled"];
+      if (!validStatuses.includes(status)) throw new Error("Invalid payment status");
+
       const { data, error } = await supabase
         .from("scheduled_payments")
         .update({ status })
@@ -133,9 +137,11 @@ export function useUpdatePaymentStatus() {
 
 export function useDeleteScheduledPayment() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
       if (error) throw error;
     },
@@ -156,32 +162,31 @@ export function useCashFlowSummary() {
   return useQuery({
     queryKey: ["cash-flow-summary", user?.id],
     queryFn: async () => {
-      if (!user) {
-        return {
-          totalInflow: 9250000,
-          totalOutflow: 7830000,
-          netCashFlow: 1420000,
-          runway: 8.5,
-        };
-      }
+      if (!user) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
+
+      // Resolve org for scoping
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const orgId = profile?.organization_id;
 
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      const { data, error } = await supabase
+      let txQuery = supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
         .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
+      if (orgId) txQuery = txQuery.eq("organization_id", orgId);
+
+      const { data, error } = await txQuery;
 
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        return {
-          totalInflow: 9250000,
-          totalOutflow: 7830000,
-          netCashFlow: 1420000,
-          runway: 8.5,
-        };
+        return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
       }
 
       const stats = data.reduce(
@@ -199,10 +204,10 @@ export function useCashFlowSummary() {
       const netCashFlow = stats.totalInflow - stats.totalOutflow;
       const monthlyBurn = stats.totalOutflow / 6;
       
-      // Get current balance
-      const { data: accounts } = await supabase
-        .from("bank_accounts")
-        .select("balance");
+      // Get current balance — org-scoped
+      let acctQuery = supabase.from("bank_accounts").select("balance");
+      if (orgId) acctQuery = acctQuery.eq("organization_id", orgId);
+      const { data: accounts } = await acctQuery;
 
       const totalBalance = (accounts || []).reduce((sum, acc) => sum + Number(acc.balance), 0);
       const runway = monthlyBurn > 0 ? totalBalance / monthlyBurn : 0;

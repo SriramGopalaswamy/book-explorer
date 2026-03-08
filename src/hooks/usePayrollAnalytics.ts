@@ -18,16 +18,29 @@ export function usePayrollAnalytics() {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["payroll-analytics"],
+    queryKey: ["payroll-analytics", user?.id],
     queryFn: async (): Promise<PayrollAnalyticsData> => {
-      // Fetch all locked payroll runs with entries
-      const { data: runs } = await supabase
+      if (!user) throw new Error("Not authenticated");
+
+      // Resolve org for tenant isolation
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const orgId = profile?.organization_id;
+      if (!orgId) return getEmptyPayrollAnalytics();
+
+      // Fetch org-scoped locked payroll runs
+      let runsQuery = supabase
         .from("payroll_runs")
         .select("id, pay_period, total_gross, total_deductions, total_net, employee_count, status")
+        .eq("organization_id", orgId)
         .in("status", ["locked", "approved", "completed"])
         .order("pay_period", { ascending: true })
         .limit(24);
 
+      const { data: runs } = await runsQuery;
       const runIds = (runs ?? []).map((r) => r.id);
 
       const { data: entries } = await supabase
@@ -113,14 +126,14 @@ export function usePayrollAnalytics() {
       });
       const averageSalaryByRole = Array.from(roleMap.entries()).map(([role, v]) => ({
         role,
-        avg_salary: Math.round(v.total / v.count),
+        avg_salary: v.count > 0 ? Math.round(v.total / v.count) : 0,
         count: v.count,
       }));
 
       const totalPayrollCost = allRuns.reduce((s, r) => s + Number(r.total_net), 0);
       const totalEmployees = new Set(allEntries.map((e: any) => e.profile_id)).size;
       const avgCTC = allEntries.length > 0
-        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc), 0) / allEntries.length)
+        ? Math.round(allEntries.reduce((s: number, e: any) => s + Number(e.annual_ctc || 0), 0) / allEntries.length)
         : 0;
 
       return {
@@ -138,4 +151,18 @@ export function usePayrollAnalytics() {
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
   });
+}
+
+function getEmptyPayrollAnalytics(): PayrollAnalyticsData {
+  return {
+    monthlyCostTrend: [],
+    departmentCosts: [],
+    tdsCollectedTrend: [],
+    pfContributionTrend: [],
+    lwpImpact: [],
+    averageSalaryByRole: [],
+    totalEmployees: 0,
+    totalPayrollCost: 0,
+    avgCTC: 0,
+  };
 }
