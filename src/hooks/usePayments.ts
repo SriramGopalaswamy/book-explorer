@@ -72,7 +72,7 @@ export function useCreatePaymentReceipt() {
       const today = new Date().toISOString().split("T")[0];
       if (r.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to invoice, verify invoice exists and payment doesn't exceed balance
+      // If linked to invoice, verify invoice exists and payment doesn't exceed remaining balance
       if (r.invoice_id) {
         const { data: inv, error: invErr } = await supabase
           .from("invoices")
@@ -81,8 +81,18 @@ export function useCreatePaymentReceipt() {
           .single();
         if (invErr || !inv) throw new Error("Linked invoice not found.");
         if (inv.status === "paid") throw new Error("This invoice has already been fully paid.");
-        if (r.amount > Number(inv.amount)) {
-          throw new Error(`Payment (₹${r.amount}) exceeds invoice amount (₹${inv.amount}).`);
+
+        // Sum all existing payments against this invoice
+        const { data: existingPayments } = await supabase
+          .from("payment_receipts" as any)
+          .select("amount")
+          .eq("invoice_id", r.invoice_id)
+          .eq("status", "completed");
+        const totalPaid = (existingPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+        const remainingBalance = Number(inv.amount) - totalPaid;
+
+        if (r.amount > remainingBalance) {
+          throw new Error(`Payment (₹${r.amount}) exceeds remaining balance (₹${remainingBalance}).`);
         }
       }
 
