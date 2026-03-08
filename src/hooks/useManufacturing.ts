@@ -199,11 +199,19 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (wo: { product_name: string; bom_id?: string; product_item_id?: string; planned_quantity: number; priority: string; planned_start?: string; planned_end?: string; warehouse_id?: string; notes?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!wo.product_name?.trim()) throw new Error("Product name is required");
       if (wo.planned_quantity <= 0) throw new Error("Planned quantity must be greater than zero.");
+      if (wo.planned_start && wo.planned_end && wo.planned_start > wo.planned_end) {
+        throw new Error("Planned start date cannot be after planned end date");
+      }
+      const validPriorities = ["low", "medium", "high", "urgent"];
+      if (!validPriorities.includes(wo.priority)) throw new Error("Invalid priority level");
+
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase
         .from("work_orders" as any)
-        .insert({ wo_number: woNum, product_name: wo.product_name, bom_id: wo.bom_id || null, product_item_id: wo.product_item_id || null, planned_quantity: wo.planned_quantity, priority: wo.priority, planned_start: wo.planned_start || null, planned_end: wo.planned_end || null, warehouse_id: wo.warehouse_id || null, notes: wo.notes || null, created_by: user?.id } as any)
+        .insert({ wo_number: woNum, product_name: wo.product_name, bom_id: wo.bom_id || null, product_item_id: wo.product_item_id || null, planned_quantity: wo.planned_quantity, priority: wo.priority, planned_start: wo.planned_start || null, planned_end: wo.planned_end || null, warehouse_id: wo.warehouse_id || null, notes: wo.notes || null, created_by: user.id } as any)
         .select().single();
       if (error) throw error;
       return data;
@@ -213,10 +221,29 @@ export function useCreateWorkOrder() {
   });
 }
 
+const VALID_WO_STATUSES = ["draft", "planned", "in_progress", "completed", "cancelled", "on_hold"] as const;
+const WO_TRANSITIONS: Record<string, string[]> = {
+  draft: ["planned", "cancelled"],
+  planned: ["in_progress", "cancelled", "on_hold"],
+  in_progress: ["completed", "on_hold", "cancelled"],
+  on_hold: ["in_progress", "cancelled"],
+};
+
 export function useUpdateWOStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!VALID_WO_STATUSES.includes(status as any)) throw new Error(`Invalid work order status: ${status}`);
+
+      // Verify transition is allowed
+      const { data: current } = await supabase.from("work_orders" as any).select("status").eq("id", id).maybeSingle();
+      const currentStatus = (current as any)?.status;
+      if (currentStatus && WO_TRANSITIONS[currentStatus] && !WO_TRANSITIONS[currentStatus].includes(status)) {
+        throw new Error(`Cannot transition work order from '${currentStatus}' to '${status}'`);
+      }
+
       const updates: any = { status, updated_at: new Date().toISOString() };
       if (status === "in_progress" && !updates.actual_start) updates.actual_start = new Date().toISOString();
       if (status === "completed") updates.actual_end = new Date().toISOString();

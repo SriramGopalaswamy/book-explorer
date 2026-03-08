@@ -87,11 +87,15 @@ export function useCreateGoal() {
       owner?: string;
       due_date?: string;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!goal.title?.trim()) throw new Error("Goal title is required");
+      if (!goal.category?.trim()) throw new Error("Goal category is required");
+
       const { data, error } = await supabase
         .from("goals")
         .insert({
           ...goal,
-          user_id: user?.id,
+          user_id: user.id,
         })
         .select()
         .single();
@@ -112,12 +116,21 @@ export function useCreateGoal() {
 
 export function useUpdateGoal() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
       id,
       ...updates
     }: Partial<Goal> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Validate status if provided
+      if (updates.status) {
+        const validStatuses: Goal["status"][] = ["on_track", "at_risk", "delayed", "completed"];
+        if (!validStatuses.includes(updates.status)) throw new Error("Invalid goal status");
+      }
+
       const { data, error } = await supabase
         .from("goals")
         .update(updates)
@@ -141,15 +154,19 @@ export function useUpdateGoal() {
 
 export function useUpdateGoalProgress() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, progress }: { id: string; progress: number }) => {
-      const status = progress >= 100 ? "completed" : undefined;
+      if (!user) throw new Error("Not authenticated");
+      // Clamp progress to 0-100
+      const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+      const status = clampedProgress >= 100 ? "completed" : undefined;
       
       const { data, error } = await supabase
         .from("goals")
         .update({ 
-          progress,
+          progress: clampedProgress,
           ...(status && { status }),
         })
         .eq("id", id)
@@ -171,9 +188,11 @@ export function useUpdateGoalProgress() {
 
 export function useDeleteGoal() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       const { error } = await supabase
         .from("goals")
         .delete()

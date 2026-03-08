@@ -176,6 +176,10 @@ export function useCreateLeaveRequest() {
       reason?: string;
       attachment?: File | null;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!request.leave_type?.trim()) throw new Error("Leave type is required");
+      if (!request.from_date || !request.to_date) throw new Error("Date range is required");
+
       // Timezone-safe day calculation: parse date parts directly to avoid UTC offset shifts
       const [fy, fm, fd] = request.from_date.split("-").map(Number);
       const [ty, tm, td] = request.to_date.split("-").map(Number);
@@ -186,6 +190,29 @@ export function useCreateLeaveRequest() {
       // Sanity guard: reject obviously corrupt ranges (>365 days)
       if (days < 1 || days > 365) {
         throw new Error(`Invalid date range: ${days} days. Please check your from/to dates.`);
+      }
+
+      // Check for overlapping pending/approved leave requests
+      const { data: overlapping } = await supabase
+        .from("leave_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("status", ["pending", "approved"])
+        .lte("from_date", request.to_date)
+        .gte("to_date", request.from_date)
+        .limit(1);
+      if (overlapping && overlapping.length > 0) {
+        throw new Error("You already have a leave request overlapping with these dates");
+      }
+
+      // Check against holidays — warn but don't block
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("date, name")
+        .gte("date", request.from_date)
+        .lte("date", request.to_date);
+      if (holidays && holidays.length > 0) {
+        console.info(`Leave overlaps with ${holidays.length} holiday(s): ${holidays.map(h => h.name).join(", ")}`);
       }
 
       // Upload attachment if provided
@@ -246,11 +273,23 @@ export function useApproveLeaveRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Verify request is still pending
+      const { data: check } = await supabase
+        .from("leave_requests")
+        .select("status")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (check?.status !== "pending") {
+        throw new Error("This leave request has already been reviewed");
+      }
+
       const { data, error } = await supabase
         .from("leave_requests")
         .update({
           status: "approved",
-          reviewed_by: user?.id,
+          reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
@@ -334,11 +373,23 @@ export function useRejectLeaveRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Verify request is still pending
+      const { data: check } = await supabase
+        .from("leave_requests")
+        .select("status")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (check?.status !== "pending") {
+        throw new Error("This leave request has already been reviewed");
+      }
+
       const { data, error } = await supabase
         .from("leave_requests")
         .update({
           status: "rejected",
-          reviewed_by: user?.id,
+          reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
@@ -369,6 +420,18 @@ export function useDeleteLeaveRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only allow deleting own pending requests
+      const { data: check } = await supabase
+        .from("leave_requests")
+        .select("status, user_id")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (!check) throw new Error("Leave request not found");
+      if (check.user_id !== user.id) throw new Error("You can only cancel your own leave requests");
+      if (check.status !== "pending") throw new Error("Only pending leave requests can be cancelled");
+
       const { error } = await supabase
         .from("leave_requests")
         .delete()
@@ -456,9 +519,15 @@ export function useAllLeaveTypes() {
 
 export function useCreateLeaveType() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!leaveType.key?.trim()) throw new Error("Leave type key is required");
+      if (!leaveType.label?.trim()) throw new Error("Leave type label is required");
+      if (leaveType.default_days < 0) throw new Error("Default days cannot be negative");
+
       const { data, error } = await supabase
         .from("leave_types")
         .insert(leaveType as any)

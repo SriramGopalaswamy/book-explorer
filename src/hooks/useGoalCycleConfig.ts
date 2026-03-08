@@ -75,6 +75,12 @@ export function useUpsertGoalCycleConfig() {
       is_active?: boolean;
     }) => {
       if (!orgId) throw new Error("No organization");
+      // Validate day ranges (1-31)
+      const days = [config.input_start_day, config.input_deadline_day, config.scoring_start_day, config.scoring_deadline_day];
+      if (days.some(d => d < 1 || d > 31)) throw new Error("Day values must be between 1 and 31");
+      if (config.input_start_day > config.input_deadline_day) throw new Error("Input start day must be before deadline");
+      if (config.scoring_start_day > config.scoring_deadline_day) throw new Error("Scoring start day must be before deadline");
+
       const { error } = await supabase
         .from("goal_cycle_config" as any)
         .upsert(
