@@ -360,6 +360,13 @@ export function useGeneratePayroll() {
 
         const lwpDeduction = lwpDays > 0 ? Math.round((grossEarnings / paidDays) * lwpDays * (paidDays < workingDays ? 0 : 1)) : 0;
 
+        // Ensure net pay is never negative — cap deductions at gross
+        const rawNetPay = grossEarnings - totalDeductions;
+        const netPay = Math.max(rawNetPay, 0);
+        if (rawNetPay < 0) {
+          console.warn(`[Payroll] Negative net pay for profile ${s.profile_id}: gross=${grossEarnings}, deductions=${totalDeductions}. Clamped to 0.`);
+        }
+
         return {
           payroll_run_id: run.id,
           profile_id: s.profile_id,
@@ -368,7 +375,7 @@ export function useGeneratePayroll() {
           annual_ctc: Number(s.annual_ctc),
           gross_earnings: grossEarnings,
           total_deductions: totalDeductions,
-          net_pay: grossEarnings - totalDeductions,
+          net_pay: netPay,
           lwp_days: lwpDays,
           lwp_deduction: lwpDeduction,
           working_days: workingDays,
