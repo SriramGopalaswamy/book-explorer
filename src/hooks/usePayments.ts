@@ -191,7 +191,7 @@ export function useCreateVendorPayment() {
       const today = new Date().toISOString().split("T")[0];
       if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to bill, verify bill exists and payment doesn't exceed balance
+      // If linked to bill, verify bill exists and payment doesn't exceed remaining balance
       if (p.bill_id) {
         const { data: bill, error: billErr } = await supabase
           .from("bills")
@@ -200,8 +200,18 @@ export function useCreateVendorPayment() {
           .single();
         if (billErr || !bill) throw new Error("Linked bill not found.");
         if (bill.status === "Paid") throw new Error("This bill has already been fully paid.");
-        if (p.amount > Number(bill.total_amount)) {
-          throw new Error(`Payment (₹${p.amount}) exceeds bill amount (₹${bill.total_amount}).`);
+
+        // Sum all existing vendor payments against this bill
+        const { data: existingPayments } = await supabase
+          .from("vendor_payments" as any)
+          .select("amount")
+          .eq("bill_id", p.bill_id)
+          .eq("status", "completed");
+        const totalPaid = (existingPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
+        const remainingBalance = Number(bill.total_amount) - totalPaid;
+
+        if (p.amount > remainingBalance) {
+          throw new Error(`Payment (₹${p.amount}) exceeds remaining balance (₹${remainingBalance}).`);
         }
       }
 
