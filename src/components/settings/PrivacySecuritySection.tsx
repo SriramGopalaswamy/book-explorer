@@ -11,9 +11,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Shield, Lock, FileX, AlertTriangle, Clock, CheckCircle2, Loader2, Save, Eye } from "lucide-react";
+import { Shield, Lock, FileX, AlertTriangle, Clock, CheckCircle2, Loader2, Save, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useConsentRecords, useDataErasureRequests, useDataBreachLog, useSessionPolicy } from "@/hooks/usePrivacyCompliance";
+import { useDataExportRequests, useRequestDataExport } from "@/hooks/useDataExport";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { format } from "date-fns";
 
@@ -38,10 +39,70 @@ export function PrivacySecuritySection() {
   return (
     <div className="space-y-6">
       <ConsentManagement />
+      <DataExportSection />
       <DataErasureSection />
       {isAdmin && <SessionPolicySection />}
       {isAdmin && <BreachLogSection />}
     </div>
+  );
+}
+
+// ── Data Export (DPDPA Right to Access) ─────────────────────────────
+function DataExportSection() {
+  const { data: requests, isLoading } = useDataExportRequests();
+  const requestExport = useRequestDataExport();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Download className="h-5 w-5 text-primary" />
+          Personal Data Export (Right to Access)
+        </CardTitle>
+        <CardDescription>
+          Under DPDPA 2023, you can request a complete copy of all your personal data stored in the system.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button
+          onClick={() => requestExport.mutate()}
+          disabled={requestExport.isPending}
+        >
+          {requestExport.isPending ? (
+            <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Requesting...</>
+          ) : (
+            <><Download className="h-4 w-4 mr-2" /> Request Full Data Export</>
+          )}
+        </Button>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading requests...</p>
+        ) : requests && requests.length > 0 ? (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Previous Requests</h4>
+            {requests.map((req) => (
+              <div key={req.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <div>
+                  <p className="text-sm font-medium">
+                    {req.data_categories?.join(", ") || "Full export"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Requested {format(new Date(req.requested_at), "dd MMM yyyy HH:mm")}
+                  </p>
+                </div>
+                <Badge variant={
+                  req.status === "completed" ? "default" :
+                  req.status === "failed" ? "destructive" :
+                  "secondary"
+                }>
+                  {req.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
