@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface BinLocation {
@@ -58,10 +59,14 @@ export interface InventoryCount {
 }
 
 export function useBinLocations(warehouseId?: string) {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["bin-locations", warehouseId],
+    queryKey: ["bin-locations", warehouseId, orgId],
     queryFn: async () => {
       let q = supabase.from("bin_locations" as any).select("*").order("bin_code");
+      if (orgId) q = q.eq("organization_id", orgId);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q;
       if (error) throw error;
@@ -84,10 +89,15 @@ export function useCreateBinLocation() {
 }
 
 export function useStockTransfers() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["stock-transfers"],
+    queryKey: ["stock-transfers", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("stock_transfers" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("stock_transfers" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
@@ -99,15 +109,33 @@ export function useCreateStockTransfer() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string }[] }) => {
+      // ── Validation: prevent self-transfers ──
+      if (t.from_warehouse_id === t.to_warehouse_id) {
+        throw new Error("Source and destination warehouse cannot be the same.");
+      }
+
+      // ── Validation: items must have positive quantities ──
+      if (t.items.length === 0) {
+        throw new Error("At least one item is required for a stock transfer.");
+      }
+      if (t.items.some(i => i.quantity <= 0)) {
+        throw new Error("All transfer quantities must be greater than zero.");
+      }
+
       const num = `TRF-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase.from("stock_transfers" as any)
         .insert({ transfer_number: num, from_warehouse_id: t.from_warehouse_id, to_warehouse_id: t.to_warehouse_id, transfer_date: t.transfer_date, notes: t.notes || null, created_by: user?.id } as any)
         .select().single();
       if (error) throw error;
+
       if (t.items.length > 0) {
         const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null }));
         const { error: ie } = await supabase.from("stock_transfer_items" as any).insert(items as any);
-        if (ie) throw ie;
+        if (ie) {
+          // Rollback: delete the transfer header if items fail
+          await supabase.from("stock_transfers" as any).delete().eq("id", (data as any).id);
+          throw ie;
+        }
       }
       return data;
     },
@@ -129,10 +157,15 @@ export function useUpdateTransferStatus() {
 }
 
 export function usePickingLists() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["picking-lists"],
+    queryKey: ["picking-lists", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("picking_lists" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("picking_lists" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
@@ -140,10 +173,15 @@ export function usePickingLists() {
 }
 
 export function useInventoryCounts() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["inventory-counts"],
+    queryKey: ["inventory-counts", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("inventory_counts" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("inventory_counts" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },

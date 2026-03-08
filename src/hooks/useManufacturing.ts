@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface BOM {
@@ -53,11 +54,23 @@ export interface WorkOrder {
   updated_at: string;
 }
 
+export interface BOMCostRollup {
+  bomId: string;
+  totalMaterialCost: number;
+  totalWithWastage: number;
+  lineDetails: { material_name: string; quantity: number; unitCost: number; wastage_pct: number; effectiveCost: number }[];
+}
+
 export function useBOMs() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["boms"],
+    queryKey: ["boms", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bill_of_materials" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("bill_of_materials" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as BOM[];
     },
@@ -76,11 +89,76 @@ export function useBOMLines(bomId?: string) {
   });
 }
 
+/**
+ * BOM Cost Rollup — calculates total material cost including wastage.
+ * Uses item master pricing when available, otherwise returns 0 unit cost.
+ */
+export function useBOMCostRollup(bomId?: string) {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["bom-cost-rollup", bomId, orgId],
+    enabled: !!bomId,
+    queryFn: async (): Promise<BOMCostRollup | null> => {
+      if (!bomId) return null;
+
+      // Fetch BOM lines
+      const { data: lines, error: lErr } = await supabase
+        .from("bom_lines" as any).select("*").eq("bom_id", bomId).order("sort_order");
+      if (lErr) throw lErr;
+      if (!lines || lines.length === 0) return { bomId, totalMaterialCost: 0, totalWithWastage: 0, lineDetails: [] };
+
+      // Fetch item prices for lines that reference items
+      const itemIds = (lines as any[]).map((l: any) => l.item_id).filter(Boolean);
+      let itemPrices: Record<string, number> = {};
+      if (itemIds.length > 0) {
+        const { data: items } = await supabase
+          .from("items" as any).select("id, purchase_price, selling_price").in("id", itemIds);
+        for (const item of (items || []) as any[]) {
+          itemPrices[item.id] = Number(item.purchase_price || item.selling_price || 0);
+        }
+      }
+
+      let totalMaterialCost = 0;
+      let totalWithWastage = 0;
+      const lineDetails = (lines as any[]).map((l: any) => {
+        const unitCost = l.item_id ? (itemPrices[l.item_id] || 0) : 0;
+        const baseCost = l.quantity * unitCost;
+        const effectiveCost = baseCost * (1 + (l.wastage_pct || 0) / 100);
+        totalMaterialCost += baseCost;
+        totalWithWastage += effectiveCost;
+        return {
+          material_name: l.material_name,
+          quantity: l.quantity,
+          unitCost,
+          wastage_pct: l.wastage_pct || 0,
+          effectiveCost: Math.round(effectiveCost * 100) / 100,
+        };
+      });
+
+      return { bomId, totalMaterialCost: Math.round(totalMaterialCost * 100) / 100, totalWithWastage: Math.round(totalWithWastage * 100) / 100, lineDetails };
+    },
+  });
+}
+
 export function useCreateBOM() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (bom: { product_name: string; product_item_id?: string; notes?: string; lines: { material_name: string; quantity: number; uom: string; wastage_pct: number; item_id?: string }[] }) => {
+      // Validate: no duplicate materials
+      const names = bom.lines.map(l => l.material_name.toLowerCase());
+      const uniqueNames = new Set(names);
+      if (uniqueNames.size !== names.length) {
+        throw new Error("Duplicate materials in BOM lines. Each material should appear only once.");
+      }
+
+      // Validate: quantities must be positive
+      if (bom.lines.some(l => l.quantity <= 0)) {
+        throw new Error("All material quantities must be greater than zero.");
+      }
+
       const bomCode = `BOM-${Date.now().toString(36).toUpperCase()}`;
       const { data: bomData, error: bomErr } = await supabase
         .from("bill_of_materials" as any)
@@ -101,10 +179,15 @@ export function useCreateBOM() {
 }
 
 export function useWorkOrders() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   return useQuery({
-    queryKey: ["work-orders"],
+    queryKey: ["work-orders", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("work_orders" as any).select("*").order("created_at", { ascending: false });
+      let q = supabase.from("work_orders" as any).select("*").order("created_at", { ascending: false });
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as unknown as WorkOrder[];
     },
@@ -116,6 +199,7 @@ export function useCreateWorkOrder() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (wo: { product_name: string; bom_id?: string; product_item_id?: string; planned_quantity: number; priority: string; planned_start?: string; planned_end?: string; warehouse_id?: string; notes?: string }) => {
+      if (wo.planned_quantity <= 0) throw new Error("Planned quantity must be greater than zero.");
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase
         .from("work_orders" as any)
