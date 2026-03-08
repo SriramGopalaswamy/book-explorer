@@ -112,7 +112,7 @@ export function useCreatePaymentReceipt() {
       } as any);
       if (error) throw error;
 
-      // ── Auto-update linked invoice to "paid" ──────────────
+      // ── Auto-update linked invoice status (partial → partially_paid, full → paid) ──
       if (r.invoice_id) {
         const { data: inv } = await supabase
           .from("invoices")
@@ -120,25 +120,32 @@ export function useCreatePaymentReceipt() {
           .eq("id", r.invoice_id)
           .single();
         if (inv && inv.status !== "paid" && inv.status !== "cancelled") {
-          // If payment covers the full amount, mark as paid
-          if (r.amount >= Number(inv.amount)) {
-            await supabase
-              .from("invoices")
-              .update({ status: "paid" })
-              .eq("id", r.invoice_id);
+          // Sum ALL payments including the one just inserted
+          const { data: allPayments } = await supabase
+            .from("payment_receipts" as any)
+            .select("amount")
+            .eq("invoice_id", r.invoice_id)
+            .eq("status", "completed");
+          const totalPaid = (allPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+          const invoiceAmount = Number(inv.amount);
+          const newStatus = totalPaid >= invoiceAmount ? "paid" : "partially_paid";
 
-            // Also create bank transaction for the payment
-            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-            await createBankTransaction({
-              userId: user.id,
-              amount: r.amount,
-              type: "credit",
-              description: `Payment received: ${num} — ${r.customer_name}`,
-              reference: num,
-              category: "Invoice Payment",
-              date: r.payment_date,
-            });
-          }
+          await supabase
+            .from("invoices")
+            .update({ status: newStatus })
+            .eq("id", r.invoice_id);
+
+          // Create bank transaction for every payment (partial or full)
+          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+          await createBankTransaction({
+            userId: user.id,
+            amount: r.amount,
+            type: "credit",
+            description: `Payment received: ${num} — ${r.customer_name}`,
+            reference: num,
+            category: "Invoice Payment",
+            date: r.payment_date,
+          });
         }
       }
     },
