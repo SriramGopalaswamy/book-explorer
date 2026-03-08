@@ -159,7 +159,7 @@ export function useForm16Data(fy: string) {
       const from = `${startYear}-04-01`;
       const to = `${startYear + 1}-03-31`;
 
-      const { data: payrollEntries, error } = await supabase
+      const { data: payrollEntries, error } = await (supabase as any)
         .from("payroll_entries")
         .select("*, profiles!payroll_entries_profile_id_fkey(full_name, pan_number)")
         .gte("created_at", from)
