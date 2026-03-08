@@ -273,11 +273,23 @@ export function useApproveLeaveRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Verify request is still pending
+      const { data: check } = await supabase
+        .from("leave_requests")
+        .select("status")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (check?.status !== "pending") {
+        throw new Error("This leave request has already been reviewed");
+      }
+
       const { data, error } = await supabase
         .from("leave_requests")
         .update({
           status: "approved",
-          reviewed_by: user?.id,
+          reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
