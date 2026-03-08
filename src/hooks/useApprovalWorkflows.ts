@@ -47,8 +47,30 @@ export function useApprovalWorkflows() {
 
 export function useCreateApprovalWorkflow() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (w: { workflow_type: string; threshold_amount: number; required_role: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!w.workflow_type?.trim()) throw new Error("Workflow type is required.");
+      if (w.threshold_amount < 0) throw new Error("Threshold amount cannot be negative.");
+      if (!w.required_role?.trim()) throw new Error("Required role is required.");
+
+      const VALID_TYPES = ["invoice", "bill", "expense", "purchase_order", "payroll", "leave", "compensation"];
+      if (!VALID_TYPES.includes(w.workflow_type)) {
+        throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
+      }
+
+      // Prevent duplicate active workflows for same type
+      const { data: existing } = await supabase
+        .from("approval_workflows")
+        .select("id")
+        .eq("workflow_type", w.workflow_type)
+        .eq("is_active", true)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists. Deactivate it first.`);
+      }
+
       const { error } = await supabase.from("approval_workflows").insert([{
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
