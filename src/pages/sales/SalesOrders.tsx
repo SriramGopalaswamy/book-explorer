@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2 } from "lucide-react";
-import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, SalesOrder } from "@/hooks/useSalesOrders";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, ArrowRight, PackageCheck } from "lucide-react";
+import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
+import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -28,6 +31,9 @@ export default function SalesOrders() {
   const { data: orders = [], isLoading } = useSalesOrders();
   const createSO = useCreateSalesOrder();
   const updateStatus = useUpdateSOStatus();
+  const deleteSO = useDeleteSalesOrder();
+  const convertToInvoice = useConvertSOToInvoice();
+  const createDN = useCreateDeliveryNote();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
@@ -71,13 +77,37 @@ export default function SalesOrders() {
     { key: "total_amount", header: "Total", render: (r) => <span className="font-semibold">₹{Number(r.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> },
     {
       key: "status", header: "Status",
+      render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>,
+    },
+    {
+      key: "id" as any, header: "Actions",
       render: (r) => (
-        <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-          <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.keys(statusColors).map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
+            {["confirmed", "processing"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
+                <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
+              </DropdownMenuItem>
+            )}
+            {["delivered", "shipped"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => convertToInvoice.mutate(r)}>
+                <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
+                Cancel Order
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => deleteSO.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];

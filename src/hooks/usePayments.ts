@@ -101,8 +101,45 @@ export function useCreatePaymentReceipt() {
         created_by: user.id,
       } as any);
       if (error) throw error;
+
+      // ── Auto-update linked invoice to "paid" ──────────────
+      if (r.invoice_id) {
+        const { data: inv } = await supabase
+          .from("invoices")
+          .select("status, amount")
+          .eq("id", r.invoice_id)
+          .single();
+        if (inv && inv.status !== "paid" && inv.status !== "cancelled") {
+          // If payment covers the full amount, mark as paid
+          if (r.amount >= Number(inv.amount)) {
+            await supabase
+              .from("invoices")
+              .update({ status: "paid" })
+              .eq("id", r.invoice_id);
+
+            // Also create bank transaction for the payment
+            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+            await createBankTransaction({
+              userId: user.id,
+              amount: r.amount,
+              type: "credit",
+              description: `Payment received: ${num} — ${r.customer_name}`,
+              reference: num,
+              category: "Invoice Payment",
+              date: r.payment_date,
+            });
+          }
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["payment-receipts"] }); toast.success("Payment receipt recorded"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payment-receipts"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Payment receipt recorded");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }
@@ -166,8 +203,44 @@ export function useCreateVendorPayment() {
         created_by: user.id,
       } as any);
       if (error) throw error;
+
+      // ── Auto-update linked bill to "Paid" ─────────────────
+      if (p.bill_id) {
+        const { data: bill } = await supabase
+          .from("bills")
+          .select("status, total_amount")
+          .eq("id", p.bill_id)
+          .single();
+        if (bill && bill.status !== "Paid" && bill.status !== "Cancelled") {
+          if (p.amount >= Number(bill.total_amount)) {
+            await supabase
+              .from("bills")
+              .update({ status: "Paid" })
+              .eq("id", p.bill_id);
+
+            // Create bank transaction for outgoing payment
+            const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
+            await createBankTransaction({
+              userId: user.id,
+              amount: p.amount,
+              type: "debit",
+              description: `Vendor payment: ${num} — ${p.vendor_name}`,
+              reference: num,
+              category: "Bill Payment",
+              date: p.payment_date,
+            });
+          }
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vendor-payments"] }); toast.success("Vendor payment recorded"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["vendor-payments"] });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["bank-accounts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Vendor payment recorded");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }

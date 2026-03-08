@@ -21,13 +21,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, FileText, MoreHorizontal, Trash2, ArrowRight, Search, Eye, Pencil, Download, Send, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Plus, FileText, MoreHorizontal, Trash2, ArrowRight, Search, Eye, Pencil, Download, Send, CheckCircle2, XCircle, Clock, ShoppingBag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useConvertQuoteToSO } from "@/hooks/useDocumentChains";
 
 // ─── Types ───────────────────────────────────────────────────
 interface Customer { id: string; name: string; email: string | null; }
@@ -260,6 +261,8 @@ export default function Quotes() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["quotes"] }); toast({ title: "Status Updated" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const convertToSO = useConvertQuoteToSO();
 
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
@@ -572,6 +575,7 @@ export default function Quotes() {
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "accepted" })}><CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Accepted</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "rejected" })}><XCircle className="h-4 w-4 mr-2" /> Mark as Rejected</DropdownMenuItem>}
                               {q.status !== "converted" && <DropdownMenuItem onClick={() => convertToInvoice.mutate(q)}><ArrowRight className="h-4 w-4 mr-2" /> Convert to Invoice</DropdownMenuItem>}
+                              {q.status !== "converted" && <DropdownMenuItem onClick={() => convertToSO.mutate(q)}><ShoppingBag className="h-4 w-4 mr-2" /> Convert to Sales Order</DropdownMenuItem>}
                               <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(q.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

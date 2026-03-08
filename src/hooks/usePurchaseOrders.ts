@@ -145,6 +145,25 @@ const PO_TRANSITIONS: Record<string, string[]> = {
   received: ["closed"],
 };
 
+export function useDeletePurchaseOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data: po } = await supabase.from("purchase_orders" as any).select("status").eq("id", id).maybeSingle();
+      const status = (po as any)?.status;
+      if (status && status !== "draft") {
+        throw new Error(`Cannot delete a "${status}" purchase order. Only drafts can be deleted.`);
+      }
+      // Delete items first, then header
+      await supabase.from("purchase_order_items" as any).delete().eq("purchase_order_id", id);
+      const { error } = await supabase.from("purchase_orders" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Purchase order deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useUpdatePOStatus() {
   const qc = useQueryClient();
   const { user } = useAuth();

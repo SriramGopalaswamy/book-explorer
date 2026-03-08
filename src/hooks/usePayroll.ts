@@ -206,11 +206,44 @@ export function useCreatePayroll() {
   });
 }
 
+// ── Payroll lifecycle state-machine ──────────────────────────
+const PAYROLL_TRANSITIONS: Record<string, string[]> = {
+  draft: ["under_review", "cancelled"],
+  under_review: ["approved", "draft", "cancelled"],
+  approved: ["pending", "cancelled"],
+  pending: ["processed"],
+  processed: ["locked"],
+  locked: [],      // terminal
+  cancelled: [],   // terminal
+  superseded: [],  // terminal
+};
+const PAYROLL_TERMINAL = ["locked", "cancelled", "superseded"];
+
 export function useUpdatePayroll() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdatePayrollData) => {
+      // ── State machine enforcement ──────────────────────────
+      if (data.status) {
+        const { data: current, error: fetchErr } = await supabase
+          .from("payroll_records")
+          .select("status")
+          .eq("id", id)
+          .single();
+        if (fetchErr) throw fetchErr;
+        const currentStatus = current?.status as string;
+
+        if (PAYROLL_TERMINAL.includes(currentStatus)) {
+          throw new Error(`Cannot modify a "${currentStatus}" payroll record.`);
+        }
+
+        const allowed = PAYROLL_TRANSITIONS[currentStatus];
+        if (allowed && !allowed.includes(data.status)) {
+          throw new Error(`Cannot transition payroll from "${currentStatus}" to "${data.status}".`);
+        }
+      }
+
       const updateData: Record<string, unknown> = { ...data };
       if (data.status === "processed") {
         updateData.processed_at = new Date().toISOString();
@@ -243,7 +276,18 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Hard delete since deleted_at column doesn't exist in schema
+      // ── Only draft/cancelled records can be deleted ────────
+      const { data: check, error: checkErr } = await supabase
+        .from("payroll_records")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (checkErr) throw checkErr;
+      const status = check?.status as string;
+      if (status && !["draft", "cancelled"].includes(status)) {
+        throw new Error(`Cannot delete a "${status}" payroll record. Only draft or cancelled records can be deleted.`);
+      }
+
       const { error } = await supabase
         .from("payroll_records")
         .delete()
