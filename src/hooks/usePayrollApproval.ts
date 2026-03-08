@@ -10,11 +10,25 @@ import { toast } from "sonner";
 
 export function useSubmitForReview() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (runId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Only completed runs can be submitted for review
+      const { data: run } = await supabase
+        .from("payroll_runs")
+        .select("status")
+        .eq("id", runId)
+        .single();
+      if (!run) throw new Error("Payroll run not found");
+      if (!["completed", "draft"].includes(run.status)) {
+        throw new Error(`Cannot submit for review: current status is '${run.status}'`);
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
-        .update({ status: "under_review" } as any)
+        .update({ status: "under_review", reviewed_by: user.id, reviewed_at: new Date().toISOString() } as any)
         .eq("id", runId);
       if (error) throw error;
     },
