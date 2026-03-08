@@ -41,7 +41,7 @@ export function useRequestDataExport() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (categories?: string[]) => {
+    mutationFn: async (categories?: string[] | void) => {
       const { data, error } = await (supabase as any)
         .from("data_export_requests")
         .insert({
