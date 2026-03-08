@@ -136,6 +136,17 @@ export function useReviewChangeRequest() {
       reviewer_notes?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Double-review guard
+      const { data: current } = await supabase
+        .from("profile_change_requests" as any)
+        .select("status")
+        .eq("id", id)
+        .single();
+      if ((current as any)?.status !== "pending") {
+        throw new Error("This change request has already been reviewed");
+      }
+
       const { error } = await supabase
         .from("profile_change_requests" as any)
         .update({

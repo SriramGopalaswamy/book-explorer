@@ -193,6 +193,11 @@ export function useRecalculateAttendance() {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
 
+      // Validate date range
+      if (startDate > endDate) throw new Error("Start date must be before or equal to end date");
+      const daySpan = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
+      if (daySpan > 90) throw new Error("Recalculation range cannot exceed 90 days");
+
       const { data, error } = await supabase.rpc("recalculate_attendance", {
         _org_id: orgId,
         _start_date: startDate,
