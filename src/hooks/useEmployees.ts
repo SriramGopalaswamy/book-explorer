@@ -102,20 +102,16 @@ export function useEmployees() {
     queryFn: async () => {
       if (isDevMode) return mockEmployees;
       if (!user) return [];
+      // HARD GUARD: Never query profiles without org scope — prevents cross-tenant data bleed
+      if (!orgId) return [];
 
       if (hasAccess) {
         // CRITICAL: Always filter by organization_id to enforce tenant isolation
-        let query = supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select("*")
+          .eq("organization_id", orgId)
           .order("full_name", { ascending: true });
-
-        // Apply org filter — this is the critical fix for sandbox/production isolation
-        if (orgId) {
-          query = query.eq("organization_id", orgId);
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
         const employees = data as Employee[];
 
