@@ -127,7 +127,7 @@ export function useAssets() {
         assigned_profile: a.profiles,
       })) as Asset[];
     },
-    enabled: !!user,
+    
   });
 }
 
