@@ -8,7 +8,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Shield, Play, Loader2, CheckCircle2, AlertTriangle, XCircle,
   Clock, ChevronDown, ChevronRight, Lock, Database, FileCheck, Server,
-  ShieldAlert, Wrench, Info, Copy, Bug, Users, Layers, Trash2, Settings, Scale
+  ShieldAlert, Wrench, Info, Copy, Bug, Users, Layers, Trash2, Settings, Scale,
+  Calendar, UserCheck, Briefcase, BookOpen
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -67,6 +68,10 @@ const RC_CATEGORY_META: Record<string, { icon: React.ElementType; order: number;
   "Status Machine Violations": { icon: AlertTriangle, order: 14, description: "Records stuck in invalid or unexpected workflow states" },
   "Numeric Boundary Violations": { icon: Scale, order: 15, description: "Negative amounts, rates >100%, impossible numeric values" },
   "Constraint Coverage": { icon: Shield, order: 16, description: "Missing unique constraints allowing business-logic duplicates" },
+  "Fiscal Period Integrity": { icon: Calendar, order: 17, description: "Overlapping periods, backdated entries in closed periods, missing fiscal setup" },
+  "Auth-Profile Sync": { icon: UserCheck, order: 18, description: "Email mismatches, auth users without profiles, inactive profiles with active sessions" },
+  "Payroll-Attendance Sync": { icon: Briefcase, order: 19, description: "Payroll without attendance, duplicate payroll records, empty completed runs" },
+  "Chart of Accounts Integrity": { icon: BookOpen, order: 20, description: "Missing CoA for orgs with financials, orphan journal references, inactive account usage" },
 };
 
 const SEVERITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -359,7 +364,7 @@ function RootCauseAuditTab() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Bug className="h-5 w-5" />
-            Root Cause Audit Engine v1
+            Root Cause Audit Engine v3 — 54 checks · 21 categories
           </CardTitle>
           <div className="flex items-center gap-3">
             {result && (
