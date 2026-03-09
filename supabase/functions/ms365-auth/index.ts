@@ -169,11 +169,19 @@ Deno.serve(async (req) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      // Check if user exists
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      const existingUser = existingUsers?.users?.find(
-        (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-      );
+      // Check if user exists - paginate through all users or filter
+      let existingUser = null;
+      let page = 1;
+      const perPage = 1000;
+      while (!existingUser) {
+        const { data: usersPage, error: listErr } = await supabase.auth.admin.listUsers({ page, perPage });
+        if (listErr || !usersPage?.users?.length) break;
+        existingUser = usersPage.users.find(
+          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+        ) || null;
+        if (usersPage.users.length < perPage) break;
+        page++;
+      }
 
       let session;
 
