@@ -59,6 +59,14 @@ const RC_CATEGORY_META: Record<string, { icon: React.ElementType; order: number;
   "Default Value Traps": { icon: Settings, order: 6, description: "Schema defaults that could cause unscoped records" },
   "Soft Delete Integrity": { icon: FileCheck, order: 7, description: "Soft-deleted records with inconsistent metadata" },
   "Financial Integrity": { icon: Scale, order: 8, description: "Accounting equation violations and unbalanced entries" },
+  "Schema Drift": { icon: Database, order: 9, description: "Columns referenced in code/edge functions that don't exist in the DB" },
+  "Seeding Completeness": { icon: Users, order: 10, description: "Sandbox/prod orgs missing expected seed data (profiles, roles, hierarchy)" },
+  "RPC Health": { icon: Server, order: 11, description: "Critical database functions that fail to execute" },
+  "FK Orphan Cascade": { icon: Trash2, order: 12, description: "Records referencing deleted parent entities (vendors, managers, profiles)" },
+  "Timestamp Anomalies": { icon: Clock, order: 13, description: "Future dates, reversed timestamps, clock drift indicators" },
+  "Status Machine Violations": { icon: AlertTriangle, order: 14, description: "Records stuck in invalid or unexpected workflow states" },
+  "Numeric Boundary Violations": { icon: Scale, order: 15, description: "Negative amounts, rates >100%, impossible numeric values" },
+  "Constraint Coverage": { icon: Shield, order: 16, description: "Missing unique constraints allowing business-logic duplicates" },
 };
 
 const SEVERITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
