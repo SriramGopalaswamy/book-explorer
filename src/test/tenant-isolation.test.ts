@@ -115,11 +115,15 @@ describe("2. Context Switch Race Condition Guards", () => {
     ORG_SCOPED_HOOKS.forEach((hookName) => {
       it(`${hookName} gates on both user and orgId`, () => {
         const source = readHookFile(hookName);
-        // queryFn should check both user and orgId before proceeding
+        // queryFn should check both user and orgId before proceeding,
+        // OR the enabled flag gates on both (which prevents queryFn from running)
         const checksUserAndOrg =
           /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)/.test(source) ||
-          (/if\s*\(\s*!user\s*\)/.test(source) && /if\s*\(\s*!orgId\s*\)/.test(source));
-        expect(checksUserAndOrg, `${hookName} must check both user and orgId in queryFn`).toBe(true);
+          (/if\s*\(\s*!user\s*\)/.test(source) && /if\s*\(\s*!orgId\s*\)/.test(source)) ||
+          // enabled flag with both guards is also acceptable
+          /enabled:\s*!!user\s*&&\s*!!orgId/.test(source) ||
+          /enabled:\s*\(!!user\s*&&\s*!!orgId\)/.test(source);
+        expect(checksUserAndOrg, `${hookName} must check both user and orgId in queryFn or enabled flag`).toBe(true);
       });
     });
   });
