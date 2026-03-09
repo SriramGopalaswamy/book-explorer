@@ -22,7 +22,7 @@ export function useUserOrganization() {
         .maybeSingle();
 
       if (profileError) throw profileError;
-      if (!profile) return null;
+      if (!profile?.organization_id) return null;
 
       const orgId = profile.organization_id;
 
@@ -34,17 +34,20 @@ export function useUserOrganization() {
         .maybeSingle();
 
       if (orgError) throw orgError;
+      if (!org) return null;
 
       return {
         organizationId: orgId,
-        orgName: org?.name ?? null,
-        orgStatus: org?.status ?? null,
+        orgName: org.name ?? null,
+        orgStatus: org.status ?? null,
         orgState: (org as any)?.org_state ?? null,
-        createdAt: org?.created_at ?? null,
+        createdAt: org.created_at ?? null,
       };
     },
     enabled: !!user,
     staleTime: 1000 * 60 * 10, // 10 min — org rarely changes
+    // Keep previous data during refetch to prevent undefined flicker during org switching
+    placeholderData: (previousData: any) => previousData,
   });
 }
 
