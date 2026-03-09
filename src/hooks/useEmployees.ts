@@ -102,20 +102,16 @@ export function useEmployees() {
     queryFn: async () => {
       if (isDevMode) return mockEmployees;
       if (!user) return [];
+      // HARD GUARD: Never query profiles without org scope — prevents cross-tenant data bleed
+      if (!orgId) return [];
 
       if (hasAccess) {
         // CRITICAL: Always filter by organization_id to enforce tenant isolation
-        let query = supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select("*")
+          .eq("organization_id", orgId)
           .order("full_name", { ascending: true });
-
-        // Apply org filter — this is the critical fix for sandbox/production isolation
-        if (orgId) {
-          query = query.eq("organization_id", orgId);
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
         const employees = data as Employee[];
 
@@ -124,14 +120,13 @@ export function useEmployees() {
         const onLeaveIds = employees.filter(e => e.status === "on_leave").map(e => e.id);
         
         if (onLeaveIds.length > 0) {
-          const leaveQuery = supabase
+          const { data: activeLeaves } = await supabase
             .from("leave_requests")
             .select("user_id")
             .eq("status", "approved")
+            .eq("organization_id", orgId)
             .lte("from_date", today)
             .gte("to_date", today);
-          if (orgId) leaveQuery.eq("organization_id", orgId);
-          const { data: activeLeaves } = await leaveQuery;
 
           const usersOnLeaveToday = new Set((activeLeaves || []).map(l => l.user_id));
 
@@ -160,16 +155,11 @@ export function useEmployees() {
         return employees;
       } else {
         // Non-admin view: use safe view, also org-scoped
-        let query = supabase
+        const { data, error } = await supabase
           .from("profiles_safe" as any)
           .select("*")
+          .eq("organization_id", orgId)
           .order("full_name", { ascending: true });
-
-        if (orgId) {
-          query = query.eq("organization_id", orgId);
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
         return (data as any[]).map((d) => ({
           ...d,
