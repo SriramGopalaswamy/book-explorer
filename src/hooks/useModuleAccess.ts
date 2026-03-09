@@ -1,6 +1,9 @@
 import { useSubscription } from "@/contexts/SubscriptionContext";
 
-const ALL_MODULES = ["financial", "hrms", "performance", "audit", "assets"] as const;
+const ALL_MODULES = [
+  "financial", "hrms", "performance", "audit", "assets",
+  "inventory", "procurement", "sales", "manufacturing", "warehouse", "connectors",
+] as const;
 export type AppModule = (typeof ALL_MODULES)[number];
 
 /**
