@@ -66,8 +66,8 @@ export function useBinLocations(warehouseId?: string) {
   return useQuery({
     queryKey: ["bin-locations", warehouseId, orgId],
     queryFn: async () => {
-      let q = supabase.from("bin_locations" as any).select("*").order("bin_code");
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      let q = supabase.from("bin_locations" as any).select("*").eq("organization_id", orgId).order("bin_code");
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q;
       if (error) throw error;
