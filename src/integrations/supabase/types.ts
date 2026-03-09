@@ -5140,6 +5140,65 @@ export type Database = {
           },
         ]
       }
+      integrity_audit_runs: {
+        Row: {
+          checks: Json
+          completed_at: string | null
+          created_at: string
+          engine_status: string
+          failed: number
+          id: string
+          organization_id: string | null
+          passed: number
+          run_by: string
+          run_scope: string
+          started_at: string
+          summary: Json | null
+          total_checks: number
+          warnings: number
+        }
+        Insert: {
+          checks?: Json
+          completed_at?: string | null
+          created_at?: string
+          engine_status?: string
+          failed?: number
+          id?: string
+          organization_id?: string | null
+          passed?: number
+          run_by: string
+          run_scope?: string
+          started_at?: string
+          summary?: Json | null
+          total_checks?: number
+          warnings?: number
+        }
+        Update: {
+          checks?: Json
+          completed_at?: string | null
+          created_at?: string
+          engine_status?: string
+          failed?: number
+          id?: string
+          organization_id?: string | null
+          passed?: number
+          run_by?: string
+          run_scope?: string
+          started_at?: string
+          summary?: Json | null
+          total_checks?: number
+          warnings?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrity_audit_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_count_items: {
         Row: {
           bin_id: string | null
@@ -10601,6 +10660,7 @@ export type Database = {
       run_full_reconciliation: { Args: { _org_id: string }; Returns: Json }
       run_integrity_audit: { Args: { _org_id: string }; Returns: Json }
       run_integrity_verification: { Args: { _org_id?: string }; Returns: Json }
+      run_root_cause_audit: { Args: { p_org_id?: string }; Returns: Json }
       sandbox_force_delete_journal_data: {
         Args: { _org_id: string }
         Returns: undefined
