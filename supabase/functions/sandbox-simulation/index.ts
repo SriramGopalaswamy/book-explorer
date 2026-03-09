@@ -393,27 +393,48 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
 
   let seededProfiles = 0;
 
+  // Step 0: List all existing auth users ONCE (not per employee) to find leftovers
+  const sandboxEmails = employeeSeeds.map(emp =>
+    `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`
+  );
+
+  // Build a map of existing sandbox emails → auth user IDs for cleanup
+  const existingAuthMap = new Map<string, string>();
+  try {
+    const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of (existingUsers?.users ?? [])) {
+      if (u.email && sandboxEmails.includes(u.email)) {
+        existingAuthMap.set(u.email, u.id);
+      }
+    }
+  } catch (listErr) {
+    console.warn("Could not list existing users:", (listErr as Error).message);
+  }
+
+  // Clean up leftover auth users and profiles in parallel
+  for (const [email, authId] of existingAuthMap) {
+    try {
+      // Delete profile first (FK safety), then auth user
+      await client.from("profiles").delete().eq("user_id", authId);
+      await client.auth.admin.deleteUser(authId);
+      console.log(`Cleaned up leftover auth user for ${email}`);
+    } catch (cleanErr) {
+      console.warn(`Cleanup error for ${email}:`, (cleanErr as Error).message);
+    }
+  }
+
+  // Also delete any orphan sandbox profiles in this org
+  for (const email of sandboxEmails) {
+    await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
+  }
+
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
       let authUserId: string | null = null;
 
-      // Step 1: Try to delete any leftover auth user with this email
-      const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
-      const existingAuthUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
-      if (existingAuthUser) {
-        await client.auth.admin.deleteUser(existingAuthUser.id);
-        console.log(`Deleted leftover auth user for ${email}`);
-      }
-
-      // Step 2: Also delete any leftover profile
-      await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
-
-      // Step 3: Create fresh auth user
-      // handle_new_user trigger creates a profile row automatically,
-      // then we UPDATE it with the correct sandbox org_id and details.
+      // Step 1: Create fresh auth user
       const tempPassword = crypto.randomUUID() + "Aa1!";
-
       const { data: newUser, error: createErr } = await client.auth.admin.createUser({
         email, password: tempPassword, email_confirm: true,
         user_metadata: { full_name: emp.name },
@@ -424,9 +445,13 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       }
       authUserId = newUser.user.id;
 
-      // Step 4: The handle_new_user trigger already created a profile row.
-      // Update it with the correct organization and details.
-      const { error: profileErr } = await client.from("profiles")
+      // Step 2: The handle_new_user trigger creates a profile with NULL org_id.
+      // Wait briefly for the trigger to fire, then update with sandbox org details.
+      // Use a small delay to ensure the trigger has completed.
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Step 3: Update the trigger-created profile with sandbox org and details
+      const { data: updatedProfile, error: profileErr } = await client.from("profiles")
         .update({
           organization_id: orgId,
           full_name: emp.name,
@@ -437,13 +462,39 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           join_date: "2024-06-01",
           phone: emp.phone,
         })
-        .eq("user_id", authUserId);
+        .eq("user_id", authUserId)
+        .select("id")
+        .single();
+
       if (profileErr) {
-        console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
+        console.warn(`Failed to update profile for ${emp.name}:`, profileErr.message);
+        // Fallback: try direct insert if trigger didn't fire
+        const { data: insertedProfile, error: insertErr } = await client.from("profiles")
+          .insert({
+            user_id: authUserId,
+            organization_id: orgId,
+            full_name: emp.name,
+            email,
+            department: emp.dept,
+            job_title: emp.jobTitle,
+            status: "active",
+            join_date: "2024-06-01",
+            phone: emp.phone,
+          })
+          .select("id")
+          .single();
+        if (insertErr) {
+          console.warn(`Fallback insert also failed for ${emp.name}:`, insertErr.message);
+          continue;
+        }
+        const profileId = insertedProfile?.id || authUserId;
+        verifiedUsers.push({ authId: authUserId, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+        seededProfiles++;
         continue;
       }
 
-      verifiedUsers.push({ authId: authUserId, profileId: authUserId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+      const profileId = updatedProfile?.id || authUserId;
+      verifiedUsers.push({ authId: authUserId, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
       seededProfiles++;
     } catch (e) {
       console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
