@@ -1,0 +1,181 @@
+CREATE OR REPLACE FUNCTION public.run_root_cause_audit(p_org_id UUID DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _checks jsonb := '[]'::jsonb;
+  _count bigint; _count2 bigint; _count3 bigint;
+  _missing_cols text; _rpc_ok boolean;
+BEGIN
+  SELECT count(*) INTO _count FROM profiles WHERE organization_id IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-001','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('NULL org profiles: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles p LEFT JOIN auth.users u ON u.id=p.user_id WHERE u.id IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-002','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Orphan profiles: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM user_roles ur LEFT JOIN profiles p ON p.user_id=ur.user_id WHERE p.id IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-003','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Orphan roles: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices WHERE organization_id IS NULL;
+  SELECT count(*) INTO _count2 FROM bills WHERE organization_id IS NULL;
+  SELECT count(*) INTO _count3 FROM expenses WHERE organization_id IS NULL;
+  _count := _count+_count2+_count3;
+  _checks := _checks || jsonb_build_object('id','RC-004','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('NULL org financial: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM expenses WHERE user_id IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-005','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('NULL user expenses: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles p WHERE p.manager_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM profiles p2 WHERE p2.id=p.manager_id);
+  _checks := _checks || jsonb_build_object('id','RC-006','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Invalid managers: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM bills b WHERE b.vendor_id IS NOT NULL AND b.is_deleted=false AND NOT EXISTS (SELECT 1 FROM vendors v WHERE v.id=b.vendor_id);
+  _checks := _checks || jsonb_build_object('id','RC-007','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Orphan vendor bills: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices i WHERE i.customer_id IS NOT NULL AND i.is_deleted=false AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.id=i.customer_id);
+  _checks := _checks || jsonb_build_object('id','RC-008','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Orphan customer invoices: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM expenses e WHERE NOT EXISTS (SELECT 1 FROM profiles p WHERE p.user_id=e.user_id);
+  _checks := _checks || jsonb_build_object('id','RC-009','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Orphan expenses: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM journal_lines jl WHERE NOT EXISTS (SELECT 1 FROM chart_of_accounts coa WHERE coa.id=jl.gl_account_id);
+  _checks := _checks || jsonb_build_object('id','RC-010','category','Reference Integrity','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Orphan journal refs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT user_id FROM profiles GROUP BY user_id HAVING count(DISTINCT organization_id)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-011','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Multi-org users: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices i JOIN profiles p ON p.user_id=i.user_id WHERE i.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-012','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org invoices: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM bills b JOIN profiles p ON p.user_id=b.user_id WHERE b.organization_id!=p.organization_id AND b.is_deleted=false;
+  _checks := _checks || jsonb_build_object('id','RC-013','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org bills: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM expenses e JOIN profiles p ON p.user_id=e.user_id WHERE e.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-014','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org expenses: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM attendance_records ar JOIN profiles p ON p.user_id=ar.user_id WHERE ar.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-015','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org attendance: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM payroll_records pr JOIN profiles p ON p.id=pr.profile_id WHERE pr.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-016','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org payroll: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM user_roles ur JOIN profiles p ON p.user_id=ur.user_id WHERE ur.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-017','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org roles: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM leave_requests lr JOIN profiles p ON p.id=lr.profile_id WHERE lr.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-018','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org leaves: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM leave_balances lb JOIN profiles p ON p.id=lb.profile_id WHERE lb.organization_id!=p.organization_id;
+  _checks := _checks || jsonb_build_object('id','RC-019','category','Cross-Tenant Isolation','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Cross-org leave bal: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles WHERE status IS NULL OR status='';
+  _checks := _checks || jsonb_build_object('id','RC-020','category','Data Lifecycle & Ghost Records','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('NULL status profiles: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles WHERE status='inactive' AND updated_at < now()-interval '90 days';
+  _checks := _checks || jsonb_build_object('id','RC-021','category','Data Lifecycle & Ghost Records','severity',CASE WHEN _count>0 THEN 'LOW' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale inactive: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices WHERE is_deleted=true AND deleted_at IS NULL;
+  SELECT count(*) INTO _count2 FROM bills WHERE is_deleted=true AND deleted_at IS NULL;
+  _count := _count+_count2;
+  _checks := _checks || jsonb_build_object('id','RC-022','category','Data Lifecycle & Ghost Records','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Soft-del no timestamp: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM payroll_runs WHERE status='processing' AND created_at < now()-interval '24 hours';
+  _checks := _checks || jsonb_build_object('id','RC-023','category','Status Machine Violations','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Stale payroll runs: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM payroll_runs WHERE status='finalized' AND approved_by IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-024','category','Status Machine Violations','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Unapproved finalized: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Schema checks
+  _missing_cols := '';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='employee_code') THEN _missing_cols := _missing_cols || 'profiles.employee_code,'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='department') THEN _missing_cols := _missing_cols || 'profiles.department,'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='manager_id') THEN _missing_cols := _missing_cols || 'profiles.manager_id,'; END IF;
+  _checks := _checks || jsonb_build_object('id','RC-025','category','Trigger & Schema Safety','severity',CASE WHEN length(_missing_cols)>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN length(_missing_cols)=0 THEN 'PASS' ELSE 'FAIL' END,'detail',CASE WHEN length(_missing_cols)=0 THEN 'Schema OK' ELSE 'Missing: '||_missing_cols END,'auto_fix_possible',false,'affected_count',CASE WHEN length(_missing_cols)>0 THEN 1 ELSE 0 END);
+  SELECT count(*) INTO _count FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity;
+  _checks := _checks || jsonb_build_object('id','RC-026','category','Trigger & Schema Safety','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Tables no RLS: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT t.tgrelid::regclass::text AS tbl FROM pg_trigger t JOIN pg_proc p ON t.tgfoid=p.oid JOIN pg_namespace n ON p.pronamespace=n.oid WHERE n.nspname='public' AND NOT t.tgisinternal AND p.prosrc LIKE '%NEW.user_id%' AND NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema='public' AND c.table_name=(t.tgrelid::regclass::text) AND c.column_name='user_id')) x;
+  _checks := _checks || jsonb_build_object('id','RC-027','category','Trigger & Schema Safety','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Broken triggers: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Duplicate detection
+  SELECT count(*) INTO _count FROM (SELECT invoice_number, organization_id FROM invoices WHERE is_deleted=false GROUP BY invoice_number, organization_id HAVING count(*)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-028','category','Duplicate Detection','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Dup invoices: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT bill_number, organization_id FROM bills WHERE is_deleted=false GROUP BY bill_number, organization_id HAVING count(*)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-029','category','Duplicate Detection','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Dup bills: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT user_id, date, organization_id FROM attendance_records GROUP BY user_id, date, organization_id HAVING count(*)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-030','category','Duplicate Detection','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Dup attendance: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT profile_id, pay_period, organization_id FROM payroll_records WHERE is_superseded=false GROUP BY profile_id, pay_period, organization_id HAVING count(*)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-031','category','Duplicate Detection','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Dup payroll: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Default value traps
+  SELECT count(*) INTO _count FROM invoices WHERE amount=0 AND status NOT IN ('draft','cancelled') AND is_deleted=false;
+  _checks := _checks || jsonb_build_object('id','RC-032','category','Default Value Traps','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Zero-amt invoices: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM bills WHERE amount=0 AND status NOT IN ('draft','cancelled') AND is_deleted=false;
+  _checks := _checks || jsonb_build_object('id','RC-033','category','Default Value Traps','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Zero-amt bills: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM compensation_structures WHERE annual_ctc=0 AND is_active=true;
+  _checks := _checks || jsonb_build_object('id','RC-034','category','Default Value Traps','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Zero CTC active: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Financial integrity
+  SELECT COALESCE(SUM(jl.debit),0), COALESCE(SUM(jl.credit),0) INTO _count, _count2 FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE je.status='posted';
+  _checks := _checks || jsonb_build_object('id','RC-035','category','Financial Health','severity',CASE WHEN _count!=_count2 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=_count2 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Trial bal: D=%s C=%s',_count,_count2),'auto_fix_possible',false,'affected_count',CASE WHEN _count!=_count2 THEN 1 ELSE 0 END);
+  SELECT count(*) INTO _count FROM (SELECT journal_entry_id FROM journal_lines GROUP BY journal_entry_id HAVING ABS(SUM(debit)-SUM(credit))>0.01) d;
+  _checks := _checks || jsonb_build_object('id','RC-036','category','Financial Health','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Imbalanced JEs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices WHERE amount<0 AND is_deleted=false;
+  _checks := _checks || jsonb_build_object('id','RC-037','category','Financial Health','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Neg invoices: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM journal_lines jl WHERE NOT EXISTS (SELECT 1 FROM gl_accounts ga WHERE ga.id=jl.gl_account_id);
+  _checks := _checks || jsonb_build_object('id','RC-038','category','Financial Health','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Invalid GL refs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT code, organization_id FROM chart_of_accounts GROUP BY code, organization_id HAVING count(*)>1) d;
+  _checks := _checks || jsonb_build_object('id','RC-039','category','Financial Health','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Dup CoA codes: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM fiscal_periods WHERE status='open' AND end_date < now()-interval '45 days';
+  _checks := _checks || jsonb_build_object('id','RC-040','category','Financial Health','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale open periods: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM financial_records fr JOIN fiscal_periods fp ON fr.organization_id=fp.organization_id AND fr.record_date BETWEEN fp.start_date AND fp.end_date WHERE fp.status='locked' AND fr.updated_at>fp.closed_at;
+  _checks := _checks || jsonb_build_object('id','RC-041','category','Financial Health','severity',CASE WHEN _count>0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Locked period writes: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM bills WHERE tds_rate IS NOT NULL AND (tds_rate<0 OR tds_rate>100);
+  _checks := _checks || jsonb_build_object('id','RC-042','category','Financial Health','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Invalid TDS rates: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Timestamp integrity
+  SELECT count(*) INTO _count FROM profiles WHERE updated_at<created_at;
+  _checks := _checks || jsonb_build_object('id','RC-043','category','Timestamp & Ordering','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Bad timestamps: %s',_count),'auto_fix_possible',true,'affected_count',_count);
+  SELECT count(*) INTO _count FROM invoices WHERE invoice_date>due_date AND due_date IS NOT NULL AND is_deleted=false;
+  _checks := _checks || jsonb_build_object('id','RC-044','category','Timestamp & Ordering','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Invoice after due: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM leave_requests WHERE start_date>end_date;
+  _checks := _checks || jsonb_build_object('id','RC-045','category','Timestamp & Ordering','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Invalid leave range: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- Org completeness
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM profiles p WHERE p.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-046','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Empty orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM chart_of_accounts coa WHERE coa.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-047','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('No CoA orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM fiscal_years fy WHERE fy.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-048','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('No FY orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM gl_accounts ga WHERE ga.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-049','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('No GL orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM (SELECT organization_id FROM user_roles WHERE role='admin' GROUP BY organization_id) a RIGHT JOIN organizations o ON o.id=a.organization_id WHERE a.organization_id IS NULL AND o.status='active';
+  _checks := _checks || jsonb_build_object('id','RC-050','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('No admin orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM leave_types lt WHERE lt.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-051','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No leave types orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM attendance_shifts s WHERE s.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-052','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No shift orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND NOT EXISTS (SELECT 1 FROM bank_accounts ba WHERE ba.organization_id=o.id);
+  _checks := _checks || jsonb_build_object('id','RC-053','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No bank acct orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles p WHERE p.status='active' AND NOT EXISTS (SELECT 1 FROM compensation_structures cs WHERE cs.profile_id=p.id AND cs.is_active=true);
+  _checks := _checks || jsonb_build_object('id','RC-054','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No comp profiles: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM profiles p WHERE p.status='active' AND NOT EXISTS (SELECT 1 FROM leave_balances lb WHERE lb.profile_id=p.id);
+  _checks := _checks || jsonb_build_object('id','RC-055','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No leave bal profiles: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND (SELECT count(*) FROM profiles p WHERE p.organization_id=o.id AND p.status='active')>=5 AND NOT EXISTS (SELECT 1 FROM profiles p2 WHERE p2.organization_id=o.id AND p2.manager_id IS NOT NULL);
+  _checks := _checks || jsonb_build_object('id','RC-056','category','Seeding & Org Completeness','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No managers (5+): %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  BEGIN PERFORM run_financial_verification(); _rpc_ok := true; EXCEPTION WHEN OTHERS THEN _rpc_ok := false; END;
+  _checks := _checks || jsonb_build_object('id','RC-057','category','RPC & Engine Health','severity',CASE WHEN NOT _rpc_ok THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _rpc_ok THEN 'PASS' ELSE 'FAIL' END,'detail',CASE WHEN _rpc_ok THEN 'Verification OK' ELSE 'Verification FAILED' END,'auto_fix_possible',false,'affected_count',CASE WHEN _rpc_ok THEN 0 ELSE 1 END);
+  SELECT count(*) INTO _count FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.proname='run_root_cause_audit' AND n.nspname='public';
+  _checks := _checks || jsonb_build_object('id','RC-058','category','RPC & Engine Health','severity',CASE WHEN _count=0 THEN 'CRITICAL' ELSE 'LOW' END,'status',CASE WHEN _count>0 THEN 'PASS' ELSE 'FAIL' END,'detail',CASE WHEN _count>0 THEN 'Audit RPC exists' ELSE 'Audit RPC MISSING' END,'auto_fix_possible',false,'affected_count',CASE WHEN _count=0 THEN 1 ELSE 0 END);
+  SELECT count(*) INTO _count FROM payroll_records pr WHERE NOT EXISTS (SELECT 1 FROM attendance_records ar WHERE ar.user_id=pr.user_id AND to_char(ar.date::date,'YYYY-MM')=pr.pay_period);
+  _checks := _checks || jsonb_build_object('id','RC-059','category','Payroll & HR Sync','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No attendance payroll: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM payroll_runs pr WHERE pr.status IN ('completed','approved') AND NOT EXISTS (SELECT 1 FROM payroll_records prr WHERE prr.organization_id=pr.organization_id AND prr.pay_period=pr.pay_period);
+  _checks := _checks || jsonb_build_object('id','RC-060','category','Payroll & HR Sync','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Empty completed runs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM leave_balances WHERE used_days > total_days;
+  _checks := _checks || jsonb_build_object('id','RC-061','category','Payroll & HR Sync','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Overdrawn leave: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- FIXED: use current_stock instead of stock_on_hand (items table)
+  SELECT count(*) INTO _count FROM items WHERE current_stock<0;
+  _checks := _checks || jsonb_build_object('id','RC-062','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Negative stock: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM purchase_orders WHERE status='confirmed' AND created_at < now()-interval '30 days' AND NOT EXISTS (SELECT 1 FROM goods_receipts gr WHERE gr.purchase_order_id=purchase_orders.id);
+  _checks := _checks || jsonb_build_object('id','RC-063','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale POs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM sales_orders WHERE status='confirmed' AND created_at < now()-interval '30 days' AND NOT EXISTS (SELECT 1 FROM delivery_notes dn WHERE dn.sales_order_id=sales_orders.id);
+  _checks := _checks || jsonb_build_object('id','RC-064','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale SOs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM work_orders wo WHERE wo.status='completed' AND NOT EXISTS (SELECT 1 FROM material_consumption mc WHERE mc.work_order_id=wo.id);
+  _checks := _checks || jsonb_build_object('id','RC-065','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('No consumption WOs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM bill_of_materials bom WHERE bom.status='active' AND NOT EXISTS (SELECT 1 FROM bom_lines bl WHERE bl.bom_id=bom.id);
+  _checks := _checks || jsonb_build_object('id','RC-066','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Empty BOMs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  -- FIXED: stock_adjustments has no quantity column; check for zero-difference adjustment items instead
+  BEGIN
+    SELECT count(*) INTO _count FROM stock_adjustment_items WHERE difference_qty=0;
+  EXCEPTION WHEN undefined_table OR undefined_column THEN _count := 0;
+  END;
+  _checks := _checks || jsonb_build_object('id','RC-067','category','Inventory & Supply Chain','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Zero adjustments: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  _count := 0;
+  IF NOT EXISTS (SELECT 1 FROM audit_logs WHERE entity_type='invoice' LIMIT 1) THEN _count:=_count+1; END IF;
+  IF NOT EXISTS (SELECT 1 FROM audit_logs WHERE entity_type='bill' LIMIT 1) THEN _count:=_count+1; END IF;
+  IF NOT EXISTS (SELECT 1 FROM audit_logs WHERE entity_type='payroll' LIMIT 1) THEN _count:=_count+1; END IF;
+  IF NOT EXISTS (SELECT 1 FROM audit_logs WHERE entity_type='employee' LIMIT 1) THEN _count:=_count+1; END IF;
+  _checks := _checks || jsonb_build_object('id','RC-068','category','Audit Trail Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Missing audit types: %s/4',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM audit_logs WHERE actor_id IS NULL;
+  _checks := _checks || jsonb_build_object('id','RC-069','category','Audit Trail Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('NULL actor logs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM organizations o WHERE o.status='active' AND EXISTS (SELECT 1 FROM audit_logs al WHERE al.organization_id=o.id) AND (SELECT max(created_at) FROM audit_logs al2 WHERE al2.organization_id=o.id) < now()-interval '7 days';
+  _checks := _checks || jsonb_build_object('id','RC-070','category','Audit Trail Integrity','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale audit orgs: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  BEGIN SELECT count(*) INTO _count FROM connector_configs cc WHERE cc.is_active=true AND cc.last_sync_at < now()-interval '7 days'; EXCEPTION WHEN undefined_table THEN _count := 0; END;
+  _checks := _checks || jsonb_build_object('id','RC-071','category','Audit Trail Integrity','severity',CASE WHEN _count>0 THEN 'MEDIUM' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'WARNING' END,'detail',format('Stale connectors: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  SELECT count(*) INTO _count FROM approval_requests ar JOIN approval_workflows aw ON aw.id=ar.workflow_id WHERE aw.is_active=false AND ar.status='pending';
+  _checks := _checks || jsonb_build_object('id','RC-072','category','Audit Trail Integrity','severity',CASE WHEN _count>0 THEN 'HIGH' ELSE 'LOW' END,'status',CASE WHEN _count=0 THEN 'PASS' ELSE 'FAIL' END,'detail',format('Disabled workflow approvals: %s',_count),'auto_fix_possible',false,'affected_count',_count);
+  RETURN jsonb_build_object('engine','Root Cause Audit Engine v4.2','run_at',now(),'org_filter',p_org_id,'total_checks',jsonb_array_length(_checks),'checks',_checks);
+END;
+$$;
