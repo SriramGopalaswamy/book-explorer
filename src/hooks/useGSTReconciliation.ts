@@ -62,7 +62,8 @@ export function useITCReconciliation(from: string, to: string) {
         .lte("bill_date", to)
         .in("status", ["approved", "paid", "partially_paid"])
         .order("bill_date", { ascending: true });
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return { bills: [], matched: 0, unmatched: 0, totalITC: 0, eligibleITC: 0, reversals: 0 } as any;
+      q = q.eq("organization_id", orgId);
 
       const { data: bills, error } = await q;
       if (error) throw error;
