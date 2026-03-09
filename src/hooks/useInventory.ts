@@ -15,9 +15,8 @@ export function useItems() {
     queryKey: ["items", orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("items" as any).select("*").order("name");
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data as any[];
     },
