@@ -56,13 +56,15 @@ describe("1. Query Scoping Assertions", () => {
     ORG_SCOPED_HOOKS.forEach((hookName) => {
       it(`${hookName} contains a hard guard for missing orgId`, () => {
         const source = readHookFile(hookName);
-        // Must have: if (!orgId) return [] (or equivalent empty-return guard)
+        // Must have: if (!orgId) return [] (or return false/null/empty object for role hooks)
         const hasHardGuard =
           /if\s*\(\s*!orgId\s*\)\s*return\s*\[\s*\]/.test(source) ||
           /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)\s*return\s*\[\s*\]/.test(source) ||
           /if\s*\(\s*!orgId\s*\)\s*return\s*\{/.test(source) ||
           /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)\s*return\s*\{/.test(source) ||
-          /if\s*\(\s*!orgId\s*\)\s*return\s*null/.test(source);
+          /if\s*\(\s*!orgId\s*\)\s*return\s*null/.test(source) ||
+          /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)\s*return\s*false/.test(source) ||
+          /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)\s*return\s*null/.test(source);
         expect(hasHardGuard, `${hookName} must have a hard guard when orgId is undefined`).toBe(true);
       });
     });
