@@ -69,17 +69,16 @@ export function useBankAccounts() {
     queryKey: ["bank-accounts", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockBankAccounts;
-      if (!user) return [];
-      let query = supabase
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase
         .from("bank_accounts")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
-      if (orgId) query = query.eq("organization_id", orgId);
-      const { data, error } = await query;
       if (error) throw error;
       return data as BankAccount[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 

@@ -1370,12 +1370,34 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // Already seeded in payroll records with pf_deduction field — add org compliance flags
   // Verified: pf_applicable, esi_applicable already set in organization_compliance seed above
 
+  // ===== POST-SEED CROSS-TENANT ISOLATION ASSERTION =====
+  // Verify that no sandbox profiles are visible from any production org
+  const { data: allOrgs } = await client.from("organizations")
+    .select("id, name, environment_type")
+    .neq("id", orgId)
+    .neq("environment_type", "sandbox");
+
+  let crossTenantLeaks = 0;
+  for (const prodOrg of (allOrgs ?? [])) {
+    const { data: leaked } = await client.from("profiles")
+      .select("id")
+      .eq("organization_id", prodOrg.id)
+      .in("full_name", ["Arjun Mehta", "Sneha Iyer", "Vikram Singh", "Priya Sharma", "Karan Patel", "Deepika Nair", "Rahul Verma", "Ananya Gupta"])
+      .limit(1);
+    if (leaked && leaked.length > 0) {
+      crossTenantLeaks++;
+      console.error(`CROSS-TENANT LEAK: Sandbox profile found in production org ${prodOrg.name} (${prodOrg.id})`);
+    }
+  }
+  summary.cross_tenant_assertion = crossTenantLeaks === 0 ? 1 : 0;
+
   return {
     success: true,
     action: "reset_and_seed",
     seed_summary: summary,
     total_records: Object.values(summary).reduce((a, b) => a + b, 0),
     execution_time_ms: Date.now() - startTime,
+    cross_tenant_check: crossTenantLeaks === 0 ? "PASS" : `FAIL: ${crossTenantLeaks} production orgs have leaked sandbox profiles`,
   };
 }
 

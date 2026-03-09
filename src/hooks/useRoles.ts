@@ -15,20 +15,14 @@ export function useIsAdminOrHR() {
   return useQuery({
     queryKey: ["user-role", user?.id, "admin-hr", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "hr"]);
-
-      // Scope to the user's current organization to prevent cross-tenant role bleed
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .in("role", ["admin", "hr"])
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error checking admin/HR role:", error);
@@ -37,7 +31,7 @@ export function useIsAdminOrHR() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -55,19 +49,14 @@ export function useIsFinance() {
   return useQuery({
     queryKey: ["user-role", user?.id, "finance", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "finance"]);
-
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .in("role", ["admin", "finance"])
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error checking finance role:", error);
@@ -76,7 +65,7 @@ export function useIsFinance() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -94,21 +83,17 @@ export function useIsManager() {
   return useQuery({
     queryKey: ["user-role", user?.id, "manager", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
       // Check user_roles table — org-scoped
-      let query = supabase
+      const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .eq("role", "manager")
+        .eq("organization_id", orgId)
         .limit(1);
 
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data: roleData } = await query;
       if (roleData && roleData.length > 0) return true;
 
       // Fallback: check if anyone in the SAME org reports to this user
@@ -120,17 +105,12 @@ export function useIsManager() {
 
       if (!myProfile) return false;
 
-      let reportQuery = supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id")
         .eq("manager_id", myProfile.id)
+        .eq("organization_id", orgId)
         .limit(1);
-
-      if (orgId) {
-        reportQuery = reportQuery.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await reportQuery;
 
       if (error) {
         console.error("Error checking manager status:", error);
@@ -139,7 +119,7 @@ export function useIsManager() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -159,19 +139,13 @@ export function useCurrentRole() {
   return useQuery({
     queryKey: ["user-role", user?.id, "current-role", orgId],
     queryFn: async () => {
-      if (!user) return null;
+      if (!user || !orgId) return null;
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id);
-
-      // CRITICAL: Scope role resolution to user's current org
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .eq("user_id", user.id)
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error fetching role:", error);

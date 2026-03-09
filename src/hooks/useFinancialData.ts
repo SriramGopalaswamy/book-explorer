@@ -81,21 +81,19 @@ export function useFinancialRecords() {
     queryKey: ["financial-records", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockFinancialRecords;
-      if (!user) return [];
+      if (!user || !orgId) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("financial_records")
         .select("*")
         .eq("is_deleted", false)
+        .eq("organization_id", orgId)
         .order("record_date", { ascending: false });
 
-      if (orgId) query = query.eq("organization_id", orgId);
-
-      const { data, error } = await query;
       if (error) throw error;
       return data as FinancialRecord[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 

@@ -66,8 +66,8 @@ export function useBinLocations(warehouseId?: string) {
   return useQuery({
     queryKey: ["bin-locations", warehouseId, orgId],
     queryFn: async () => {
-      let q = supabase.from("bin_locations" as any).select("*").order("bin_code");
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      let q = supabase.from("bin_locations" as any).select("*").eq("organization_id", orgId).order("bin_code");
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q;
       if (error) throw error;
@@ -100,9 +100,8 @@ export function useStockTransfers() {
   return useQuery({
     queryKey: ["stock-transfers", orgId],
     queryFn: async () => {
-      let q = supabase.from("stock_transfers" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("stock_transfers" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
@@ -215,9 +214,8 @@ export function usePickingLists() {
   return useQuery({
     queryKey: ["picking-lists", orgId],
     queryFn: async () => {
-      let q = supabase.from("picking_lists" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("picking_lists" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
@@ -231,9 +229,8 @@ export function useInventoryCounts() {
   return useQuery({
     queryKey: ["inventory-counts", orgId],
     queryFn: async () => {
-      let q = supabase.from("inventory_counts" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("inventory_counts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },

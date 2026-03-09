@@ -44,9 +44,8 @@ export function useSalesOrders() {
   return useQuery({
     queryKey: ["sales-orders", orgId],
     queryFn: async () => {
-      let q = supabase.from("sales_orders" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [] as SalesOrder[];
+      const { data, error } = await supabase.from("sales_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as SalesOrder[];
     },

@@ -62,7 +62,8 @@ export function useITCReconciliation(from: string, to: string) {
         .lte("bill_date", to)
         .in("status", ["approved", "paid", "partially_paid"])
         .order("bill_date", { ascending: true });
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return { bills: [], matched: 0, unmatched: 0, totalITC: 0, eligibleITC: 0, reversals: 0 } as any;
+      q = q.eq("organization_id", orgId);
 
       const { data: bills, error } = await q;
       if (error) throw error;
@@ -189,7 +190,8 @@ export function useForm16Data(fy: string) {
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .eq("is_superseded", false);
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
 
       const { data: payrollEntries, error } = await q;
       if (error) throw error;
@@ -267,7 +269,8 @@ export function useForm16AData(fy: string) {
         .lte("bill_date", to)
         .not("tds_section", "is", null)
         .order("bill_date");
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
 
       const { data: bills, error } = await q;
       if (error) throw error;

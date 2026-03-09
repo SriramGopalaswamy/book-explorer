@@ -107,7 +107,8 @@ export function usePayrollSummary() {
         .in("status", ["locked", "approved", "completed"])
         .order("pay_period", { ascending: true })
         .limit(12);
-      if (orgId) runsQ = runsQ.eq("organization_id", orgId);
+      if (!orgId) return { periods: [], avgGross: 0, avgNet: 0, totalEmployees: 0, deptBreakdown: [] } as any;
+      runsQ = runsQ.eq("organization_id", orgId);
 
       const { data: runs } = await runsQ;
       const allRuns = runs || [];

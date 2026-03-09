@@ -116,17 +116,14 @@ export function useInvoices() {
     queryKey: ["invoices", user?.id, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockInvoices;
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("invoices")
         .select(`*, invoice_items (*)`)
         .eq("is_deleted", false)
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
-
-      if (orgId) query = query.eq("organization_id", orgId);
-
-      const { data, error } = await query;
       if (error) throw error;
       return data as Invoice[];
     },

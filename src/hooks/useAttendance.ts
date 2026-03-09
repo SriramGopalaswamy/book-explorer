@@ -42,9 +42,10 @@ export function useAttendance(date?: string) {
     queryKey: ["attendance", selectedDate, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockAttendanceRecords;
+      if (!orgId) return [];
 
       // Fetch attendance records, active profiles, and approved leaves in parallel
-      let attendanceQuery = supabase
+      const attendanceQuery = supabase
           .from("attendance_records")
           .select(`
             *,
@@ -54,22 +55,22 @@ export function useAttendance(date?: string) {
             )
           `)
           .eq("date", selectedDate)
+          .eq("organization_id", orgId)
           .order("created_at", { ascending: false });
-      if (orgId) attendanceQuery = attendanceQuery.eq("organization_id", orgId);
 
-      let profilesQuery = supabase
+      const profilesQuery = supabase
           .from("profiles")
           .select("id, full_name, department")
-          .eq("status", "active");
-      if (orgId) profilesQuery = profilesQuery.eq("organization_id", orgId);
+          .eq("status", "active")
+          .eq("organization_id", orgId);
 
-      let leavesQuery = supabase
+      const leavesQuery = supabase
           .from("leave_requests")
           .select("profile_id, user_id")
           .eq("status", "approved")
           .lte("from_date", selectedDate)
-          .gte("to_date", selectedDate);
-      if (orgId) leavesQuery = leavesQuery.eq("organization_id", orgId);
+          .gte("to_date", selectedDate)
+          .eq("organization_id", orgId);
 
       const [attendanceRes, profilesRes, leavesRes] = await Promise.all([
         attendanceQuery,
@@ -108,7 +109,7 @@ export function useAttendance(date?: string) {
 
       return [...records, ...inferredRecords];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
@@ -123,26 +124,27 @@ export function useAttendanceStats(date?: string) {
     queryKey: ["attendance-stats", selectedDate, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockAttendanceStats;
+      if (!orgId) return { present: 0, absent: 0, late: 0, leave: 0, total: 0 };
 
-      let attQ = supabase
+      const attQ = supabase
           .from("attendance_records")
           .select("status, user_id, profile_id")
-          .eq("date", selectedDate);
-      if (orgId) attQ = attQ.eq("organization_id", orgId);
+          .eq("date", selectedDate)
+          .eq("organization_id", orgId);
 
-      let profQ = supabase
+      const profQ = supabase
           .from("profiles")
           .select("id")
-          .eq("status", "active");
-      if (orgId) profQ = profQ.eq("organization_id", orgId);
+          .eq("status", "active")
+          .eq("organization_id", orgId);
 
-      let leaveQ = supabase
+      const leaveQ = supabase
           .from("leave_requests")
           .select("user_id, profile_id")
           .eq("status", "approved")
           .lte("from_date", selectedDate)
-          .gte("to_date", selectedDate);
-      if (orgId) leaveQ = leaveQ.eq("organization_id", orgId);
+          .gte("to_date", selectedDate)
+          .eq("organization_id", orgId);
 
       const [attendanceRes, profilesRes, leaveRes] = await Promise.all([
         attQ, profQ, leaveQ,

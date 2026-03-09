@@ -126,13 +126,12 @@ export function useEInvoices() {
   const query = useQuery({
     queryKey: ["e_invoices", orgId],
     queryFn: async () => {
-      let q = (supabase as any).from("e_invoices").select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [] as EInvoice[];
+      const { data, error } = await (supabase as any).from("e_invoices").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as EInvoice[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const createMutation = useMutation({

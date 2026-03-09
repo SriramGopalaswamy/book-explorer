@@ -15,9 +15,8 @@ export function useItems() {
     queryKey: ["items", orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("items" as any).select("*").order("name");
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data as any[];
     },
@@ -104,9 +103,8 @@ export function useWarehouses() {
     queryKey: ["warehouses", orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("warehouses" as any).select("*").order("name");
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("warehouses" as any).select("*").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data as any[];
     },
@@ -184,8 +182,8 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
     queryKey: ["stock-ledger", itemId, warehouseId, orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("stock_ledger" as any).select("*").order("posted_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      let q = supabase.from("stock_ledger" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
       if (itemId) q = q.eq("item_id", itemId);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q.limit(500);
@@ -206,9 +204,8 @@ export function useStockAdjustments() {
     queryKey: ["stock-adjustments", orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("stock_adjustments" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("stock_adjustments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as any[];
     },

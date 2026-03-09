@@ -209,13 +209,13 @@ export function useCashFlowSummary() {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      let txQuery = supabase
+      if (!orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
+
+      const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
-        .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
-      if (orgId) txQuery = txQuery.eq("organization_id", orgId);
-
-      const { data, error } = await txQuery;
+        .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0])
+        .eq("organization_id", orgId);
 
       if (error) throw error;
 
@@ -239,9 +239,7 @@ export function useCashFlowSummary() {
       const monthlyBurn = stats.totalOutflow / 6;
       
       // Get current balance — org-scoped
-      let acctQuery = supabase.from("bank_accounts").select("balance");
-      if (orgId) acctQuery = acctQuery.eq("organization_id", orgId);
-      const { data: accounts } = await acctQuery;
+      const { data: accounts } = await supabase.from("bank_accounts").select("balance").eq("organization_id", orgId);
 
       const totalBalance = (accounts || []).reduce((sum, acc) => sum + Number(acc.balance), 0);
       const runway = monthlyBurn > 0 ? totalBalance / monthlyBurn : 0;

@@ -77,19 +77,20 @@ export function useLeaveRequests(status?: string) {
         if (status && status !== "all") return mockLeaveRequests.filter(r => r.status === status);
         return mockLeaveRequests;
       }
+      if (!orgId) return [];
       let query = supabase
         .from("leave_requests")
         .select(`*, profiles!profile_id(full_name, department)`)
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
-      if (orgId) query = query.eq("organization_id", orgId);
       if (status && status !== "all") query = query.eq("status", status);
 
       const { data, error } = await query;
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
