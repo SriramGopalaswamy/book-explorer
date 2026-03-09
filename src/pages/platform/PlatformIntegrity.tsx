@@ -358,7 +358,7 @@ function RootCauseAuditTab() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Bug className="h-5 w-5" />
-            Root Cause Audit Engine v3 — 54 checks · 21 categories
+            Root Cause Audit Engine v4 — 72 checks · 15 categories
           </CardTitle>
           <div className="flex items-center gap-3">
             {result && (
