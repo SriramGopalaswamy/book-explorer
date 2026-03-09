@@ -343,7 +343,7 @@ export function useDeleteFinancialRecord() {
 
       const { data, error } = await supabase
         .from("financial_records")
-        .delete()
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
         .eq("id", id)
         .select();
 

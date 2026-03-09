@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -40,7 +40,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Rate limiting state for auth operations
+  const authAttempts = useRef<number[]>([]);
+  const MAX_AUTH_ATTEMPTS = 5;
+  const AUTH_WINDOW_MS = 60_000; // 1 minute
+
+  const checkRateLimit = () => {
+    const now = Date.now();
+    authAttempts.current = authAttempts.current.filter(t => now - t < AUTH_WINDOW_MS);
+    if (authAttempts.current.length >= MAX_AUTH_ATTEMPTS) {
+      throw new Error("Too many attempts. Please wait a minute before trying again.");
+    }
+    authAttempts.current.push(now);
+  };
+
   const signUp = async (email: string, password: string, fullName: string) => {
+    checkRateLimit();
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -58,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    checkRateLimit();
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,

@@ -124,12 +124,14 @@ export function useEmployees() {
         const onLeaveIds = employees.filter(e => e.status === "on_leave").map(e => e.id);
         
         if (onLeaveIds.length > 0) {
-          const { data: activeLeaves } = await supabase
+          const leaveQuery = supabase
             .from("leave_requests")
             .select("user_id")
             .eq("status", "approved")
             .lte("from_date", today)
             .gte("to_date", today);
+          if (orgId) leaveQuery.eq("organization_id", orgId);
+          const { data: activeLeaves } = await leaveQuery;
 
           const usersOnLeaveToday = new Set((activeLeaves || []).map(l => l.user_id));
 
