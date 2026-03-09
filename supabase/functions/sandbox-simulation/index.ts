@@ -396,11 +396,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
-      const tempPassword = crypto.randomUUID() + "Aa1!";
       let authUserId: string | null = null;
 
       // Step 1: Try to delete any leftover auth user with this email
-      // (handles edge case where profile was deleted but auth user remains)
       const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
       const existingAuthUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
       if (existingAuthUser) {
@@ -408,10 +406,14 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         console.log(`Deleted leftover auth user for ${email}`);
       }
 
-      // Step 2: Also delete any leftover profile (shouldn't exist after cleanup, but be safe)
+      // Step 2: Also delete any leftover profile
       await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
 
       // Step 3: Create fresh auth user
+      // handle_new_user trigger creates a profile row automatically,
+      // then we UPDATE it with the correct sandbox org_id and details.
+      const tempPassword = crypto.randomUUID() + "Aa1!";
+
       const { data: newUser, error: createErr } = await client.auth.admin.createUser({
         email, password: tempPassword, email_confirm: true,
         user_metadata: { full_name: emp.name },
@@ -422,14 +424,20 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       }
       authUserId = newUser.user.id;
 
-      // Step 4: Create profile with verified auth user ID
-      const profileData = {
-        id: authUserId, user_id: authUserId, organization_id: orgId,
-        full_name: emp.name, email,
-        department: emp.dept, job_title: emp.jobTitle,
-        status: "active", join_date: "2024-06-01", phone: emp.phone,
-      };
-      const { error: profileErr } = await client.from("profiles").insert(profileData);
+      // Step 4: The handle_new_user trigger already created a profile row.
+      // Update it with the correct organization and details.
+      const { error: profileErr } = await client.from("profiles")
+        .update({
+          organization_id: orgId,
+          full_name: emp.name,
+          email,
+          department: emp.dept,
+          job_title: emp.jobTitle,
+          status: "active",
+          join_date: "2024-06-01",
+          phone: emp.phone,
+        })
+        .eq("user_id", authUserId);
       if (profileErr) {
         console.warn(`Failed to insert profile for ${emp.name}:`, profileErr.message);
         continue;
