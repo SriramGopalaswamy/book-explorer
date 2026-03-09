@@ -247,6 +247,31 @@ Deno.serve(async (req) => {
           });
 
         if (createError) {
+          // If user already exists (race condition fallback), treat as existing user sign-in
+          if (createError.code === 'email_exists' || createError.message?.includes('already been registered')) {
+            console.log("User exists (fallback), signing in instead");
+            const { data: linkData2, error: linkErr2 } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
+            if (linkErr2) {
+              console.error("Fallback generate link error:", linkErr2);
+              return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+            const { data: sessData2, error: verifyErr2 } = await supabase.auth.verifyOtp({ token_hash: linkData2.properties?.hashed_token!, type: "magiclink" });
+            if (verifyErr2) {
+              console.error("Fallback verify error:", verifyErr2);
+              return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+            session = sessData2.session;
+
+            // Sync profile
+            const { data: fallbackUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+            const fbUser = fallbackUsers?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+            if (fbUser) {
+              await syncProfileFromMS365(supabase, fbUser.id, fullName, jobTitle, department, phone, email, managerEmail);
+            }
+
+            return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
           console.error("Create user error:", createError);
           return new Response(
             JSON.stringify({ error: "Failed to create user" }),
