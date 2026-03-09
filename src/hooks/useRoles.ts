@@ -49,19 +49,14 @@ export function useIsFinance() {
   return useQuery({
     queryKey: ["user-role", user?.id, "finance", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "finance"]);
-
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .in("role", ["admin", "finance"])
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error checking finance role:", error);
@@ -70,7 +65,7 @@ export function useIsFinance() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
