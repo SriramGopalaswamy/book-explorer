@@ -155,16 +155,11 @@ export function useEmployees() {
         return employees;
       } else {
         // Non-admin view: use safe view, also org-scoped
-        let query = supabase
+        const { data, error } = await supabase
           .from("profiles_safe" as any)
           .select("*")
+          .eq("organization_id", orgId)
           .order("full_name", { ascending: true });
-
-        if (orgId) {
-          query = query.eq("organization_id", orgId);
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
         return (data as any[]).map((d) => ({
           ...d,
