@@ -83,21 +83,17 @@ export function useIsManager() {
   return useQuery({
     queryKey: ["user-role", user?.id, "manager", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
       // Check user_roles table — org-scoped
-      let query = supabase
+      const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .eq("role", "manager")
+        .eq("organization_id", orgId)
         .limit(1);
 
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data: roleData } = await query;
       if (roleData && roleData.length > 0) return true;
 
       // Fallback: check if anyone in the SAME org reports to this user
@@ -109,17 +105,12 @@ export function useIsManager() {
 
       if (!myProfile) return false;
 
-      let reportQuery = supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id")
         .eq("manager_id", myProfile.id)
+        .eq("organization_id", orgId)
         .limit(1);
-
-      if (orgId) {
-        reportQuery = reportQuery.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await reportQuery;
 
       if (error) {
         console.error("Error checking manager status:", error);
