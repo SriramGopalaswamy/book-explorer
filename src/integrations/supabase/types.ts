@@ -5694,6 +5694,7 @@ export type Database = {
           barcode: string | null
           category: string
           created_at: string
+          created_by: string | null
           current_stock: number | null
           description: string | null
           hsn_code: string | null
@@ -5720,6 +5721,7 @@ export type Database = {
           barcode?: string | null
           category?: string
           created_at?: string
+          created_by?: string | null
           current_stock?: number | null
           description?: string | null
           hsn_code?: string | null
@@ -5746,6 +5748,7 @@ export type Database = {
           barcode?: string | null
           category?: string
           created_at?: string
+          created_by?: string | null
           current_stock?: number | null
           description?: string | null
           hsn_code?: string | null
@@ -7832,6 +7835,7 @@ export type Database = {
           created_by: string
           currency_code: string | null
           exchange_rate: number | null
+          expected_date: string | null
           expected_delivery: string | null
           id: string
           notes: string | null
@@ -7853,6 +7857,7 @@ export type Database = {
           created_by: string
           currency_code?: string | null
           exchange_rate?: number | null
+          expected_date?: string | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -7874,6 +7879,7 @@ export type Database = {
           created_by?: string
           currency_code?: string | null
           exchange_rate?: number | null
+          expected_date?: string | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -8398,6 +8404,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           exchange_rate: number | null
+          expected_date: string | null
           expected_delivery: string | null
           id: string
           notes: string | null
@@ -8420,6 +8427,7 @@ export type Database = {
           customer_id?: string | null
           customer_name: string
           exchange_rate?: number | null
+          expected_date?: string | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
@@ -8442,6 +8450,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           exchange_rate?: number | null
+          expected_date?: string | null
           expected_delivery?: string | null
           id?: string
           notes?: string | null
