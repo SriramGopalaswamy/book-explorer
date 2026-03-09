@@ -197,6 +197,7 @@ export function usePurchaseReturns() {
       if (error) throw error;
       return (data || []) as unknown as PurchaseReturn[];
     },
+    enabled: !!orgId,
   });
 }
 

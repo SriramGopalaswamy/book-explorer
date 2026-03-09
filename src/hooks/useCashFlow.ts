@@ -250,6 +250,6 @@ export function useCashFlowSummary() {
         runway: Math.round(runway * 10) / 10,
       };
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }

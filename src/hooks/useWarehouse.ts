@@ -237,5 +237,6 @@ export function useInventoryCounts() {
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },
+    enabled: !!orgId,
   });
 }
