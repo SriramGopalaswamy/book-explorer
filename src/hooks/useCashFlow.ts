@@ -239,9 +239,7 @@ export function useCashFlowSummary() {
       const monthlyBurn = stats.totalOutflow / 6;
       
       // Get current balance — org-scoped
-      let acctQuery = supabase.from("bank_accounts").select("balance");
-      if (orgId) acctQuery = acctQuery.eq("organization_id", orgId);
-      const { data: accounts } = await acctQuery;
+      const { data: accounts } = await supabase.from("bank_accounts").select("balance").eq("organization_id", orgId);
 
       const totalBalance = (accounts || []).reduce((sum, acc) => sum + Number(acc.balance), 0);
       const runway = monthlyBurn > 0 ? totalBalance / monthlyBurn : 0;

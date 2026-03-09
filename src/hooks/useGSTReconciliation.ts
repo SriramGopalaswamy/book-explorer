@@ -269,7 +269,8 @@ export function useForm16AData(fy: string) {
         .lte("bill_date", to)
         .not("tds_section", "is", null)
         .order("bill_date");
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
 
       const { data: bills, error } = await q;
       if (error) throw error;

@@ -157,12 +157,13 @@ export function useDataBreachLog() {
         .from("data_breach_log")
         .select("*")
         .order("detected_date", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
       const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const createBreach = useMutation({

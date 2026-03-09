@@ -44,9 +44,8 @@ export function usePurchaseOrders() {
   return useQuery({
     queryKey: ["purchase-orders", orgId],
     queryFn: async () => {
-      let q = supabase.from("purchase_orders" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [] as PurchaseOrder[];
+      const { data, error } = await supabase.from("purchase_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];
     },

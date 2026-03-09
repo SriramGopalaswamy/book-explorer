@@ -93,7 +93,8 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
         .range((page - 1) * pageSize, page * pageSize - 1);
 
       // ── Org-scoping: prevent cross-tenant audit log access ──
-      if (orgId) query = query.eq("organization_id", orgId);
+      if (!orgId) return { data: [], total: 0 };
+      query = query.eq("organization_id", orgId);
 
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
       if (filters.action)     query = query.eq("action", filters.action);

@@ -92,21 +92,21 @@ export function usePayrollRecords(payPeriod?: string) {
         if (payPeriod) return mockPayrollRecords.filter(r => r.pay_period === payPeriod);
         return mockPayrollRecords;
       }
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
       let query = supabase
         .from("payroll_records")
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
-      if (orgId) query = query.eq("organization_id", orgId);
       if (payPeriod) query = query.eq("pay_period", payPeriod);
 
       const { data, error } = await query;
       if (error) throw error;
       return data as PayrollRecord[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
     staleTime: 10_000,
     refetchOnWindowFocus: true,
     refetchInterval: 60_000, // Reduced from 15s to 60s to save bandwidth

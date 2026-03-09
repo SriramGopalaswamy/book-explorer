@@ -68,9 +68,8 @@ export function useBOMs() {
   return useQuery({
     queryKey: ["boms", orgId],
     queryFn: async () => {
-      let q = supabase.from("bill_of_materials" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("bill_of_materials" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as BOM[];
     },

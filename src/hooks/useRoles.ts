@@ -119,7 +119,7 @@ export function useIsManager() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -139,19 +139,13 @@ export function useCurrentRole() {
   return useQuery({
     queryKey: ["user-role", user?.id, "current-role", orgId],
     queryFn: async () => {
-      if (!user) return null;
+      if (!user || !orgId) return null;
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id);
-
-      // CRITICAL: Scope role resolution to user's current org
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .eq("user_id", user.id)
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error fetching role:", error);

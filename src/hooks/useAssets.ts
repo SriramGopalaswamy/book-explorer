@@ -105,13 +105,18 @@ export { ASSET_CATEGORIES, DEPRECIATION_METHODS, ASSET_STATUSES, ASSET_CONDITION
 
 export function useAssets() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["assets"],
+    queryKey: ["assets", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("assets")
         .select("*, vendors!vendor_id(name), profiles!assigned_to(full_name)")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

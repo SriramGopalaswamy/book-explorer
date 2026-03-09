@@ -167,9 +167,8 @@ export function useVendorPayments() {
   return useQuery({
     queryKey: ["vendor-payments", orgId],
     queryFn: async () => {
-      let q = supabase.from("vendor_payments" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("vendor_payments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as VendorPayment[];
     },
