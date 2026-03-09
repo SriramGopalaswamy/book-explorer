@@ -121,6 +121,7 @@ export function useInvoices() {
       let query = supabase
         .from("invoices")
         .select(`*, invoice_items (*)`)
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (orgId) query = query.eq("organization_id", orgId);

@@ -86,6 +86,7 @@ export function useFinancialRecords() {
       let query = supabase
         .from("financial_records")
         .select("*")
+        .eq("is_deleted", false)
         .order("record_date", { ascending: false });
 
       if (orgId) query = query.eq("organization_id", orgId);
@@ -118,6 +119,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
+        .eq("is_deleted", false)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
@@ -220,12 +222,14 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         supabase
           .from("expenses")
           .select("category, amount")
+          .eq("is_deleted", false)
           .gte("expense_date", fromStr)
           .lte("expense_date", toStr),
         supabase
           .from("financial_records")
           .select("category, amount")
           .eq("type", "expense")
+          .eq("is_deleted", false)
           .gte("record_date", fromStr)
           .lte("record_date", toStr),
       ]);

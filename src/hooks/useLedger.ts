@@ -82,6 +82,7 @@ export function useJournalEntries(periodId?: string) {
         .from("journal_entries")
         .select("*, journal_lines(*)")
         .eq("organization_id", orgId!)
+        .eq("is_deleted", false)
         .order("entry_date", { ascending: false })
         .limit(200);
 
