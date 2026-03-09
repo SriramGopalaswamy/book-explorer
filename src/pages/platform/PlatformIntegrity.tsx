@@ -9,7 +9,7 @@ import {
   Shield, Play, Loader2, CheckCircle2, AlertTriangle, XCircle,
   Clock, ChevronDown, ChevronRight, Lock, Database, FileCheck, Server,
   ShieldAlert, Wrench, Info, Copy, Bug, Users, Layers, Trash2, Settings, Scale,
-  Calendar, UserCheck, Briefcase, BookOpen
+  Calendar, UserCheck, Briefcase, BookOpen, Package, ClipboardList, Activity, Link2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
