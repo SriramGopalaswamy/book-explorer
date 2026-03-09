@@ -222,12 +222,14 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         supabase
           .from("expenses")
           .select("category, amount")
+          .eq("is_deleted", false)
           .gte("expense_date", fromStr)
           .lte("expense_date", toStr),
         supabase
           .from("financial_records")
           .select("category, amount")
           .eq("type", "expense")
+          .eq("is_deleted", false)
           .gte("record_date", fromStr)
           .lte("record_date", toStr),
       ]);
