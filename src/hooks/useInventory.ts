@@ -182,8 +182,8 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
     queryKey: ["stock-ledger", itemId, warehouseId, orgId],
     enabled: !!user,
     queryFn: async () => {
-      let q = supabase.from("stock_ledger" as any).select("*").order("posted_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      let q = supabase.from("stock_ledger" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
       if (itemId) q = q.eq("item_id", itemId);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q.limit(500);
