@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockScheduledPayments } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
@@ -192,24 +193,16 @@ export function useDeleteScheduledPayment() {
 // Summary stats for cash flow
 export function useCashFlowSummary() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["cash-flow-summary", user?.id],
+    queryKey: ["cash-flow-summary", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
-
-      // Resolve org for scoping
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const orgId = profile?.organization_id;
+      if (!user || !orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
 
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-      if (!orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
 
       const { data, error } = await supabase
         .from("bank_transactions")
@@ -250,6 +243,6 @@ export function useCashFlowSummary() {
         runway: Math.round(runway * 10) / 10,
       };
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }

@@ -73,6 +73,7 @@ export function useBinLocations(warehouseId?: string) {
       if (error) throw error;
       return (data || []) as unknown as BinLocation[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -105,6 +106,7 @@ export function useStockTransfers() {
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -219,6 +221,7 @@ export function usePickingLists() {
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -234,5 +237,6 @@ export function useInventoryCounts() {
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },
+    enabled: !!orgId,
   });
 }

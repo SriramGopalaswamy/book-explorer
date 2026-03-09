@@ -49,6 +49,7 @@ export function useSalesOrders() {
       if (error) throw error;
       return (data || []) as unknown as SalesOrder[];
     },
+    enabled: !!orgId,
   });
 }
 

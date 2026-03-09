@@ -49,6 +49,7 @@ export function usePurchaseOrders() {
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];
     },
+    enabled: !!orgId,
   });
 }
 

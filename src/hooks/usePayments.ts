@@ -54,6 +54,7 @@ export function usePaymentReceipts() {
       if (error) throw error;
       return (data || []) as unknown as PaymentReceipt[];
     },
+    enabled: !!orgId,
   });
 }
 

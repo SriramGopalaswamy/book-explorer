@@ -68,6 +68,7 @@ export function useSalesReturns() {
       if (error) throw error;
       return (data || []) as unknown as SalesReturn[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -196,6 +197,7 @@ export function usePurchaseReturns() {
       if (error) throw error;
       return (data || []) as unknown as PurchaseReturn[];
     },
+    enabled: !!orgId,
   });
 }
 

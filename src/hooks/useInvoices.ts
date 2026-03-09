@@ -127,7 +127,7 @@ export function useInvoices() {
       if (error) throw error;
       return data as Invoice[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 

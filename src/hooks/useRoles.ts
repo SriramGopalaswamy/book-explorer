@@ -159,7 +159,7 @@ export function useCurrentRole() {
       if (roles.includes("manager")) return "manager";
       return "employee";
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
