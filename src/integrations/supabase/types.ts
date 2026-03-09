@@ -2019,10 +2019,12 @@ export type Database = {
           bill_number: string
           created_at: string
           currency_code: string | null
+          deleted_at: string | null
           due_date: string | null
           exchange_rate: number | null
           goods_receipt_id: string | null
           id: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           purchase_order_id: string | null
@@ -2044,10 +2046,12 @@ export type Database = {
           bill_number: string
           created_at?: string
           currency_code?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -2069,10 +2073,12 @@ export type Database = {
           bill_number?: string
           created_at?: string
           currency_code?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -4161,9 +4167,11 @@ export type Database = {
           amount: number
           category: string
           created_at: string
+          deleted_at: string | null
           description: string | null
           expense_date: string
           id: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           profile_id: string | null
@@ -4179,9 +4187,11 @@ export type Database = {
           amount: number
           category: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           expense_date?: string
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4197,9 +4207,11 @@ export type Database = {
           amount?: number
           category?: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           expense_date?: string
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4250,9 +4262,11 @@ export type Database = {
           created_at: string
           credit: number
           debit: number
+          deleted_at: string | null
           description: string | null
           id: string
           ind_as_category: string | null
+          is_deleted: boolean
           is_posted: boolean
           journal_entry_id: string | null
           memo: string | null
@@ -4275,9 +4289,11 @@ export type Database = {
           created_at?: string
           credit?: number
           debit?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           ind_as_category?: string | null
+          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -4300,9 +4316,11 @@ export type Database = {
           created_at?: string
           credit?: number
           debit?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           ind_as_category?: string | null
+          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -5493,6 +5511,7 @@ export type Database = {
           currency_code: string | null
           customer_gstin: string | null
           customer_id: string | null
+          deleted_at: string | null
           delivery_note_id: string | null
           due_date: string
           exchange_rate: number | null
@@ -5500,6 +5519,7 @@ export type Database = {
           igst_total: number
           invoice_date: string
           invoice_number: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           payment_terms: string | null
@@ -5521,6 +5541,7 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date: string
           exchange_rate?: number | null
@@ -5528,6 +5549,7 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           payment_terms?: string | null
@@ -5549,6 +5571,7 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date?: string
           exchange_rate?: number | null
@@ -5556,6 +5579,7 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           payment_terms?: string | null
@@ -5706,10 +5730,12 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           document_sequence_number: string | null
           entry_date: string
           fiscal_period_id: string | null
           id: string
+          is_deleted: boolean
           is_posted: boolean
           is_reversal: boolean
           memo: string | null
@@ -5723,10 +5749,12 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
+          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
@@ -5740,10 +5768,12 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
+          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
