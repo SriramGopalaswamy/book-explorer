@@ -403,7 +403,7 @@ function RootCauseAuditTab() {
             <div className="text-center py-12 text-muted-foreground">
               <Bug className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>Click "Run Root Cause Audit" to scan for systemic issues</p>
-              <p className="text-xs mt-1">9 categories · 23 checks · orphans, leaks, triggers, RLS, ghosts, duplicates</p>
+              <p className="text-xs mt-1">17 categories · 42 checks · orphans, leaks, triggers, RLS, schema drift, seeding, timestamps, constraints</p>
             </div>
           ) : (
             <CheckListView checks={checks} categoryMeta={RC_CATEGORY_META} />
