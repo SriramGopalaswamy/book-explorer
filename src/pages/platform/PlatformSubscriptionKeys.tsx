@@ -52,6 +52,12 @@ import {
   Target,
   Shield,
   Package,
+  Boxes,
+  ShoppingCart,
+  Receipt,
+  Factory,
+  Warehouse,
+  Plug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -62,6 +68,12 @@ const ALL_MODULES = [
   { id: "performance", label: "Performance OS", icon: Target, description: "Goals, Memos, Reviews" },
   { id: "audit", label: "CA Audit Console", icon: Shield, description: "Compliance runs, AI audit engine" },
   { id: "assets", label: "Asset Management", icon: Package, description: "Fixed assets, Depreciation tracking" },
+  { id: "inventory", label: "Inventory", icon: Boxes, description: "Items, Stock Ledger, Stock Adjustments" },
+  { id: "procurement", label: "Procurement", icon: ShoppingCart, description: "Purchase Orders, Goods Receipts, Purchase Returns" },
+  { id: "sales", label: "Sales", icon: Receipt, description: "Sales Orders, Delivery Notes, Sales Returns" },
+  { id: "manufacturing", label: "Manufacturing", icon: Factory, description: "Bill of Materials, Work Orders, Finished Goods" },
+  { id: "warehouse", label: "Warehouse Management", icon: Warehouse, description: "Bin Locations, Stock Transfers, Picking Lists, Inventory Counts" },
+  { id: "connectors", label: "Connectors", icon: Plug, description: "Shopify, Zoho, MS365 integrations" },
 ] as const;
 
 type ModuleId = (typeof ALL_MODULES)[number]["id"];
