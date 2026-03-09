@@ -190,7 +190,8 @@ export function useForm16Data(fy: string) {
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .eq("is_superseded", false);
-      if (orgId) q = q.eq("organization_id", orgId);
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
 
       const { data: payrollEntries, error } = await q;
       if (error) throw error;
