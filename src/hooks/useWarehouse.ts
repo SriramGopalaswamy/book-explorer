@@ -106,6 +106,7 @@ export function useStockTransfers() {
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
+    enabled: !!orgId,
   });
 }
 
