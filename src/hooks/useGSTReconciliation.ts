@@ -246,7 +246,7 @@ export function useForm16Data(fy: string) {
 
       return results;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
