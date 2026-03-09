@@ -86,6 +86,7 @@ export function useFinancialRecords() {
       let query = supabase
         .from("financial_records")
         .select("*")
+        .eq("is_deleted", false)
         .order("record_date", { ascending: false });
 
       if (orgId) query = query.eq("organization_id", orgId);
