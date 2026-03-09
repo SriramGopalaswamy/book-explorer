@@ -214,9 +214,8 @@ export function usePickingLists() {
   return useQuery({
     queryKey: ["picking-lists", orgId],
     queryFn: async () => {
-      let q = supabase.from("picking_lists" as any).select("*").order("created_at", { ascending: false });
-      if (orgId) q = q.eq("organization_id", orgId);
-      const { data, error } = await q;
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("picking_lists" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
