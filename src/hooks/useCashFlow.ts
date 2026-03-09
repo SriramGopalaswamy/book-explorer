@@ -192,24 +192,16 @@ export function useDeleteScheduledPayment() {
 // Summary stats for cash flow
 export function useCashFlowSummary() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["cash-flow-summary", user?.id],
+    queryKey: ["cash-flow-summary", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
-
-      // Resolve org for scoping
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const orgId = profile?.organization_id;
+      if (!user || !orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
 
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-      if (!orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
 
       const { data, error } = await supabase
         .from("bank_transactions")
