@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockScheduledPayments } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
