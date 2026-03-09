@@ -52,6 +52,12 @@ import {
   Target,
   Shield,
   Package,
+  Boxes,
+  ShoppingCart,
+  Receipt,
+  Factory,
+  Warehouse,
+  Plug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
