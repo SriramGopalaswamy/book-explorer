@@ -114,7 +114,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
       if (error) throw error;
       return { logs: (data ?? []) as unknown as AuditLog[], total: count ?? 0 };
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
