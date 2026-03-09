@@ -221,6 +221,7 @@ export function usePickingLists() {
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
+    enabled: !!orgId,
   });
 }
 
