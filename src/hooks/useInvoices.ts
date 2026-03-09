@@ -209,7 +209,11 @@ export function useCreateInvoice() {
               igst_amount: item.igst_amount || 0,
             }))
           );
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          // Atomic rollback: delete orphaned invoice header
+          await supabase.from("invoices").delete().eq("id", invoice.id);
+          throw itemsError;
+        }
       }
 
       return invoice;
