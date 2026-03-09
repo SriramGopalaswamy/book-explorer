@@ -15,20 +15,14 @@ export function useIsAdminOrHR() {
   return useQuery({
     queryKey: ["user-role", user?.id, "admin-hr", orgId],
     queryFn: async () => {
-      if (!user) return false;
+      if (!user || !orgId) return false;
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "hr"]);
-
-      // Scope to the user's current organization to prevent cross-tenant role bleed
-      if (orgId) {
-        query = query.eq("organization_id", orgId);
-      }
-
-      const { data, error } = await query;
+        .in("role", ["admin", "hr"])
+        .eq("organization_id", orgId);
 
       if (error) {
         console.error("Error checking admin/HR role:", error);
@@ -37,7 +31,7 @@ export function useIsAdminOrHR() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
