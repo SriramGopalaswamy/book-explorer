@@ -396,11 +396,9 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   for (const emp of employeeSeeds) {
     try {
       const email = `${emp.name.toLowerCase().replace(/\s+/g, ".")}@sandbox-sim.local`;
-      const tempPassword = crypto.randomUUID() + "Aa1!";
       let authUserId: string | null = null;
 
       // Step 1: Try to delete any leftover auth user with this email
-      // (handles edge case where profile was deleted but auth user remains)
       const { data: existingUsers } = await client.auth.admin.listUsers({ perPage: 1000 });
       const existingAuthUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
       if (existingAuthUser) {
@@ -408,14 +406,13 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         console.log(`Deleted leftover auth user for ${email}`);
       }
 
-      // Step 2: Also delete any leftover profile (shouldn't exist after cleanup, but be safe)
+      // Step 2: Also delete any leftover profile
       await client.from("profiles").delete().eq("organization_id", orgId).eq("email", email);
 
       // Step 3: Create fresh auth user
-      // NOTE: handle_new_user trigger will check IF NOT EXISTS before creating profile,
-      // so we create the profile FIRST with correct org_id, then the trigger will skip.
+      // handle_new_user trigger creates a profile row automatically,
+      // then we UPDATE it with the correct sandbox org_id and details.
       const tempPassword = crypto.randomUUID() + "Aa1!";
-      let authUserId: string | null = null;
 
       const { data: newUser, error: createErr } = await client.auth.admin.createUser({
         email, password: tempPassword, email_confirm: true,
