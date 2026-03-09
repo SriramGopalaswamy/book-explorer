@@ -307,6 +307,6 @@ export function useForm16AData(fy: string) {
 
       return Object.values(grouped);
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }

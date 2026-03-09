@@ -73,6 +73,7 @@ export function useBinLocations(warehouseId?: string) {
       if (error) throw error;
       return (data || []) as unknown as BinLocation[];
     },
+    enabled: !!orgId,
   });
 }
 

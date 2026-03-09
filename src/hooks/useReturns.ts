@@ -68,6 +68,7 @@ export function useSalesReturns() {
       if (error) throw error;
       return (data || []) as unknown as SalesReturn[];
     },
+    enabled: !!orgId,
   });
 }
 

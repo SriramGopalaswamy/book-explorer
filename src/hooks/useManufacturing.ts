@@ -73,6 +73,7 @@ export function useBOMs() {
       if (error) throw error;
       return (data || []) as unknown as BOM[];
     },
+    enabled: !!orgId,
   });
 }
 
