@@ -10,17 +10,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { useVendorPayments, useCreateVendorPayment } from "@/hooks/usePayments";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 export default function VendorPaymentsPage() {
   const { data: payments = [], isLoading } = useVendorPayments();
   const createPayment = useCreateVendorPayment();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ vendor_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" });
+  const [form, setForm] = useState({ vendor_id: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" });
+
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-active"],
+    queryFn: async () => {
+      const { data } = await supabase.from("vendors").select("id, name").eq("status", "active").order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
 
   const handleCreate = () => {
-    if (!form.vendor_name || !form.amount) return;
-    createPayment.mutate({ ...form, amount: Number(form.amount) }, { onSuccess: () => { setOpen(false); setForm({ vendor_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" }); } });
+    const vendor = vendors.find(v => v.id === form.vendor_id);
+    if (!vendor || !form.amount) return;
+    createPayment.mutate(
+      { vendor_name: vendor.name, vendor_id: vendor.id, payment_date: form.payment_date, amount: Number(form.amount), payment_method: form.payment_method, reference_number: form.reference_number, notes: form.notes },
+      { onSuccess: () => { setOpen(false); setForm({ vendor_id: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" }); } }
+    );
   };
 
   if (isLoading) return <MainLayout title="Vendor Payments"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
@@ -38,7 +52,20 @@ export default function VendorPaymentsPage() {
             <DialogContent>
               <DialogHeader><DialogTitle>Record Vendor Payment</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div><Label>Vendor Name</Label><Input value={form.vendor_name} onChange={e => setForm(p => ({ ...p, vendor_name: e.target.value }))} /></div>
+                <div>
+                  <Label>Vendor</Label>
+                  <Select value={form.vendor_id} onValueChange={v => setForm(p => ({ ...p, vendor_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select a vendor" /></SelectTrigger>
+                    <SelectContent>
+                      {vendors.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                      ))}
+                      {vendors.length === 0 && (
+                        <div className="px-2 py-4 text-sm text-muted-foreground text-center">No vendors found. Add vendors first.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Payment Date</Label><Input type="date" value={form.payment_date} onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} /></div>
                   <div><Label>Amount</Label><Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} /></div>
@@ -56,7 +83,7 @@ export default function VendorPaymentsPage() {
                 </div>
                 <div><Label>Reference Number</Label><Input value={form.reference_number} onChange={e => setForm(p => ({ ...p, reference_number: e.target.value }))} /></div>
                 <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
-                <Button onClick={handleCreate} disabled={createPayment.isPending} className="w-full">{createPayment.isPending ? "Saving..." : "Record Payment"}</Button>
+                <Button onClick={handleCreate} disabled={createPayment.isPending || !form.vendor_id} className="w-full">{createPayment.isPending ? "Saving..." : "Record Payment"}</Button>
               </div>
             </DialogContent>
           </Dialog>
