@@ -445,7 +445,10 @@ export function useDeleteInvoice() {
         throw new Error(`Cannot delete a "${inv.status}" invoice. Only draft invoices can be deleted.`);
       }
 
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      const { error } = await supabase
+        .from("invoices")
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
