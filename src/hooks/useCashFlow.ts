@@ -209,13 +209,13 @@ export function useCashFlowSummary() {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      let txQuery = supabase
+      if (!orgId) return { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, runway: 0 };
+
+      const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
-        .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0]);
-      if (orgId) txQuery = txQuery.eq("organization_id", orgId);
-
-      const { data, error } = await txQuery;
+        .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0])
+        .eq("organization_id", orgId);
 
       if (error) throw error;
 
