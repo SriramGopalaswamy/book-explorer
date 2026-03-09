@@ -75,13 +75,14 @@ export function useDataErasureRequests() {
         .from("data_erasure_requests")
         .select("*")
         .order("created_at", { ascending: false });
-      // Org-scope for admin views; individual users see only their own
-      if (orgId) q = q.eq("organization_id", orgId);
+      // Org-scope: hard guard prevents cross-tenant data access
+      if (!orgId) return [];
+      q = q.eq("organization_id", orgId);
       const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const createRequest = useMutation({
