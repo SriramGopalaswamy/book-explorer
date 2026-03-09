@@ -119,6 +119,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
+        .eq("is_deleted", false)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
