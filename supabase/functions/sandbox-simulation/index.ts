@@ -3938,20 +3938,34 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     } catch (e) { results.push({ workflow: "Item CRUD", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
   }
 
-  // INV-2: Stock adjustment
+  // INV-2: Stock adjustment (header-detail pattern)
   {
     const wfStart = Date.now();
     try {
-      const { data: items } = await client.from("items").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1);
-      if (items && items.length > 0) {
-        const { error } = await client.from("stock_adjustments").insert({
-          item_id: items[0].id, organization_id: orgId, created_by: userId,
-          adjustment_type: "increase", quantity: 10, reason: "Simulation stock count correction",
+      const { data: adjItems } = await client.from("items").select("id, name, current_stock").eq("organization_id", orgId).eq("is_active", true).limit(1);
+      const { data: adjWhs } = await client.from("warehouses").select("id").eq("organization_id", orgId).eq("status", "active").limit(1);
+      if (adjItems && adjItems.length > 0 && adjWhs && adjWhs.length > 0) {
+        const { data: adjHeader, error: adjErr } = await client.from("stock_adjustments").insert({
+          adjustment_number: `SIM-ADJ-${Date.now()}`,
+          warehouse_id: adjWhs[0].id,
+          organization_id: orgId, created_by: userId,
+          reason: "Simulation stock count correction",
           adjustment_date: new Date().toISOString().split("T")[0],
-        });
-        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? `+10 units for ${items[0].name}`, duration_ms: Date.now() - wfStart });
+          status: "draft",
+        }).select("id").single();
+        if (adjHeader && !adjErr) {
+          const currentQty = adjItems[0].current_stock ?? 50;
+          await client.from("stock_adjustment_items").insert({
+            adjustment_id: adjHeader.id,
+            item_id: adjItems[0].id,
+            current_qty: currentQty,
+            new_qty: currentQty + 10,
+            rate: 500,
+          });
+        }
+        results.push({ workflow: "Inventory: Stock adjustment (header+detail)", module: "Inventory", status: adjErr ? "failed" : "passed", detail: adjErr?.message ?? `Adjustment for ${adjItems[0].name}`, duration_ms: Date.now() - wfStart });
       } else {
-        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: "warning", detail: "No active items found", duration_ms: Date.now() - wfStart });
+        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: "warning", detail: "No active items or warehouses found", duration_ms: Date.now() - wfStart });
       }
     } catch (e) { results.push({ workflow: "Stock adjustment", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
   }
