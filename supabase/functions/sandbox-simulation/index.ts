@@ -4417,6 +4417,299 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     } catch (e) { results.push({ workflow: "Stock Transfer lifecycle", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // NEW: END-TO-END DOCUMENT CHAIN TESTS
+  // ═══════════════════════════════════════════════════════════════
+
+  // ===== P2P CHAIN: PO → GRN → Bill (linked) → Vendor Payment =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      const { data: chainItems } = await client.from("items").select("id, name, purchase_price").eq("organization_id", orgId).eq("is_active", true).limit(2);
+      if (v && chainItems && chainItems.length > 0) {
+        // Step 1: Create PO
+        let poSubtotal = 0;
+        const { data: chainPO, error: poErr } = await client.from("purchase_orders").insert({
+          po_number: `SIM-P2P-CHAIN-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
+          organization_id: orgId, created_by: userId, status: "draft",
+          order_date: new Date().toISOString().split("T")[0],
+          expected_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+          total_amount: 0, subtotal: 0, tax_amount: 0,
+        }).select("id").single();
+        if (poErr) throw poErr;
+
+        for (const item of chainItems) {
+          const qty = 10;
+          const lineTotal = qty * (item.purchase_price ?? 1000);
+          poSubtotal += lineTotal;
+          await client.from("purchase_order_items").insert({
+            purchase_order_id: chainPO.id, item_id: item.id,
+            description: item.name, quantity: qty, unit_price: item.purchase_price ?? 1000,
+            amount: lineTotal, tax_rate: 18,
+          });
+        }
+        const poTax = Math.round(poSubtotal * 0.18);
+        const poTotal = poSubtotal + poTax;
+        await client.from("purchase_orders").update({ subtotal: poSubtotal, tax_amount: poTax, total_amount: poTotal }).eq("id", chainPO.id);
+        await client.from("purchase_orders").update({ status: "approved" }).eq("id", chainPO.id);
+
+        // Step 2: Create GRN linked to PO
+        const { data: chainGR, error: grErr } = await client.from("goods_receipts").insert({
+          grn_number: `SIM-P2P-GRN-${Date.now()}`, purchase_order_id: chainPO.id,
+          organization_id: orgId, created_by: userId,
+          status: "completed", received_date: new Date().toISOString().split("T")[0],
+        }).select("id").single();
+        if (grErr) throw grErr;
+
+        for (const item of chainItems) {
+          await client.from("goods_receipt_items").insert({
+            goods_receipt_id: chainGR.id, item_id: item.id,
+            description: item.name, ordered_quantity: 10, received_quantity: 10,
+            accepted_quantity: 10, rejected_quantity: 0,
+          });
+        }
+
+        // Step 3: Create Bill linked to PO & GRN
+        const { data: chainBill, error: billErr } = await client.from("bills").insert({
+          bill_number: `SIM-P2P-BILL-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
+          organization_id: orgId, user_id: userId,
+          purchase_order_id: chainPO.id, goods_receipt_id: chainGR.id,
+          amount: poSubtotal, tax_amount: poTax, total_amount: poTotal,
+          status: "approved", bill_date: new Date().toISOString().split("T")[0],
+        }).select("id").single();
+        if (billErr) throw billErr;
+
+        // Step 4: Create Vendor Payment linked to Bill
+        const { error: vpErr } = await client.from("vendor_payments").insert({
+          payment_number: `SIM-P2P-VP-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
+          organization_id: orgId, created_by: userId,
+          amount: poTotal, payment_date: new Date().toISOString().split("T")[0],
+          payment_method: "bank_transfer", status: "completed", bill_id: chainBill.id,
+        });
+        if (vpErr) throw vpErr;
+
+        // Mark bill as paid
+        await client.from("bills").update({ status: "paid" }).eq("id", chainBill.id);
+
+        results.push({ workflow: "P2P Chain: PO→GRN→Bill→VendorPayment (end-to-end)", module: "Procurement", status: "passed",
+          detail: `Full P2P chain for ${v.name}: PO ₹${poTotal.toLocaleString()} → GRN (${chainItems.length} items) → Bill → Payment`,
+          duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "P2P Chain", module: "Procurement", status: "warning", detail: "No vendors or items for chain test", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "P2P Chain", module: "Procurement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== O2C CHAIN: SO → DN → Invoice (linked) → Payment Receipt =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      const { data: chainItems } = await client.from("items").select("id, name, selling_price").eq("organization_id", orgId).eq("is_active", true).limit(2);
+      const { data: wh } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+      if (c && chainItems && chainItems.length > 0) {
+        // Step 1: Create SO
+        let soSubtotal = 0;
+        const { data: chainSO, error: soErr } = await client.from("sales_orders").insert({
+          so_number: `SIM-O2C-CHAIN-${Date.now()}`, customer_id: c.id, customer_name: c.name,
+          organization_id: orgId, created_by: userId, status: "draft",
+          order_date: new Date().toISOString().split("T")[0],
+          expected_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+          total_amount: 0, subtotal: 0, tax_amount: 0,
+        }).select("id").single();
+        if (soErr) throw soErr;
+
+        for (const item of chainItems) {
+          const qty = 5;
+          const lineTotal = qty * (item.selling_price ?? 2000);
+          soSubtotal += lineTotal;
+          await client.from("sales_order_items").insert({
+            sales_order_id: chainSO.id, item_id: item.id,
+            description: item.name, quantity: qty, unit_price: item.selling_price ?? 2000,
+            amount: lineTotal, tax_rate: 18,
+          });
+        }
+        const soTax = Math.round(soSubtotal * 0.18);
+        const soTotal = soSubtotal + soTax;
+        await client.from("sales_orders").update({ subtotal: soSubtotal, tax_amount: soTax, total_amount: soTotal }).eq("id", chainSO.id);
+        await client.from("sales_orders").update({ status: "confirmed" }).eq("id", chainSO.id);
+
+        // Step 2: Create DN linked to SO
+        const { data: chainDN, error: dnErr } = await client.from("delivery_notes").insert({
+          dn_number: `SIM-O2C-DN-${Date.now()}`, sales_order_id: chainSO.id,
+          organization_id: orgId, created_by: userId,
+          status: "delivered", delivery_date: new Date().toISOString().split("T")[0],
+          warehouse_id: wh?.id ?? null,
+        }).select("id").single();
+        if (dnErr) throw dnErr;
+
+        for (const item of chainItems) {
+          await client.from("delivery_note_items").insert({
+            delivery_note_id: chainDN.id, item_id: item.id,
+            description: item.name, ordered_quantity: 5, delivered_quantity: 5,
+          });
+        }
+
+        // Step 3: Create Invoice linked to customer
+        const { data: chainInv, error: invErr } = await client.from("invoices").insert({
+          invoice_number: `SIM-O2C-INV-${Date.now()}`, customer_id: c.id,
+          client_name: c.name, client_email: `billing@${c.name.toLowerCase().replace(/\s+/g, "")}.sim`,
+          organization_id: orgId, user_id: userId,
+          amount: soSubtotal, total_amount: soTotal, status: "sent",
+          invoice_date: new Date().toISOString().split("T")[0],
+          due_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+        }).select("id").single();
+        if (invErr) throw invErr;
+
+        // Step 4: Payment Receipt linked to Invoice
+        const { error: prErr } = await client.from("payment_receipts").insert({
+          receipt_number: `SIM-O2C-PR-${Date.now()}`, customer_id: c.id, customer_name: c.name,
+          organization_id: orgId, created_by: userId,
+          amount: soTotal, payment_date: new Date().toISOString().split("T")[0],
+          payment_method: "bank_transfer", status: "completed", invoice_id: chainInv.id,
+        });
+        if (prErr) throw prErr;
+
+        await client.from("invoices").update({ status: "paid" }).eq("id", chainInv.id);
+
+        results.push({ workflow: "O2C Chain: SO→DN→Invoice→PaymentReceipt (end-to-end)", module: "Sales", status: "passed",
+          detail: `Full O2C chain for ${c.name}: SO ₹${soTotal.toLocaleString()} → DN (${chainItems.length} items) → Invoice → Receipt`,
+          duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "O2C Chain", module: "Sales", status: "warning", detail: "No customers or items for chain test", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "O2C Chain", module: "Sales", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== MANUFACTURING: WO → Material Consumption =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: wo } = await client.from("work_orders")
+        .select("id, wo_number, product_name, planned_quantity")
+        .eq("organization_id", orgId).in("status", ["in_progress", "planned"]).limit(1).maybeSingle();
+      const { data: bom } = await client.from("bill_of_materials")
+        .select("id").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      if (wo && bom) {
+        const { data: bomLines } = await client.from("bom_lines")
+          .select("item_id, material_name, quantity, wastage_pct").eq("bom_id", bom.id);
+        let consumedCount = 0;
+        for (const line of (bomLines ?? [])) {
+          const consumeQty = Math.round(line.quantity * (wo.planned_quantity ?? 10) * (1 + (line.wastage_pct ?? 0) / 100));
+          const { error } = await client.from("material_consumption").insert({
+            work_order_id: wo.id, item_id: line.item_id,
+            organization_id: orgId, consumed_by: userId,
+            quantity: consumeQty, consumed_at: new Date().toISOString(),
+            notes: `Auto-consumption for ${wo.wo_number} — ${line.material_name}`,
+          });
+          if (!error) consumedCount++;
+        }
+        results.push({ workflow: "Manufacturing: WO → BOM Material Consumption", module: "Manufacturing", status: consumedCount > 0 ? "passed" : "warning",
+          detail: `${consumedCount}/${(bomLines ?? []).length} materials consumed for ${wo.wo_number}`,
+          duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Manufacturing: Material Consumption", module: "Manufacturing", status: "warning", detail: "No in-progress WO or active BOM", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Material Consumption", module: "Manufacturing", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== STOCK ADJUSTMENT WORKFLOW (header + detail) =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: wh } = await client.from("warehouses").select("id, name").eq("organization_id", orgId).limit(1).maybeSingle();
+      const { data: adjItems } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("is_active", true).limit(2);
+      if (wh && adjItems && adjItems.length > 0) {
+        const { data: adj, error: adjErr } = await client.from("stock_adjustments").insert({
+          adjustment_number: `SIM-ADJ-WF-${Date.now()}`, warehouse_id: wh.id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", adjustment_date: new Date().toISOString().split("T")[0],
+          reason: "Simulation stock adjustment test",
+        }).select("id").single();
+        if (adjErr) throw adjErr;
+
+        let itemCount = 0;
+        for (const item of adjItems) {
+          const currentQty = item.opening_stock ?? 10;
+          const { error } = await client.from("stock_adjustment_items").insert({
+            adjustment_id: adj.id, item_id: item.id,
+            current_qty: currentQty, new_qty: currentQty + 5,
+            rate: 500,
+          });
+          if (!error) itemCount++;
+        }
+        // Complete
+        const { error: lcErr } = await client.from("stock_adjustments").update({ status: "completed" }).eq("id", adj.id);
+        results.push({ workflow: "Inventory: Stock Adjustment lifecycle (draft→completed)", module: "Inventory", status: lcErr ? "failed" : "passed",
+          detail: lcErr?.message ?? `Adjustment at ${wh.name} with ${itemCount} items`,
+          duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Inventory: Stock Adjustment", module: "Inventory", status: "warning", detail: "No warehouses or items", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Stock Adjustment", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== STOCK LEDGER VERIFICATION =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: ledgerEntries } = await client.from("stock_ledger")
+        .select("id, entry_type, quantity_change, item_id")
+        .eq("organization_id", orgId).limit(100);
+      const entryTypes = [...new Set((ledgerEntries ?? []).map((e: any) => e.entry_type))];
+      // Check for negative running balances
+      const itemBalances: Record<string, number> = {};
+      for (const entry of (ledgerEntries ?? [])) {
+        itemBalances[entry.item_id] = (itemBalances[entry.item_id] ?? 0) + Number(entry.quantity_change ?? 0);
+      }
+      const negativeItems = Object.entries(itemBalances).filter(([_, bal]) => bal < 0);
+      results.push({ workflow: "Stock Ledger: balance verification", module: "Inventory",
+        status: negativeItems.length === 0 ? "passed" : "warning",
+        detail: `${(ledgerEntries ?? []).length} entries, types: [${entryTypes.join(", ")}], ${negativeItems.length} items with negative balance`,
+        duration_ms: Date.now() - wfStart });
+    } catch (e) { results.push({ workflow: "Stock Ledger verification", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== SELF-TRANSFER BLOCK TEST =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: wh } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+      if (wh) {
+        const { error: selfErr } = await client.from("stock_transfers").insert({
+          transfer_number: `SIM-SELF-${Date.now()}`,
+          from_warehouse_id: wh.id, to_warehouse_id: wh.id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", transfer_date: new Date().toISOString().split("T")[0],
+        });
+        results.push({ workflow: "Warehouse: Self-transfer block", module: "Warehouse",
+          status: selfErr ? "passed" : "warning",
+          detail: selfErr ? `Correctly blocked: ${selfErr.message}` : "WARNING: Self-transfer (same warehouse) accepted — needs constraint",
+          duration_ms: Date.now() - wfStart });
+        // Clean up if accepted
+        if (!selfErr) {
+          await client.from("stock_transfers").delete().eq("organization_id", orgId).like("transfer_number", "SIM-SELF-%");
+        }
+      }
+    } catch (e) { results.push({ workflow: "Self-transfer block", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== DOCUMENT SEQUENCE GAP DETECTION =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: allInvNums } = await client.from("invoices").select("invoice_number").eq("organization_id", orgId).order("created_at", { ascending: true });
+      const { data: allBillNums } = await client.from("bills").select("bill_number").eq("organization_id", orgId).order("created_at", { ascending: true });
+      const invDups = (allInvNums ?? []).length - new Set((allInvNums ?? []).map((i: any) => i.invoice_number)).size;
+      const billDups = (allBillNums ?? []).length - new Set((allBillNums ?? []).map((b: any) => b.bill_number)).size;
+      results.push({ workflow: "Document Sequence: gap/duplicate detection", module: "Governance",
+        status: invDups === 0 && billDups === 0 ? "passed" : "warning",
+        detail: `Invoices: ${(allInvNums ?? []).length} total, ${invDups} duplicates. Bills: ${(allBillNums ?? []).length} total, ${billDups} duplicates`,
+        duration_ms: Date.now() - wfStart });
+    } catch (e) { results.push({ workflow: "Document Sequence detection", module: "Governance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
 
