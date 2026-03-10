@@ -809,31 +809,34 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED PURCHASE ORDERS =====
   const seededPOIds: string[] = [];
   for (let i = 0; i < Math.min(3, vendors.length); i++) {
+    const vendorForPO = vendors[i];
+    const { data: vendorRow } = await client.from("vendors").select("id, name").eq("id", vendorForPO).single();
     const { data: po } = await client.from("purchase_orders").insert({
       po_number: `SIM-PO-${Date.now()}-${i}`,
-      vendor_id: vendors[i], organization_id: orgId, created_by: userId,
+      vendor_id: vendorForPO, vendor_name: vendorRow?.name ?? `Vendor ${i}`,
+      organization_id: orgId, created_by: userId,
       status: i === 0 ? "approved" : "draft",
       order_date: new Date(Date.now() - 10 * 86400000).toISOString().split("T")[0],
       expected_date: new Date(Date.now() + 20 * 86400000).toISOString().split("T")[0],
-      total_amount: 0, subtotal: 0, tax_total: 0,
+      total_amount: 0, subtotal: 0, tax_amount: 0,
     }).select("id").single();
     if (po) {
       seededPOIds.push(po.id);
       let poTotal = 0;
       for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
         const qty = 10 + Math.floor(Math.random() * 40);
-        const rate = itemSeeds[j]?.purchase_price ?? 1000;
-        const lineTotal = qty * rate;
+        const unitPrice = itemSeeds[j]?.purchase_price ?? 1000;
+        const lineTotal = qty * unitPrice;
         poTotal += lineTotal;
         await client.from("purchase_order_items").insert({
           purchase_order_id: po.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
-          quantity: qty, rate, amount: lineTotal,
-          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+          quantity: qty, unit_price: unitPrice, amount: lineTotal,
+          tax_rate: 18,
         });
       }
       await client.from("purchase_orders").update({
-        subtotal: poTotal, tax_total: Math.round(poTotal * 0.18), total_amount: Math.round(poTotal * 1.18),
+        subtotal: poTotal, tax_amount: Math.round(poTotal * 0.18), total_amount: Math.round(poTotal * 1.18),
       }).eq("id", po.id);
     }
   }
