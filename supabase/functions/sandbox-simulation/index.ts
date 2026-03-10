@@ -3131,8 +3131,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         // HR/Finance reviews and resolves
         const wf2 = Date.now();
         const { error: resolveErr } = await client.from("payslip_disputes").update({
-          status: "resolved", resolved_by: hrActor,
-          resolution_notes: "PF calculated correctly at 12% of basic. No discrepancy found.",
+          status: "resolved",
+          hr_notes: "PF calculated correctly at 12% of basic. No discrepancy found.",
+          hr_reviewed_by: hrActor, hr_reviewed_at: new Date().toISOString(),
         }).eq("id", mrDispute.id);
         results.push({
           workflow: "MR-Dispute: HR resolves dispute", module: "Multi-Role",
