@@ -105,68 +105,51 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   const { error: jdErr } = await client.rpc("sandbox_force_delete_journal_data", { _org_id: orgId });
   if (jdErr) console.warn("Force delete journal data:", jdErr.message);
 
-  // ===== PHASE 1: Clear ALL transactional data FIRST (before touching profiles) =====
-  const orgScopedTables = [
-    "payslip_disputes", "payroll_records", "payroll_runs",
-    "reimbursement_requests",
-    "goal_plans", "memos", "notifications",
-    "attendance_daily", "attendance_punches", "attendance_records",
-    "attendance_correction_requests",
-    "leave_requests", "leave_balances", "investment_declarations", "employee_documents",
-    "asset_depreciation_entries",
-    "quote_items", "quotes",
-    "invoice_items", "invoices",
-    "bill_items", "bills",
-    "vendor_credits", "credit_notes",
-    "bank_transactions", "bank_accounts", "expenses", "budgets",
-    "financial_records", "assets", "audit_logs",
-    "compensation_revision_requests", "compensation_components", "compensation_structures",
-    "holidays", "user_roles", "organization_members",
-    "profile_change_requests",
-    "chart_of_accounts",
-    // New modules
-    "picking_list_items", "picking_lists",
-    "stock_transfer_items", "stock_transfers",
-    "inventory_count_items", "inventory_counts",
-    "material_consumption",
-    "work_orders", "bom_lines", "bill_of_materials",
-    "delivery_note_items", "delivery_notes",
-    "goods_receipt_items", "goods_receipts",
-    "purchase_return_items", "purchase_returns",
-    "sales_return_items", "sales_returns",
-    "sales_order_items", "sales_orders",
-    "purchase_order_items", "purchase_orders",
-    "stock_adjustments", "stock_ledger",
-    "bin_locations", "warehouses",
-    "items",
-    "connector_logs", "connectors",
-  ];
-
-  // Delete child tables that lack organization_id (use parent FK)
-  const { data: invIds } = await client.from("invoices")
-    .select("id").eq("organization_id", orgId);
-  if (invIds && invIds.length > 0) {
-    const ids = invIds.map((i: any) => i.id);
-    for (let i = 0; i < ids.length; i += 50) {
-      await client.from("invoice_items").delete().in("invoice_id", ids.slice(i, i + 50));
+  // ===== PHASE 1: Force-reset all transactional data (bypasses terminal state triggers) =====
+  const { error: resetErr } = await client.rpc("sandbox_force_reset_tables", { _org_id: orgId });
+  if (resetErr) {
+    console.warn("Force reset tables:", resetErr.message);
+    // Fallback: try individual deletes (may fail on terminal state records)
+    const orgScopedTables = [
+      "payslip_disputes", "payroll_records", "payroll_runs",
+      "reimbursement_requests",
+      "goal_plans", "memos", "notifications",
+      "attendance_daily", "attendance_punches", "attendance_records",
+      "attendance_correction_requests",
+      "leave_requests", "leave_balances", "investment_declarations", "employee_documents",
+      "asset_depreciation_entries",
+      "quote_items", "quotes",
+      "invoice_items", "invoices",
+      "bill_items", "bills",
+      "vendor_credits", "credit_notes",
+      "bank_transactions", "bank_accounts", "expenses", "budgets",
+      "financial_records", "assets", "audit_logs",
+      "compensation_revision_requests", "compensation_components", "compensation_structures",
+      "holidays", "user_roles", "organization_members",
+      "profile_change_requests",
+      "chart_of_accounts",
+      "picking_list_items", "picking_lists",
+      "stock_transfer_items", "stock_transfers",
+      "inventory_count_items", "inventory_counts",
+      "material_consumption",
+      "work_orders", "bom_lines", "bill_of_materials",
+      "delivery_note_items", "delivery_notes",
+      "goods_receipt_items", "goods_receipts",
+      "purchase_return_items", "purchase_returns",
+      "sales_return_items", "sales_returns",
+      "sales_order_items", "sales_orders",
+      "purchase_order_items", "purchase_orders",
+      "stock_adjustment_items", "stock_adjustments", "stock_ledger",
+      "bin_locations", "warehouses",
+      "items",
+      "connector_logs", "connectors",
+    ];
+    for (const table of orgScopedTables) {
+      try {
+        const { error } = await client.from(table).delete().eq("organization_id", orgId);
+        if (error) console.warn(`Clear ${table}:`, error.message);
+      } catch (_) { /* table may not exist */ }
     }
-  }
-
-  const { data: billIds } = await client.from("bills")
-    .select("id").eq("organization_id", orgId);
-  if (billIds && billIds.length > 0) {
-    const ids = billIds.map((b: any) => b.id);
-    for (let i = 0; i < ids.length; i += 50) {
-      await client.from("bill_items").delete().in("bill_id", ids.slice(i, i + 50));
-    }
-  }
-
-  // Clear all org-scoped tables (this removes FK dependencies on profiles)
-  for (const table of orgScopedTables) {
-    try {
-      const { error } = await client.from(table).delete().eq("organization_id", orgId);
-      if (error) console.warn(`Clear ${table}:`, error.message);
-    } catch (_) { /* table may not exist */ }
   }
 
   // ===== PHASE 2: Now safely delete sim profiles and auth users =====
