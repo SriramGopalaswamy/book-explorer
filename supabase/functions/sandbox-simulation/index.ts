@@ -4919,7 +4919,99 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     });
   }
 
-  const chaosResults = {
+  // ═══════════════════════════════════════════════════════════════
+  // TERMINAL STATE MUTATION PREVENTION (from vitest Section 4)
+  // Attempts to edit/delete records in terminal states — should fail
+  // ═══════════════════════════════════════════════════════════════
+
+  // TSM-1: Try to update a paid invoice back to draft
+  {
+    const { data: paidInv } = await client.from("invoices")
+      .select("id").eq("organization_id", orgId).eq("status", "paid").limit(1).maybeSingle();
+    if (paidInv) {
+      const { error: tsmErr } = await client.from("invoices")
+        .update({ status: "draft", amount: 1 }).eq("id", paidInv.id);
+      results.push({
+        test: "TSM: Edit paid invoice → draft", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Paid invoice reverted to draft — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-2: Try to update a closed PO
+  {
+    const { data: closedPO } = await client.from("purchase_orders")
+      .select("id").eq("organization_id", orgId).in("status", ["closed", "cancelled"]).limit(1).maybeSingle();
+    if (closedPO) {
+      const { error: tsmErr } = await client.from("purchase_orders")
+        .update({ status: "draft" }).eq("id", closedPO.id);
+      results.push({
+        test: "TSM: Reopen closed/cancelled PO", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Closed PO reopened — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-3: Try to update a completed work order
+  {
+    const { data: completedWO } = await client.from("work_orders")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedWO) {
+      const { error: tsmErr } = await client.from("work_orders")
+        .update({ status: "draft" }).eq("id", completedWO.id);
+      results.push({
+        test: "TSM: Reopen completed work order", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed work order reopened — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-4: Try to update an approved/paid payroll run
+  {
+    const { data: lockedRun } = await client.from("payroll_runs")
+      .select("id").eq("organization_id", orgId).in("status", ["approved", "paid", "locked"]).limit(1).maybeSingle();
+    if (lockedRun) {
+      const { error: tsmErr } = await client.from("payroll_runs")
+        .update({ status: "draft" } as any).eq("id", lockedRun.id);
+      results.push({
+        test: "TSM: Revert locked/approved payroll run", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Locked payroll run reverted — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-5: Try to update a completed stock transfer
+  {
+    const { data: completedST } = await client.from("stock_transfers")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedST) {
+      const { error: tsmErr } = await client.from("stock_transfers")
+        .update({ status: "draft" }).eq("id", completedST.id);
+      results.push({
+        test: "TSM: Reopen completed stock transfer", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed stock transfer reopened — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-6: Try to delete a paid bill
+  {
+    const { data: paidBill } = await client.from("bills")
+      .select("id").eq("organization_id", orgId).eq("status", "paid").limit(1).maybeSingle();
+    if (paidBill) {
+      const { error: tsmErr } = await client.from("bills").delete().eq("id", paidBill.id);
+      results.push({
+        test: "TSM: Delete paid bill", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Paid bill deleted — terminal state deletion not blocked",
+      });
+    }
+  }
     total_tests: results.length,
     anomalies: results.filter(r => r.status === "anomaly").length,
     blocked: results.filter(r => r.status === "blocked").length,
