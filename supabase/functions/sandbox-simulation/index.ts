@@ -5012,6 +5012,8 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
       });
     }
   }
+
+  const chaosResults = {
     total_tests: results.length,
     anomalies: results.filter(r => r.status === "anomaly").length,
     blocked: results.filter(r => r.status === "blocked").length,
