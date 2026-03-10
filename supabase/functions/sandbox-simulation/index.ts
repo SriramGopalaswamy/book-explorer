@@ -867,31 +867,34 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED SALES ORDERS =====
   const seededSOIds: string[] = [];
   for (let i = 0; i < Math.min(3, customers.length); i++) {
+    const custForSO = customers[i];
+    const { data: custRow } = await client.from("customers").select("id, name").eq("id", custForSO).single();
     const { data: so } = await client.from("sales_orders").insert({
       so_number: `SIM-SO-${Date.now()}-${i}`,
-      customer_id: customers[i], organization_id: orgId, created_by: userId,
+      customer_id: custForSO, customer_name: custRow?.name ?? `Customer ${i}`,
+      organization_id: orgId, created_by: userId,
       status: i === 0 ? "confirmed" : "draft",
       order_date: new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0],
       expected_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
-      total_amount: 0, subtotal: 0, tax_total: 0,
+      total_amount: 0, subtotal: 0, tax_amount: 0,
     }).select("id").single();
     if (so) {
       seededSOIds.push(so.id);
       let soTotal = 0;
       for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
         const qty = 5 + Math.floor(Math.random() * 20);
-        const rate = itemSeeds[j]?.selling_price ?? 2000;
-        const lineTotal = qty * rate;
+        const unitPrice = itemSeeds[j]?.selling_price ?? 2000;
+        const lineTotal = qty * unitPrice;
         soTotal += lineTotal;
         await client.from("sales_order_items").insert({
           sales_order_id: so.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
-          quantity: qty, rate, amount: lineTotal,
-          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+          quantity: qty, unit_price: unitPrice, amount: lineTotal,
+          tax_rate: 18,
         });
       }
       await client.from("sales_orders").update({
-        subtotal: soTotal, tax_total: Math.round(soTotal * 0.18), total_amount: Math.round(soTotal * 1.18),
+        subtotal: soTotal, tax_amount: Math.round(soTotal * 0.18), total_amount: Math.round(soTotal * 1.18),
       }).eq("id", so.id);
     }
   }
