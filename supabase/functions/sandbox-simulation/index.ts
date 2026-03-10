@@ -4006,11 +4006,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
       if (v) {
         const { data: po, error: poErr } = await client.from("purchase_orders").insert({
-          po_number: `SIM-PO-WF-${Date.now()}`, vendor_id: v.id,
+          po_number: `SIM-PO-WF-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
           organization_id: orgId, created_by: userId,
           status: "draft", order_date: new Date().toISOString().split("T")[0],
           expected_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-          total_amount: 50000, subtotal: 42373, tax_total: 7627,
+          total_amount: 50000, subtotal: 42373, tax_amount: 7627,
         }).select("id").single();
         if (poErr) throw poErr;
         // Lifecycle: draft → submitted → approved
