@@ -4357,11 +4357,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (icErr) throw icErr;
         // Add count items
-        const { data: items } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("status", "active").limit(3);
+        const { data: items } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("is_active", true).limit(3);
         for (const item of (items ?? [])) {
           await client.from("inventory_count_items").insert({
-            count_id: ic.id, item_id: item.id,
-            expected_quantity: item.opening_stock ?? 10,
+            count_id: ic.id, item_id: item.id, item_name: item.name,
+            system_quantity: item.opening_stock ?? 10,
             counted_quantity: (item.opening_stock ?? 10) - Math.floor(Math.random() * 3),
           });
         }
