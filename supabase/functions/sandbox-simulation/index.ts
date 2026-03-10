@@ -755,18 +755,18 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED ITEMS (Inventory) =====
   const seededItemIds: string[] = [];
   const itemSeeds = [
-    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", type: "goods", unit: "pcs", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
-    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", type: "goods", unit: "pcs", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
-    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", type: "goods", unit: "pcs", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
-    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", type: "goods", unit: "reams", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
-    { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", type: "service", unit: "months", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
-    { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", type: "raw_material", unit: "kg", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
-    { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", type: "raw_material", unit: "bags", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
-    { name: "Assembled Server Unit", sku: "SIM-SU-008", type: "finished_goods", unit: "pcs", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
+    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", item_type: "goods", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
+    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", item_type: "goods", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
+    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", item_type: "goods", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
+    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", item_type: "goods", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
+    { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", item_type: "service", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
+    { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", item_type: "raw_material", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
+    { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", item_type: "raw_material", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
+    { name: "Assembled Server Unit", sku: "SIM-SU-008", item_type: "finished_goods", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
   ];
   for (const item of itemSeeds) {
     const { data } = await client.from("items").insert({
-      ...item, organization_id: orgId, created_by: userId, status: "active",
+      ...item, organization_id: orgId, created_by: userId, is_active: true,
       tax_rate: 18, reorder_level: Math.round(item.opening_stock * 0.2),
     }).select("id").single();
     if (data) seededItemIds.push(data.id);
