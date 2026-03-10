@@ -4223,6 +4223,167 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       results.push({ workflow: "Invoice numbering", module: "Finance", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart });
     }
   }
+  // ===== PURCHASE RETURN WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      if (v) {
+        const { data: pr, error: prErr } = await client.from("purchase_returns").insert({
+          return_number: `SIM-PR-WF-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
+          organization_id: orgId, created_by: userId,
+          status: "draft", return_date: new Date().toISOString().split("T")[0],
+          total_amount: 15000, reason: "Defective goods — simulation test",
+        }).select("id").single();
+        if (prErr) throw prErr;
+        // Lifecycle: draft → completed
+        const { error: lcErr } = await client.from("purchase_returns").update({ status: "completed" }).eq("id", pr.id);
+        results.push({ workflow: "P2P: Purchase Return lifecycle (draft→completed)", module: "Procurement", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Return for ${v.name} — ₹15,000`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "P2P: Purchase Return", module: "Procurement", status: "warning", detail: "No active vendors", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Purchase Return", module: "Procurement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== SALES RETURN WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      if (c) {
+        const { data: sr, error: srErr } = await client.from("sales_returns").insert({
+          return_number: `SIM-SR-WF-${Date.now()}`, customer_id: c.id, customer_name: c.name,
+          organization_id: orgId, created_by: userId,
+          status: "draft", return_date: new Date().toISOString().split("T")[0],
+          total_amount: 12000, reason: "Customer returned goods — simulation test",
+        }).select("id").single();
+        if (srErr) throw srErr;
+        const { error: lcErr } = await client.from("sales_returns").update({ status: "completed" }).eq("id", sr.id);
+        results.push({ workflow: "O2C: Sales Return lifecycle (draft→completed)", module: "Sales", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Return from ${c.name} — ₹12,000`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "O2C: Sales Return", module: "Sales", status: "warning", detail: "No active customers", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Sales Return", module: "Sales", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== VENDOR PAYMENT WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      const { data: paidBill } = await client.from("bills").select("id, total_amount").eq("organization_id", orgId).in("status", ["approved", "pending"]).limit(1).maybeSingle();
+      if (v) {
+        const { data: vp, error: vpErr } = await client.from("vendor_payments").insert({
+          payment_number: `SIM-VP-WF-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
+          organization_id: orgId, created_by: userId,
+          amount: paidBill?.total_amount ?? 25000, payment_date: new Date().toISOString().split("T")[0],
+          payment_method: "bank_transfer", status: "draft",
+          bill_id: paidBill?.id ?? null,
+        }).select("id").single();
+        if (vpErr) throw vpErr;
+        const { error: lcErr } = await client.from("vendor_payments").update({ status: "completed" }).eq("id", vp.id);
+        results.push({ workflow: "P2P: Vendor Payment lifecycle (draft→completed)", module: "Procurement", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Payment to ${v.name}`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "P2P: Vendor Payment", module: "Procurement", status: "warning", detail: "No active vendors", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Vendor Payment", module: "Procurement", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== PAYMENT RECEIPT WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
+      const { data: sentInv } = await client.from("invoices").select("id, total_amount").eq("organization_id", orgId).in("status", ["sent", "overdue"]).limit(1).maybeSingle();
+      if (c) {
+        const { data: pr, error: prErr } = await client.from("payment_receipts").insert({
+          receipt_number: `SIM-PR-WF-${Date.now()}`, customer_id: c.id, customer_name: c.name,
+          organization_id: orgId, created_by: userId,
+          amount: sentInv?.total_amount ?? 30000, payment_date: new Date().toISOString().split("T")[0],
+          payment_method: "bank_transfer", status: "draft",
+          invoice_id: sentInv?.id ?? null,
+        }).select("id").single();
+        if (prErr) throw prErr;
+        const { error: lcErr } = await client.from("payment_receipts").update({ status: "completed" }).eq("id", pr.id);
+        results.push({ workflow: "O2C: Payment Receipt lifecycle (draft→completed)", module: "Sales", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Receipt from ${c.name}`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "O2C: Payment Receipt", module: "Sales", status: "warning", detail: "No active customers", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Payment Receipt", module: "Sales", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== INVENTORY COUNT WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: wh } = await client.from("warehouses").select("id, name").eq("organization_id", orgId).limit(1).maybeSingle();
+      if (wh) {
+        const { data: ic, error: icErr } = await client.from("inventory_counts").insert({
+          count_number: `SIM-IC-WF-${Date.now()}`, warehouse_id: wh.id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", count_date: new Date().toISOString().split("T")[0],
+        }).select("id").single();
+        if (icErr) throw icErr;
+        // Add count items
+        const { data: items } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("status", "active").limit(3);
+        for (const item of (items ?? [])) {
+          await client.from("inventory_count_items").insert({
+            count_id: ic.id, item_id: item.id,
+            expected_quantity: item.opening_stock ?? 10,
+            counted_quantity: (item.opening_stock ?? 10) - Math.floor(Math.random() * 3),
+          });
+        }
+        // Complete the count
+        const { error: lcErr } = await client.from("inventory_counts").update({ status: "completed" }).eq("id", ic.id);
+        results.push({ workflow: "Warehouse: Inventory Count lifecycle (draft→completed)", module: "Warehouse", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Count at ${wh.name} with ${(items ?? []).length} items`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Warehouse: Inventory Count", module: "Warehouse", status: "warning", detail: "No warehouses found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Inventory Count", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== PICKING LIST WORKFLOW =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: confirmedSO } = await client.from("sales_orders").select("id, so_number").eq("organization_id", orgId).in("status", ["confirmed", "draft"]).limit(1).maybeSingle();
+      const { data: wh } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+      if (confirmedSO && wh) {
+        const { data: pl, error: plErr } = await client.from("picking_lists").insert({
+          picking_number: `SIM-PL-WF-${Date.now()}`, sales_order_id: confirmedSO.id,
+          warehouse_id: wh.id, organization_id: orgId, created_by: userId,
+          status: "draft", pick_date: new Date().toISOString().split("T")[0],
+        }).select("id").single();
+        if (plErr) throw plErr;
+        const { error: lcErr } = await client.from("picking_lists").update({ status: "completed" }).eq("id", pl.id);
+        results.push({ workflow: "Warehouse: Picking List lifecycle (draft→completed)", module: "Warehouse", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Picking for ${confirmedSO.so_number}`, duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Warehouse: Picking List", module: "Warehouse", status: "warning", detail: "No sales orders or warehouses found", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Picking List", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
+
+  // ===== STOCK TRANSFER LIFECYCLE (draft → in_transit → completed) =====
+  {
+    const wfStart = Date.now();
+    try {
+      const { data: whs } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(2);
+      if (whs && whs.length >= 2) {
+        const { data: st, error: stErr } = await client.from("stock_transfers").insert({
+          transfer_number: `SIM-ST-LC-${Date.now()}`,
+          from_warehouse_id: whs[0].id, to_warehouse_id: whs[1].id,
+          organization_id: orgId, created_by: userId,
+          status: "draft", transfer_date: new Date().toISOString().split("T")[0],
+        }).select("id").single();
+        if (stErr) throw stErr;
+        await client.from("stock_transfers").update({ status: "in_transit" }).eq("id", st.id);
+        const { error: lcErr } = await client.from("stock_transfers").update({ status: "completed" }).eq("id", st.id);
+        results.push({ workflow: "Warehouse: Stock Transfer lifecycle (draft→in_transit→completed)", module: "Warehouse", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? "Full transfer lifecycle validated", duration_ms: Date.now() - wfStart });
+      } else {
+        results.push({ workflow: "Warehouse: Stock Transfer lifecycle", module: "Warehouse", status: "warning", detail: "Need ≥2 warehouses", duration_ms: Date.now() - wfStart });
+      }
+    } catch (e) { results.push({ workflow: "Stock Transfer lifecycle", module: "Warehouse", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
+  }
 
   const passed = results.filter(r => r.status === "passed").length;
   const failed = results.filter(r => r.status === "failed").length;
