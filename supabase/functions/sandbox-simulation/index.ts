@@ -128,7 +128,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "picking_list_items", "picking_lists",
     "stock_transfer_items", "stock_transfers",
     "inventory_count_items", "inventory_counts",
-    "material_consumption_items", "material_consumptions",
+    "material_consumption",
     "work_orders", "bom_lines", "bill_of_materials",
     "delivery_note_items", "delivery_notes",
     "goods_receipt_items", "goods_receipts",
