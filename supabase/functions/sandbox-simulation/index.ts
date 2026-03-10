@@ -128,7 +128,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
     "picking_list_items", "picking_lists",
     "stock_transfer_items", "stock_transfers",
     "inventory_count_items", "inventory_counts",
-    "material_consumption_items", "material_consumptions",
+    "material_consumption",
     "work_orders", "bom_lines", "bill_of_materials",
     "delivery_note_items", "delivery_notes",
     "goods_receipt_items", "goods_receipts",
@@ -755,18 +755,18 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED ITEMS (Inventory) =====
   const seededItemIds: string[] = [];
   const itemSeeds = [
-    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", type: "goods", unit: "pcs", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
-    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", type: "goods", unit: "pcs", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
-    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", type: "goods", unit: "pcs", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
-    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", type: "goods", unit: "reams", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
-    { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", type: "service", unit: "months", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
-    { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", type: "raw_material", unit: "kg", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
-    { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", type: "raw_material", unit: "bags", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
-    { name: "Assembled Server Unit", sku: "SIM-SU-008", type: "finished_goods", unit: "pcs", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
+    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", item_type: "goods", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
+    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", item_type: "goods", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
+    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", item_type: "goods", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
+    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", item_type: "goods", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
+    { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", item_type: "service", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
+    { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", item_type: "raw_material", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
+    { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", item_type: "raw_material", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
+    { name: "Assembled Server Unit", sku: "SIM-SU-008", item_type: "finished_goods", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
   ];
   for (const item of itemSeeds) {
     const { data } = await client.from("items").insert({
-      ...item, organization_id: orgId, created_by: userId, status: "active",
+      ...item, organization_id: orgId, created_by: userId, is_active: true,
       tax_rate: 18, reorder_level: Math.round(item.opening_stock * 0.2),
     }).select("id").single();
     if (data) seededItemIds.push(data.id);
@@ -809,31 +809,34 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED PURCHASE ORDERS =====
   const seededPOIds: string[] = [];
   for (let i = 0; i < Math.min(3, vendors.length); i++) {
+    const vendorForPO = vendors[i];
+    const { data: vendorRow } = await client.from("vendors").select("id, name").eq("id", vendorForPO).single();
     const { data: po } = await client.from("purchase_orders").insert({
       po_number: `SIM-PO-${Date.now()}-${i}`,
-      vendor_id: vendors[i], organization_id: orgId, created_by: userId,
+      vendor_id: vendorForPO, vendor_name: vendorRow?.name ?? `Vendor ${i}`,
+      organization_id: orgId, created_by: userId,
       status: i === 0 ? "approved" : "draft",
       order_date: new Date(Date.now() - 10 * 86400000).toISOString().split("T")[0],
       expected_date: new Date(Date.now() + 20 * 86400000).toISOString().split("T")[0],
-      total_amount: 0, subtotal: 0, tax_total: 0,
+      total_amount: 0, subtotal: 0, tax_amount: 0,
     }).select("id").single();
     if (po) {
       seededPOIds.push(po.id);
       let poTotal = 0;
       for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
         const qty = 10 + Math.floor(Math.random() * 40);
-        const rate = itemSeeds[j]?.purchase_price ?? 1000;
-        const lineTotal = qty * rate;
+        const unitPrice = itemSeeds[j]?.purchase_price ?? 1000;
+        const lineTotal = qty * unitPrice;
         poTotal += lineTotal;
         await client.from("purchase_order_items").insert({
           purchase_order_id: po.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
-          quantity: qty, rate, amount: lineTotal,
-          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+          quantity: qty, unit_price: unitPrice, amount: lineTotal,
+          tax_rate: 18,
         });
       }
       await client.from("purchase_orders").update({
-        subtotal: poTotal, tax_total: Math.round(poTotal * 0.18), total_amount: Math.round(poTotal * 1.18),
+        subtotal: poTotal, tax_amount: Math.round(poTotal * 0.18), total_amount: Math.round(poTotal * 1.18),
       }).eq("id", po.id);
     }
   }
@@ -864,31 +867,34 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED SALES ORDERS =====
   const seededSOIds: string[] = [];
   for (let i = 0; i < Math.min(3, customers.length); i++) {
+    const custForSO = customers[i];
+    const { data: custRow } = await client.from("customers").select("id, name").eq("id", custForSO).single();
     const { data: so } = await client.from("sales_orders").insert({
       so_number: `SIM-SO-${Date.now()}-${i}`,
-      customer_id: customers[i], organization_id: orgId, created_by: userId,
+      customer_id: custForSO, customer_name: custRow?.name ?? `Customer ${i}`,
+      organization_id: orgId, created_by: userId,
       status: i === 0 ? "confirmed" : "draft",
       order_date: new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0],
       expected_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
-      total_amount: 0, subtotal: 0, tax_total: 0,
+      total_amount: 0, subtotal: 0, tax_amount: 0,
     }).select("id").single();
     if (so) {
       seededSOIds.push(so.id);
       let soTotal = 0;
       for (let j = 0; j < Math.min(2, seededItemIds.length); j++) {
         const qty = 5 + Math.floor(Math.random() * 20);
-        const rate = itemSeeds[j]?.selling_price ?? 2000;
-        const lineTotal = qty * rate;
+        const unitPrice = itemSeeds[j]?.selling_price ?? 2000;
+        const lineTotal = qty * unitPrice;
         soTotal += lineTotal;
         await client.from("sales_order_items").insert({
           sales_order_id: so.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
-          quantity: qty, rate, amount: lineTotal,
-          tax_rate: 18, tax_amount: Math.round(lineTotal * 0.18),
+          quantity: qty, unit_price: unitPrice, amount: lineTotal,
+          tax_rate: 18,
         });
       }
       await client.from("sales_orders").update({
-        subtotal: soTotal, tax_total: Math.round(soTotal * 0.18), total_amount: Math.round(soTotal * 1.18),
+        subtotal: soTotal, tax_amount: Math.round(soTotal * 0.18), total_amount: Math.round(soTotal * 1.18),
       }).eq("id", so.id);
     }
   }
@@ -3107,8 +3113,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       if (empPayroll) {
         const { data: mrDispute, error: dispErr } = await client.from("payslip_disputes").insert({
           payroll_record_id: empPayroll.id, profile_id: employeeProfile.id,
-          organization_id: orgId, raised_by: employeeActor,
-          dispute_type: "deduction_query",
+          organization_id: orgId,
+          dispute_category: "deduction_query",
+          pay_period: empPayroll.pay_period,
           description: "Multi-role test: PF deduction seems higher than expected for this month",
           status: "open",
         }).select("id").single();
@@ -3124,8 +3131,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         // HR/Finance reviews and resolves
         const wf2 = Date.now();
         const { error: resolveErr } = await client.from("payslip_disputes").update({
-          status: "resolved", resolved_by: hrActor,
-          resolution_notes: "PF calculated correctly at 12% of basic. No discrepancy found.",
+          status: "resolved",
+          hr_notes: "PF calculated correctly at 12% of basic. No discrepancy found.",
+          hr_reviewed_by: hrActor, hr_reviewed_at: new Date().toISOString(),
         }).eq("id", mrDispute.id);
         results.push({
           workflow: "MR-Dispute: HR resolves dispute", module: "Multi-Role",
@@ -3918,32 +3926,46 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     try {
       const { data: newItem, error } = await client.from("items").insert({
         name: `SIM-WF-Item-${Date.now()}`, sku: `SIM-WF-${Date.now()}`,
-        type: "goods", unit: "pcs", purchase_price: 500, selling_price: 900,
+        item_type: "goods", purchase_price: 500, selling_price: 900,
         opening_stock: 25, organization_id: orgId, created_by: userId,
-        status: "active", tax_rate: 18, hsn_code: "8471",
+        is_active: true, tax_rate: 18, hsn_code: "8471",
       }).select("id").single();
       if (newItem) {
-        await client.from("items").update({ selling_price: 1000, status: "inactive" }).eq("id", newItem.id);
-        await client.from("items").update({ status: "active" }).eq("id", newItem.id);
+        await client.from("items").update({ selling_price: 1000, is_active: false }).eq("id", newItem.id);
+        await client.from("items").update({ is_active: true }).eq("id", newItem.id);
       }
       results.push({ workflow: "Inventory: Item CRUD lifecycle", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? "Create → update price → deactivate → reactivate", duration_ms: Date.now() - wfStart });
     } catch (e) { results.push({ workflow: "Item CRUD", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
   }
 
-  // INV-2: Stock adjustment
+  // INV-2: Stock adjustment (header-detail pattern)
   {
     const wfStart = Date.now();
     try {
-      const { data: items } = await client.from("items").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1);
-      if (items && items.length > 0) {
-        const { error } = await client.from("stock_adjustments").insert({
-          item_id: items[0].id, organization_id: orgId, created_by: userId,
-          adjustment_type: "increase", quantity: 10, reason: "Simulation stock count correction",
+      const { data: adjItems } = await client.from("items").select("id, name, current_stock").eq("organization_id", orgId).eq("is_active", true).limit(1);
+      const { data: adjWhs } = await client.from("warehouses").select("id").eq("organization_id", orgId).eq("status", "active").limit(1);
+      if (adjItems && adjItems.length > 0 && adjWhs && adjWhs.length > 0) {
+        const { data: adjHeader, error: adjErr } = await client.from("stock_adjustments").insert({
+          adjustment_number: `SIM-ADJ-${Date.now()}`,
+          warehouse_id: adjWhs[0].id,
+          organization_id: orgId, created_by: userId,
+          reason: "Simulation stock count correction",
           adjustment_date: new Date().toISOString().split("T")[0],
-        });
-        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? `+10 units for ${items[0].name}`, duration_ms: Date.now() - wfStart });
+          status: "draft",
+        }).select("id").single();
+        if (adjHeader && !adjErr) {
+          const currentQty = adjItems[0].current_stock ?? 50;
+          await client.from("stock_adjustment_items").insert({
+            adjustment_id: adjHeader.id,
+            item_id: adjItems[0].id,
+            current_qty: currentQty,
+            new_qty: currentQty + 10,
+            rate: 500,
+          });
+        }
+        results.push({ workflow: "Inventory: Stock adjustment (header+detail)", module: "Inventory", status: adjErr ? "failed" : "passed", detail: adjErr?.message ?? `Adjustment for ${adjItems[0].name}`, duration_ms: Date.now() - wfStart });
       } else {
-        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: "warning", detail: "No active items found", duration_ms: Date.now() - wfStart });
+        results.push({ workflow: "Inventory: Stock adjustment", module: "Inventory", status: "warning", detail: "No active items or warehouses found", duration_ms: Date.now() - wfStart });
       }
     } catch (e) { results.push({ workflow: "Stock adjustment", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
   }
@@ -3984,11 +4006,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
       if (v) {
         const { data: po, error: poErr } = await client.from("purchase_orders").insert({
-          po_number: `SIM-PO-WF-${Date.now()}`, vendor_id: v.id,
+          po_number: `SIM-PO-WF-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
           organization_id: orgId, created_by: userId,
           status: "draft", order_date: new Date().toISOString().split("T")[0],
           expected_date: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-          total_amount: 50000, subtotal: 42373, tax_total: 7627,
+          total_amount: 50000, subtotal: 42373, tax_amount: 7627,
         }).select("id").single();
         if (poErr) throw poErr;
         // Lifecycle: draft → submitted → approved
@@ -4028,11 +4050,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
       if (c) {
         const { data: so, error: soErr } = await client.from("sales_orders").insert({
-          so_number: `SIM-SO-WF-${Date.now()}`, customer_id: c.id,
+          so_number: `SIM-SO-WF-${Date.now()}`, customer_id: c.id, customer_name: c.name,
           organization_id: orgId, created_by: userId,
           status: "draft", order_date: new Date().toISOString().split("T")[0],
           expected_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
-          total_amount: 75000, subtotal: 63559, tax_total: 11441,
+          total_amount: 75000, subtotal: 63559, tax_amount: 11441,
         }).select("id").single();
         if (soErr) throw soErr;
         await client.from("sales_orders").update({ status: "confirmed" }).eq("id", so.id);
@@ -4335,11 +4357,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (icErr) throw icErr;
         // Add count items
-        const { data: items } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("status", "active").limit(3);
+        const { data: items } = await client.from("items").select("id, name, opening_stock").eq("organization_id", orgId).eq("is_active", true).limit(3);
         for (const item of (items ?? [])) {
           await client.from("inventory_count_items").insert({
-            count_id: ic.id, item_id: item.id,
-            expected_quantity: item.opening_stock ?? 10,
+            count_id: ic.id, item_id: item.id, item_name: item.name,
+            system_quantity: item.opening_stock ?? 10,
             counted_quantity: (item.opening_stock ?? 10) - Math.floor(Math.random() * 3),
           });
         }
