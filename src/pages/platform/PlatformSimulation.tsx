@@ -1050,17 +1050,25 @@ function SimulationContentInner() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              run.status === "completed" ? "text-emerald-600 border-emerald-500/30" :
-                              run.status === "running" ? "text-blue-600 border-blue-500/30" :
-                              run.status === "failed" ? "text-destructive border-destructive/30" :
-                              "text-muted-foreground"
-                            }
-                          >
-                            {run.status}
-                          </Badge>
+                        {(() => {
+                            const isStale = run.status === "running" && run.started_at &&
+                              (Date.now() - new Date(run.started_at).getTime()) > 5 * 60 * 1000;
+                            const displayStatus = isStale ? "timed out" : run.status === "timed_out" ? "timed out" : run.status;
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  run.status === "completed" ? "text-emerald-600 border-emerald-500/30" :
+                                  (isStale || run.status === "timed_out") ? "text-amber-600 border-amber-500/30" :
+                                  run.status === "running" ? "text-blue-600 border-blue-500/30" :
+                                  run.status === "failed" ? "text-destructive border-destructive/30" :
+                                  "text-muted-foreground"
+                                }
+                              >
+                                {displayStatus}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-sm text-foreground">
                           {run.workflows_executed > 0 ? (

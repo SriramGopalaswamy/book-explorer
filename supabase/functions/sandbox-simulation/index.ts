@@ -48,6 +48,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Mark stale "running" runs (older than 5 min) as timed_out
+    if (sandbox_org_id) {
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      await adminClient.from("simulation_runs")
+        .update({ status: "timed_out", completed_at: new Date().toISOString(), errors: [{ phase: "timeout", error: "Edge function exceeded execution time limit" }] })
+        .eq("sandbox_org_id", sandbox_org_id)
+        .eq("status", "running")
+        .lt("started_at", fiveMinAgo);
+    }
+
     let result: Record<string, unknown> = {};
 
     switch (action) {
