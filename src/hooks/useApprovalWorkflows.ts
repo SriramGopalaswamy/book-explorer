@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface ApprovalWorkflow {
@@ -48,9 +49,11 @@ export function useApprovalWorkflows() {
 export function useCreateApprovalWorkflow() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
   return useMutation({
     mutationFn: async (w: { workflow_type: string; threshold_amount: number; required_role: string }) => {
       if (!user) throw new Error("Not authenticated");
+      if (!org?.organizationId) throw new Error("Organization context not available");
       if (!w.workflow_type?.trim()) throw new Error("Workflow type is required.");
       if (w.threshold_amount < 0) throw new Error("Threshold amount cannot be negative.");
       if (!w.required_role?.trim()) throw new Error("Required role is required.");
@@ -72,6 +75,7 @@ export function useCreateApprovalWorkflow() {
       }
 
       const { error } = await supabase.from("approval_workflows").insert([{
+        organization_id: org!.organizationId,
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
         required_role: w.required_role,
