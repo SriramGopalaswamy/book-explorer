@@ -5338,6 +5338,157 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
     }
   }
 
+  // TSM-7: Try to revert a delivered delivery note to draft
+  {
+    const { data: deliveredDN } = await client.from("delivery_notes")
+      .select("id").eq("organization_id", orgId).eq("status", "delivered").limit(1).maybeSingle();
+    if (deliveredDN) {
+      const { error: tsmErr } = await client.from("delivery_notes")
+        .update({ status: "draft" }).eq("id", deliveredDN.id);
+      results.push({
+        test: "TSM: Revert delivered DN → draft", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Delivered delivery note reverted to draft — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-8: Try to revert a completed goods receipt to draft
+  {
+    const { data: completedGR } = await client.from("goods_receipts")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedGR) {
+      const { error: tsmErr } = await client.from("goods_receipts")
+        .update({ status: "draft" }).eq("id", completedGR.id);
+      results.push({
+        test: "TSM: Revert completed GRN → draft", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed GRN reverted to draft — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-9: Try to revert a completed purchase return to draft
+  {
+    const { data: completedPR } = await client.from("purchase_returns")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedPR) {
+      const { error: tsmErr } = await client.from("purchase_returns")
+        .update({ status: "draft" }).eq("id", completedPR.id);
+      results.push({
+        test: "TSM: Revert completed purchase return → draft", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed purchase return reverted — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-10: Try to revert a completed sales return to draft
+  {
+    const { data: completedSR } = await client.from("sales_returns")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedSR) {
+      const { error: tsmErr } = await client.from("sales_returns")
+        .update({ status: "draft" }).eq("id", completedSR.id);
+      results.push({
+        test: "TSM: Revert completed sales return → draft", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed sales return reverted — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-11: Try to delete a completed stock transfer
+  {
+    const { data: completedST } = await client.from("stock_transfers")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedST) {
+      const { error: tsmErr } = await client.from("stock_transfers").delete().eq("id", completedST.id);
+      results.push({
+        test: "TSM: Delete completed stock transfer", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed stock transfer deleted — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-12: Try to delete a completed vendor payment
+  {
+    const { data: completedVP } = await client.from("vendor_payments")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedVP) {
+      const { error: tsmErr } = await client.from("vendor_payments").delete().eq("id", completedVP.id);
+      results.push({
+        test: "TSM: Delete completed vendor payment", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed vendor payment deleted — terminal state not enforced",
+      });
+    }
+  }
+
+  // TSM-13: Try to delete a completed payment receipt
+  {
+    const { data: completedPR } = await client.from("payment_receipts")
+      .select("id").eq("organization_id", orgId).eq("status", "completed").limit(1).maybeSingle();
+    if (completedPR) {
+      const { error: tsmErr } = await client.from("payment_receipts").delete().eq("id", completedPR.id);
+      results.push({
+        test: "TSM: Delete completed payment receipt", module: "Lifecycle",
+        status: tsmErr ? "blocked" : "anomaly",
+        detail: tsmErr ? `Correctly blocked: ${tsmErr.message}` : "WARNING: Completed payment receipt deleted — terminal state not enforced",
+      });
+    }
+  }
+
+  // Chaos: Self-transfer (from_warehouse = to_warehouse)
+  {
+    const { data: wh } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+    if (wh) {
+      const { error: selfErr } = await client.from("stock_transfers").insert({
+        transfer_number: `CHAOS-SELF-${Date.now()}`,
+        from_warehouse_id: wh.id, to_warehouse_id: wh.id,
+        organization_id: orgId, created_by: userId,
+        status: "draft", transfer_date: new Date().toISOString().split("T")[0],
+      });
+      results.push({
+        test: "Chaos: Self-transfer (same warehouse)", module: "Warehouse",
+        status: selfErr ? "blocked" : "anomaly",
+        detail: selfErr ? `Correctly blocked: ${selfErr.message}` : "WARNING: Self-transfer accepted — needs CHECK constraint",
+      });
+      if (!selfErr) {
+        await client.from("stock_transfers").delete().eq("organization_id", orgId).like("transfer_number", "CHAOS-SELF-%");
+      }
+    }
+  }
+
+  // Chaos: Stock adjustment with negative quantity
+  {
+    const { data: wh } = await client.from("warehouses").select("id").eq("organization_id", orgId).limit(1).maybeSingle();
+    if (wh) {
+      const { data: adjH } = await client.from("stock_adjustments").insert({
+        adjustment_number: `CHAOS-NEG-ADJ-${Date.now()}`, warehouse_id: wh.id,
+        organization_id: orgId, created_by: userId,
+        status: "draft", adjustment_date: new Date().toISOString().split("T")[0],
+        reason: "Chaos: negative adjustment",
+      }).select("id").single();
+      if (adjH) {
+        const { data: items } = await client.from("items").select("id").eq("organization_id", orgId).limit(1);
+        if (items && items.length > 0) {
+          const { error: negErr } = await client.from("stock_adjustment_items").insert({
+            adjustment_id: adjH.id, item_id: items[0].id,
+            current_qty: 5, new_qty: -10, rate: 100,
+          });
+          results.push({
+            test: "Chaos: Stock adjustment with negative new_qty", module: "Inventory",
+            status: negErr ? "blocked" : "anomaly",
+            detail: negErr ? `Correctly blocked: ${negErr.message}` : "WARNING: Negative stock adjustment accepted",
+          });
+        }
+        await client.from("stock_adjustments").delete().eq("id", adjH.id);
+      }
+    }
+  }
+
   const chaosResults = {
     total_tests: results.length,
     anomalies: results.filter(r => r.status === "anomaly").length,
