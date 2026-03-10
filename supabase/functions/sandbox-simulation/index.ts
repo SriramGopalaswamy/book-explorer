@@ -3113,8 +3113,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       if (empPayroll) {
         const { data: mrDispute, error: dispErr } = await client.from("payslip_disputes").insert({
           payroll_record_id: empPayroll.id, profile_id: employeeProfile.id,
-          organization_id: orgId, raised_by: employeeActor,
-          dispute_type: "deduction_query",
+          organization_id: orgId,
+          dispute_category: "deduction_query",
+          pay_period: empPayroll.pay_period,
           description: "Multi-role test: PF deduction seems higher than expected for this month",
           status: "open",
         }).select("id").single();
