@@ -75,6 +75,7 @@ export function useCreateApprovalWorkflow() {
       }
 
       const { error } = await supabase.from("approval_workflows").insert([{
+        organization_id: org!.organizationId,
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
         required_role: w.required_role,
