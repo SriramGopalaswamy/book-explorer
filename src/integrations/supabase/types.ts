@@ -10674,6 +10674,10 @@ export type Database = {
         Args: { _org_id: string }
         Returns: undefined
       }
+      sandbox_force_reset_tables: {
+        Args: { _org_id: string }
+        Returns: undefined
+      }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
         Args: { _sandbox_user_id: string }
