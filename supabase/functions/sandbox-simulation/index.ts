@@ -3926,13 +3926,13 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     try {
       const { data: newItem, error } = await client.from("items").insert({
         name: `SIM-WF-Item-${Date.now()}`, sku: `SIM-WF-${Date.now()}`,
-        type: "goods", unit: "pcs", purchase_price: 500, selling_price: 900,
+        item_type: "goods", purchase_price: 500, selling_price: 900,
         opening_stock: 25, organization_id: orgId, created_by: userId,
-        status: "active", tax_rate: 18, hsn_code: "8471",
+        is_active: true, tax_rate: 18, hsn_code: "8471",
       }).select("id").single();
       if (newItem) {
-        await client.from("items").update({ selling_price: 1000, status: "inactive" }).eq("id", newItem.id);
-        await client.from("items").update({ status: "active" }).eq("id", newItem.id);
+        await client.from("items").update({ selling_price: 1000, is_active: false }).eq("id", newItem.id);
+        await client.from("items").update({ is_active: true }).eq("id", newItem.id);
       }
       results.push({ workflow: "Inventory: Item CRUD lifecycle", module: "Inventory", status: error ? "failed" : "passed", detail: error?.message ?? "Create → update price → deactivate → reactivate", duration_ms: Date.now() - wfStart });
     } catch (e) { results.push({ workflow: "Item CRUD", module: "Inventory", status: "failed", detail: (e as Error).message, duration_ms: Date.now() - wfStart }); }
