@@ -4050,11 +4050,11 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       const { data: c } = await client.from("customers").select("id, name").eq("organization_id", orgId).eq("status", "active").limit(1).maybeSingle();
       if (c) {
         const { data: so, error: soErr } = await client.from("sales_orders").insert({
-          so_number: `SIM-SO-WF-${Date.now()}`, customer_id: c.id,
+          so_number: `SIM-SO-WF-${Date.now()}`, customer_id: c.id, customer_name: c.name,
           organization_id: orgId, created_by: userId,
           status: "draft", order_date: new Date().toISOString().split("T")[0],
           expected_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
-          total_amount: 75000, subtotal: 63559, tax_total: 11441,
+          total_amount: 75000, subtotal: 63559, tax_amount: 11441,
         }).select("id").single();
         if (soErr) throw soErr;
         await client.from("sales_orders").update({ status: "confirmed" }).eq("id", so.id);
