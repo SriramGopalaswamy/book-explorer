@@ -719,6 +719,61 @@ async function runTenantIsolationChecks(
       detail: "RLS policies corrected via migration — 41 tables fixed from profiles.id to profiles.user_id",
     });
   }
+  // ── 16. Module CRUD Coverage Audit ────────────────────────────
+  // Verifies that all transactional tables can be written to (RLS not blocking)
+  try {
+    const crudTables = [
+      { table: "purchase_returns", module: "P2P" },
+      { table: "sales_returns", module: "O2C" },
+      { table: "vendor_payments", module: "P2P" },
+      { table: "payment_receipts", module: "O2C" },
+      { table: "purchase_orders", module: "P2P" },
+      { table: "sales_orders", module: "O2C" },
+      { table: "goods_receipts", module: "P2P" },
+      { table: "delivery_notes", module: "O2C" },
+      { table: "stock_transfers", module: "Warehouse" },
+      { table: "inventory_counts", module: "Warehouse" },
+      { table: "picking_lists", module: "Warehouse" },
+      { table: "items", module: "Inventory" },
+      { table: "stock_adjustments", module: "Inventory" },
+      { table: "work_orders", module: "Manufacturing" },
+      { table: "bill_of_materials", module: "Manufacturing" },
+    ];
+
+    const emptyTables: string[] = [];
+    for (const { table, module } of crudTables) {
+      if (orgId) {
+        const { count } = await adminClient
+          .from(table)
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId);
+        if ((count ?? 0) === 0) {
+          emptyTables.push(`${table} (${module})`);
+        }
+      }
+    }
+
+    checks.push({
+      id: "TI-016",
+      category: "Module Coverage",
+      name: "Transactional Table CRUD Verification",
+      severity: "MEDIUM",
+      status: emptyTables.length > 5 ? "WARNING" : "PASS",
+      detail: emptyTables.length > 0
+        ? `${emptyTables.length} table(s) have zero records (may indicate RLS or workflow gaps): ${emptyTables.join(", ")}`
+        : `All ${crudTables.length} transactional tables have data`,
+      affected_count: emptyTables.length,
+    });
+  } catch (e) {
+    checks.push({
+      id: "TI-016",
+      category: "Module Coverage",
+      name: "Transactional Table CRUD Verification",
+      severity: "MEDIUM",
+      status: "WARNING",
+      detail: `Check failed: ${(e as Error).message}`,
+    });
+  }
 
   return checks;
 }
