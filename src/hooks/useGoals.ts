@@ -30,20 +30,24 @@ export interface GoalStats {
 export function useGoals() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goals", isDevMode],
+    queryKey: ["goals", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoals;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("goals")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Goal[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
