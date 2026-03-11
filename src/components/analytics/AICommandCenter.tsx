@@ -447,7 +447,7 @@ export function AICommandCenter() {
               Automated Insights
               <Badge variant="outline" className="text-xs">local heuristics</Badge>
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => { pl.refetch?.(); bs.refetch?.(); }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { qc.invalidateQueries({ queryKey: ["rpc-profit-loss"] }); qc.invalidateQueries({ queryKey: ["rpc-balance-sheet"] }); qc.invalidateQueries({ queryKey: ["hr-analytics"] }); qc.invalidateQueries({ queryKey: ["payroll-summary"] }); }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
           </CardHeader>
