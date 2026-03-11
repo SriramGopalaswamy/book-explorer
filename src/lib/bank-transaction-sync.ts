@@ -20,10 +20,22 @@ export async function createBankTransaction(params: {
   reference?: string;
   category?: string;
   date?: string;
+  organizationId?: string;
 }) {
-  const { userId, amount, type, description, reference, category, date } = params;
+  const { userId, amount, type, description, reference, category, date, organizationId } = params;
 
   try {
+    // Resolve organization_id explicitly to prevent cross-tenant leaks
+    let orgId = organizationId;
+    if (!orgId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      orgId = profile?.organization_id ?? undefined;
+    }
+
     const { error } = await supabase.from("bank_transactions").insert({
       user_id: userId,
       amount: Math.abs(amount),
@@ -33,6 +45,7 @@ export async function createBankTransaction(params: {
       category: category || (type === "credit" ? "Invoice Payment" : "Payment"),
       transaction_date: date || new Date().toISOString().split("T")[0],
       reconciled: false,
+      ...(orgId ? { organization_id: orgId } : {}),
     });
 
     if (error) {

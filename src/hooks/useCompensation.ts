@@ -143,7 +143,11 @@ export function useCreateCompensationRevision() {
         const { error: cErr } = await supabase
           .from("compensation_components")
           .insert(components);
-        if (cErr) throw cErr;
+        if (cErr) {
+          // Rollback: delete orphan structure header
+          await supabase.from("compensation_structures").delete().eq("id", structure.id);
+          throw cErr;
+        }
       }
 
       return structure;

@@ -304,7 +304,11 @@ export function useCreateDeliveryNote() {
           quantity: i.quantity,
           shipped_quantity: i.quantity,
         }));
-        await supabase.from("delivery_note_items" as any).insert(dnItems as any);
+        const { error: itemErr } = await supabase.from("delivery_note_items" as any).insert(dnItems as any);
+        if (itemErr) {
+          await supabase.from("delivery_notes" as any).delete().eq("id", (dn as any).id);
+          throw itemErr;
+        }
       }
 
       return dn;
@@ -403,7 +407,11 @@ export function useConvertSOToInvoice() {
           rate: i.unit_price,
           amount: i.amount,
         }));
-        await supabase.from("invoice_items").insert(invItems);
+        const { error: itemErr } = await supabase.from("invoice_items").insert(invItems);
+        if (itemErr) {
+          await supabase.from("invoices").delete().eq("id", inv.id);
+          throw itemErr;
+        }
       }
 
       // Mark SO as closed
