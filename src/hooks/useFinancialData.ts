@@ -101,11 +101,13 @@ export function useFinancialRecords() {
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["monthly-revenue", user?.id, orgId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<MonthlyData[]> => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
       const fromDate = dateRange?.from || (() => {
         const d = new Date();
@@ -118,6 +120,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
         .from("financial_records")
         .select("*")
         .eq("is_deleted", false)
+        .eq("organization_id", orgId)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
@@ -193,7 +196,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       return result;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
@@ -201,11 +204,13 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["expense-breakdown", user?.id, orgId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<CategoryData[]> => {
-      if (!user) return getDefaultExpenseData();
+      if (!user || !orgId) return getDefaultExpenseData();
 
       const fromDate = dateRange?.from || (() => {
         const d = new Date();
@@ -215,12 +220,13 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       const fromStr = fromDate.toISOString().split("T")[0];
       const toStr = toDate.toISOString().split("T")[0];
 
-      // Fetch from both expenses table and financial_records
+      // Fetch from both expenses table and financial_records — org-scoped
       const [expensesRes, financialRes] = await Promise.all([
         supabase
           .from("expenses")
           .select("category, amount")
           .eq("is_deleted", false)
+          .eq("organization_id", orgId)
           .gte("expense_date", fromStr)
           .lte("expense_date", toStr),
         supabase
@@ -228,6 +234,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
           .select("category, amount")
           .eq("type", "expense")
           .eq("is_deleted", false)
+          .eq("organization_id", orgId)
           .gte("record_date", fromStr)
           .lte("record_date", toStr),
       ]);
@@ -258,7 +265,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         color: getCategoryColor(name),
       }));
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
@@ -313,10 +320,20 @@ export function useUpdateFinancialRecord() {
         throw new Error("Amount must be a positive number");
       }
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       const { data, error } = await supabase
         .from("financial_records")
         .update(record)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
 
@@ -339,10 +356,20 @@ export function useDeleteFinancialRecord() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("User not authenticated");
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       const { data, error } = await supabase
         .from("financial_records")
         .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select();
 
       if (error) throw error;
