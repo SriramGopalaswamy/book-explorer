@@ -36,18 +36,13 @@ export interface ApprovalRequest {
 }
 
 export function useApprovalWorkflows() {
-  const { data: org } = useUserOrganization();
-  const orgId = org?.organizationId;
-
   return useQuery({
-    queryKey: ["approval-workflows", orgId],
+    queryKey: ["approval-workflows"],
     queryFn: async () => {
-      if (!orgId) return [] as ApprovalWorkflow[];
-      const { data, error } = await supabase.from("approval_workflows").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("approval_workflows").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalWorkflow[];
     },
-    enabled: !!orgId,
   });
 }
 
@@ -68,16 +63,15 @@ export function useCreateApprovalWorkflow() {
         throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
       }
 
-      // Prevent duplicate active workflows for same type within this org
+      // Prevent duplicate active workflows for same type
       const { data: existing } = await supabase
         .from("approval_workflows")
         .select("id")
         .eq("workflow_type", w.workflow_type)
-        .eq("organization_id", org!.organizationId)
         .eq("is_active", true)
         .limit(1);
       if (existing && existing.length > 0) {
-        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists in your organization. Deactivate it first.`);
+        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists. Deactivate it first.`);
       }
 
       const { error } = await supabase.from("approval_workflows").insert([{
@@ -106,18 +100,13 @@ export function useToggleWorkflow() {
 }
 
 export function useApprovalRequests() {
-  const { data: org } = useUserOrganization();
-  const orgId = org?.organizationId;
-
   return useQuery({
-    queryKey: ["approval-requests", orgId],
+    queryKey: ["approval-requests"],
     queryFn: async () => {
-      if (!orgId) return [] as ApprovalRequest[];
-      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("approval_requests" as any).select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalRequest[];
     },
-    enabled: !!orgId,
   });
 }
 
@@ -131,17 +120,12 @@ export function useApproveRequest() {
       // Double-review guard: verify request is still pending
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status, document_type, document_id, requested_by")
+        .select("status, document_type, document_id")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
         throw new Error("This request has already been reviewed.");
-      }
-
-      // Maker-checker: the requester cannot approve their own request
-      if ((current as any)?.requested_by === user.id) {
-        throw new Error("Segregation of duties: you cannot approve a request you submitted.");
       }
 
       const { error } = await supabase.from("approval_requests" as any).update({

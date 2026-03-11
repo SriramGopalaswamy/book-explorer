@@ -244,6 +244,15 @@ export function useUpdateInvoiceStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Invoice["status"] }) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Lifecycle state-machine enforcement ───────────────────
       const VALID_TRANSITIONS: Record<string, string[]> = {
         draft: ["sent", "cancelled"],
@@ -253,13 +262,15 @@ export function useUpdateInvoiceStatus() {
         cancelled: [],   // terminal
       };
 
-      // Fetch current status to validate transition
+      // Fetch current status to validate transition (org-scoped)
       const { data: current, error: fetchErr } = await supabase
         .from("invoices")
         .select("status, amount, invoice_number")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr) throw fetchErr;
+      if (!current) throw new Error("Invoice not found in your organization.");
       const currentStatus = current?.status as string;
 
       const allowed = VALID_TRANSITIONS[currentStatus];
@@ -291,6 +302,7 @@ export function useUpdateInvoiceStatus() {
         .from("invoices")
         .update({ status })
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
@@ -340,13 +352,24 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Only drafts can be fully edited ───────────────────────
       const { data: statusCheck, error: statusErr } = await supabase
         .from("invoices")
         .select("status")
         .eq("id", data.id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (statusErr) throw statusErr;
+      if (!statusCheck) throw new Error("Invoice not found in your organization.");
       if (statusCheck?.status !== "draft") {
         throw new Error("Only draft invoices can be edited. Change status back to draft first.");
       }
@@ -439,13 +462,24 @@ export function useDeleteInvoice() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Only drafts can be deleted ────────────────────────────
       const { data: inv, error: checkErr } = await supabase
         .from("invoices")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (checkErr) throw checkErr;
+      if (!inv) throw new Error("Invoice not found in your organization.");
       if (inv?.status && inv.status !== "draft") {
         throw new Error(`Cannot delete a "${inv.status}" invoice. Only draft invoices can be deleted.`);
       }
@@ -453,7 +487,8 @@ export function useDeleteInvoice() {
       const { error } = await supabase
         .from("invoices")
         .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

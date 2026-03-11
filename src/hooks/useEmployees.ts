@@ -178,19 +178,24 @@ export function useEmployeeStats() {
   const { user } = useAuth();
 
   // Dynamically count approved leaves for today (matches attendance module logic)
+  const { data: orgData } = useUserOrganization();
+  const statsOrgId = orgData?.organizationId;
+
   const { data: approvedLeavesToday = [] } = useQuery({
-    queryKey: ["employee-stats-leaves-today"],
+    queryKey: ["employee-stats-leaves-today", statsOrgId],
     queryFn: async () => {
+      if (!statsOrgId) return [];
       const today = new Date().toISOString().split("T")[0];
       const { data } = await supabase
         .from("leave_requests")
         .select("user_id, profile_id")
         .eq("status", "approved")
+        .eq("organization_id", statsOrgId)
         .lte("from_date", today)
         .gte("to_date", today);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!statsOrgId,
   });
 
   const leaveProfileIds = new Set(
@@ -255,10 +260,28 @@ export function useUpdateEmployee() {
 
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdateEmployeeData) => {
+      // Resolve org_id to enforce tenant isolation on update
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", id)
+        .single();
+
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+
+      if (!profile || !callerProfile || profile.organization_id !== callerProfile.organization_id) {
+        throw new Error("Cannot update employee from another organization.");
+      }
+
       const { data: employee, error } = await supabase
         .from("profiles")
         .update(data)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 

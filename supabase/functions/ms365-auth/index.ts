@@ -6,7 +6,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Helper: sync profile fields + manager_id from MS365 data
+// Default organization ID — the seeded GRX10 Solutions org
+const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
+
+// Helper: sync profile fields + manager_id from MS365 data.
+// If the manager email cannot be resolved to a profile yet, stores it in
+// pending_manager_email for deferred resolution on next login.
 async function syncProfileFromMS365(
   supabase: any,
   userId: string,
@@ -16,6 +21,7 @@ async function syncProfileFromMS365(
   phone: string | null,
   email: string,
   managerEmail: string | null,
+  status: string = "active",
 ) {
   try {
     // Look up the manager's profile_id by their email
@@ -29,7 +35,7 @@ async function syncProfileFromMS365(
       managerId = managerProfile?.id || null;
     }
 
-    // Update the user's profile with MS365 data
+    // Check if profile already exists
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
@@ -39,11 +45,21 @@ async function syncProfileFromMS365(
     const profileData: Record<string, any> = {
       full_name: fullName,
       email: email.toLowerCase(),
+      status,
+      organization_id: DEFAULT_ORG_ID,
     };
     if (jobTitle) profileData.job_title = jobTitle;
     if (department) profileData.department = department;
     if (phone) profileData.phone = phone;
-    if (managerId) profileData.manager_id = managerId;
+
+    // Manager resolution: set manager_id if resolved, otherwise store pending email
+    if (managerId) {
+      profileData.manager_id = managerId;
+      profileData.pending_manager_email = null;
+    } else if (managerEmail) {
+      // Manager not yet in system — store for deferred resolution
+      profileData.pending_manager_email = managerEmail.toLowerCase();
+    }
 
     if (existingProfile) {
       await supabase
@@ -55,8 +71,31 @@ async function syncProfileFromMS365(
         .from("profiles")
         .insert({ ...profileData, user_id: userId });
     }
+
+    // Ensure org membership exists (idempotent upsert)
+    await supabase
+      .from("organization_members")
+      .upsert({ user_id: userId, organization_id: DEFAULT_ORG_ID }, { onConflict: "organization_id,user_id" });
+
   } catch (err) {
     console.warn("Failed to sync profile from MS365:", err);
+  }
+}
+
+// Helper: when a user logs in, resolve any other profiles that were waiting
+// for this user's email as their manager.
+async function resolveWaitingManagerRefs(
+  supabase: any,
+  email: string,
+  profileId: string,
+) {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ manager_id: profileId, pending_manager_email: null })
+      .eq("pending_manager_email", email.toLowerCase());
+  } catch (err) {
+    console.warn("Failed to resolve pending manager references:", err);
   }
 }
 
@@ -169,6 +208,9 @@ Deno.serve(async (req) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
+      const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
+      const isAdminEmail = adminEmails.includes(email.toLowerCase());
+
       // Check if user exists - paginate through all users or filter
       let existingUser = null;
       let page = 1;
@@ -186,7 +228,28 @@ Deno.serve(async (req) => {
       let session;
 
       if (existingUser) {
-        // Sign in existing user by generating a session
+        // Check profile status before creating session
+        const { data: profileStatus } = await supabase
+          .from("profiles")
+          .select("id, status")
+          .eq("user_id", existingUser.id)
+          .maybeSingle();
+
+        if (profileStatus?.status === "inactive") {
+          return new Response(
+            JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (profileStatus?.status === "pending_approval") {
+          return new Response(
+            JSON.stringify({ pending: true }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Sign in existing active user by generating a session
         const { data, error } = await supabase.auth.admin.generateLink({
           type: "magiclink",
           email: email,
@@ -220,6 +283,11 @@ Deno.serve(async (req) => {
         // Update profile with latest MS365 data
         await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail);
 
+        // Resolve any profiles waiting on this user as manager
+        if (profileStatus?.id) {
+          await resolveWaitingManagerRefs(supabase, email, profileStatus.id);
+        }
+
         // Ensure role exists for existing user
         const { data: existingRole } = await supabase
           .from("user_roles")
@@ -228,8 +296,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!existingRole) {
-          const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
-          const role = adminEmails.includes(email.toLowerCase()) ? "admin" : "employee";
+          const role = isAdminEmail ? "admin" : "employee";
           await supabase.from("user_roles").insert({
             user_id: existingUser.id,
             role,
@@ -279,15 +346,28 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Assign role: admin for sriram@grx10.com, employee for everyone else
-        const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
-        const role = adminEmails.includes(email.toLowerCase()) ? "admin" : "employee";
+        // Assign role: admin for designated accounts, employee for everyone else
+        const role = isAdminEmail ? "admin" : "employee";
         await supabase.from("user_roles").insert({
           user_id: newUser.user!.id,
           role,
         });
 
-        // Generate session for the new user
+        // Determine status: admins are active immediately, everyone else is pending approval
+        const newUserStatus = isAdminEmail ? "active" : "pending_approval";
+
+        // Sync profile with MS365 data (includes status)
+        await syncProfileFromMS365(supabase, newUser.user!.id, fullName, jobTitle, department, phone, email, managerEmail, newUserStatus);
+
+        // Non-admin new users land on the pending approval screen
+        if (!isAdminEmail) {
+          return new Response(
+            JSON.stringify({ pending: true }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Admin path: generate session
         const { data: linkData, error: linkError } =
           await supabase.auth.admin.generateLink({
             type: "magiclink",
@@ -318,8 +398,15 @@ Deno.serve(async (req) => {
 
         session = sessionData.session;
 
-        // Sync profile with MS365 data for new user
-        await syncProfileFromMS365(supabase, newUser.user!.id, fullName, jobTitle, department, phone, email, managerEmail);
+        // Resolve any profiles waiting on this admin as manager
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", newUser.user!.id)
+          .maybeSingle();
+        if (newProfile?.id) {
+          await resolveWaitingManagerRefs(supabase, email, newProfile.id);
+        }
       }
 
       return new Response(

@@ -52,14 +52,6 @@ export function useRequestDataExport() {
         }
       }
 
-      // Resolve organization_id explicitly
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!profile?.organization_id) throw new Error("Organization not found");
-
       // Rate-limit: block if there's already a pending/processing request
       const { data: pending } = await (supabase as any)
         .from("data_export_requests")
@@ -75,7 +67,6 @@ export function useRequestDataExport() {
         .from("data_export_requests")
         .insert({
           user_id: user.id,
-          organization_id: profile.organization_id,
           request_type: "full_export",
           data_categories: selectedCategories,
         })

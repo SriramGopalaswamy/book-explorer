@@ -140,16 +140,11 @@ export function useReviewChangeRequest() {
       // Double-review guard
       const { data: current } = await supabase
         .from("profile_change_requests" as any)
-        .select("status, user_id")
+        .select("status")
         .eq("id", id)
         .single();
       if ((current as any)?.status !== "pending") {
         throw new Error("This change request has already been reviewed");
-      }
-
-      // Self-review guard: reviewer cannot review their own change request
-      if ((current as any)?.user_id === user.id) {
-        throw new Error("You cannot review your own profile change request.");
       }
 
       const { error } = await supabase

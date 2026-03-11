@@ -225,13 +225,24 @@ export function useUpdatePayroll() {
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdatePayrollData) => {
       // ── State machine enforcement ──────────────────────────
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       if (data.status) {
         const { data: current, error: fetchErr } = await supabase
           .from("payroll_records")
-          .select("status")
+          .select("status, organization_id")
           .eq("id", id)
+          .eq("organization_id", callerOrgId)
           .single();
         if (fetchErr) throw fetchErr;
+        if (!current) throw new Error("Payroll record not found in your organization.");
         const currentStatus = current?.status as string;
 
         if (PAYROLL_TERMINAL.includes(currentStatus)) {
@@ -253,6 +264,7 @@ export function useUpdatePayroll() {
         .from("payroll_records")
         .update(updateData)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .single();
 
@@ -276,11 +288,21 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Only draft/cancelled records can be deleted ────────
       const { data: check, error: checkErr } = await supabase
         .from("payroll_records")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (checkErr) throw checkErr;
       const status = check?.status as string;
@@ -291,7 +313,8 @@ export function useDeletePayroll() {
       const { error } = await supabase
         .from("payroll_records")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

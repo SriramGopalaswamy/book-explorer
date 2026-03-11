@@ -305,14 +305,18 @@ export function useApproveLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Verify request is still pending
+      // Verify request is still pending & enforce self-approval guard
       const { data: check } = await supabase
         .from("leave_requests")
-        .select("status")
+        .select("status, user_id")
         .eq("id", requestId)
         .maybeSingle();
       if (check?.status !== "pending") {
         throw new Error("This leave request has already been reviewed");
+      }
+      // Maker-checker: manager cannot approve their own leave
+      if (check?.user_id === user.id) {
+        throw new Error("You cannot approve your own leave request.");
       }
 
       const { data, error } = await supabase
@@ -427,14 +431,17 @@ export function useRejectLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Verify request is still pending
+      // Verify request is still pending & enforce self-rejection guard
       const { data: check } = await supabase
         .from("leave_requests")
-        .select("status")
+        .select("status, user_id")
         .eq("id", requestId)
         .maybeSingle();
       if (check?.status !== "pending") {
         throw new Error("This leave request has already been reviewed");
+      }
+      if (check?.user_id === user.id) {
+        throw new Error("You cannot reject your own leave request.");
       }
 
       const { data, error } = await supabase
