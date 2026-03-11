@@ -396,7 +396,11 @@ export function useGeneratePayroll() {
 
       if (entries.length > 0) {
         const { error: eErr } = await supabase.from("payroll_entries").insert(entries);
-        if (eErr) throw eErr;
+        if (eErr) {
+          // Rollback: delete orphan run
+          await supabase.from("payroll_runs").delete().eq("id", run.id);
+          throw eErr;
+        }
       }
 
       // 5. Update run totals
