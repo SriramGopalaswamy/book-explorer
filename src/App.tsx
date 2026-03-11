@@ -16,6 +16,7 @@ import { PayrollRoute } from "@/components/auth/PayrollRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import PendingApproval from "./pages/PendingApproval";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -147,6 +148,7 @@ const App = () => (
                 {/* Public routes */}
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/pending-approval" element={<PendingApproval />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/sandbox/join/:token" element={<ProtectedRoute><SandboxJoin /></ProtectedRoute>} />
 
