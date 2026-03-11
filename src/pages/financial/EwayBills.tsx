@@ -79,7 +79,7 @@ function validateForm(form: EwayBillInsert): string[] {
 }
 
 export default function EwayBills() {
-  const { ewayBills, isLoading, create, update, cancel, isCreating } = useEwayBills();
+  const { ewayBills, isLoading, create, update, cancel, isCreating, getValidityDays } = useEwayBills();
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showCancel, setShowCancel] = useState<string | null>(null);
