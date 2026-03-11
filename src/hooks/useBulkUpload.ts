@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-upload/BulkUploadDialog";
