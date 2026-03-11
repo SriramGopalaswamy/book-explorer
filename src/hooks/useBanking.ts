@@ -160,21 +160,24 @@ export function useDeleteBankAccount() {
 export function useBankTransactions(limit = 20) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["bank-transactions", user?.id, limit, isDevMode],
+    queryKey: ["bank-transactions", user?.id, orgId, limit, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockBankTransactions;
-      if (!user) return [];
+      if (!user || !orgId) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("*, bank_accounts(name)")
+        .eq("organization_id", orgId)
         .order("transaction_date", { ascending: false })
         .limit(limit);
       if (error) throw error;
       return data as BankTransaction[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
@@ -251,11 +254,13 @@ export function useCreateTransaction() {
 // Monthly stats
 export function useMonthlyTransactionStats() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["monthly-transaction-stats", user?.id],
+    queryKey: ["monthly-transaction-stats", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return { inflow: 0, outflow: 0 };
+      if (!user || !orgId) return { inflow: 0, outflow: 0 };
 
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -263,6 +268,7 @@ export function useMonthlyTransactionStats() {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
+        .eq("organization_id", orgId)
         .gte("transaction_date", firstDay.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -281,18 +287,20 @@ export function useMonthlyTransactionStats() {
 
       return stats;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
 // Cash flow data for charts
 export function useCashFlowData(months = 6) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["cash-flow-data", user?.id, months],
+    queryKey: ["cash-flow-data", user?.id, orgId, months],
     queryFn: async () => {
-      if (!user) return getDefaultCashFlowData();
+      if (!user || !orgId) return getDefaultCashFlowData();
 
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
@@ -300,6 +308,7 @@ export function useCashFlowData(months = 6) {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount, transaction_date")
+        .eq("organization_id", orgId)
         .gte("transaction_date", startDate.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -334,7 +343,7 @@ export function useCashFlowData(months = 6) {
 
       return result;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 

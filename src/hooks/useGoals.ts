@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockGoals, mockGoalStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
@@ -30,34 +31,42 @@ export interface GoalStats {
 export function useGoals() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goals", isDevMode],
+    queryKey: ["goals", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoals;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("goals")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Goal[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
 export function useGoalStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goal-stats", isDevMode],
+    queryKey: ["goal-stats", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoalStats;
+      if (!orgId) return { total: 0, completed: 0, onTrack: 0, atRisk: 0, delayed: 0 };
       const { data, error } = await supabase
         .from("goals")
-        .select("status");
+        .select("status")
+        .eq("organization_id", orgId);
 
       if (error) throw error;
 
@@ -71,7 +80,7 @@ export function useGoalStats() {
 
       return stats;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
