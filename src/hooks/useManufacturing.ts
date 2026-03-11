@@ -219,7 +219,7 @@ export function useCreateWorkOrder() {
       if (wo.planned_start && wo.planned_end && wo.planned_start > wo.planned_end) {
         throw new Error("Planned start date cannot be after planned end date");
       }
-      const validPriorities = ["low", "medium", "high", "urgent"];
+      const validPriorities = ["low", "normal", "medium", "high", "urgent"];
       if (!validPriorities.includes(wo.priority)) throw new Error("Invalid priority level");
 
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
