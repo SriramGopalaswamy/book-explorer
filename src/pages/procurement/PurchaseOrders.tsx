@@ -12,6 +12,9 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2 } from "lucide-react";
 import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePOStatus, PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
