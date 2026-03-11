@@ -287,7 +287,7 @@ export function BankStatementReconciliation({ accounts }: Props) {
           return sum + (r.transaction_type === "credit" ? r.amount : -r.amount);
         }, 0);
         if (delta !== 0) {
-          const { error: rpcError } = await supabase.rpc("update_bank_balance_atomic", {
+          const { error: rpcError } = await supabase.rpc("update_bank_balance_atomic" as any, {
             p_account_id: selectedAccountId,
             p_delta: delta,
           });

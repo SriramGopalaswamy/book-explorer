@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Brain,
@@ -18,7 +19,8 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import ReactMarkdown from "react-markdown";
+import { useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 interface AIInsight {
   id: string;
@@ -29,6 +31,12 @@ interface AIInsight {
   recommendation: string;
   module: string;
   confidence: number;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  isStreaming?: boolean;
 }
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -58,19 +66,88 @@ const SUGGESTED_PROMPTS = [
   "Summarize pending leave requests",
 ];
 
-// ── Main component ────────────────────────────────────────────────────────
-
 export function AICommandCenter() {
   const { session } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || !session?.access_token) return;
+    const userMsg: ChatMessage = { role: "user", content: text.trim() };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setChatError(null);
+    setChatLoading(true);
+
+    const assistantMsg: ChatMessage = { role: "assistant", content: "", isStreaming: true };
+    setMessages((prev) => [...prev, assistantMsg]);
+
+    try {
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
+            stream: false,
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!resp.ok) throw new Error(`Request failed (${resp.status})`);
+      const result = await resp.json();
+      setMessages((prev) => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { role: "assistant", content: result.content || "No response." };
+        return copy;
+      });
+    } catch (err: unknown) {
+      if ((err as Error).name === "AbortError") return;
+      setChatError((err as Error).message || "Something went wrong.");
+      setMessages((prev) => prev.slice(0, -1));
+    } finally {
+      setChatLoading(false);
+      abortRef.current = null;
+    }
+  }, [messages, session]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
+  };
+
+  const handleStop = () => {
+    abortRef.current?.abort();
+    setChatLoading(false);
+  };
+
+  // Insights query
   const { data: insights, isLoading, error } = useQuery<AIInsight[]>({
     queryKey: ["ai-command-center-insights", refreshKey],
     queryFn: async () => {
       if (!session?.access_token) return [];
-
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
-
       const resp = await fetch(url, {
         method: "POST",
         headers: {
@@ -93,16 +170,9 @@ Be specific with numbers and percentages. Do not fabricate data.`,
           stream: false,
         }),
       });
-
-      if (!resp.ok) {
-        console.error("AI insights fetch failed:", resp.status);
-        return [];
-      }
-
+      if (!resp.ok) return [];
       const result = await resp.json();
       const content = result.content || "";
-
-      // Parse JSON from markdown code block
       const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
       if (jsonMatch) {
         try {
@@ -121,8 +191,6 @@ Be specific with numbers and percentages. Do not fabricate data.`,
           console.warn("Failed to parse AI insights JSON");
         }
       }
-
-      // Fallback: return raw content as a single insight
       if (content.trim()) {
         return [{
           id: "ai-narrative",
@@ -135,11 +203,10 @@ Be specific with numbers and percentages. Do not fabricate data.`,
           confidence: 80,
         }];
       }
-
       return [];
     },
     enabled: !!session?.access_token,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
@@ -151,12 +218,7 @@ Be specific with numbers and percentages. Do not fabricate data.`,
 
   const overallScore = displayInsights.length === 0
     ? 100
-    : Math.max(
-        0,
-        100 -
-          displayInsights.filter((i) => i.severity === "critical").length * 25 -
-          displayInsights.filter((i) => i.severity === "warning").length * 10
-      );
+    : Math.max(0, 100 - displayInsights.filter((i) => i.severity === "critical").length * 25 - displayInsights.filter((i) => i.severity === "warning").length * 10);
 
   return (
     <Tabs defaultValue="chat" className="space-y-4">
@@ -169,18 +231,17 @@ Be specific with numbers and percentages. Do not fabricate data.`,
         </TabsTrigger>
       </TabsList>
 
-      {/* ── Chat tab ─────────────────────────────────────────────────── */}
+      {/* Chat tab */}
       <TabsContent value="chat" className="space-y-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Brain className="h-4 w-4 text-primary" />
               Ask about your business
-              <Badge variant="outline" className="text-xs ml-auto font-mono">claude-opus-4-6</Badge>
+              <Badge variant="outline" className="text-xs ml-auto font-mono">gemini-3-flash</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Messages */}
             <div className="h-80 overflow-y-auto space-y-3 pr-1">
               {messages.length === 0 && (
                 <div className="text-center py-6 space-y-3">
@@ -234,13 +295,12 @@ Be specific with numbers and percentages. Do not fabricate data.`,
               <div ref={messagesEndRef} />
             </div>
 
-            {error && (
+            {chatError && (
               <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-                {error}
+                {chatError}
               </p>
             )}
 
-            {/* Input */}
             <div className="flex gap-2 items-end">
               <Textarea
                 value={input}
@@ -248,9 +308,9 @@ Be specific with numbers and percentages. Do not fabricate data.`,
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question… (Enter to send, Shift+Enter for newline)"
                 className="min-h-[60px] max-h-32 resize-none text-sm"
-                disabled={isLoading}
+                disabled={chatLoading}
               />
-              {isLoading ? (
+              {chatLoading ? (
                 <Button size="sm" variant="outline" onClick={handleStop} className="h-10 w-10 p-0 flex-shrink-0" title="Stop">
                   <span className="h-3 w-3 rounded-sm bg-foreground" />
                 </Button>
@@ -262,7 +322,7 @@ Be specific with numbers and percentages. Do not fabricate data.`,
             </div>
 
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { setMessages([]); setError(null); }}>
+              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { setMessages([]); setChatError(null); }}>
                 <RefreshCw className="h-3 w-3 mr-1" /> Clear conversation
               </Button>
             )}
@@ -270,7 +330,7 @@ Be specific with numbers and percentages. Do not fabricate data.`,
         </Card>
       </TabsContent>
 
-      {/* ── Insights tab ─────────────────────────────────────────────── */}
+      {/* Insights tab */}
       <TabsContent value="insights" className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Card className="lg:col-span-1">
@@ -284,102 +344,101 @@ Be specific with numbers and percentages. Do not fabricate data.`,
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-1">AI Health Score</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {[
-          { label: "Anomalies", count: anomalies.length, icon: <AlertTriangle className="h-3 w-3" /> },
-          { label: "Forecasts", count: forecasts.length, icon: <TrendingUp className="h-3 w-3" /> },
-          { label: "Compliance", count: compliance.length, icon: <Shield className="h-3 w-3" /> },
-          { label: "Optimizations", count: optimizations.length, icon: <Sparkles className="h-3 w-3" /> },
-        ].map(({ label, count, icon }) => (
-          <Card key={label}>
-            <CardContent className="pt-6 text-center">
-              {isLoading ? <Skeleton className="h-6 w-8 mx-auto" /> : <div className="text-2xl font-bold">{count}</div>}
-              <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                {icon} {label}
-              </p>
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      {/* Insights List */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            AI-Powered Insights
-            <Badge variant="outline" className="text-[10px] ml-2 bg-primary/5 border-primary/20">
-              <Sparkles className="h-2.5 w-2.5 mr-0.5" /> Live AI
-            </Badge>
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRefreshKey((k) => k + 1)}
-            disabled={isLoading}
-          >
-            {isLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
-            {isLoading ? "Analyzing..." : "Refresh"}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-lg border p-4">
-                  <div className="flex items-start gap-3">
-                    <Skeleton className="h-4 w-4 mt-1" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-2/3" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-12 w-full" />
+          {[
+            { label: "Anomalies", count: anomalies.length, icon: <AlertTriangle className="h-3 w-3" /> },
+            { label: "Forecasts", count: forecasts.length, icon: <TrendingUp className="h-3 w-3" /> },
+            { label: "Compliance", count: compliance.length, icon: <Shield className="h-3 w-3" /> },
+            { label: "Optimizations", count: optimizations.length, icon: <Sparkles className="h-3 w-3" /> },
+          ].map(({ label, count, icon }) => (
+            <Card key={label}>
+              <CardContent className="pt-6 text-center">
+                {isLoading ? <Skeleton className="h-6 w-8 mx-auto" /> : <div className="text-2xl font-bold">{count}</div>}
+                <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-1">
+                  {icon} {label}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              AI-Powered Insights
+              <Badge variant="outline" className="text-[10px] ml-2 bg-primary/5 border-primary/20">
+                <Sparkles className="h-2.5 w-2.5 mr-0.5" /> Live AI
+              </Badge>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+              {isLoading ? "Analyzing..." : "Refresh"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-lg border p-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-4 w-4 mt-1" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : error ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertTriangle className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Failed to load AI insights. Click Refresh to try again.</p>
-            </div>
-          ) : displayInsights.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Brain className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              <p>No data available for analysis. Add financial records and employee data to enable AI insights.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {displayInsights.map((insight) => (
-                <div
-                  key={insight.id}
-                  className={`rounded-lg border p-4 ${severityColors[insight.severity]}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 shrink-0">
-                      {categoryIcons[insight.category]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-medium text-foreground">{insight.title}</h4>
-                        <Badge variant="outline" className={`text-xs ${severityBadge[insight.severity]}`}>
-                          {insight.severity}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {insight.module}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          {insight.confidence}% confidence
-                        </span>
+                ))}
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Failed to load AI insights. Click Refresh to try again.</p>
+              </div>
+            ) : displayInsights.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Brain className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p>No data available for analysis. Add financial records and employee data to enable AI insights.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {displayInsights.map((insight) => (
+                  <div
+                    key={insight.id}
+                    className={`rounded-lg border p-4 ${severityColors[insight.severity]}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 shrink-0">
+                        {categoryIcons[insight.category]}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{insight.description}</p>
-                      <div className="mt-2 p-2 rounded bg-muted/50 border border-border/50">
-                        <p className="text-xs text-foreground">
-                          <span className="font-medium">Recommendation:</span> {insight.recommendation}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-medium text-foreground">{insight.title}</h4>
+                          <Badge variant="outline" className={`text-xs ${severityBadge[insight.severity]}`}>
+                            {insight.severity}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {insight.module}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {insight.confidence}% confidence
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{insight.description}</p>
+                        <div className="mt-2 p-2 rounded bg-muted/50 border border-border/50">
+                          <p className="text-xs text-foreground">
+                            <span className="font-medium">Recommendation:</span> {insight.recommendation}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
