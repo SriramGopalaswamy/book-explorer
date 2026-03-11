@@ -449,9 +449,10 @@ export function AICommandCenter() {
               <Badge variant="outline" className="text-xs">local heuristics</Badge>
             </CardTitle>
             <Button variant="outline" size="sm" onClick={() => {
-              const qc = (window as any).__queryClient;
-              if (qc) { qc.invalidateQueries(); }
-              else { import("@tanstack/react-query").then(() => window.location.reload()); }
+              queryClient.invalidateQueries({ queryKey: ["rpc-profit-loss"] });
+              queryClient.invalidateQueries({ queryKey: ["rpc-balance-sheet"] });
+              queryClient.invalidateQueries({ queryKey: ["hr-analytics"] });
+              queryClient.invalidateQueries({ queryKey: ["payroll-summary"] });
             }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
