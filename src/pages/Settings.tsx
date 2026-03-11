@@ -786,7 +786,7 @@ function UserManagementSection() {
   const [replacementManagerId, setReplacementManagerId] = useState<string>("");
 
   // Set manager dialog state
-  const [setManagerDialogOpen, setSetManagerDialogOpen] = useState(false);
+  const [assignManagerDialogOpen, setAssignManagerDialogOpen] = useState(false);
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
   const [newManagerUserId, setNewManagerUserId] = useState<string>("");
   const [updatingManager, setUpdatingManager] = useState(false);
