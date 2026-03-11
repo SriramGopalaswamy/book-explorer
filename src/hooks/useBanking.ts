@@ -160,21 +160,24 @@ export function useDeleteBankAccount() {
 export function useBankTransactions(limit = 20) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["bank-transactions", user?.id, limit, isDevMode],
+    queryKey: ["bank-transactions", user?.id, orgId, limit, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockBankTransactions;
-      if (!user) return [];
+      if (!user || !orgId) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("*, bank_accounts(name)")
+        .eq("organization_id", orgId)
         .order("transaction_date", { ascending: false })
         .limit(limit);
       if (error) throw error;
       return data as BankTransaction[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
