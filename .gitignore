@@ -18,6 +18,7 @@ backend/database/dev.sqlite
 backend/database/dev.sqlite-shm
 backend/database/dev.sqlite-wal
 backend/.env
+backend-api/.env
 
 # Editor directories and files
 .vscode/*
