@@ -212,9 +212,11 @@ export function useAttendanceStats(date?: string) {
 export function useWeeklyAttendanceStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["weekly-attendance-stats", isDevMode],
+    queryKey: ["weekly-attendance-stats", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) {
         return [
@@ -225,6 +227,7 @@ export function useWeeklyAttendanceStats() {
           { day: "Fri", present: 8, absent: 2, late: 1, leave: 1 },
         ];
       }
+      if (!orgId) return [];
       const today = new Date();
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay() + 1);
@@ -236,23 +239,26 @@ export function useWeeklyAttendanceStats() {
         days.push(date.toISOString().split("T")[0]);
       }
 
-      // Fetch attendance records, approved leave requests, AND active profiles for the week
+      // Fetch attendance records, approved leave requests, AND active profiles — org-scoped
       const [attendanceRes, leaveRes, profilesRes] = await Promise.all([
         supabase
           .from("attendance_records")
           .select("date, status, profile_id, user_id")
+          .eq("organization_id", orgId)
           .gte("date", days[0])
           .lte("date", days[4]),
         supabase
           .from("leave_requests")
           .select("from_date, to_date, profile_id, user_id")
           .eq("status", "approved")
+          .eq("organization_id", orgId)
           .lte("from_date", days[4])
           .gte("to_date", days[0]),
         supabase
           .from("profiles")
           .select("id")
-          .eq("status", "active"),
+          .eq("status", "active")
+          .eq("organization_id", orgId),
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
