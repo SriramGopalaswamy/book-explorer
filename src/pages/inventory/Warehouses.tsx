@@ -8,8 +8,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Warehouse, Search, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
+  "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
+  "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal", "Chandigarh", "Delhi", "Jammu & Kashmir", "Ladakh",
+  "Puducherry", "Andaman & Nicobar", "Dadra & Nagar Haveli", "Daman & Diu",
+  "Goa", "Lakshadweep",
+].sort();
 
 export default function Warehouses() {
   const { data: warehouses, isLoading } = useWarehouses();
