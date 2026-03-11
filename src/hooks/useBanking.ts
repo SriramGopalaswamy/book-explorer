@@ -294,11 +294,13 @@ export function useMonthlyTransactionStats() {
 // Cash flow data for charts
 export function useCashFlowData(months = 6) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["cash-flow-data", user?.id, months],
+    queryKey: ["cash-flow-data", user?.id, orgId, months],
     queryFn: async () => {
-      if (!user) return getDefaultCashFlowData();
+      if (!user || !orgId) return getDefaultCashFlowData();
 
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
@@ -306,6 +308,7 @@ export function useCashFlowData(months = 6) {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount, transaction_date")
+        .eq("organization_id", orgId)
         .gte("transaction_date", startDate.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -340,7 +343,7 @@ export function useCashFlowData(months = 6) {
 
       return result;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 

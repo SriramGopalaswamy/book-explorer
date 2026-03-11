@@ -56,12 +56,14 @@ export function useGoalStats() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["goal-stats", isDevMode],
+    queryKey: ["goal-stats", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoalStats;
+      if (!orgId) return { total: 0, completed: 0, onTrack: 0, atRisk: 0, delayed: 0 };
       const { data, error } = await supabase
         .from("goals")
-        .select("status");
+        .select("status")
+        .eq("organization_id", orgId);
 
       if (error) throw error;
 
@@ -75,7 +77,7 @@ export function useGoalStats() {
 
       return stats;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
