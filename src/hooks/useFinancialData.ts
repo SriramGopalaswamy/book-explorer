@@ -204,11 +204,13 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["expense-breakdown", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["expense-breakdown", user?.id, orgId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<CategoryData[]> => {
-      if (!user) return getDefaultExpenseData();
+      if (!user || !orgId) return getDefaultExpenseData();
 
       const fromDate = dateRange?.from || (() => {
         const d = new Date();
@@ -218,12 +220,13 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       const fromStr = fromDate.toISOString().split("T")[0];
       const toStr = toDate.toISOString().split("T")[0];
 
-      // Fetch from both expenses table and financial_records
+      // Fetch from both expenses table and financial_records — org-scoped
       const [expensesRes, financialRes] = await Promise.all([
         supabase
           .from("expenses")
           .select("category, amount")
           .eq("is_deleted", false)
+          .eq("organization_id", orgId)
           .gte("expense_date", fromStr)
           .lte("expense_date", toStr),
         supabase
@@ -231,6 +234,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
           .select("category, amount")
           .eq("type", "expense")
           .eq("is_deleted", false)
+          .eq("organization_id", orgId)
           .gte("record_date", fromStr)
           .lte("record_date", toStr),
       ]);
