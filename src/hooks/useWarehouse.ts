@@ -177,6 +177,11 @@ export function useUpdateTransferStatus() {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // ── Lifecycle state-machine ───────────────────────────────
       const TRANSFER_TRANSITIONS: Record<string, string[]> = {
         draft: ["in_transit", "cancelled"],
@@ -186,7 +191,7 @@ export function useUpdateTransferStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).single();
+        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).eq("organization_id", callerOrgId).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = TRANSFER_TRANSITIONS[currentStatus];
@@ -194,7 +199,7 @@ export function useUpdateTransferStatus() {
         throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
       }
 
-      const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto stock ledger entries when transfer is received ──
