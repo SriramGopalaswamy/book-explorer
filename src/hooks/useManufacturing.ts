@@ -173,10 +173,12 @@ export function useCreateBOM() {
         throw new Error("All BOM lines must have a material name.");
       }
 
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
       const bomCode = `BOM-${Date.now().toString(36).toUpperCase()}`;
       const { data: bomData, error: bomErr } = await supabase
         .from("bill_of_materials" as any)
-        .insert({ bom_code: bomCode, product_name: bom.product_name.trim(), product_item_id: bom.product_item_id || null, notes: bom.notes || null, created_by: user.id } as any)
+        .insert({ bom_code: bomCode, product_name: bom.product_name.trim(), product_item_id: bom.product_item_id || null, notes: bom.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (bomErr) throw bomErr;
 
