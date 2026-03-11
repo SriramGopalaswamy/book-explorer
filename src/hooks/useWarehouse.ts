@@ -372,7 +372,7 @@ export function useApproveInventoryCount() {
       }
 
       // Mark count as approved
-      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId);
+      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
       if (updErr) throw updErr;
     },
     onSuccess: () => {
