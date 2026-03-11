@@ -173,7 +173,7 @@ export function useCreateBOM() {
         throw new Error("All BOM lines must have a material name.");
       }
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
       const bomCode = `BOM-${Date.now().toString(36).toUpperCase()}`;
       const { data: bomData, error: bomErr } = await supabase
@@ -224,7 +224,7 @@ export function useCreateWorkOrder() {
       const validPriorities = ["low", "normal", "medium", "high", "urgent"];
       if (!validPriorities.includes(wo.priority)) throw new Error("Invalid priority level");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase

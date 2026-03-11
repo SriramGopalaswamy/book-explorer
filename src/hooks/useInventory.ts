@@ -221,14 +221,17 @@ export function useStockAdjustments() {
 export function useCreateStockAdjustment() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   return useMutation({
     mutationFn: async (adj: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
       if (adj.quantity === undefined || adj.quantity === 0) throw new Error("Adjustment quantity cannot be zero");
       if (!adj.item_id) throw new Error("Item is required for stock adjustment.");
       if (!adj.reason?.trim()) throw new Error("A reason is required for stock adjustments.");
 
-      const { data, error } = await supabase.from("stock_adjustments" as any).insert(adj).select().single();
+      const { data, error } = await supabase.from("stock_adjustments" as any).insert({ ...adj, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -261,9 +264,14 @@ export function useUOM() {
 
 export function useCreateUOM() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   return useMutation({
     mutationFn: async (uom: Record<string, any>) => {
-      const { data, error } = await supabase.from("units_of_measure" as any).insert(uom).select().single();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
+      const { data, error } = await supabase.from("units_of_measure" as any).insert({ ...uom, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
