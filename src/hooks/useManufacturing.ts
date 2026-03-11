@@ -318,6 +318,11 @@ export function useRecordProduction() {
       if (params.completed_quantity < 0) throw new Error("Completed quantity cannot be negative");
       if ((params.rejected_quantity ?? 0) < 0) throw new Error("Rejected quantity cannot be negative");
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("work_orders" as any)
         .update({
@@ -327,7 +332,8 @@ export function useRecordProduction() {
           notes: params.notes ?? null,
           updated_at: new Date().toISOString(),
         } as any)
-        .eq("id", params.id);
+        .eq("id", params.id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

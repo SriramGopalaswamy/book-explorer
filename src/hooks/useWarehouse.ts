@@ -400,7 +400,9 @@ export function useDeleteBinLocation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("bin_locations" as any).delete().eq("id", id);
+      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!orgData?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.from("bin_locations" as any).delete().eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location deleted"); },
