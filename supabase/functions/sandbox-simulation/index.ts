@@ -5639,10 +5639,10 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
       entry_date: new Date().toISOString().split("T")[0],
       memo: "Chaos: imbalanced entry attempt", status: "posted", is_posted: true,
     }).select("id").single();
-    if (cJE && glAccounts["1000"] && glAccounts["4000"]) {
+    if (cJE && accounts && accounts.length >= 2) {
       const { error: imbalErr } = await client.from("journal_lines").insert([
-        { journal_entry_id: cJE.id, gl_account_id: glAccounts["1000"], debit: 5000, credit: 0, description: "Imbalanced debit" },
-        { journal_entry_id: cJE.id, gl_account_id: glAccounts["4000"], debit: 0, credit: 9999, description: "Imbalanced credit" },
+        { journal_entry_id: cJE.id, gl_account_id: accounts[0].id, debit: 5000, credit: 0, description: "Imbalanced debit" },
+        { journal_entry_id: cJE.id, gl_account_id: accounts[1].id, debit: 0, credit: 9999, description: "Imbalanced credit" },
       ]);
       results.push({
         test: "Chaos: Journal entry with debit ≠ credit (₹5,000 vs ₹9,999)", module: "Finance",
