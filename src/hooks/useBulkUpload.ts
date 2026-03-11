@@ -68,8 +68,19 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
-    // Fetch employee profiles to map employee_id → profile_id
-    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name");
+    // Get the user's organization_id to scope profile lookups to current tenant
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = currentProfile?.organization_id;
+
+    // Fetch employee profiles scoped to current organization to prevent cross-tenant matches
+    const { data: profiles } = await (orgId
+      ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId)
+      : supabase.from("profiles").select("id, user_id, email, full_name"));
     const errors: string[] = [];
     let success = 0;
 
@@ -112,9 +123,10 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         continue;
       }
 
-      const { error } = await supabase.from("payroll_records").insert({
+      const { error } = await supabase.from("payroll_records").upsert({
         user_id: profile.user_id,
         profile_id: profile.id,
+        organization_id: orgId || null,
         pay_period: payPeriod,
         basic_salary: basic,
         hra,
@@ -125,7 +137,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         other_deductions: otherDed,
         net_pay: net,
         status: "draft",
-      });
+      }, { onConflict: "profile_id,pay_period" });
 
       if (error) errors.push(`Row ${row.employee_id}: ${error.message}`);
       else success++;
@@ -325,7 +337,19 @@ export function useExpensesBulkUpload(): BulkUploadConfig {
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
-    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name, organization_id");
+    // Get the user's organization_id to scope profile lookups to current tenant
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = currentProfile?.organization_id;
+
+    // Fetch profiles scoped to current organization to prevent cross-tenant matches
+    const { data: profiles } = await (orgId
+      ? supabase.from("profiles").select("id, user_id, email, full_name, organization_id").eq("organization_id", orgId)
+      : supabase.from("profiles").select("id, user_id, email, full_name, organization_id"));
     const errors: string[] = [];
     let success = 0;
 
