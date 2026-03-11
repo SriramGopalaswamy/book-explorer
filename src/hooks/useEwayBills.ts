@@ -171,6 +171,7 @@ export function useEwayBills() {
         .from("eway_bills")
         .update(updates)
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
