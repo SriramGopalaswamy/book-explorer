@@ -159,7 +159,7 @@ const SUGGESTED_PROMPTS = [
   "How is the business doing this month?",
   "Which invoices are overdue?",
   "What's the payroll-to-revenue ratio?",
-  "Are any inventory items low on stock?",
+  "Summarize the balance sheet health",
   "Summarize pending leave requests",
 ];
 
@@ -299,7 +299,7 @@ export function AICommandCenter() {
   );
 
   return (
-    <Tabs defaultValue="chat" className="space-y-4">
+    <Tabs defaultValue="insights" className="space-y-4">
       <TabsList>
         <TabsTrigger value="chat" className="gap-2">
           <Bot className="h-4 w-4" /> AI Chat
