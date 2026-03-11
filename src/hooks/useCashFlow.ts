@@ -244,5 +244,8 @@ export function useCashFlowSummary() {
       };
     },
     enabled: !!user && !!orgId,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
   });
 }

@@ -360,8 +360,14 @@ export default function StatutoryFilings() {
   // ── ESI Columns ──
   const esiCols: Column<ESIRow>[] = [
     { key: "employee_name", header: "Employee" },
+    { key: "pay_period" as any, header: "Month", render: (r: any) => {
+      if (!r.pay_period) return "—";
+      const [y, m] = r.pay_period.split("-");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${months[parseInt(m) - 1]} ${y}`;
+    }},
     { key: "gross_wages", header: "Gross Wages", render: (r) => formatCurrency(r.gross_wages), className: "text-right", headerClassName: "text-right" },
-    { key: "days_worked", header: "Days", className: "text-right", headerClassName: "text-right" },
+    { key: "days_worked", header: "Working Days", className: "text-right", headerClassName: "text-right" },
     { key: "employee_contribution", header: "Emp (0.75%)", render: (r) => formatCurrency(r.employee_contribution), className: "text-right", headerClassName: "text-right" },
     { key: "employer_contribution", header: "Er (3.25%)", render: (r) => formatCurrency(r.employer_contribution), className: "text-right", headerClassName: "text-right" },
     { key: "total_contribution", header: "Total", render: (r) => <span className="font-semibold">{formatCurrency(r.total_contribution)}</span>, className: "text-right", headerClassName: "text-right" },
