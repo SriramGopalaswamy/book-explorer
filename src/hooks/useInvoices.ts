@@ -158,6 +158,10 @@ export function useCreateInvoice() {
         throw new Error("Due date cannot be before the invoice date.");
       }
 
+      // ── Fiscal period guard ──
+      const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
+      await validateFiscalPeriod(invoiceDate);
+
       const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
       const { data: invoice, error: invoiceError } = await supabase

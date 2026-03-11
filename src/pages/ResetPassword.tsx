@@ -41,13 +41,13 @@ export default function ResetPassword() {
     // The user should have been redirected here with a valid session from the email link
     // Supabase handles the token verification automatically
     if (!session) {
-      // Give it a moment for the session to be established
+      // Give it enough time for the session to be established on slow connections
       const timeout = setTimeout(() => {
         if (!session) {
           toast.error("Invalid or expired reset link. Please request a new one.");
           navigate("/auth");
         }
-      }, 2000);
+      }, 5000);
       return () => clearTimeout(timeout);
     }
   }, [session, navigate]);

@@ -393,7 +393,9 @@ export default function Bills() {
       const { data, error } = await supabase
         .from("bills")
         .select("*, bill_items(*)")
-        .order("created_at", { ascending: false });
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },
@@ -417,6 +419,10 @@ export default function Bills() {
     mutationFn: async () => {
       if (!form.vendor_name.trim()) throw new Error("Vendor name is required");
       if (!form.amount) throw new Error("Amount is required");
+
+      // ── Fiscal period guard ──
+      const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
+      await validateFiscalPeriod(form.bill_date);
 
       const subtotal = parseFloat(form.amount) || 0;
       const tax = parseFloat(form.tax_amount) || 0;
@@ -494,8 +500,11 @@ export default function Bills() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("bill_items").delete().eq("bill_id", id);
-      const { error } = await supabase.from("bills").delete().eq("id", id);
+      // Soft delete instead of hard delete
+      const { error } = await supabase
+        .from("bills")
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

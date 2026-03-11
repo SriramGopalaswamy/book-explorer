@@ -80,7 +80,9 @@ export default function Expenses() {
       const { data, error } = await supabase
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
-        .order("expense_date", { ascending: false });
+        .eq("is_deleted", false)
+        .order("expense_date", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data as Expense[];
     },
@@ -96,7 +98,9 @@ export default function Expenses() {
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
         .eq("user_id", user.id)
-        .order("expense_date", { ascending: false });
+        .eq("is_deleted", false)
+        .order("expense_date", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data as Expense[];
     },
@@ -107,7 +111,7 @@ export default function Expenses() {
   const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
