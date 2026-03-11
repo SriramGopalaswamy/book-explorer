@@ -66,6 +66,7 @@ import {
    CheckSquare,
    Plug,
    RefreshCw,
+   Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -486,6 +487,7 @@ export function Sidebar() {
                 items={[
                   { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
                   { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
+                  { name: "MCP Tools", path: "/admin/mcp-tools", icon: Cpu },
                 ]}
                 sectionId="admin"
                 collapsed={collapsed}

@@ -112,6 +112,7 @@ import PaymentReceipts from "./pages/financial/PaymentReceipts";
 import VendorPaymentsPage from "./pages/financial/VendorPayments";
 import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
 import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
+import MCPToolExplorer from "./pages/admin/MCPToolExplorer";
 import ExchangeRatesPage from "./pages/financial/ExchangeRates";
 import RecurringTransactionsPage from "./pages/financial/RecurringTransactions";
 
@@ -232,6 +233,7 @@ const App = () => (
                 {/* Admin */}
                 <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
                 <Route path="/admin/approvals" element={<Guarded><HRAdminRoute><ApprovalWorkflowsPage /></HRAdminRoute></Guarded>} />
+                <Route path="/admin/mcp-tools" element={<Guarded><HRAdminRoute><MCPToolExplorer /></HRAdminRoute></Guarded>} />
 
                 {/* Connectors */}
                 <Route path="/connectors" element={<Guarded><FinanceRoute><Connectors /></FinanceRoute></Guarded>} />

@@ -60,6 +60,7 @@ import {
   FlaskConical,
   Database,
   Activity,
+  Cpu,
 } from "lucide-react";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
@@ -155,6 +156,7 @@ const ALL_ITEMS: SearchItem[] = [
   // Admin
   { name: "Audit Log", path: "/admin/audit-log", icon: Shield, section: "Admin", keywords: "activity trail history log" },
   { name: "Approvals", path: "/admin/approvals", icon: CheckSquare, section: "Admin", keywords: "approve workflow pending requests" },
+  { name: "MCP Tool Explorer", path: "/admin/mcp-tools", icon: Cpu, section: "Admin", keywords: "MCP tools AI agent ERP API model context protocol tool explorer" },
 
   // Connectors
   { name: "Connectors", path: "/connectors", icon: Plug, section: "Connectors", keywords: "integrations API webhooks third-party" },
