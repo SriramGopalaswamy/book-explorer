@@ -99,8 +99,19 @@ export function BankStatementReconciliation({ accounts }: Props) {
 
   // ── CSV parsing ──────────────────────────────────────────────────────────
   const processFile = useCallback((f: File) => {
+    const ALLOWED_CSV_MIME = ["text/csv", "text/plain", "application/csv", "application/octet-stream"];
+    const MAX_BANK_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
     if (!f.name.toLowerCase().endsWith(".csv")) {
       toast({ title: "Invalid file", description: "Please upload a CSV file.", variant: "destructive" });
+      return;
+    }
+    if (f.type && !ALLOWED_CSV_MIME.includes(f.type)) {
+      toast({ title: "Invalid file type", description: "File MIME type is not permitted. Please upload a plain CSV.", variant: "destructive" });
+      return;
+    }
+    if (f.size > MAX_BANK_FILE_SIZE) {
+      toast({ title: "File too large", description: "Bank statement CSV must be under 5 MB.", variant: "destructive" });
       return;
     }
     setFile(f);
@@ -268,20 +279,19 @@ export function BankStatementReconciliation({ accounts }: Props) {
       const { error } = await supabase.from("bank_transactions").insert(inserts);
       if (error) throw error;
 
-      // Update account balance if linked
+      // Update account balance atomically using a DB-level RPC to prevent race conditions.
+      // The function does balance += delta in a single UPDATE statement, avoiding the
+      // read-modify-write pattern that causes lost updates under concurrent imports.
       if (selectedAccountId) {
-        const { data: acc } = await supabase
-          .from("bank_accounts")
-          .select("balance")
-          .eq("id", selectedAccountId)
-          .single();
-        if (acc) {
-          let balance = Number(acc.balance);
-          for (const r of toImport) {
-            if (r.transaction_type === "credit") balance += r.amount;
-            else balance -= r.amount;
-          }
-          await supabase.from("bank_accounts").update({ balance }).eq("id", selectedAccountId);
+        const delta = toImport.reduce((sum, r) => {
+          return sum + (r.transaction_type === "credit" ? r.amount : -r.amount);
+        }, 0);
+        if (delta !== 0) {
+          const { error: rpcError } = await supabase.rpc("update_bank_balance_atomic", {
+            p_account_id: selectedAccountId,
+            p_delta: delta,
+          });
+          if (rpcError) throw rpcError;
         }
       }
 

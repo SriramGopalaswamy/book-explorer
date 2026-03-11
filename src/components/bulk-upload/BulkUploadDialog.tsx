@@ -178,9 +178,29 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   }, [validateRow]);
 
   const processFile = useCallback((file: File) => {
+    // Allowlist both extension and MIME type to prevent polyglot file attacks
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["csv", "xlsx", "xls"].includes(ext || "")) {
+    const ALLOWED_EXTENSIONS = ["csv", "xlsx", "xls"];
+    const ALLOWED_MIME_TYPES = [
+      "text/csv",
+      "text/plain",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/csv",
+      "application/octet-stream", // some browsers report xlsx as this
+    ];
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+    if (!ALLOWED_EXTENSIONS.includes(ext || "")) {
       toast.error("Please upload a CSV or Excel (.xlsx/.xls) file");
+      return;
+    }
+    if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+      toast.error("File type not allowed. Please upload a CSV or Excel file.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File is too large. Maximum allowed size is 5 MB.");
       return;
     }
     setFileName(file.name);

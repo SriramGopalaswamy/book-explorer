@@ -40,18 +40,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Rate limiting state for auth operations
-  const authAttempts = useRef<number[]>([]);
+  // Rate limiting: 5 failed attempts per 15 minutes triggers a full lockout.
+  // Attempts are stored in localStorage so they survive page refreshes.
   const MAX_AUTH_ATTEMPTS = 5;
-  const AUTH_WINDOW_MS = 60_000; // 1 minute
+  const AUTH_WINDOW_MS = 15 * 60_000; // 15 minutes
+  const LOCKOUT_KEY = "grx10_auth_attempts";
 
   const checkRateLimit = () => {
     const now = Date.now();
-    authAttempts.current = authAttempts.current.filter(t => now - t < AUTH_WINDOW_MS);
-    if (authAttempts.current.length >= MAX_AUTH_ATTEMPTS) {
-      throw new Error("Too many attempts. Please wait a minute before trying again.");
+    let stored: number[] = [];
+    try {
+      stored = JSON.parse(localStorage.getItem(LOCKOUT_KEY) || "[]");
+    } catch {
+      stored = [];
     }
-    authAttempts.current.push(now);
+
+    // Prune attempts outside the sliding window
+    const recent = stored.filter((t) => now - t < AUTH_WINDOW_MS);
+
+    if (recent.length >= MAX_AUTH_ATTEMPTS) {
+      const oldestInWindow = recent[0];
+      const unlockAt = new Date(oldestInWindow + AUTH_WINDOW_MS);
+      const minutesLeft = Math.ceil((unlockAt.getTime() - now) / 60_000);
+      throw new Error(
+        `Too many failed attempts. Account locked for ${minutesLeft} more minute${minutesLeft !== 1 ? "s" : ""}. Try again later or reset your password.`
+      );
+    }
+
+    recent.push(now);
+    try {
+      localStorage.setItem(LOCKOUT_KEY, JSON.stringify(recent));
+    } catch {
+      // localStorage unavailable — continue without persisting
+    }
+  };
+
+  // Clear rate-limit counter after a successful login
+  const clearRateLimit = () => {
+    try {
+      localStorage.removeItem(LOCKOUT_KEY);
+    } catch {
+      // ignore
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -78,7 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
     });
-    
+
+    if (!error) {
+      // Successful login resets the lockout counter
+      clearRateLimit();
+    }
+
     return { error: error as Error | null };
   };
 

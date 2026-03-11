@@ -97,41 +97,49 @@ export function useLeaveRequests(status?: string) {
 export function useMyLeaveRequests() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["my-leave-requests", isDevMode],
+    queryKey: ["my-leave-requests", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockLeaveRequests;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("leave_requests")
         .select("*")
         .eq("user_id", user?.id)
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as LeaveRequest[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
 export function useLeaveBalances() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const currentYear = new Date().getFullYear();
 
   return useQuery({
-    queryKey: ["leave-balances", currentYear, isDevMode],
+    queryKey: ["leave-balances", currentYear, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockLeaveBalances;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("leave_balances")
         .select("*")
         .eq("user_id", user?.id)
+        .eq("organization_id", orgId)
         .eq("year", currentYear);
 
       if (error) throw error;
-      
+
       const defaultBalances: LeaveBalance[] = [
         { id: "1", user_id: user?.id || "", profile_id: null, leave_type: "casual", total_days: 12, used_days: 0, year: currentYear },
         { id: "2", user_id: user?.id || "", profile_id: null, leave_type: "sick", total_days: 10, used_days: 0, year: currentYear },
@@ -141,27 +149,32 @@ export function useLeaveBalances() {
 
       return data.length > 0 ? data as LeaveBalance[] : defaultBalances;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
 export function useHolidays() {
   const currentYear = new Date().getFullYear();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["holidays", currentYear],
+    queryKey: ["holidays", currentYear, orgId],
     queryFn: async () => {
       if (isDevMode) return mockHolidays;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("holidays")
         .select("*")
+        .eq("organization_id", orgId)
         .eq("year", currentYear)
         .order("date", { ascending: true });
 
       if (error) throw error;
       return data as Holiday[];
     },
+    enabled: !!orgId || isDevMode,
   });
 }
 
