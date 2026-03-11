@@ -337,8 +337,8 @@ export default function EwayBills() {
                       <Select value={form.from_state_code ?? ""} onValueChange={(v) => setField("from_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {INDIAN_STATES.map((s) => (
-                            <SelectItem key={s.code} value={s.code}>{s.code} – {s.name}</SelectItem>
+                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -365,8 +365,8 @@ export default function EwayBills() {
                       <Select value={form.to_state_code ?? ""} onValueChange={(v) => setField("to_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {INDIAN_STATES.map((s) => (
-                            <SelectItem key={s.code} value={s.code}>{s.code} – {s.name}</SelectItem>
+                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

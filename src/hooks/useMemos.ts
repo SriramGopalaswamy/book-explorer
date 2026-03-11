@@ -236,7 +236,7 @@ export function useCreateMemo() {
         .from("profiles")
         .select("organization_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile?.organization_id) {
         throw new Error("Could not determine your organization. Please contact an admin.");
