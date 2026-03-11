@@ -420,6 +420,10 @@ export default function Bills() {
       if (!form.vendor_name.trim()) throw new Error("Vendor name is required");
       if (!form.amount) throw new Error("Amount is required");
 
+      // ── Fiscal period guard ──
+      const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
+      await validateFiscalPeriod(form.bill_date);
+
       const subtotal = parseFloat(form.amount) || 0;
       const tax = parseFloat(form.tax_amount) || 0;
       const total = subtotal + tax;
