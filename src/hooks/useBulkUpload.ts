@@ -279,10 +279,16 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
 export function useHolidaysBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     const errors: string[] = [];
     let success = 0;
+
+    if (!orgId) {
+      return { success: 0, errors: ["No organization found. Please try again."] };
+    }
 
     for (const row of rows) {
       const name = row.name?.trim();
@@ -297,14 +303,14 @@ export function useHolidaysBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      const { error } = await supabase.from("holidays").insert({ name, date, year });
+      const { error } = await supabase.from("holidays").insert({ name, date, year, organization_id: orgId });
       if (error) errors.push(`${name}: ${error.message}`);
       else success++;
     }
 
     qc.invalidateQueries({ queryKey: ["holidays"] });
     return { success, errors };
-  }, [qc]);
+  }, [qc, orgId]);
 
   return {
     module: "holidays",
