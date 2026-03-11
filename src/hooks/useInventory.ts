@@ -264,9 +264,14 @@ export function useUOM() {
 
 export function useCreateUOM() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   return useMutation({
     mutationFn: async (uom: Record<string, any>) => {
-      const { data, error } = await supabase.from("units_of_measure" as any).insert(uom).select().single();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
+      const { data, error } = await supabase.from("units_of_measure" as any).insert({ ...uom, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
