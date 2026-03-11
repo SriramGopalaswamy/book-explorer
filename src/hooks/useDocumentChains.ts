@@ -304,7 +304,11 @@ export function useCreateDeliveryNote() {
           quantity: i.quantity,
           shipped_quantity: i.quantity,
         }));
-        await supabase.from("delivery_note_items" as any).insert(dnItems as any);
+        const { error: itemErr } = await supabase.from("delivery_note_items" as any).insert(dnItems as any);
+        if (itemErr) {
+          await supabase.from("delivery_notes" as any).delete().eq("id", (dn as any).id);
+          throw itemErr;
+        }
       }
 
       return dn;
