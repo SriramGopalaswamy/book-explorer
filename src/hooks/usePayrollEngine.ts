@@ -189,7 +189,11 @@ export function useGeneratePayroll() {
         });
 
         const { error: fbErr } = await supabase.from("payroll_entries").insert(fallbackEntries);
-        if (fbErr) throw fbErr;
+        if (fbErr) {
+          // Rollback: delete orphan run
+          await supabase.from("payroll_runs").delete().eq("id", run.id);
+          throw fbErr;
+        }
 
         const fbGross = fallbackEntries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
         const fbDed = fallbackEntries.reduce((s: number, e: any) => s + e.total_deductions, 0);
