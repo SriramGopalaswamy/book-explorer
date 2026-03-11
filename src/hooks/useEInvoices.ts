@@ -214,6 +214,7 @@ export function useEInvoices() {
           cancelled_at: new Date().toISOString(),
         })
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
