@@ -446,6 +446,9 @@ export function AICommandCenter() {
               Automated Insights
               <Badge variant="outline" className="text-xs">local heuristics</Badge>
             </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </Button>
           </CardHeader>
           <CardContent>
             {insights.length === 0 ? (

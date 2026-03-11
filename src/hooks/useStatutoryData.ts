@@ -454,15 +454,27 @@ export function useESIData(from: string, to: string) {
           if (!isEligible) return null;
           const empContrib = Math.round(gross * 0.0075);
           const erContrib = Math.round(gross * 0.0325);
+          // Calculate working days from pay_period (e.g. "2025-02")
+          const payPeriod = p.pay_period || "";
+          let workingDays = 30;
+          if (payPeriod) {
+            const [yr, mo] = payPeriod.split("-").map(Number);
+            if (yr && mo) {
+              const daysInMonth = new Date(yr, mo, 0).getDate();
+              // Approximate working days: exclude Sundays (roughly daysInMonth - Math.floor(daysInMonth/7))
+              workingDays = daysInMonth - Math.floor(daysInMonth / 7);
+            }
+          }
           return {
             id: p.id,
             ip_number: "",
             employee_name: p.profiles?.full_name || "Unknown",
-            days_worked: 30,
+            days_worked: workingDays,
             gross_wages: gross,
             employee_contribution: empContrib,
             employer_contribution: erContrib,
             total_contribution: empContrib + erContrib,
+            pay_period: payPeriod,
           } as ESIRow;
         })
         .filter(Boolean) as ESIRow[];
