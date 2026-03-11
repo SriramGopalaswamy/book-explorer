@@ -22,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign, Plus, Upload, Loader2 } from "lucide-react";
+import { MoreHorizontal, Trash2, Search, Paperclip, Check, Clock, IndianRupee, CircleDollarSign, Plus, Upload, Loader2, Filter, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,7 @@ export default function Expenses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const expensesBulkConfig = useExpensesBulkUpload();
   const [createOpen, setCreateOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
@@ -229,11 +230,14 @@ export default function Expenses() {
   const approvedExpenses = expenses.filter(e => e.status === "approved");
   const paidExpenses = expenses.filter(e => e.status === "paid");
 
-  const allFiltered = expenses.filter((e) =>
-    e.category.toLowerCase().includes(search.toLowerCase()) ||
-    (e.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    ((e.profiles as any)?.full_name ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const allFiltered = expenses.filter((e) => {
+    const matchesSearch =
+      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      (e.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      ((e.profiles as any)?.full_name ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || e.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
   const allPagination = usePagination(allFiltered, 10);
   const pendingPagination = usePagination(pendingExpenses, 10);
   const approvedPagination = usePagination(approvedExpenses, 10);
@@ -351,9 +355,29 @@ export default function Expenses() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px] h-9 text-sm">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending Approval</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+            {(search || statusFilter !== "all") && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {isFinanceOrAdmin && <BulkUploadDialog config={expensesBulkConfig} />}

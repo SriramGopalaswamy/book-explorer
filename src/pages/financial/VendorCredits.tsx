@@ -39,7 +39,7 @@ const formatCurrency = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(2
 
 // Valid status transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  draft:   ["issued", "void"],
+  draft:   ["issued", "applied", "void"],
   issued:  ["applied", "void"],
   applied: ["void"],
   void:    [],

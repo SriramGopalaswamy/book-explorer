@@ -422,7 +422,7 @@ export default function Profile() {
         <Button
           variant="ghost"
           size="sm"
-          className="text-xs text-muted-foreground hover:text-primary h-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="text-xs text-muted-foreground hover:text-primary h-7"
           onClick={() => startEditing(fieldKey, value)}
         >
           <Pencil className="h-3 w-3 mr-1" />
