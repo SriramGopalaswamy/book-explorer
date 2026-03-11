@@ -507,22 +507,23 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.organization_members = orgMemberCount;
 
   // ===== SET MANAGER_ID ON PROFILES (reporting hierarchy) =====
+  // profiles.manager_id REFERENCES profiles(id) — must use profileId, NOT authId
   const managerMapping: Record<string, string> = {
     "Senior Developer": "Tech Lead",
     "QA Engineer": "Tech Lead",
     "Marketing Analyst": "Tech Lead",
     "Sales Executive": "Operations Lead",
   };
-  const titleToAuthId: Record<string, string> = {};
+  const titleToProfileId: Record<string, string> = {};
   for (const vu of verifiedUsers) {
-    titleToAuthId[vu.jobTitle] = vu.authId;
+    titleToProfileId[vu.jobTitle] = vu.profileId;
   }
   let managerIdSetCount = 0;
   for (const vu of verifiedUsers) {
     const managerTitle = managerMapping[vu.jobTitle];
-    if (managerTitle && titleToAuthId[managerTitle]) {
+    if (managerTitle && titleToProfileId[managerTitle]) {
       const { error } = await client.from("profiles")
-        .update({ manager_id: titleToAuthId[managerTitle] })
+        .update({ manager_id: titleToProfileId[managerTitle] })
         .eq("id", vu.profileId);
       if (!error) managerIdSetCount++;
     }
@@ -584,17 +585,20 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.compensation_structures = compCount;
 
   // ===== GAP FIX #2: SEED MANAGER HIERARCHY =====
-  // Tech Lead (Vikram Singh) and Operations Lead (Rahul Verma) are managers
-  // Assign manager_id on profiles so subordinates report to them
+  // Tech Lead (Vikram Singh), Operations Lead (Rahul Verma), and Finance Manager (Priya Sharma)
+  // are the department managers. Assign manager_id so subordinates report to them.
+  // profiles.manager_id REFERENCES profiles(id) — confirmed above.
   const engineeringManager = verifiedUsers.find((vu) => vu.jobTitle === "Tech Lead");
   const opsManager = verifiedUsers.find((vu) => vu.jobTitle === "Operations Lead");
+  const financeManager = verifiedUsers.find((vu) => vu.jobTitle === "Finance Manager");
+  const hrManager = verifiedUsers.find((vu) => vu.jobTitle === "HR Executive");
 
   const managerAssignment: Record<string, any> = {
     "Engineering": engineeringManager,
     "Marketing": opsManager,
     "Sales": opsManager,
-    "Finance": engineeringManager,
-    "HR": opsManager,
+    "Finance": financeManager,
+    "HR": hrManager,
   };
 
   let managerHierarchyCount = 0;
@@ -738,14 +742,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   // ===== SEED ITEMS (Inventory) =====
   const seededItemIds: string[] = [];
   const itemSeeds = [
-    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", item_type: "goods", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
-    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", item_type: "goods", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
-    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", item_type: "goods", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
-    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", item_type: "goods", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
+    // item_type CHECK: ('product', 'service', 'raw_material', 'finished_good', 'consumable')
+    { name: "Laptop Stand - Adjustable", sku: "SIM-LS-001", item_type: "product", purchase_price: 1200, selling_price: 2500, opening_stock: 50, hsn_code: "9403" },
+    { name: "Ergonomic Keyboard", sku: "SIM-KB-002", item_type: "product", purchase_price: 2800, selling_price: 4500, opening_stock: 30, hsn_code: "8471" },
+    { name: "USB-C Hub 7-in-1", sku: "SIM-UH-003", item_type: "product", purchase_price: 950, selling_price: 1800, opening_stock: 100, hsn_code: "8473" },
+    { name: "Premium A4 Paper (500 sheets)", sku: "SIM-PP-004", item_type: "consumable", purchase_price: 350, selling_price: 500, opening_stock: 200, hsn_code: "4802" },
     { name: "Cloud Hosting - Monthly", sku: "SIM-CH-005", item_type: "service", purchase_price: 5000, selling_price: 8000, opening_stock: 0, hsn_code: "998315" },
     { name: "Steel Rod 12mm TMT", sku: "SIM-SR-006", item_type: "raw_material", purchase_price: 55, selling_price: 75, opening_stock: 500, hsn_code: "7214" },
     { name: "Cement OPC 53 Grade", sku: "SIM-CM-007", item_type: "raw_material", purchase_price: 380, selling_price: 450, opening_stock: 100, hsn_code: "2523" },
-    { name: "Assembled Server Unit", sku: "SIM-SU-008", item_type: "finished_goods", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
+    { name: "Assembled Server Unit", sku: "SIM-SU-008", item_type: "finished_good", purchase_price: 85000, selling_price: 120000, opening_stock: 5, hsn_code: "8471" },
   ];
   for (const item of itemSeeds) {
     const { data } = await client.from("items").insert({
@@ -826,13 +831,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.purchase_orders = seededPOIds.length;
 
   // ===== SEED GOODS RECEIPTS =====
+  // Schema: received_by (NOT NULL), receipt_date, status CHECK('draft','inspecting','accepted','rejected')
+  // warehouse_id lives on goods_receipt_items, not on the header
   let grCount = 0;
   if (seededPOIds.length > 0) {
     const { data: gr } = await client.from("goods_receipts").insert({
       grn_number: `SIM-GRN-${Date.now()}`,
-      purchase_order_id: seededPOIds[0], organization_id: orgId, created_by: userId,
-      status: "completed", received_date: new Date().toISOString().split("T")[0],
-      warehouse_id: seededWarehouseIds[0] ?? null,
+      purchase_order_id: seededPOIds[0], organization_id: orgId,
+      received_by: userId,
+      status: "accepted", receipt_date: new Date().toISOString().split("T")[0],
     }).select("id").single();
     if (gr) {
       grCount = 1;
@@ -841,6 +848,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           goods_receipt_id: gr.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
           ordered_quantity: 20, received_quantity: 20, accepted_quantity: 18, rejected_quantity: 2,
+          warehouse_id: seededWarehouseIds[0] ?? null,
         });
       }
     }
@@ -884,13 +892,15 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
   summary.sales_orders = seededSOIds.length;
 
   // ===== SEED DELIVERY NOTES =====
+  // Schema: dispatched_by (nullable), status CHECK('draft','dispatched','in_transit','delivered','returned')
+  // warehouse_id lives on delivery_note_items; line-item quantity column is shipped_quantity
   let dnCount = 0;
   if (seededSOIds.length > 0) {
     const { data: dn } = await client.from("delivery_notes").insert({
       dn_number: `SIM-DN-${Date.now()}`,
-      sales_order_id: seededSOIds[0], organization_id: orgId, created_by: userId,
+      sales_order_id: seededSOIds[0], organization_id: orgId,
+      dispatched_by: userId,
       status: "delivered", delivery_date: new Date().toISOString().split("T")[0],
-      warehouse_id: seededWarehouseIds[0] ?? null,
     }).select("id").single();
     if (dn) {
       dnCount = 1;
@@ -898,7 +908,8 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
         await client.from("delivery_note_items").insert({
           delivery_note_id: dn.id, item_id: seededItemIds[j],
           description: itemSeeds[j]?.name ?? `Item ${j}`,
-          ordered_quantity: 10, delivered_quantity: 10,
+          ordered_quantity: 10, shipped_quantity: 10,
+          warehouse_id: seededWarehouseIds[0] ?? null,
         });
       }
     }
@@ -1256,7 +1267,7 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
       const taxAmt = Math.round(bill.amount * 0.18);
       const total = bill.amount + taxAmt;
       const { data: seedBill } = await client.from("bills").insert({
-        bill_number: `SIM-SEED-BILL-${Date.now()}-${bill.vendor.substring(0, 3)}`,
+        bill_number: `SIM-SEED-BILL-${crypto.randomUUID().substring(0, 8)}-${bill.vendor.substring(0, 3)}`,
         vendor_name: bill.vendor,
         organization_id: orgId, user_id: userId,
         amount: bill.amount, tax_amount: taxAmt, total_amount: total,
@@ -1770,6 +1781,13 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
     const wfStart = Date.now();
     const payPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     try {
+      // Guard against duplicate key on re-runs: delete any existing draft run for this period
+      await client.from("payroll_runs")
+        .delete()
+        .eq("organization_id", orgId)
+        .eq("pay_period", payPeriod)
+        .eq("status", "draft");
+
       const { data: payrollRun, error: runErr } = await client.from("payroll_runs").insert({
         organization_id: orgId, pay_period: payPeriod,
         generated_by: userId, status: "draft",
@@ -3224,9 +3242,9 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       }).select("id").single();
       if (gpErr) throw gpErr;
 
-      // Employee submits
+      // Employee submits — valid CHECK value: 'pending_approval'
       const { error: submitErr } = await client.from("goal_plans")
-        .update({ status: "submitted" }).eq("id", gp.id);
+        .update({ status: "pending_approval" }).eq("id", gp.id);
       results.push({
         workflow: "Goal Approval: Employee submits plan", module: "Performance",
         status: submitErr ? "failed" : "passed",
@@ -3234,10 +3252,10 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         duration_ms: Date.now() - wfStart,
       });
 
-      // Manager forwards to HR
+      // Manager forwards to HR — valid CHECK value: 'pending_hr_approval'
       const wf2 = Date.now();
       const { error: fwdErr } = await client.from("goal_plans").update({
-        status: "manager_approved", reviewed_by: managerActor, reviewed_at: new Date().toISOString(),
+        status: "pending_hr_approval", reviewed_by: managerActor, reviewed_at: new Date().toISOString(),
         reviewer_notes: "Goals look well-aligned with team OKRs",
       }).eq("id", gp.id);
       results.push({
@@ -4014,8 +4032,8 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       if (approvedPO) {
         const { error } = await client.from("goods_receipts").insert({
           grn_number: `SIM-GRN-WF-${Date.now()}`, purchase_order_id: approvedPO.id,
-          organization_id: orgId, created_by: userId,
-          status: "completed", received_date: new Date().toISOString().split("T")[0],
+          organization_id: orgId, received_by: userId,
+          status: "accepted", receipt_date: new Date().toISOString().split("T")[0],
         });
         results.push({ workflow: "Procurement: GRN against PO", module: "Procurement", status: error ? "failed" : "passed", detail: error?.message ?? "Goods receipt linked to approved PO", duration_ms: Date.now() - wfStart });
       } else {
@@ -4056,7 +4074,7 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
       if (confirmedSO) {
         const { error } = await client.from("delivery_notes").insert({
           dn_number: `SIM-DN-WF-${Date.now()}`, sales_order_id: confirmedSO.id,
-          organization_id: orgId, created_by: userId,
+          organization_id: orgId, dispatched_by: userId,
           status: "dispatched", delivery_date: new Date().toISOString().split("T")[0],
         });
         results.push({ workflow: "Sales: Delivery note against SO", module: "Sales", status: error ? "failed" : "passed", detail: error?.message ?? "Delivery note linked to confirmed SO", duration_ms: Date.now() - wfStart });
@@ -4297,6 +4315,25 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (vpErr) throw vpErr;
         const { error: lcErr } = await client.from("vendor_payments").update({ status: "completed" }).eq("id", vp.id);
+
+        // Post corresponding JE: Dr Accounts Payable, Cr Cash & Bank
+        const vpAmt = paidBill?.total_amount ?? 25000;
+        if (glAccounts["2000"] && glAccounts["1000"]) {
+          const { data: vpJE } = await client.from("journal_entries").insert({
+            document_sequence_number: `SIM-VP-JE-${vp.id.substring(0, 8)}`,
+            organization_id: orgId, created_by: userId,
+            entry_date: new Date().toISOString().split("T")[0],
+            memo: `Vendor payment to ${v.name}`,
+            status: "posted", source_type: "vendor_payment", is_posted: true,
+          }).select("id").single();
+          if (vpJE) {
+            await client.from("journal_lines").insert([
+              { journal_entry_id: vpJE.id, gl_account_id: glAccounts["2000"], debit: vpAmt, credit: 0, description: `AP cleared - ${v.name}` },
+              { journal_entry_id: vpJE.id, gl_account_id: glAccounts["1000"], debit: 0, credit: vpAmt, description: `Bank outflow - ${v.name}` },
+            ]);
+          }
+        }
+
         results.push({ workflow: "P2P: Vendor Payment lifecycle (draft→completed)", module: "Procurement", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Payment to ${v.name}`, duration_ms: Date.now() - wfStart });
       } else {
         results.push({ workflow: "P2P: Vendor Payment", module: "Procurement", status: "warning", detail: "No active vendors", duration_ms: Date.now() - wfStart });
@@ -4315,11 +4352,30 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
           receipt_number: `SIM-PR-WF-${Date.now()}`, customer_id: c.id, customer_name: c.name,
           organization_id: orgId, created_by: userId,
           amount: sentInv?.total_amount ?? 30000, payment_date: new Date().toISOString().split("T")[0],
-          payment_method: "bank_transfer", status: "draft",
+          payment_method: "bank_transfer", status: "received",
           invoice_id: sentInv?.id ?? null,
         }).select("id").single();
         if (prErr) throw prErr;
         const { error: lcErr } = await client.from("payment_receipts").update({ status: "completed" }).eq("id", pr.id);
+
+        // Post corresponding JE: Dr Cash & Bank, Cr Accounts Receivable
+        const prAmt = sentInv?.total_amount ?? 30000;
+        if (glAccounts["1000"] && glAccounts["1100"]) {
+          const { data: prJE } = await client.from("journal_entries").insert({
+            document_sequence_number: `SIM-PR-JE-${pr.id.substring(0, 8)}`,
+            organization_id: orgId, created_by: userId,
+            entry_date: new Date().toISOString().split("T")[0],
+            memo: `Payment receipt from ${c.name}`,
+            status: "posted", source_type: "payment_receipt", is_posted: true,
+          }).select("id").single();
+          if (prJE) {
+            await client.from("journal_lines").insert([
+              { journal_entry_id: prJE.id, gl_account_id: glAccounts["1000"], debit: prAmt, credit: 0, description: `Bank inflow - ${c.name}` },
+              { journal_entry_id: prJE.id, gl_account_id: glAccounts["1100"], debit: 0, credit: prAmt, description: `AR cleared - ${c.name}` },
+            ]);
+          }
+        }
+
         results.push({ workflow: "O2C: Payment Receipt lifecycle (draft→completed)", module: "Sales", status: lcErr ? "failed" : "passed", detail: lcErr?.message ?? `Receipt from ${c.name}`, duration_ms: Date.now() - wfStart });
       } else {
         results.push({ workflow: "O2C: Payment Receipt", module: "Sales", status: "warning", detail: "No active customers", duration_ms: Date.now() - wfStart });
@@ -4440,8 +4496,8 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         // Step 2: Create GRN linked to PO
         const { data: chainGR, error: grErr } = await client.from("goods_receipts").insert({
           grn_number: `SIM-P2P-GRN-${Date.now()}`, purchase_order_id: chainPO.id,
-          organization_id: orgId, created_by: userId,
-          status: "completed", received_date: new Date().toISOString().split("T")[0],
+          organization_id: orgId, received_by: userId,
+          status: "accepted", receipt_date: new Date().toISOString().split("T")[0],
         }).select("id").single();
         if (grErr) throw grErr;
 
@@ -4463,14 +4519,30 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (billErr) throw billErr;
 
-        // Step 4: Create Vendor Payment linked to Bill
-        const { error: vpErr } = await client.from("vendor_payments").insert({
+        // Step 4: Create Vendor Payment linked to Bill + post AP-clearing JE
+        const { data: chainVP, error: vpErr } = await client.from("vendor_payments").insert({
           payment_number: `SIM-P2P-VP-${Date.now()}`, vendor_id: v.id, vendor_name: v.name,
           organization_id: orgId, created_by: userId,
           amount: poTotal, payment_date: new Date().toISOString().split("T")[0],
           payment_method: "bank_transfer", status: "completed", bill_id: chainBill.id,
-        });
+        }).select("id").single();
         if (vpErr) throw vpErr;
+
+        // JE: Dr AP (2000), Cr Cash/Bank (1000)
+        if (chainVP && glAccounts["2000"] && glAccounts["1000"]) {
+          const { data: chainVPJE } = await client.from("journal_entries").insert({
+            document_sequence_number: `SIM-P2P-VP-JE-${chainVP.id.substring(0, 8)}`,
+            organization_id: orgId, created_by: userId,
+            entry_date: new Date().toISOString().split("T")[0],
+            memo: `P2P payment to ${v.name}`, status: "posted", source_type: "vendor_payment", is_posted: true,
+          }).select("id").single();
+          if (chainVPJE) {
+            await client.from("journal_lines").insert([
+              { journal_entry_id: chainVPJE.id, gl_account_id: glAccounts["2000"], debit: poTotal, credit: 0, description: `AP cleared - ${v.name}` },
+              { journal_entry_id: chainVPJE.id, gl_account_id: glAccounts["1000"], debit: 0, credit: poTotal, description: `Bank outflow - P2P` },
+            ]);
+          }
+        }
 
         // Mark bill as paid
         await client.from("bills").update({ status: "paid" }).eq("id", chainBill.id);
@@ -4521,16 +4593,16 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         // Step 2: Create DN linked to SO
         const { data: chainDN, error: dnErr } = await client.from("delivery_notes").insert({
           dn_number: `SIM-O2C-DN-${Date.now()}`, sales_order_id: chainSO.id,
-          organization_id: orgId, created_by: userId,
+          organization_id: orgId, dispatched_by: userId,
           status: "delivered", delivery_date: new Date().toISOString().split("T")[0],
-          warehouse_id: wh?.id ?? null,
         }).select("id").single();
         if (dnErr) throw dnErr;
 
         for (const item of chainItems) {
           await client.from("delivery_note_items").insert({
             delivery_note_id: chainDN.id, item_id: item.id,
-            description: item.name, ordered_quantity: 5, delivered_quantity: 5,
+            description: item.name, ordered_quantity: 5, shipped_quantity: 5,
+            warehouse_id: wh?.id ?? null,
           });
         }
 
@@ -4545,14 +4617,30 @@ async function runWorkflowSimulation(client: any, orgId: string, userId: string,
         }).select("id").single();
         if (invErr) throw invErr;
 
-        // Step 4: Payment Receipt linked to Invoice
-        const { error: prErr } = await client.from("payment_receipts").insert({
+        // Step 4: Payment Receipt linked to Invoice + post AR-clearing JE
+        const { data: chainPR, error: prErr } = await client.from("payment_receipts").insert({
           receipt_number: `SIM-O2C-PR-${Date.now()}`, customer_id: c.id, customer_name: c.name,
           organization_id: orgId, created_by: userId,
           amount: soTotal, payment_date: new Date().toISOString().split("T")[0],
-          payment_method: "bank_transfer", status: "completed", invoice_id: chainInv.id,
-        });
+          payment_method: "bank_transfer", status: "received", invoice_id: chainInv.id,
+        }).select("id").single();
         if (prErr) throw prErr;
+
+        // JE: Dr Cash/Bank (1000), Cr AR (1100)
+        if (chainPR && glAccounts["1000"] && glAccounts["1100"]) {
+          const { data: chainPRJE } = await client.from("journal_entries").insert({
+            document_sequence_number: `SIM-O2C-PR-JE-${chainPR.id.substring(0, 8)}`,
+            organization_id: orgId, created_by: userId,
+            entry_date: new Date().toISOString().split("T")[0],
+            memo: `O2C receipt from ${c.name}`, status: "posted", source_type: "payment_receipt", is_posted: true,
+          }).select("id").single();
+          if (chainPRJE) {
+            await client.from("journal_lines").insert([
+              { journal_entry_id: chainPRJE.id, gl_account_id: glAccounts["1000"], debit: soTotal, credit: 0, description: `Bank inflow - O2C` },
+              { journal_entry_id: chainPRJE.id, gl_account_id: glAccounts["1100"], debit: 0, credit: soTotal, description: `AR cleared - ${c.name}` },
+            ]);
+          }
+        }
 
         await client.from("invoices").update({ status: "paid" }).eq("id", chainInv.id);
 
@@ -5468,6 +5556,191 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
           });
         }
         await client.from("stock_adjustments").delete().eq("id", adjH.id);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // NEW CHAOS TESTS — systemic adjacency coverage
+  // ══════════════════════════════════════════════════════════════
+
+  // CHAOS-NEW-1: Bill with due_date BEFORE bill_date (temporal integrity)
+  {
+    const { data: v } = await client.from("vendors").select("id, name").eq("organization_id", orgId).limit(1).maybeSingle();
+    if (v) {
+      const today2 = new Date().toISOString().split("T")[0];
+      const past = new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0];
+      const { error: badDueErr } = await client.from("bills").insert({
+        bill_number: `CHAOS-DUE-${Date.now()}`,
+        vendor_name: v.name, organization_id: orgId, user_id: userId,
+        amount: 1000, tax_amount: 180, total_amount: 1180,
+        status: "draft", bill_date: today2, due_date: past,
+      });
+      results.push({
+        test: "Chaos: Bill due_date before bill_date", module: "Finance",
+        status: badDueErr ? "blocked" : "anomaly",
+        detail: badDueErr
+          ? `Correctly blocked: ${badDueErr.message}`
+          : "WARNING: Bill with due_date < bill_date accepted — add CHECK (due_date >= bill_date)",
+      });
+      if (!badDueErr) {
+        await client.from("bills").delete().eq("organization_id", orgId).like("bill_number", "CHAOS-DUE-%");
+      }
+    }
+  }
+
+  // CHAOS-NEW-2: Duplicate payroll run for an already-existing pay_period
+  {
+    const { data: existingRun } = await client.from("payroll_runs")
+      .select("pay_period").eq("organization_id", orgId).limit(1).maybeSingle();
+    if (existingRun) {
+      const { error: dupRunErr } = await client.from("payroll_runs").insert({
+        organization_id: orgId, pay_period: existingRun.pay_period,
+        generated_by: userId, status: "draft",
+        employee_count: 1, total_gross: 0, total_deductions: 0, total_net: 0,
+      });
+      results.push({
+        test: "Chaos: Duplicate payroll run same pay_period", module: "Payroll",
+        status: dupRunErr ? "blocked" : "anomaly",
+        detail: dupRunErr
+          ? `Correctly blocked: ${dupRunErr.message}`
+          : `WARNING: Duplicate payroll run for ${existingRun.pay_period} accepted — UNIQUE constraint missing or not enforced`,
+      });
+    }
+  }
+
+  // CHAOS-NEW-3: Payroll run with approved status and no approved_by (maker-checker integrity)
+  {
+    const { error: noApproverErr } = await client.from("payroll_runs").insert({
+      organization_id: orgId,
+      pay_period: `CHAOS-APPR-${Date.now().toString().slice(-6)}`,
+      generated_by: userId, status: "approved",
+      approved_by: null, employee_count: 0,
+      total_gross: 0, total_deductions: 0, total_net: 0,
+    });
+    results.push({
+      test: "Chaos: Payroll run approved without approved_by", module: "Payroll",
+      status: noApproverErr ? "blocked" : "anomaly",
+      detail: noApproverErr
+        ? `Correctly blocked: ${noApproverErr.message}`
+        : "WARNING: Approved payroll run inserted without approved_by — add NOT NULL constraint when status=approved",
+    });
+    if (!noApproverErr) {
+      await client.from("payroll_runs").delete().eq("organization_id", orgId)
+        .like("pay_period", "CHAOS-APPR-%");
+    }
+  }
+
+  // CHAOS-NEW-4: Journal entry with debit ≠ credit (accounting equation)
+  {
+    const { data: cJE } = await client.from("journal_entries").insert({
+      document_sequence_number: `CHAOS-IMBAL-JE-${Date.now()}`,
+      organization_id: orgId, created_by: userId,
+      entry_date: new Date().toISOString().split("T")[0],
+      memo: "Chaos: imbalanced entry attempt", status: "posted", is_posted: true,
+    }).select("id").single();
+    if (cJE && glAccounts["1000"] && glAccounts["4000"]) {
+      const { error: imbalErr } = await client.from("journal_lines").insert([
+        { journal_entry_id: cJE.id, gl_account_id: glAccounts["1000"], debit: 5000, credit: 0, description: "Imbalanced debit" },
+        { journal_entry_id: cJE.id, gl_account_id: glAccounts["4000"], debit: 0, credit: 9999, description: "Imbalanced credit" },
+      ]);
+      results.push({
+        test: "Chaos: Journal entry with debit ≠ credit (₹5,000 vs ₹9,999)", module: "Finance",
+        status: imbalErr ? "blocked" : "anomaly",
+        detail: imbalErr
+          ? `Correctly blocked: ${imbalErr.message}`
+          : "WARNING: Imbalanced JE accepted — add balance CHECK trigger on journal_entries",
+      });
+      await client.from("journal_entries").delete().eq("id", cJE.id);
+    }
+  }
+
+  // CHAOS-NEW-5: Item with invalid item_type (schema enum guard)
+  {
+    const { error: badTypeErr } = await client.from("items").insert({
+      name: "CHAOS Item", sku: `CHAOS-SKU-${Date.now()}`,
+      item_type: "goods",  // invalid — constraint is 'product','service','raw_material','finished_good','consumable'
+      organization_id: orgId, created_by: userId, is_active: true,
+      purchase_price: 100, selling_price: 200, opening_stock: 0,
+    });
+    results.push({
+      test: "Chaos: Item with invalid item_type='goods'", module: "Inventory",
+      status: badTypeErr ? "blocked" : "anomaly",
+      detail: badTypeErr
+        ? `Correctly blocked: ${badTypeErr.message}`
+        : "WARNING: Item with invalid item_type accepted — CHECK constraint missing or not applied",
+    });
+    if (!badTypeErr) {
+      await client.from("items").delete().eq("organization_id", orgId).like("sku", "CHAOS-SKU-%");
+    }
+  }
+
+  // CHAOS-NEW-6: Reimbursement with amount = 0 (zero-value guard)
+  {
+    const { data: prof } = await client.from("profiles").select("id, user_id")
+      .eq("organization_id", orgId).limit(1).maybeSingle();
+    if (prof) {
+      const { error: zeroRErr } = await client.from("reimbursement_requests").insert({
+        user_id: prof.user_id, profile_id: prof.id,
+        organization_id: orgId, amount: 0,
+        category: "meals", description: "Chaos: zero-amount reimbursement",
+        expense_date: new Date().toISOString().split("T")[0],
+        status: "submitted",
+      });
+      results.push({
+        test: "Chaos: Reimbursement amount = 0", module: "Reimbursement",
+        status: zeroRErr ? "blocked" : "anomaly",
+        detail: zeroRErr
+          ? `Correctly blocked: ${zeroRErr.message}`
+          : "WARNING: Zero-amount reimbursement accepted — add CHECK (amount > 0)",
+      });
+      if (!zeroRErr) {
+        await client.from("reimbursement_requests").delete().eq("organization_id", orgId)
+          .eq("amount", 0).eq("description", "Chaos: zero-amount reimbursement");
+      }
+    }
+  }
+
+  // CHAOS-NEW-7: Update a locked payroll_run's total_gross (terminal state enforcement)
+  {
+    const { data: lockedRun } = await client.from("payroll_runs")
+      .select("id").eq("organization_id", orgId).eq("status", "locked").limit(1).maybeSingle();
+    if (lockedRun) {
+      const { error: lockErr } = await client.from("payroll_runs")
+        .update({ total_gross: 999999999 }).eq("id", lockedRun.id);
+      results.push({
+        test: "TSM-PAYROLL: Modify locked payroll_run", module: "Payroll",
+        status: lockErr ? "blocked" : "anomaly",
+        detail: lockErr
+          ? `Correctly blocked: ${lockErr.message}`
+          : "CRITICAL: Locked payroll_run was modified — terminal state trigger not firing",
+      });
+    }
+  }
+
+  // CHAOS-NEW-8: Invoice with due_date before issue_date
+  {
+    const { data: cust } = await client.from("customers").select("id, name")
+      .eq("organization_id", orgId).limit(1).maybeSingle();
+    if (cust) {
+      const today3 = new Date().toISOString().split("T")[0];
+      const pastDate = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
+      const { error: badInvErr } = await client.from("invoices").insert({
+        invoice_number: `CHAOS-INV-DUE-${Date.now()}`,
+        client_name: cust.name, organization_id: orgId, user_id: userId,
+        total_amount: 1000, subtotal: 847, tax_amount: 153,
+        status: "draft", issue_date: today3, due_date: pastDate,
+      });
+      results.push({
+        test: "Chaos: Invoice due_date before issue_date", module: "Finance",
+        status: badInvErr ? "blocked" : "anomaly",
+        detail: badInvErr
+          ? `Correctly blocked: ${badInvErr.message}`
+          : "WARNING: Invoice with due_date < issue_date accepted — add CHECK (due_date >= issue_date)",
+      });
+      if (!badInvErr) {
+        await client.from("invoices").delete().eq("organization_id", orgId)
+          .like("invoice_number", "CHAOS-INV-DUE-%");
       }
     }
   }

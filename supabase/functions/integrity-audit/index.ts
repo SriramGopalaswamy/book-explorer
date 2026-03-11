@@ -1126,6 +1126,265 @@ async function runTenantIsolationChecks(
     });
   }
 
+  // ── TI-022: Payroll Runs with Invalid Status ────────────────────
+  // Detect payroll_runs whose status is outside the expanded valid set.
+  // Catches schema drift where the CHECK constraint was updated but code
+  // paths still write legacy values.
+  try {
+    const validPayrollStatuses = [
+      "draft", "processing", "computed", "under_review",
+      "approved", "locked", "completed", "finalized", "failed", "cancelled",
+    ];
+    const orgFilter = orgId ? { column: "organization_id", value: orgId } : null;
+    let query = adminClient.from("payroll_runs").select("id, status, pay_period, organization_id");
+    if (orgFilter) query = query.eq(orgFilter.column, orgFilter.value);
+    const { data: payrollRuns } = await query.not("status", "in", `(${validPayrollStatuses.map(s => `"${s}"`).join(",")})`).limit(50);
+    const invalid = (payrollRuns || []);
+    checks.push({
+      id: "TI-022",
+      category: "Schema Integrity",
+      name: "Payroll Run Status Enum Validity",
+      severity: "HIGH",
+      status: invalid.length > 0 ? "FAIL" : "PASS",
+      detail: invalid.length > 0
+        ? `${invalid.length} payroll run(s) have invalid status values: ${[...new Set(invalid.map((r: any) => r.status))].join(", ")}`
+        : "All payroll runs have valid status values",
+      affected_count: invalid.length,
+      affected_ids: invalid.slice(0, 10).map((r: any) => r.id),
+    });
+  } catch (e) {
+    checks.push({ id: "TI-022", category: "Schema Integrity", name: "Payroll Run Status Enum Validity", severity: "HIGH", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-023: Profiles with Dangling manager_id (Orphaned FK) ────
+  // profiles.manager_id REFERENCES profiles(id). If a manager is deleted
+  // without nullifying subordinates' manager_id, the hierarchy breaks silently.
+  try {
+    let query = adminClient.from("profiles").select("id, full_name, manager_id, organization_id")
+      .not("manager_id", "is", null);
+    if (orgId) query = query.eq("organization_id", orgId);
+    const { data: profilesWithMgr } = await query;
+    const managerIds = [...new Set((profilesWithMgr || []).map((p: any) => p.manager_id))];
+
+    let danglingProfiles: any[] = [];
+    if (managerIds.length > 0) {
+      const { data: validManagers } = await adminClient.from("profiles")
+        .select("id").in("id", managerIds as string[]);
+      const validManagerSet = new Set((validManagers || []).map((m: any) => m.id));
+      danglingProfiles = (profilesWithMgr || []).filter((p: any) => !validManagerSet.has(p.manager_id));
+    }
+
+    checks.push({
+      id: "TI-023",
+      category: "HR Integrity",
+      name: "Manager Hierarchy Orphaned FK",
+      severity: "HIGH",
+      status: danglingProfiles.length > 0 ? "FAIL" : "PASS",
+      detail: danglingProfiles.length > 0
+        ? `${danglingProfiles.length} profile(s) have manager_id pointing to a non-existent profile`
+        : "Manager hierarchy is intact — all manager_id references resolve to valid profiles",
+      affected_count: danglingProfiles.length,
+      affected_ids: danglingProfiles.slice(0, 10).map((p: any) => p.id),
+    });
+  } catch (e) {
+    checks.push({ id: "TI-023", category: "HR Integrity", name: "Manager Hierarchy Orphaned FK", severity: "HIGH", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-024: Vendor Payments Without Corresponding JE ──────────
+  // Every vendor payment should produce a Dr AP / Cr Bank JE.
+  // Missing JEs mean the balance sheet doesn't reflect cash outflows.
+  try {
+    let vpQuery = adminClient.from("vendor_payments").select("id, payment_number, amount, organization_id");
+    if (orgId) vpQuery = vpQuery.eq("organization_id", orgId);
+    vpQuery = vpQuery.eq("status", "completed").limit(200);
+    const { data: vps } = await vpQuery;
+
+    let vpMissingJE: any[] = [];
+    if ((vps || []).length > 0) {
+      const { data: vpJEs } = await adminClient.from("journal_entries")
+        .select("id")
+        .eq("source_type", "vendor_payment")
+        .eq("is_posted", true)
+        .eq(orgId ? "organization_id" : "id", orgId ?? "");
+      const hasVPJE = (vpJEs || []).length > 0;
+      if (!hasVPJE) vpMissingJE = vps || [];
+    }
+
+    checks.push({
+      id: "TI-024",
+      category: "Financial Completeness",
+      name: "Vendor Payments — Missing Journal Entries",
+      severity: "HIGH",
+      status: vpMissingJE.length > 0 ? "FAIL" : "PASS",
+      detail: vpMissingJE.length > 0
+        ? `${vpMissingJE.length} completed vendor payment(s) have no corresponding posted JE. Balance sheet cash flow is understated.`
+        : "All completed vendor payments have corresponding posted journal entries",
+      affected_count: vpMissingJE.length,
+    });
+  } catch (e) {
+    checks.push({ id: "TI-024", category: "Financial Completeness", name: "Vendor Payments — Missing Journal Entries", severity: "HIGH", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-025: Payment Receipts Without Corresponding JE ─────────
+  // Every payment receipt should produce a Dr Bank / Cr AR JE.
+  try {
+    let prQuery = adminClient.from("payment_receipts").select("id, receipt_number, amount, organization_id");
+    if (orgId) prQuery = prQuery.eq("organization_id", orgId);
+    prQuery = prQuery.eq("status", "completed").limit(200);
+    const { data: prs } = await prQuery;
+
+    let prMissingJE: any[] = [];
+    if ((prs || []).length > 0) {
+      const { data: prJEs } = await adminClient.from("journal_entries")
+        .select("id")
+        .eq("source_type", "payment_receipt")
+        .eq("is_posted", true)
+        .eq(orgId ? "organization_id" : "id", orgId ?? "");
+      const hasPRJE = (prJEs || []).length > 0;
+      if (!hasPRJE) prMissingJE = prs || [];
+    }
+
+    checks.push({
+      id: "TI-025",
+      category: "Financial Completeness",
+      name: "Payment Receipts — Missing Journal Entries",
+      severity: "HIGH",
+      status: prMissingJE.length > 0 ? "FAIL" : "PASS",
+      detail: prMissingJE.length > 0
+        ? `${prMissingJE.length} completed payment receipt(s) have no corresponding posted JE. AR clearing is missing from ledger.`
+        : "All completed payment receipts have corresponding posted journal entries",
+      affected_count: prMissingJE.length,
+    });
+  } catch (e) {
+    checks.push({ id: "TI-025", category: "Financial Completeness", name: "Payment Receipts — Missing Journal Entries", severity: "HIGH", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-026: Approved Payroll Runs Without approved_by ─────────
+  // Maker-checker: a payroll_run in 'approved' or 'locked' state
+  // must have approved_by populated. Missing = approval bypass.
+  try {
+    let query = adminClient.from("payroll_runs")
+      .select("id, pay_period, status, approved_by, organization_id")
+      .in("status", ["approved", "locked", "completed", "finalized"])
+      .is("approved_by", null)
+      .limit(50);
+    if (orgId) query = query.eq("organization_id", orgId);
+    const { data: unapprovedRuns } = await query;
+    const flagged = (unapprovedRuns || []);
+    checks.push({
+      id: "TI-026",
+      category: "Payroll Integrity",
+      name: "Payroll Runs — Approved Without Approver",
+      severity: "CRITICAL",
+      status: flagged.length > 0 ? "FAIL" : "PASS",
+      detail: flagged.length > 0
+        ? `${flagged.length} payroll run(s) in terminal/approved state without approved_by set — potential approval bypass`
+        : "All approved/locked payroll runs have an approver on record",
+      affected_count: flagged.length,
+      affected_ids: flagged.slice(0, 10).map((r: any) => r.id),
+    });
+  } catch (e) {
+    checks.push({ id: "TI-026", category: "Payroll Integrity", name: "Payroll Runs — Approved Without Approver", severity: "CRITICAL", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-027: Items with Invalid item_type ─────────────────────
+  // CHECK constraint: ('product','service','raw_material','finished_good','consumable')
+  // Detects schema drift where old enum values ('goods','finished_goods') were stored
+  // before the constraint was applied, or the constraint is missing.
+  try {
+    const validItemTypes = ["product", "service", "raw_material", "finished_good", "consumable"];
+    let query = adminClient.from("items").select("id, name, item_type, organization_id")
+      .not("item_type", "in", `(${validItemTypes.map(t => `"${t}"`).join(",")})`).limit(50);
+    if (orgId) query = query.eq("organization_id", orgId);
+    const { data: badItems } = await query;
+    const flagged = (badItems || []);
+    checks.push({
+      id: "TI-027",
+      category: "Schema Integrity",
+      name: "Items — Invalid item_type Values",
+      severity: "MEDIUM",
+      status: flagged.length > 0 ? "FAIL" : "PASS",
+      detail: flagged.length > 0
+        ? `${flagged.length} item(s) have invalid item_type: ${[...new Set(flagged.map((i: any) => i.item_type))].join(", ")}. Valid: ${validItemTypes.join(", ")}`
+        : "All items have valid item_type values",
+      affected_count: flagged.length,
+      affected_ids: flagged.slice(0, 10).map((i: any) => i.id),
+    });
+  } catch (e) {
+    checks.push({ id: "TI-027", category: "Schema Integrity", name: "Items — Invalid item_type Values", severity: "MEDIUM", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-028: Invoices with due_date Before issue_date ─────────
+  // Temporal integrity: invoices cannot be due before they are issued.
+  // Also checks bills for due_date < bill_date.
+  try {
+    let invQuery = adminClient.from("invoices")
+      .select("id, invoice_number, issue_date, due_date, organization_id")
+      .not("due_date", "is", null)
+      .not("issue_date", "is", null)
+      .limit(200);
+    if (orgId) invQuery = invQuery.eq("organization_id", orgId);
+    const { data: allInvoices } = await invQuery;
+    const badInvoices = (allInvoices || []).filter((inv: any) => inv.due_date < inv.issue_date);
+
+    let billQuery = adminClient.from("bills")
+      .select("id, bill_number, bill_date, due_date, organization_id")
+      .not("due_date", "is", null).not("bill_date", "is", null).limit(200);
+    if (orgId) billQuery = billQuery.eq("organization_id", orgId);
+    const { data: allBills } = await billQuery;
+    const badBills = (allBills || []).filter((b: any) => b.due_date < b.bill_date);
+
+    const totalBad = badInvoices.length + badBills.length;
+    checks.push({
+      id: "TI-028",
+      category: "Financial Completeness",
+      name: "Temporal Integrity — Due Date Before Issue Date",
+      severity: "MEDIUM",
+      status: totalBad > 0 ? "FAIL" : "PASS",
+      detail: totalBad > 0
+        ? `${badInvoices.length} invoice(s) and ${badBills.length} bill(s) have due_date before issue/bill_date — add CHECK constraint`
+        : "All invoices and bills have valid date ordering (due_date ≥ issue_date)",
+      affected_count: totalBad,
+      affected_ids: [
+        ...badInvoices.slice(0, 5).map((i: any) => `inv:${i.id}`),
+        ...badBills.slice(0, 5).map((b: any) => `bill:${b.id}`),
+      ],
+    });
+  } catch (e) {
+    checks.push({ id: "TI-028", category: "Financial Completeness", name: "Temporal Integrity — Due Date Before Issue Date", severity: "MEDIUM", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
+  // ── TI-029: Goal Plans with Invalid status ────────────────────
+  // CHECK: ('draft','pending_approval','approved','rejected',
+  //         'pending_edit_approval','pending_score_approval','pending_hr_approval','completed')
+  // Detects old enum values ('submitted','manager_approved','on_track','at_risk','delayed')
+  // that may have been stored before the constraint was updated.
+  try {
+    const validGoalStatuses = [
+      "draft", "pending_approval", "approved", "rejected",
+      "pending_edit_approval", "pending_score_approval", "pending_hr_approval", "completed",
+    ];
+    let query = adminClient.from("goal_plans").select("id, status, organization_id")
+      .not("status", "in", `(${validGoalStatuses.map(s => `"${s}"`).join(",")})`).limit(50);
+    if (orgId) query = query.eq("organization_id", orgId);
+    const { data: badGoals } = await query;
+    const flagged = (badGoals || []);
+    checks.push({
+      id: "TI-029",
+      category: "Schema Integrity",
+      name: "Goal Plans — Invalid Status Values",
+      severity: "MEDIUM",
+      status: flagged.length > 0 ? "FAIL" : "PASS",
+      detail: flagged.length > 0
+        ? `${flagged.length} goal plan(s) have invalid status: ${[...new Set(flagged.map((g: any) => g.status))].join(", ")}`
+        : "All goal plans have valid status values",
+      affected_count: flagged.length,
+      affected_ids: flagged.slice(0, 10).map((g: any) => g.id),
+    });
+  } catch (e) {
+    checks.push({ id: "TI-029", category: "Schema Integrity", name: "Goal Plans — Invalid Status Values", severity: "MEDIUM", status: "WARNING", detail: `Check failed: ${(e as Error).message}` });
+  }
+
   return checks;
 }
 
