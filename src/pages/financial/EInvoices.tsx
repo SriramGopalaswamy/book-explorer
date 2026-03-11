@@ -277,7 +277,7 @@ export default function EInvoices() {
                         <Label>State</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).map(([code, name]) => <SelectItem key={code} value={code}>{code} - {name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
