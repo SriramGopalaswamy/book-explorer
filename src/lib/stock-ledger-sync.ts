@@ -203,10 +203,12 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
     .eq("bom_id", woData.bom_id);
   if (lErr || !lines || lines.length === 0) return;
 
-  // Resolve warehouse
+  // Resolve warehouse — org-scoped
   let warehouseId = woData.warehouse_id;
-  if (!warehouseId) {
-    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").limit(1);
+  const { data: woFull } = await supabase.from("work_orders" as any).select("organization_id").eq("id", workOrderId).maybeSingle();
+  const woOrgId = (woFull as any)?.organization_id;
+  if (!warehouseId && woOrgId) {
+    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").eq("organization_id", woOrgId).limit(1);
     warehouseId = (defaultWh as any)?.[0]?.id;
   }
   if (!warehouseId) return;
