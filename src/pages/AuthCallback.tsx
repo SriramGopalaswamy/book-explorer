@@ -66,11 +66,6 @@ export default function AuthCallback() {
           return;
         }
 
-        if (data?.pending) {
-          navigate("/pending-approval", { replace: true });
-          return;
-        }
-
         if (data?.session) {
           await supabase.auth.setSession({
             access_token: data.session.access_token,

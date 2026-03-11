@@ -19,29 +19,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
-  Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  UserCog, Clock,
+  Cloud, CheckCircle2, Loader2, Save, History, Lock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -61,9 +45,6 @@ interface UserWithRole {
   department: string | null;
   job_title: string | null;
   roles: string[];
-  status: string;
-  manager_id: string | null;
-  pending_manager_email: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -80,20 +61,6 @@ const ROLE_COLORS: Record<string, string> = {
   manager: "bg-accent/50 text-accent-foreground border-accent",
   finance: "bg-chart-2/10 text-chart-2 border-chart-2/20",
   employee: "bg-muted text-muted-foreground border-border",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  active: "Active",
-  inactive: "Inactive",
-  on_leave: "On Leave",
-  pending_approval: "Pending Approval",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-500/10 text-green-500 border-green-500/20",
-  inactive: "bg-red-500/10 text-red-500 border-red-500/20",
-  on_leave: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-  pending_approval: "bg-blue-500/10 text-blue-500 border-blue-500/20",
 };
 
 // ─── Branding Section ─────────────────────────────────────────────────────────
@@ -776,25 +743,8 @@ function UserManagementSection() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
-  const [actionUser, setActionUser] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Manager reassignment dialog state
-  const [managerDialogOpen, setManagerDialogOpen] = useState(false);
-  const [managerDialogTarget, setManagerDialogTarget] = useState<UserWithRole | null>(null);
-  const [managerDialogAction, setManagerDialogAction] = useState<"deactivate" | "delete" | null>(null);
-  const [replacementManagerId, setReplacementManagerId] = useState<string>("");
-
-  // Set manager dialog state
-  const [setManagerDialogOpen, setSetManagerDialogOpen] = useState(false);
-  const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
-  const [newManagerUserId, setNewManagerUserId] = useState<string>("");
-  const [updatingManager, setUpdatingManager] = useState(false);
-
-  const activeUsers = useMemo(
-    () => users.filter((u) => u.status === "active" || u.status === "on_leave"),
-    [users]
-  );
 
   const filteredUsers = useMemo(() => {
     if (!searchQuery.trim()) return users;
@@ -805,22 +755,17 @@ function UserManagementSection() {
         u.email?.toLowerCase().includes(q) ||
         u.department?.toLowerCase().includes(q) ||
         u.job_title?.toLowerCase().includes(q) ||
-        u.status?.toLowerCase().includes(q) ||
         u.roles.some((r) => r.toLowerCase().includes(q))
     );
   }, [users, searchQuery]);
 
-  const refreshUsers = async () => {
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "list_users" },
-    });
-    if (data?.users) setUsers(data.users);
-  };
-
   useEffect(() => {
     if (!user) return;
     (async () => {
-      await refreshUsers();
+      const { data } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "list_users" },
+      });
+      if (data?.users) setUsers(data.users);
       setLoading(false);
     })();
   }, [user]);
@@ -841,96 +786,18 @@ function UserManagementSection() {
     setUpdatingUser(null);
   };
 
-  const handleApproveUser = async (userId: string, role: string) => {
-    setActionUser(userId);
+  const handleDeleteUser = async (userId: string, email: string | null) => {
+    setDeletingUser(userId);
     const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "approve_user", user_id: userId, role },
+      body: { action: "delete_user", user_id: userId },
     });
     if (error || data?.error) {
-      toast.error(data?.error || "Failed to approve user");
+      toast.error(data?.error || "Failed to delete user");
     } else {
-      toast.success("User approved and activated");
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, status: "active", roles: [role] } : u))
-      );
+      toast.success(`User ${email || "unknown"} deleted successfully`);
+      setUsers((prev) => prev.filter((u) => u.user_id !== userId));
     }
-    setActionUser(null);
-  };
-
-  // Check for direct reports before deactivating/deleting
-  const initiateDeactivateOrDelete = async (targetUser: UserWithRole, action: "deactivate" | "delete") => {
-    // Look up the target's profile_id from the users list (manager_id is a profile.id, not user_id)
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "get_direct_reports", profile_id: targetUser.manager_id },
-    });
-    // We need profile_id of the target, but we only have user_id.
-    // Use a simpler check: filter users whose manager_id matches target's manager_id would be wrong.
-    // Instead check users array for anyone whose manager_id is not null (manager_id references profiles.id)
-    // Since we don't have the target's profile.id in UserWithRole, we'll just open the dialog directly.
-    setManagerDialogTarget(targetUser);
-    setManagerDialogAction(action);
-    setReplacementManagerId("");
-    setManagerDialogOpen(true);
-  };
-
-  const executeDeactivateOrDelete = async () => {
-    if (!managerDialogTarget || !managerDialogAction) return;
-    const userId = managerDialogTarget.user_id;
-    setActionUser(userId);
-    setManagerDialogOpen(false);
-
-    const actionName = managerDialogAction === "deactivate" ? "deactivate_user" : "delete_user";
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: {
-        action: actionName,
-        user_id: userId,
-        replacement_manager_id: replacementManagerId || undefined,
-      },
-    });
-
-    if (error || data?.error) {
-      toast.error(data?.error || `Failed to ${managerDialogAction} user`);
-    } else {
-      if (managerDialogAction === "deactivate") {
-        toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been deactivated`);
-        setUsers((prev) =>
-          prev.map((u) => (u.user_id === userId ? { ...u, status: "inactive" } : u))
-        );
-      } else {
-        toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been removed`);
-        setUsers((prev) => prev.filter((u) => u.user_id !== userId));
-      }
-    }
-
-    setActionUser(null);
-    setManagerDialogTarget(null);
-    setManagerDialogAction(null);
-  };
-
-  const handleSetManager = async () => {
-    if (!setManagerTarget) return;
-    setUpdatingManager(true);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: {
-        action: "update_manager",
-        user_id: setManagerTarget.user_id,
-        manager_user_id: newManagerUserId || undefined,
-      },
-    });
-    if (error || data?.error) {
-      toast.error(data?.error || "Failed to update manager");
-    } else {
-      toast.success("Manager updated successfully");
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.user_id === setManagerTarget.user_id
-            ? { ...u, pending_manager_email: null }
-            : u
-        )
-      );
-      setSetManagerDialogOpen(false);
-    }
-    setUpdatingManager(false);
+    setDeletingUser(null);
   };
 
   if (loading) {
@@ -946,109 +813,15 @@ function UserManagementSection() {
 
   return (
     <div className="space-y-6">
-      {/* Manager Reassignment Dialog (shown before deactivate/delete) */}
-      <Dialog open={managerDialogOpen} onOpenChange={setManagerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {managerDialogAction === "deactivate" ? "Deactivate" : "Remove"}{" "}
-              {managerDialogTarget?.full_name || managerDialogTarget?.email}
-            </DialogTitle>
-            <DialogDescription>
-              {managerDialogAction === "deactivate"
-                ? "This user will lose all system access immediately. Their data and history will be preserved. If they manage other employees, reassign those reports now."
-                : "This removes the user's login access. Their work history is retained but they cannot be recovered. If they manage other employees, reassign those reports now."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>Reassign direct reports to (optional)</Label>
-            <Select value={replacementManagerId} onValueChange={setReplacementManagerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Leave reports without manager..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUsers
-                  .filter((u) => u.user_id !== managerDialogTarget?.user_id)
-                  .map((u) => (
-                    <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.full_name || u.email}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setManagerDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={executeDeactivateOrDelete}
-              disabled={!!actionUser}
-            >
-              {managerDialogAction === "deactivate" ? (
-                <><UserX className="h-4 w-4 mr-2" />Deactivate</>
-              ) : (
-                <><Trash2 className="h-4 w-4 mr-2" />Remove</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Set Manager Dialog */}
-      <Dialog open={setManagerDialogOpen} onOpenChange={setSetManagerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set Manager for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
-            <DialogDescription>
-              Manually assign a manager. This overrides the MS365 org chart.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>Manager</Label>
-            <Select value={newManagerUserId} onValueChange={setNewManagerUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select manager..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUsers
-                  .filter((u) => u.user_id !== setManagerTarget?.user_id)
-                  .map((u) => (
-                    <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.full_name || u.email}
-                      {u.job_title ? ` · ${u.job_title}` : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            {setManagerTarget?.pending_manager_email && (
-              <p className="text-xs text-yellow-600">
-                Waiting on MS365 sync for: {setManagerTarget.pending_manager_email}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSetManagerDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSetManager} disabled={updatingManager}>
-              {updatingManager && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              User Management
+              User Role Management
             </CardTitle>
             <CardDescription>
-              Manage user access, roles, and org hierarchy. Pending users must be approved before they can sign in.
+              Assign roles to control what each user can access. Changes take effect on next sign-in.
             </CardDescription>
           </div>
           <BulkUploadDialog config={bulkUploadConfig} />
@@ -1057,7 +830,7 @@ function UserManagementSection() {
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, department, role, or status..."
+              placeholder="Search by name, email, department, or role..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -1067,23 +840,22 @@ function UserManagementSection() {
             {filteredUsers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
                 {users.length === 0
-                  ? "No users found. Users will appear here after they sign in or are created by an admin."
+                  ? "No users found. Users will appear here after they sign in."
                   : "No users match your search."}
               </p>
             ) : (
               filteredUsers.map((u) => {
                 const currentRole = u.roles[0] || "employee";
                 const isSelf = u.user_id === user?.id;
-                const isPending = u.status === "pending_approval";
-                const isInactive = u.status === "inactive";
+                const isProtected = u.email?.toLowerCase() === "sriram@grx10.com";
 
                 return (
                   <div
                     key={u.user_id}
-                    className="flex items-start justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/30"
+                    className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/30"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2">
                         <p className="font-medium truncate">
                           {u.full_name || "Unnamed User"}
                         </p>
@@ -1092,13 +864,11 @@ function UserManagementSection() {
                             You
                           </Badge>
                         )}
-                        <Badge
-                          variant="outline"
-                          className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
-                        >
-                          {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
-                          {STATUS_LABELS[u.status] || u.status}
-                        </Badge>
+                        {isProtected && (
+                          <Badge variant="outline" className="text-xs shrink-0 border-primary/30 text-primary">
+                            Protected
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {u.email}
@@ -1108,33 +878,9 @@ function UserManagementSection() {
                           {u.department} {u.job_title ? `· ${u.job_title}` : ""}
                         </p>
                       )}
-                      {u.pending_manager_email && (
-                        <p className="text-xs text-yellow-600 mt-0.5">
-                          Manager pending: {u.pending_manager_email}
-                        </p>
-                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                      {/* Approve button for pending users */}
-                      {isPending && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
-                          disabled={actionUser === u.user_id}
-                          onClick={() => handleApproveUser(u.user_id, currentRole)}
-                        >
-                          {actionUser === u.user_id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <UserCheck className="h-3 w-3 mr-1" />
-                          )}
-                          Approve
-                        </Button>
-                      )}
-
-                      {/* Role badge */}
+                    <div className="flex items-center gap-3 shrink-0">
                       <Badge
                         variant="outline"
                         className={ROLE_COLORS[currentRole] || ROLE_COLORS.employee}
@@ -1142,76 +888,53 @@ function UserManagementSection() {
                         {ROLE_LABELS[currentRole] || currentRole}
                       </Badge>
 
-                      {/* Role selector (disabled for inactive/pending or self) */}
-                      {!isInactive && (
-                        <Select
-                          value={currentRole}
-                          onValueChange={(val) => handleRoleChange(u.user_id, val)}
-                          disabled={isSelf || updatingUser === u.user_id}
-                        >
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="finance">Finance</SelectItem>
-                            <SelectItem value="hr">HR</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
+                      <Select
+                        value={currentRole}
+                        onValueChange={(val) => handleRoleChange(u.user_id, val)}
+                        disabled={isSelf || updatingUser === u.user_id}
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="finance">Finance</SelectItem>
+                          <SelectItem value="hr">HR</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                        </SelectContent>
+                      </Select>
 
-                      {/* Set Manager button */}
-                      {!isInactive && !isSelf && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title="Set Manager"
-                          onClick={() => {
-                            setSetManagerTarget(u);
-                            setNewManagerUserId("");
-                            setSetManagerDialogOpen(true);
-                          }}
-                        >
-                          <UserCog className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {/* Deactivate / Delete dropdown */}
-                      {!isSelf && !isInactive && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                      {!isSelf && !isProtected && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              disabled={actionUser === u.user_id}
+                              disabled={deletingUser === u.user_id}
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {!isPending && (
-                              <DropdownMenuItem
-                                className="text-yellow-600 focus:text-yellow-600"
-                                onClick={() => initiateDeactivateOrDelete(u, "deactivate")}
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete <strong>{u.full_name || u.email}</strong>? This will permanently remove their account, profile, and all associated roles. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => handleDeleteUser(u.user_id, u.email)}
                               >
-                                <UserX className="h-4 w-4 mr-2" />
-                                Deactivate
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => initiateDeactivateOrDelete(u, "delete")}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove permanently
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </div>

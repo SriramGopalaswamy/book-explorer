@@ -67,23 +67,16 @@ Deno.serve(async (req) => {
     });
   }
 
-  const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-
   try {
     const body = await req.json();
     const { action } = body;
 
-    // ─────────────────────────────────────────────
-    // list_users — returns all users in org with status and manager info
-    // ─────────────────────────────────────────────
     if (action === "list_users") {
+      // Fetch profiles and roles in parallel
       const [profilesResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email")
+          .select("user_id, full_name, email, department, job_title")
           .eq("organization_id", requestingOrgId),
         supabase
           .from("user_roles")
@@ -103,9 +96,6 @@ Deno.serve(async (req) => {
         email: p.email,
         department: p.department,
         job_title: p.job_title,
-        status: p.status || "active",
-        manager_id: p.manager_id,
-        pending_manager_email: p.pending_manager_email,
         roles: roleMap.get(p.user_id) || ["employee"],
       }));
 
@@ -114,9 +104,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─────────────────────────────────────────────
-    // set_role — change a user's role
-    // ─────────────────────────────────────────────
     if (action === "set_role") {
       const { user_id, role } = body;
 
@@ -171,163 +158,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─────────────────────────────────────────────
-    // approve_user — approve a pending user, set status active and assign role
-    // ─────────────────────────────────────────────
-    if (action === "approve_user") {
-      const { user_id, role } = body;
-
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const assignedRole = (role || "employee").toLowerCase();
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
-      if (!validRoles.includes(assignedRole)) {
-        return new Response(JSON.stringify({ error: "Invalid role" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // SECURITY: Verify target user belongs to same org
-      const { data: targetMember } = await supabase
-        .from("organization_members")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("organization_id", requestingOrgId)
-        .maybeSingle();
-      if (!targetMember) {
-        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Verify user is actually pending
-      const { data: pendingProfile } = await supabase
-        .from("profiles")
-        .select("status")
-        .eq("user_id", user_id)
-        .maybeSingle();
-
-      if (!pendingProfile || pendingProfile.status !== "pending_approval") {
-        return new Response(JSON.stringify({ error: "User is not in pending_approval status" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Activate the profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ status: "active" })
-        .eq("user_id", user_id);
-
-      if (updateError) {
-        console.error("Profile activate error:", updateError);
-        return new Response(JSON.stringify({ error: "Failed to activate user" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Upsert role (replace any existing)
-      await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
-      await supabase.from("user_roles").insert({ user_id, role: assignedRole });
-
-      // Unban in auth if previously banned
-      await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ─────────────────────────────────────────────
-    // deactivate_user — soft deactivate: marks inactive, bans auth, reassigns reports
-    // ─────────────────────────────────────────────
-    if (action === "deactivate_user") {
-      const { user_id, replacement_manager_id } = body;
-
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // SECURITY: Verify target user belongs to same org
-      const { data: targetMemberDea } = await supabase
-        .from("organization_members")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("organization_id", requestingOrgId)
-        .maybeSingle();
-      if (!targetMemberDea) {
-        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Prevent deactivating protected accounts
-      const { data: targetProfileDea } = await supabase
-        .from("profiles")
-        .select("id, email")
-        .eq("user_id", user_id)
-        .maybeSingle();
-
-      if (targetProfileDea?.email && protectedEmails.includes(targetProfileDea.email.toLowerCase())) {
-        return new Response(JSON.stringify({ error: "This account is protected and cannot be deactivated" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Reassign direct reports to replacement manager (or null if none provided)
-      if (targetProfileDea?.id) {
-        await supabase
-          .from("profiles")
-          .update({ manager_id: replacement_manager_id || null })
-          .eq("manager_id", targetProfileDea.id)
-          .eq("organization_id", requestingOrgId);
-      }
-
-      // Soft deactivate: set status inactive + soft delete flags
-      const { error: deactivateError } = await supabase
-        .from("profiles")
-        .update({
-          status: "inactive",
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        })
-        .eq("user_id", user_id);
-
-      if (deactivateError) {
-        console.error("Deactivate error:", deactivateError);
-        return new Response(JSON.stringify({ error: "Failed to deactivate user" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Ban user in auth to immediately invalidate future token refreshes (~100 years)
-      await supabase.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ─────────────────────────────────────────────
-    // delete_user — soft-deletes profile (trigger blocks hard delete), hard-deletes auth user
-    // ─────────────────────────────────────────────
     if (action === "delete_user") {
-      const { user_id, replacement_manager_id } = body;
+      const { user_id } = body;
 
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
@@ -351,9 +183,10 @@ Deno.serve(async (req) => {
       }
 
       // Protect designated admin accounts from deletion
+      const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
       const { data: targetProfile } = await supabase
         .from("profiles")
-        .select("id, email")
+        .select("email")
         .eq("user_id", user_id)
         .maybeSingle();
 
@@ -364,33 +197,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Reassign direct reports before removing manager reference
-      if (targetProfile?.id) {
-        await supabase
-          .from("profiles")
-          .update({ manager_id: replacement_manager_id || null })
-          .eq("manager_id", targetProfile.id)
-          .eq("organization_id", requestingOrgId);
-      }
-
       // Delete user roles
       await supabase.from("user_roles").delete().eq("user_id", user_id);
 
-      // Soft delete profile (prevent_profile_hard_delete trigger blocks actual DELETE)
-      await supabase
-        .from("profiles")
-        .update({
-          status: "inactive",
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        })
-        .eq("user_id", user_id);
+      // Delete profile
+      await supabase.from("profiles").delete().eq("user_id", user_id);
 
-      // Hard delete auth user (removes login ability; profile data is preserved)
+      // Delete auth user (may not exist for seeded/mock users)
       const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
 
       if (deleteError && deleteError.status !== 404) {
-        console.error("Delete auth user error:", deleteError);
+        console.error("Delete user error:", deleteError);
         return new Response(JSON.stringify({ error: "Failed to delete user: " + deleteError.message }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -402,109 +219,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─────────────────────────────────────────────
-    // get_direct_reports — list employees managed by a given profile
-    // ─────────────────────────────────────────────
-    if (action === "get_direct_reports") {
-      const { profile_id } = body;
-
-      if (!profile_id) {
-        return new Response(JSON.stringify({ error: "profile_id required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const { data: reports } = await supabase
-        .from("profiles")
-        .select("id, user_id, full_name, email")
-        .eq("manager_id", profile_id)
-        .eq("organization_id", requestingOrgId)
-        .neq("status", "inactive");
-
-      return new Response(JSON.stringify({ direct_reports: reports || [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ─────────────────────────────────────────────
-    // update_manager — admin manually sets manager_id for a user.
-    // Accepts manager_user_id (auth user UUID) and resolves to profiles.id internally.
-    // ─────────────────────────────────────────────
-    if (action === "update_manager") {
-      const { user_id, manager_user_id } = body; // manager_user_id = null to remove manager
-
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // SECURITY: Verify target user belongs to same org
-      const { data: targetMemberMgr } = await supabase
-        .from("organization_members")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("organization_id", requestingOrgId)
-        .maybeSingle();
-      if (!targetMemberMgr) {
-        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Resolve manager_user_id → manager profiles.id (FK on profiles.manager_id)
-      let resolvedManagerProfileId: string | null = null;
-      if (manager_user_id) {
-        // Self-assignment check
-        if (manager_user_id === user_id) {
-          return new Response(JSON.stringify({ error: "A user cannot be their own manager" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        const { data: managerProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("user_id", manager_user_id)
-          .eq("organization_id", requestingOrgId)
-          .maybeSingle();
-        if (!managerProfile) {
-          return new Response(JSON.stringify({ error: "Manager not found in your organization" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        resolvedManagerProfileId = managerProfile.id;
-      }
-
-      const { error: mgrUpdateError } = await supabase
-        .from("profiles")
-        .update({
-          manager_id: resolvedManagerProfileId,
-          pending_manager_email: null,
-        })
-        .eq("user_id", user_id);
-
-      if (mgrUpdateError) {
-        console.error("Update manager error:", mgrUpdateError);
-        return new Response(JSON.stringify({ error: "Failed to update manager" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ─────────────────────────────────────────────
-    // create_user — single user creation by admin
-    // ─────────────────────────────────────────────
     if (action === "create_user") {
       const { email, full_name, department, job_title, phone, join_date, status, role, manager_id } = body;
 
@@ -538,7 +252,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Create auth user with a temporary password; they'll sign in via MS365
+      // Create auth user with a temporary password; they'll reset via email
       const tempPassword = crypto.randomUUID() + "Aa1!";
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: email.toLowerCase().trim(),
@@ -556,7 +270,7 @@ Deno.serve(async (req) => {
 
       const userId = newUser.user.id;
 
-      // Upsert profile — admin-created users start as 'active' (pre-provisioned)
+      // Upsert profile
       const { error: profileError } = await supabase.from("profiles").upsert({
         user_id: userId,
         full_name: full_name || null,
@@ -571,6 +285,7 @@ Deno.serve(async (req) => {
 
       if (profileError) {
         console.error("Profile upsert error:", profileError);
+        // Attempt to clean up the auth user
         await supabase.auth.admin.deleteUser(userId);
         return new Response(JSON.stringify({ error: "Failed to create profile" }), {
           status: 500,
@@ -586,9 +301,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ─────────────────────────────────────────────
-    // bulk_create_users — CSV-based bulk create/update
-    // ─────────────────────────────────────────────
     if (action === "bulk_create_users") {
       const { users: newUsers } = body;
 
@@ -665,7 +377,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Create auth user — admin bulk-created users start as 'active' (pre-provisioned)
+          // Create auth user
           const tempPassword = crypto.randomUUID() + "Aa1!";
           const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
             email,
@@ -679,7 +391,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Create profile with active status (pre-provisioned by admin)
+          // Create profile
           await supabase.from("profiles").upsert({
             user_id: newUser.user.id,
             full_name: fullName,
