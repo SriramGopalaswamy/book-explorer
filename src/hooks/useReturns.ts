@@ -235,7 +235,7 @@ export function useCreatePurchaseReturn() {
         }
       }
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
       const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);

@@ -139,7 +139,7 @@ export function useCreateStockTransfer() {
         throw new Error("Transfer date cannot be in the future.");
       }
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
 
       const num = `TRF-${Date.now().toString(36).toUpperCase()}`;
