@@ -102,6 +102,7 @@ export interface ESIRow {
   employee_contribution: number; // 0.75%
   employer_contribution: number; // 3.25%
   total_contribution: number;
+  pay_period?: string;
 }
 
 // ── Professional Tax row ──
