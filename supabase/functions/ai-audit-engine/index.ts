@@ -21,13 +21,14 @@ serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify user via getUser
+    // Verify JWT via getClaims (no DB call)
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (userError || !userData?.user) throw new Error("Unauthorized");
-    const userId = userData.user.id;
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) throw new Error("Unauthorized");
+    const userId = claimsData.claims.sub;
 
     // Use service role for data operations
     const supabase = createClient(supabaseUrl, serviceKey);
