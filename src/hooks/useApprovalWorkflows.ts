@@ -109,13 +109,18 @@ export function useToggleWorkflow() {
 }
 
 export function useApprovalRequests() {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
   return useQuery({
-    queryKey: ["approval-requests"],
+    queryKey: ["approval-requests", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("approval_requests" as any).select("*").order("created_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalRequest[];
     },
+    enabled: !!orgId,
   });
 }
 
