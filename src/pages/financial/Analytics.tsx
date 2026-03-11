@@ -184,6 +184,20 @@ export default function Analytics() {
           </TabsContent>
 
           {/* Reports Tab */}
+          <TabsContent value="reports" className="space-y-6 mt-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Filter period:</span>
+              <ReportsDateFilter
+                from={reportFrom}
+                to={reportTo}
+                onFromChange={setReportFrom}
+                onToChange={setReportTo}
+                onClear={() => { setReportFrom(undefined); setReportTo(undefined); }}
+              />
+            </div>
+            <ProfitLossStatement periodData={periodPL ?? undefined} from={reportFrom} to={reportTo} />
+            <BalanceSheetSummary asOfDate={reportTo} />
+          </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
