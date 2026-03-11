@@ -172,6 +172,7 @@ export function useEInvoices() {
           signed_qr_code: btoa(qrData),
         })
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
