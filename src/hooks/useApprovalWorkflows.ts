@@ -134,12 +134,17 @@ export function useApproveRequest() {
       // Double-review guard: verify request is still pending
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status, document_type, document_id")
+        .select("status, document_type, document_id, requested_by")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
         throw new Error("This request has already been reviewed.");
+      }
+
+      // Maker-checker: prevent self-approval
+      if ((current as any)?.requested_by === user.id) {
+        throw new Error("You cannot approve your own request.");
       }
 
       const { error } = await supabase.from("approval_requests" as any).update({
