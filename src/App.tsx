@@ -112,7 +112,9 @@ import PaymentReceipts from "./pages/financial/PaymentReceipts";
 import VendorPaymentsPage from "./pages/financial/VendorPayments";
 import PurchaseReturnsPage from "./pages/procurement/PurchaseReturns";
 import ApprovalWorkflowsPage from "./pages/admin/ApprovalWorkflows";
+import MCPToolExplorer from "./pages/admin/MCPToolExplorer";
 import ExchangeRatesPage from "./pages/financial/ExchangeRates";
+import RecurringTransactionsPage from "./pages/financial/RecurringTransactions";
 
 // Connectors
 import Connectors from "./pages/connectors/Connectors";
@@ -180,6 +182,7 @@ const App = () => (
                 <Route path="/financial/exchange-rates" element={<Guarded><FinanceRoute><ExchangeRatesPage /></FinanceRoute></Guarded>} />
                 <Route path="/financial/eway-bills" element={<Guarded><FinanceRoute><EwayBills /></FinanceRoute></Guarded>} />
                 <Route path="/financial/e-invoices" element={<Guarded><FinanceRoute><EInvoices /></FinanceRoute></Guarded>} />
+                <Route path="/financial/recurring" element={<Guarded><FinanceRoute><RecurringTransactionsPage /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
                 <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />
@@ -230,6 +233,7 @@ const App = () => (
                 {/* Admin */}
                 <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
                 <Route path="/admin/approvals" element={<Guarded><HRAdminRoute><ApprovalWorkflowsPage /></HRAdminRoute></Guarded>} />
+                <Route path="/admin/mcp-tools" element={<Guarded><HRAdminRoute><MCPToolExplorer /></HRAdminRoute></Guarded>} />
 
                 {/* Connectors */}
                 <Route path="/connectors" element={<Guarded><FinanceRoute><Connectors /></FinanceRoute></Guarded>} />

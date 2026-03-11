@@ -39,6 +39,7 @@ export default function CADashboard() {
   const depreciationMutation = useRunDepreciationBatch();
 
   const [depnDate, setDepnDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [depnResult, setDepnResult] = useState<{ assets_processed?: number; total_amount?: number; errors?: string[] } | null>(null);
 
   if (checkingRole) return <MainLayout title="CA Dashboard"><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-6 w-6 animate-spin" /></div></MainLayout>;
   if (!hasAccess) return <AccessDenied message="Finance Access Required" description="You need finance or admin role." />;
@@ -173,12 +174,26 @@ export default function CADashboard() {
               <h3 className="text-lg font-semibold">Fiscal Period Management</h3>
               <div className="flex items-center gap-2">
                 <input type="date" className="h-9 rounded-md border px-3 text-sm bg-background" value={depnDate} onChange={e => setDepnDate(e.target.value)} />
-                <Button variant="outline" onClick={() => depreciationMutation.mutate(depnDate)} disabled={depreciationMutation.isPending}>
+                <Button variant="outline" onClick={() => { depreciationMutation.mutate(depnDate, { onSuccess: (data: any) => setDepnResult(data || {}) }); }} disabled={depreciationMutation.isPending}>
                   {depreciationMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
                   Run Depreciation
                 </Button>
               </div>
             </div>
+            {depnResult && (
+              <div className="rounded-xl border bg-card px-4 py-3 flex items-center gap-6 text-sm">
+                <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span className="font-semibold">Depreciation Run Complete</span>
+                <span className="text-muted-foreground">Assets processed: <strong className="text-foreground">{depnResult.assets_processed ?? "—"}</strong></span>
+                {depnResult.total_amount !== undefined && (
+                  <span className="text-muted-foreground">Total amount: <strong className="text-foreground">₹{Number(depnResult.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                )}
+                {(depnResult.errors?.length ?? 0) > 0 && (
+                  <span className="text-destructive">{depnResult.errors!.length} error(s)</span>
+                )}
+                <button className="ml-auto text-muted-foreground hover:text-foreground" onClick={() => setDepnResult(null)}>×</button>
+              </div>
+            )}
             <div className="rounded-xl border bg-card">
               <Table>
                 <TableHeader>

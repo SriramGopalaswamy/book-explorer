@@ -479,7 +479,7 @@ export default function Bills() {
             amount: i.amount,
           }))
         );
-        if (itemsError) console.error("Failed to save line items:", itemsError);
+        if (itemsError) throw new Error(`Failed to save line items: ${itemsError.message}`);
       }
     },
     onSuccess: () => {
@@ -508,32 +508,24 @@ export default function Bills() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      console.log("[Bills] Attempting status update:", { id, status });
-      
       // First verify the bill exists and we can read it
       const { data: currentBill, error: readError } = await supabase
         .from("bills")
         .select("id, status, organization_id, bill_number, bill_date")
         .eq("id", id)
         .single();
-      
+
       if (readError) {
-        console.error("[Bills] Cannot read bill:", readError);
         throw new Error(`Cannot access bill: ${readError.message}`);
       }
-      
-      console.log("[Bills] Current bill state:", currentBill);
-      
+
       const { data, error } = await supabase
         .from("bills")
         .update({ status })
         .eq("id", id)
         .select();
-      
-      console.log("[Bills] Update result:", { data, error });
-      
+
       if (error) {
-        console.error("[Bills] Update error:", JSON.stringify(error));
         const errMsg = error.message || error.details || error.hint || JSON.stringify(error);
         throw new Error(`Failed to update bill: ${errMsg}`);
       }
@@ -575,7 +567,6 @@ export default function Bills() {
       }
     },
     onError: (e: any) => {
-      console.error("[Bills] Mutation error:", e);
       toast.error(e.message || "Failed to update bill status");
     },
   });
