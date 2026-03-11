@@ -283,7 +283,7 @@ export function useDeleteAsset() {
         throw new Error("Cannot delete an asset with depreciation history. Dispose or write off instead.");
       }
 
-      const { error } = await supabase.from("assets").delete().eq("id", id);
+      const { error } = await supabase.from("assets").delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {
