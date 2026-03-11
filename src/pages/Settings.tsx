@@ -928,7 +928,7 @@ function UserManagementSection() {
             : u
         )
       );
-      setSetManagerDialogOpen(false);
+      setAssignManagerDialogOpen(false);
     }
     setUpdatingManager(false);
   };
