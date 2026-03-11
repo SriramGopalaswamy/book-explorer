@@ -68,15 +68,16 @@ export function useCreateApprovalWorkflow() {
         throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
       }
 
-      // Prevent duplicate active workflows for same type
+      // Prevent duplicate active workflows for same type within this org
       const { data: existing } = await supabase
         .from("approval_workflows")
         .select("id")
         .eq("workflow_type", w.workflow_type)
+        .eq("organization_id", org!.organizationId)
         .eq("is_active", true)
         .limit(1);
       if (existing && existing.length > 0) {
-        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists. Deactivate it first.`);
+        throw new Error(`An active approval workflow for "${w.workflow_type}" already exists in your organization. Deactivate it first.`);
       }
 
       const { error } = await supabase.from("approval_workflows").insert([{
