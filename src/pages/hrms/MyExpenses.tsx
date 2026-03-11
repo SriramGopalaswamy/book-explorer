@@ -83,7 +83,7 @@ export default function MyExpenses() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

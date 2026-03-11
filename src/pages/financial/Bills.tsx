@@ -500,8 +500,11 @@ export default function Bills() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("bill_items").delete().eq("bill_id", id);
-      const { error } = await supabase.from("bills").delete().eq("id", id);
+      // Soft delete instead of hard delete
+      const { error } = await supabase
+        .from("bills")
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
