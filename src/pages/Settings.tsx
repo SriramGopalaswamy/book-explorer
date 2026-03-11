@@ -859,18 +859,40 @@ function UserManagementSection() {
 
   // Check for direct reports before deactivating/deleting
   const initiateDeactivateOrDelete = async (targetUser: UserWithRole, action: "deactivate" | "delete") => {
-    // Look up the target's profile_id from the users list (manager_id is a profile.id, not user_id)
     const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "get_direct_reports", profile_id: targetUser.manager_id },
+      body: { action: "get_direct_reports", user_id: targetUser.user_id },
     });
-    // We need profile_id of the target, but we only have user_id.
-    // Use a simpler check: filter users whose manager_id matches target's manager_id would be wrong.
-    // Instead check users array for anyone whose manager_id is not null (manager_id references profiles.id)
-    // Since we don't have the target's profile.id in UserWithRole, we'll just open the dialog directly.
+    const hasDirectReports = (data?.direct_reports?.length ?? 0) > 0;
     setManagerDialogTarget(targetUser);
     setManagerDialogAction(action);
     setReplacementManagerId("");
-    setManagerDialogOpen(true);
+    if (hasDirectReports) {
+      setManagerDialogOpen(true);
+    } else {
+      // No direct reports — execute immediately without the reassignment dialog
+      setActionUser(targetUser.user_id);
+      const actionName = action === "deactivate" ? "deactivate_user" : "delete_user";
+      const { data: result, error } = await supabase.functions.invoke("manage-roles", {
+        body: { action: actionName, user_id: targetUser.user_id },
+      });
+      if (error || result?.error) {
+        toast.error(result?.error || `Failed to ${action} user`);
+        setActionUser(null);
+      } else {
+        if (action === "deactivate") {
+          toast.success(`${targetUser.full_name || targetUser.email} has been deactivated`);
+          setUsers((prev) =>
+            prev.map((u) => u.user_id === targetUser.user_id ? { ...u, status: "inactive" } : u)
+          );
+        } else {
+          toast.success(`${targetUser.full_name || targetUser.email} has been removed`);
+          setUsers((prev) => prev.filter((u) => u.user_id !== targetUser.user_id));
+        }
+        setActionUser(null);
+      }
+      setManagerDialogTarget(null);
+      setManagerDialogAction(null);
+    }
   };
 
   const executeDeactivateOrDelete = async () => {
