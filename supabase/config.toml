@@ -43,5 +43,11 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.zoho-sync]
     verify_jwt = false
+  [functions.ai-agent]
+    verify_jwt = false
+  [functions.statutory-deadline-reminders]
+    verify_jwt = false
+  [functions.integrity-audit]
+    verify_jwt = false
   [functions.statutory-deadline-reminders]
     verify_jwt = false
