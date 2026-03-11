@@ -177,6 +177,11 @@ export function useUpdateTransferStatus() {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // ── Lifecycle state-machine ───────────────────────────────
       const TRANSFER_TRANSITIONS: Record<string, string[]> = {
         draft: ["in_transit", "cancelled"],
@@ -186,7 +191,7 @@ export function useUpdateTransferStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).single();
+        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).eq("organization_id", callerOrgId).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = TRANSFER_TRANSITIONS[currentStatus];
@@ -194,7 +199,7 @@ export function useUpdateTransferStatus() {
         throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
       }
 
-      const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto stock ledger entries when transfer is received ──
@@ -333,8 +338,13 @@ export function useApproveInventoryCount() {
     mutationFn: async (countId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Fetch count + lines
-      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id").eq("id", countId).single();
+      // Resolve caller org for tenant isolation
+      const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = orgProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
+      // Fetch count + lines (org-scoped)
+      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       if ((count as any).status === "approved") throw new Error("Count already approved");
 
@@ -362,7 +372,7 @@ export function useApproveInventoryCount() {
       }
 
       // Mark count as approved
-      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId);
+      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
       if (updErr) throw updErr;
     },
     onSuccess: () => {
@@ -381,7 +391,9 @@ export function useUpdateBinLocation() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; bin_code?: string; zone?: string; aisle?: string; rack?: string; level?: string; capacity_units?: number; is_active?: boolean; notes?: string }) => {
       if (updates.bin_code !== undefined && !updates.bin_code?.trim()) throw new Error("Bin code cannot be empty");
-      const { error } = await supabase.from("bin_locations" as any).update(updates as any).eq("id", id);
+      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!orgData?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.from("bin_locations" as any).update(updates as any).eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location updated"); },
@@ -393,7 +405,9 @@ export function useDeleteBinLocation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("bin_locations" as any).delete().eq("id", id);
+      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!orgData?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.from("bin_locations" as any).delete().eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location deleted"); },
@@ -450,11 +464,16 @@ export function useUpdatePickingListStatus() {
         completed: [],
         cancelled: [],
       };
-      const { data: current, error: cErr } = await supabase.from("picking_lists" as any).select("status").eq("id", id).single();
+      // Resolve caller org for tenant isolation
+      const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      const callerOrgId = orgProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
+      const { data: current, error: cErr } = await supabase.from("picking_lists" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       const allowed = TRANSITIONS[(current as any).status] ?? [];
       if (!allowed.includes(status)) throw new Error(`Cannot transition picking list from "${(current as any).status}" to "${status}"`);
-      const { error } = await supabase.from("picking_lists" as any).update({ status } as any).eq("id", id);
+      const { error } = await supabase.from("picking_lists" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["picking-lists"] }); toast.success("Status updated"); },
