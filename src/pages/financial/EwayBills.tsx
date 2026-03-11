@@ -225,7 +225,7 @@ export default function EwayBills() {
                                       eway_bill_number: `EWB${Date.now().toString(36).toUpperCase()}`,
                                       eway_bill_date: new Date().toISOString(),
                                       valid_until: new Date(
-                                        Date.now() + getEwayValidityDays(bill.distance_km || 0) * 24 * 60 * 60 * 1000
+                                        Date.now() + getValidityDays(bill.distance_km || 0) * 24 * 60 * 60 * 1000
                                       ).toISOString(),
                                     })
                                   }
