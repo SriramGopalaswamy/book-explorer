@@ -244,6 +244,15 @@ export function useUpdateInvoiceStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Invoice["status"] }) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Lifecycle state-machine enforcement ───────────────────
       const VALID_TRANSITIONS: Record<string, string[]> = {
         draft: ["sent", "cancelled"],
@@ -253,13 +262,15 @@ export function useUpdateInvoiceStatus() {
         cancelled: [],   // terminal
       };
 
-      // Fetch current status to validate transition
+      // Fetch current status to validate transition (org-scoped)
       const { data: current, error: fetchErr } = await supabase
         .from("invoices")
         .select("status, amount, invoice_number")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr) throw fetchErr;
+      if (!current) throw new Error("Invoice not found in your organization.");
       const currentStatus = current?.status as string;
 
       const allowed = VALID_TRANSITIONS[currentStatus];
