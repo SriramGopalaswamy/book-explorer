@@ -170,10 +170,6 @@ export default function InventoryCounts() {
     <MainLayout title="Inventory Counts" subtitle="Physical inventory verification">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Inventory Counts</h1>
-            <p className="text-muted-foreground">Schedule and track physical inventory counts</p>
-          </div>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> New Count
           </Button>

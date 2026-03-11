@@ -68,6 +68,9 @@ export function useCreatePaymentReceipt() {
       if (!r.customer_name.trim()) throw new Error("Customer name is required.");
       if (!r.payment_date) throw new Error("Payment date is required.");
 
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
       if (r.payment_date > today) throw new Error("Payment date cannot be in the future.");
@@ -109,6 +112,7 @@ export function useCreatePaymentReceipt() {
         bank_account_id: r.bank_account_id || null,
         notes: r.notes || null,
         created_by: user.id,
+        organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
 
@@ -186,6 +190,9 @@ export function useCreateVendorPayment() {
       if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
       if (!p.payment_date) throw new Error("Payment date is required.");
 
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
       if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
@@ -227,6 +234,7 @@ export function useCreateVendorPayment() {
         bank_account_id: p.bank_account_id || null,
         notes: p.notes || null,
         created_by: user.id,
+        organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
 

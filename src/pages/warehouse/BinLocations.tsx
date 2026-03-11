@@ -95,7 +95,7 @@ export default function BinLocations() {
     <MainLayout title="Bin Locations" subtitle="Manage warehouse storage locations">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div><h1 className="text-2xl font-bold text-foreground">Bin Locations</h1><p className="text-muted-foreground">Manage storage slots within warehouses</p></div>
+          <div></div>
           <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />New Bin</Button>
         </div>
 

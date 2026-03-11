@@ -42,10 +42,7 @@ export default function MaterialConsumptionPage() {
   return (
     <MainLayout title="Material Consumption" subtitle="Track raw material usage in production">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Material Consumption</h1>
-          <p className="text-muted-foreground">Track raw material usage across work orders</p>
-        </div>
+        <div></div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Package className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{records.length}</p><p className="text-xs text-muted-foreground">Total Records</p></div></div></CardContent></Card>

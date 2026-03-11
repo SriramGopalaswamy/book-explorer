@@ -69,10 +69,6 @@ export default function BillOfMaterials() {
     <MainLayout title="Bill of Materials" subtitle="Define product composition and material requirements">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Bill of Materials</h1>
-            <p className="text-muted-foreground">Define product recipes and material requirements</p>
-          </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New BOM</Button>

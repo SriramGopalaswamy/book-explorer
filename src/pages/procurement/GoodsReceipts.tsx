@@ -132,10 +132,7 @@ export default function GoodsReceipts() {
     <MainLayout title="Goods Receipts" subtitle="Track incoming material">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Goods Receipts</h1>
-            <p className="text-muted-foreground">Track incoming material from purchase orders</p>
-          </div>
+          <div></div>
           <Button onClick={() => setShowCreate(true)} disabled={approvedPOs.length === 0}>
             <Plus className="h-4 w-4 mr-2" /> Create from PO
           </Button>

@@ -138,7 +138,7 @@ export function useEwayBills() {
 
       const { data, error } = await (supabase as any)
         .from("eway_bills")
-        .insert({ ...bill, user_id: user!.id })
+        .insert({ ...bill, user_id: user!.id, organization_id: orgId })
         .select()
         .single();
       if (error) throw error;

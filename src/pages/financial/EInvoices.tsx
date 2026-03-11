@@ -124,30 +124,15 @@ export default function EInvoices() {
       toast.error("Please fill all required fields");
       return;
     }
-    if (form.seller_pincode && !/^\d{6}$/.test(form.seller_pincode)) {
-      toast.error("Seller Pincode must be exactly 6 digits");
-      return;
-    }
-    if (form.buyer_pincode && !/^\d{6}$/.test(form.buyer_pincode)) {
-      toast.error("Buyer Pincode must be exactly 6 digits");
-      return;
-    }
     try {
       await create({
         ...form,
-        // Convert empty pincode strings to null to avoid backend constraint errors
-        seller_pincode: form.seller_pincode || null,
-        buyer_pincode: form.buyer_pincode || null,
-        seller_state_code: form.seller_state_code || null,
-        buyer_state_code: form.buyer_state_code || null,
         items: items as any,
         total_assessable_value: totals.assessable,
         total_cgst: totals.cgst,
         total_sgst: totals.sgst,
         total_igst: totals.igst,
         total_cess: totals.cess,
-        total_discount: 0,
-        total_other_charges: 0,
         total_invoice_value: totals.total,
       });
       setShowCreate(false);
@@ -287,9 +272,9 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.seller_legal_name} onChange={(e) => setForm(p => ({ ...p, seller_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.seller_address} onChange={(e) => setForm(p => ({ ...p, seller_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.seller_location} onChange={(e) => setForm(p => ({ ...p, seller_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value }))} maxLength={6} placeholder="6-digit pincode" /></div>
+                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value }))} maxLength={6} /></div>
                       <div className="space-y-1">
-                        <Label>State *</Label>
+                        <Label>State</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                           <SelectContent>{Object.entries(INDIAN_STATES).map(([code, name]) => <SelectItem key={code} value={code}>{code} - {name}</SelectItem>)}</SelectContent>
@@ -308,7 +293,7 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.buyer_legal_name} onChange={(e) => setForm(p => ({ ...p, buyer_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.buyer_address} onChange={(e) => setForm(p => ({ ...p, buyer_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.buyer_location} onChange={(e) => setForm(p => ({ ...p, buyer_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.buyer_pincode} onChange={(e) => setForm(p => ({ ...p, buyer_pincode: e.target.value }))} maxLength={6} placeholder="6-digit pincode" /></div>
+                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.buyer_pincode} onChange={(e) => setForm(p => ({ ...p, buyer_pincode: e.target.value }))} maxLength={6} /></div>
                       <div className="space-y-1">
                         <Label>State / Place of Supply</Label>
                         <Select value={form.buyer_state_code} onValueChange={(v) => setForm(p => ({ ...p, buyer_state_code: v, buyer_pos: v }))}>
