@@ -36,13 +36,18 @@ export interface ApprovalRequest {
 }
 
 export function useApprovalWorkflows() {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
   return useQuery({
-    queryKey: ["approval-workflows"],
+    queryKey: ["approval-workflows", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("approval_workflows").select("*").order("created_at", { ascending: false });
+      if (!orgId) return [] as ApprovalWorkflow[];
+      const { data, error } = await supabase.from("approval_workflows").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalWorkflow[];
     },
+    enabled: !!orgId,
   });
 }
 
