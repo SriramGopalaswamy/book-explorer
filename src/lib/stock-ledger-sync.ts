@@ -103,12 +103,24 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
   if (dnErr) throw dnErr;
   if (!dnItems || dnItems.length === 0) return;
 
-  // Find a default warehouse (SO doesn't always have one)
-  const { data: defaultWh } = await supabase
-    .from("warehouses" as any)
-    .select("id")
-    .limit(1);
-  const warehouseId = (defaultWh as any)?.[0]?.id;
+  // Fetch DN's organization for org-scoped warehouse lookup
+  const { data: dn } = await supabase
+    .from("delivery_notes" as any)
+    .select("organization_id")
+    .eq("id", deliveryNoteId)
+    .maybeSingle();
+  const dnOrgId = (dn as any)?.organization_id;
+
+  // Find a default warehouse — org-scoped
+  let warehouseId: string | undefined;
+  if (dnOrgId) {
+    const { data: defaultWh } = await supabase
+      .from("warehouses" as any)
+      .select("id")
+      .eq("organization_id", dnOrgId)
+      .limit(1);
+    warehouseId = (defaultWh as any)?.[0]?.id;
+  }
   if (!warehouseId) return;
 
   const entries: StockEntry[] = (dnItems as any[])
