@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    checkRateLimit();
+    checkRateLimit(SIGNIN_LOCKOUT_KEY);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,

@@ -86,13 +86,11 @@ export function useGenerateForm16() {
         generated_at: new Date().toISOString(),
       }));
 
-      // Use upsert
-      for (const rec of records) {
-        const { error } = await supabase
-          .from("form16_records")
-          .upsert(rec, { onConflict: "profile_id,organization_id,financial_year" });
-        if (error) throw error;
-      }
+      // Batch upsert all Form 16 records at once (eliminates N+1)
+      const { error } = await supabase
+        .from("form16_records")
+        .upsert(records, { onConflict: "profile_id,organization_id,financial_year" });
+      if (error) throw error;
 
       return { generated: records.length };
     },
