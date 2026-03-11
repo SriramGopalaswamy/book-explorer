@@ -196,7 +196,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
 
       return result;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
