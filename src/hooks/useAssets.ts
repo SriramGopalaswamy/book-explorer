@@ -230,6 +230,7 @@ export function useUpdateAsset() {
         .from("assets")
         .update(updates as any)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
