@@ -16,14 +16,46 @@ Deno.serve(async (req) => {
     const topic = req.headers.get("x-shopify-topic");
     const hmac = req.headers.get("x-shopify-hmac-sha256");
 
-    if (!shopDomain || !topic) {
+    if (!shopDomain || !topic || !hmac) {
       return new Response(JSON.stringify({ error: "Missing Shopify headers" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const body = await req.json();
+    // Read raw body for HMAC verification
+    const rawBody = await req.text();
+
+    // Verify HMAC signature
+    const shopifySecret = Deno.env.get("SHOPIFY_WEBHOOK_SECRET");
+    if (!shopifySecret) {
+      console.error("SHOPIFY_WEBHOOK_SECRET not configured");
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(shopifySecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const computedHmac = btoa(String.fromCharCode(...new Uint8Array(sig)));
+
+    if (computedHmac !== hmac) {
+      console.error("Invalid HMAC signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = JSON.parse(rawBody);
 
     // Use service role for webhook processing (no user auth)
     const supabase = createClient(

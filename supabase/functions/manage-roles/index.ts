@@ -179,14 +179,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Protect sriram@grx10.com from deletion
+      // Protect designated admin accounts from deletion
+      const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
       const { data: targetProfile } = await supabase
         .from("profiles")
         .select("email")
         .eq("user_id", user_id)
         .maybeSingle();
 
-      if (targetProfile?.email?.toLowerCase() === "sriram@grx10.com") {
+      if (targetProfile?.email && protectedEmails.includes(targetProfile.email.toLowerCase())) {
         return new Response(JSON.stringify({ error: "This account is protected and cannot be deleted" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -336,6 +337,19 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (existingProfile) {
+            // Verify user belongs to requesting admin's organization
+            const { data: member } = await supabase
+              .from("organization_members")
+              .select("id")
+              .eq("user_id", existingProfile.user_id)
+              .eq("organization_id", requestingOrgId)
+              .maybeSingle();
+
+            if (!member) {
+              results.push({ email, success: false, error: "User not in your organization" });
+              continue;
+            }
+
             // User exists — update their profile attributes and role
             const updateFields: Record<string, string | null> = {};
             if (fullName) updateFields.full_name = fullName;
@@ -346,9 +360,15 @@ Deno.serve(async (req) => {
               await supabase.from("profiles").update(updateFields).eq("user_id", existingProfile.user_id);
             }
 
-            // Update role: delete existing, insert new
-            await supabase.from("user_roles").delete().eq("user_id", existingProfile.user_id);
-            await supabase.from("user_roles").insert({ user_id: existingProfile.user_id, role });
+            // Update role: scoped to requesting org only
+            await supabase.from("user_roles").delete()
+              .eq("user_id", existingProfile.user_id)
+              .eq("organization_id", requestingOrgId);
+            await supabase.from("user_roles").insert({
+              user_id: existingProfile.user_id,
+              role,
+              organization_id: requestingOrgId,
+            });
 
             results.push({ email, success: true, updated: true });
             continue;
