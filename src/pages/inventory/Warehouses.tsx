@@ -87,9 +87,16 @@ export default function Warehouses() {
                 </div>
                 <div><Label>Address</Label><Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
                 <div className="grid grid-cols-3 gap-4">
+                  <div><Label>Pincode</Label><Input value={form.pincode} onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 6); setForm(f => ({ ...f, pincode: v })); }} placeholder="e.g. 400001" /></div>
+                  <div><Label>State</Label>
+                    <Select value={form.state} onValueChange={v => setForm(f => ({ ...f, state: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                      <SelectContent>
+                        {INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>City</Label><Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
-                  <div><Label>State</Label><Input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} /></div>
-                  <div><Label>Pincode</Label><Input value={form.pincode} onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} /></div>
