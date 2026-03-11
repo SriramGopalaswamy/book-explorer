@@ -997,7 +997,7 @@ function UserManagementSection() {
       </Dialog>
 
       {/* Set Manager Dialog */}
-      <Dialog open={setManagerDialogOpen} onOpenChange={setSetManagerDialogOpen}>
+      <Dialog open={assignManagerDialogOpen} onOpenChange={setAssignManagerDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Set Manager for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
