@@ -225,13 +225,24 @@ export function useUpdatePayroll() {
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdatePayrollData) => {
       // ── State machine enforcement ──────────────────────────
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       if (data.status) {
         const { data: current, error: fetchErr } = await supabase
           .from("payroll_records")
-          .select("status")
+          .select("status, organization_id")
           .eq("id", id)
+          .eq("organization_id", callerOrgId)
           .single();
         if (fetchErr) throw fetchErr;
+        if (!current) throw new Error("Payroll record not found in your organization.");
         const currentStatus = current?.status as string;
 
         if (PAYROLL_TERMINAL.includes(currentStatus)) {
