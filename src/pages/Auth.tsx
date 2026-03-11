@@ -18,13 +18,23 @@ import { lovable } from "@/integrations/lovable";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  // Keep login validation loose — actual credential check happens server-side
+  password: z.string().min(1, "Password is required"),
 });
+
+// Password complexity: 12+ chars, uppercase, lowercase, digit, special char
+const passwordComplexity = z
+  .string()
+  .min(12, "Password must be at least 12 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character");
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100, "Name must be less than 100 characters"),
   email: z.string().trim().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: passwordComplexity,
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -76,12 +86,11 @@ export default function Auth() {
     setIsLoading(true);
     const { error } = await signIn(data.email, data.password);
     if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        toast.error("Invalid email or password. Please try again.");
-      } else if (error.message.includes("Email not confirmed")) {
-        toast.error("Please verify your email before signing in.");
-      } else {
+      if (error.message.includes("Too many")) {
         toast.error(error.message);
+      } else {
+        // Generic message to prevent account enumeration
+        toast.error("Invalid email or password. Please try again.");
       }
     } else {
       toast.success("Welcome back!");
@@ -93,12 +102,8 @@ export default function Auth() {
     setIsLoading(true);
     const { error } = await signUp(data.email, data.password, data.fullName);
     if (error) {
-      if (error.message.includes("User already registered")) {
-        toast.error("This email is already registered. Please sign in instead.");
-        setActiveTab("login");
-      } else {
-        toast.error(error.message);
-      }
+      // Generic message to prevent account enumeration via registration
+      toast.error("Unable to create account. If you already have an account, please sign in.");
     } else {
       toast.success("Account created! Please check your email to verify your account.");
       signupForm.reset();
@@ -111,12 +116,13 @@ export default function Auth() {
     setIsLoading(true);
     const { error } = await resetPassword(data.email);
     if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Password reset link sent! Check your email.");
-      forgotPasswordForm.reset();
-      setShowForgotPassword(false);
+      // Always show success to prevent email enumeration
+      console.error("[ForgotPassword] error:", error.message);
     }
+    // Always show the same message regardless of whether email exists
+    toast.success("If an account exists for that email, a reset link has been sent.");
+    forgotPasswordForm.reset();
+    setShowForgotPassword(false);
     setIsLoading(false);
   };
 

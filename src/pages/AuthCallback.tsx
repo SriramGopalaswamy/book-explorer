@@ -32,9 +32,15 @@ export default function AuthCallback() {
       return;
     }
 
-    // Warn but don't block if state doesn't match (sessionStorage can be lost on redirect)
-    if (savedState && stateParam !== savedState) {
-      console.warn("[AuthCallback] State mismatch — saved:", savedState, "received:", stateParam);
+    // Reject on state mismatch — required to prevent CSRF attacks on the OAuth flow.
+    // Both sides must be present and identical; missing state is also a hard failure.
+    if (!savedState || stateParam !== savedState) {
+      sessionStorage.removeItem("ms365_oauth_state");
+      const msg = "Authentication failed: invalid state parameter. Please try signing in again.";
+      setError(msg);
+      toast.error(msg);
+      setTimeout(() => navigate("/auth", { replace: true }), 3000);
+      return;
     }
 
     sessionStorage.removeItem("ms365_oauth_state");

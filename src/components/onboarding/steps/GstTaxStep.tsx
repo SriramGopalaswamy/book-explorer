@@ -14,16 +14,33 @@ interface Props {
   locked?: boolean;
 }
 
+// Official Indian GSTIN format: 2-digit state code + PAN + 1 entity digit + 1 check char
+// Pattern: SSAAAAANNNNAAZTZD  where S=state, A=letter, N=digit, Z=literal 'Z'
+const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+
 export function GstTaxStep({ data, onChange, locked }: Props) {
   const [newGstin, setNewGstin] = useState("");
+  const [gstinError, setGstinError] = useState("");
   const gstins = data.gstin || [];
 
   const addGstin = () => {
     const trimmed = newGstin.trim().toUpperCase();
-    if (trimmed.length === 15 && !gstins.includes(trimmed)) {
-      onChange({ gstin: [...gstins, trimmed] });
-      setNewGstin("");
+    if (!GSTIN_REGEX.test(trimmed)) {
+      setGstinError("Invalid GSTIN format. Expected: 2-digit state + 5 letters + 4 digits + letter + alphanumeric + Z + alphanumeric");
+      return;
     }
+    if (gstins.includes(trimmed)) {
+      setGstinError("This GSTIN has already been added.");
+      return;
+    }
+    setGstinError("");
+    onChange({ gstin: [...gstins, trimmed] });
+    setNewGstin("");
+  };
+
+  const handleGstinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewGstin(e.target.value.toUpperCase());
+    if (gstinError) setGstinError("");
   };
 
   const removeGstin = (g: string) => {
@@ -42,16 +59,18 @@ export function GstTaxStep({ data, onChange, locked }: Props) {
         <div className="flex gap-2">
           <Input
             value={newGstin}
-            onChange={(e) => setNewGstin(e.target.value.toUpperCase())}
-            placeholder="15-character GSTIN"
+            onChange={handleGstinChange}
+            onKeyDown={(e) => e.key === "Enter" && addGstin()}
+            placeholder="e.g. 27AAPFU0939F1ZV"
             maxLength={15}
-            className="flex-1"
+            className={`flex-1 ${gstinError ? "border-destructive" : ""}`}
             disabled={locked}
           />
           <Button type="button" variant="outline" size="sm" onClick={addGstin} disabled={locked || newGstin.trim().length !== 15}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+        {gstinError && <p className="text-xs text-destructive mt-1">{gstinError}</p>}
         {gstins.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {gstins.map((g) => (
