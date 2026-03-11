@@ -110,10 +110,7 @@ export default function ExchangeRatesPage() {
     <MainLayout title="Exchange Rates">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Multi-Currency & Exchange Rates</h1>
-            <p className="text-muted-foreground">Manage currencies, conversion rates, and IAS 21 FX exposure</p>
-          </div>
+          <div></div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={fetchLiveRates} disabled={fetchingLive}>
               <RefreshCw className={`h-4 w-4 mr-2 ${fetchingLive ? "animate-spin" : ""}`} />

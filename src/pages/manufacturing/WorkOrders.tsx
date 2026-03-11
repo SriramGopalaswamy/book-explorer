@@ -219,10 +219,6 @@ export default function WorkOrders() {
     <MainLayout title="Work Orders" subtitle="Manage production scheduling and tracking">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Work Orders</h1>
-            <p className="text-muted-foreground">Plan and track production runs</p>
-          </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New Work Order</Button>

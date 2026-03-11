@@ -190,6 +190,9 @@ export function useCreateVendorPayment() {
       if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
       if (!p.payment_date) throw new Error("Payment date is required.");
 
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
       if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
