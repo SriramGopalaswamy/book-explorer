@@ -393,7 +393,9 @@ export default function Bills() {
       const { data, error } = await supabase
         .from("bills")
         .select("*, bill_items(*)")
-        .order("created_at", { ascending: false });
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },
