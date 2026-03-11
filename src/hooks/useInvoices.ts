@@ -352,13 +352,24 @@ export function useUpdateInvoice() {
 
   return useMutation({
     mutationFn: async (data: UpdateInvoiceData) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Only drafts can be fully edited ───────────────────────
       const { data: statusCheck, error: statusErr } = await supabase
         .from("invoices")
         .select("status")
         .eq("id", data.id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (statusErr) throw statusErr;
+      if (!statusCheck) throw new Error("Invoice not found in your organization.");
       if (statusCheck?.status !== "draft") {
         throw new Error("Only draft invoices can be edited. Change status back to draft first.");
       }
