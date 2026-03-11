@@ -264,6 +264,7 @@ export function useUpdatePayroll() {
         .from("payroll_records")
         .update(updateData)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select("*, profiles!profile_id(full_name, email, department, job_title)")
         .single();
 
