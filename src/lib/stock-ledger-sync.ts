@@ -246,15 +246,23 @@ export async function checkReorderAlerts(organizationId: string): Promise<
     .gt("reorder_level", 0);
   if (iErr || !items || items.length === 0) return [];
 
-  // For each item, calculate current stock from stock_ledger
+  // Batch: fetch ALL stock ledger entries for the org in one query (eliminates N+1)
+  const itemIds = (items as any[]).map((i: any) => i.id);
+  const { data: allLedger } = await supabase
+    .from("stock_ledger" as any)
+    .select("item_id, quantity")
+    .eq("organization_id", organizationId)
+    .in("item_id", itemIds);
+
+  // Aggregate stock by item_id
+  const stockMap = new Map<string, number>();
+  for (const entry of (allLedger || []) as any[]) {
+    stockMap.set(entry.item_id, (stockMap.get(entry.item_id) || 0) + Number(entry.quantity));
+  }
+
   const alerts: { itemId: string; itemName: string; currentStock: number; reorderLevel: number }[] = [];
   for (const item of items as any[]) {
-    const { data: ledger } = await supabase
-      .from("stock_ledger" as any)
-      .select("quantity")
-      .eq("item_id", item.id)
-      .eq("organization_id", organizationId);
-    const currentStock = (ledger || []).reduce((sum: number, e: any) => sum + Number(e.quantity), 0);
+    const currentStock = stockMap.get(item.id) || 0;
     if (currentStock <= Number(item.reorder_level)) {
       alerts.push({
         itemId: item.id,

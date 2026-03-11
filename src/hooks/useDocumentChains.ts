@@ -407,7 +407,11 @@ export function useConvertSOToInvoice() {
           rate: i.unit_price,
           amount: i.amount,
         }));
-        await supabase.from("invoice_items").insert(invItems);
+        const { error: itemErr } = await supabase.from("invoice_items").insert(invItems);
+        if (itemErr) {
+          await supabase.from("invoices").delete().eq("id", inv.id);
+          throw itemErr;
+        }
       }
 
       // Mark SO as closed
