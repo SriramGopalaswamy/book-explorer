@@ -30,10 +30,22 @@ export default function PurchaseOrders() {
   const { data: orders = [], isLoading } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
   const updateStatus = useUpdatePOStatus();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ vendor_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
+
+  // Fetch vendors for dropdown
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const filtered = orders.filter((o) =>
     o.po_number.toLowerCase().includes(search.toLowerCase()) ||
