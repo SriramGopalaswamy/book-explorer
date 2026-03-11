@@ -1172,7 +1172,7 @@ function UserManagementSection() {
                           onClick={() => {
                             setSetManagerTarget(u);
                             setNewManagerUserId("");
-                            setSetManagerDialogOpen(true);
+                            setAssignManagerDialogOpen(true);
                           }}
                         >
                           <UserCog className="h-4 w-4" />
