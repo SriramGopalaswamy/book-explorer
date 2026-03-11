@@ -93,7 +93,8 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         </main>
       </div>
       <MobileBottomNav />
-      <AIAgentChat />
+      {/* Hide floating chat on pages that have their own embedded AI interface */}
+      {!location.pathname.toLowerCase().startsWith("/financial/analytics") && <AIAgentChat />}
     </div>
   );
 }
