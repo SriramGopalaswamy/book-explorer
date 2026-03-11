@@ -149,13 +149,14 @@ export function useDeleteSalesOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: so } = await supabase.from("sales_orders" as any).select("status").eq("id", id).maybeSingle();
+      const { data: so } = await supabase.from("sales_orders" as any).select("status, organization_id").eq("id", id).maybeSingle();
       const status = (so as any)?.status;
+      const soOrgId = (so as any)?.organization_id;
       if (status && status !== "draft") {
         throw new Error(`Cannot delete a "${status}" sales order. Only drafts can be deleted.`);
       }
       await supabase.from("sales_order_items" as any).delete().eq("sales_order_id", id);
-      const { error } = await supabase.from("sales_orders" as any).delete().eq("id", id);
+      const { error } = await supabase.from("sales_orders" as any).delete().eq("id", id).eq("organization_id", soOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); toast.success("Sales order deleted"); },
