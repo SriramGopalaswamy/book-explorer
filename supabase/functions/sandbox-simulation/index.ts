@@ -481,13 +481,13 @@ async function resetAndSeed(client: any, orgId: string, userId: string) {
           continue;
         }
         const profileId = insertedProfile?.id || authUserId;
-        verifiedUsers.push({ authId: authUserId, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+      verifiedUsers.push({ authId: authUserId!, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
         seededProfiles++;
         continue;
       }
 
       const profileId = updatedProfile?.id || authUserId;
-      verifiedUsers.push({ authId: authUserId, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
+      verifiedUsers.push({ authId: authUserId!, profileId, name: emp.name, jobTitle: emp.jobTitle, dept: emp.dept });
       seededProfiles++;
     } catch (e) {
       console.warn(`Error seeding employee ${emp.name}:`, (e as Error).message);
