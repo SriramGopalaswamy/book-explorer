@@ -68,8 +68,8 @@ export function useCreatePaymentReceipt() {
       if (!r.customer_name.trim()) throw new Error("Customer name is required.");
       if (!r.payment_date) throw new Error("Payment date is required.");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
-      if (!profile?.organization_id) throw new Error("No organization found");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
 
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
