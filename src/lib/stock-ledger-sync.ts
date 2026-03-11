@@ -49,13 +49,14 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
   if (grErr) throw grErr;
   if (!grItems || grItems.length === 0) return;
 
-  // Fetch GR → PO → warehouse
+  // Fetch GR → PO → warehouse + organization_id
   const { data: gr } = await supabase
     .from("goods_receipts" as any)
-    .select("purchase_order_id")
+    .select("purchase_order_id, organization_id")
     .eq("id", goodsReceiptId)
     .single();
   if (!gr) return;
+  const grOrgId = (gr as any).organization_id;
 
   const { data: po } = await supabase
     .from("purchase_orders" as any)
@@ -63,12 +64,13 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
     .eq("id", (gr as any).purchase_order_id)
     .maybeSingle();
 
-  // Find a default warehouse if PO doesn't specify one
+  // Find a default warehouse if PO doesn't specify one — org-scoped
   let warehouseId = (po as any)?.warehouse_id;
-  if (!warehouseId) {
+  if (!warehouseId && grOrgId) {
     const { data: defaultWh } = await supabase
       .from("warehouses" as any)
       .select("id")
+      .eq("organization_id", grOrgId)
       .limit(1);
     warehouseId = (defaultWh as any)?.[0]?.id;
   }
