@@ -192,6 +192,7 @@ export function useEInvoices() {
         .from("e_invoices")
         .select("irn_generated_at, status")
         .eq("id", id)
+        .eq("organization_id", orgId)
         .single();
 
       if (existing?.status === "cancelled") throw new Error("E-Invoice is already cancelled.");
