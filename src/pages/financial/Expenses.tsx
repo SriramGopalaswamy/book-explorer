@@ -98,7 +98,9 @@ export default function Expenses() {
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
         .eq("user_id", user.id)
-        .order("expense_date", { ascending: false });
+        .eq("is_deleted", false)
+        .order("expense_date", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data as Expense[];
     },
