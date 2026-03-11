@@ -284,9 +284,8 @@ Be specific with numbers and percentages. Do not fabricate data.`,
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-1">AI Health Score</p>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
         {[
           { label: "Anomalies", count: anomalies.length, icon: <AlertTriangle className="h-3 w-3" /> },
