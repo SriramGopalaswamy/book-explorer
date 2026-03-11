@@ -178,19 +178,24 @@ export function useEmployeeStats() {
   const { user } = useAuth();
 
   // Dynamically count approved leaves for today (matches attendance module logic)
+  const { data: orgData } = useUserOrganization();
+  const statsOrgId = orgData?.organizationId;
+
   const { data: approvedLeavesToday = [] } = useQuery({
-    queryKey: ["employee-stats-leaves-today"],
+    queryKey: ["employee-stats-leaves-today", statsOrgId],
     queryFn: async () => {
+      if (!statsOrgId) return [];
       const today = new Date().toISOString().split("T")[0];
       const { data } = await supabase
         .from("leave_requests")
         .select("user_id, profile_id")
         .eq("status", "approved")
+        .eq("organization_id", statsOrgId)
         .lte("from_date", today)
         .gte("to_date", today);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!statsOrgId,
   });
 
   const leaveProfileIds = new Set(
