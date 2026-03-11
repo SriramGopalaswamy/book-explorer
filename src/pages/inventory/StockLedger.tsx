@@ -14,11 +14,7 @@ export default function StockLedger() {
   const [whFilter, setWhFilter] = useState<string>("");
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
-  const { data: entries, isLoading, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
-
-  if (error) {
-    console.error("Stock Ledger error:", error);
-  }
+  const { data: entries, isLoading } = useStockLedger(itemFilter || undefined, whFilter || undefined);
 
   const txnBadge = (type: string) => {
     const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment"];

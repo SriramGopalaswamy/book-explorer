@@ -68,8 +68,8 @@ export function useCreatePaymentReceipt() {
       if (!r.customer_name.trim()) throw new Error("Customer name is required.");
       if (!r.payment_date) throw new Error("Payment date is required.");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
 
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
@@ -190,8 +190,8 @@ export function useCreateVendorPayment() {
       if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
       if (!p.payment_date) throw new Error("Payment date is required.");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
 
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];

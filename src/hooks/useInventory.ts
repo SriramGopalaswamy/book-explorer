@@ -26,16 +26,16 @@ export function useItems() {
 export function useCreateItem() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   return useMutation({
     mutationFn: async (item: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
       if (!item.name?.trim()) throw new Error("Item name is required");
       if (item.selling_price !== undefined && item.selling_price < 0) throw new Error("Selling price cannot be negative");
       if (item.purchase_price !== undefined && item.purchase_price < 0) throw new Error("Purchase price cannot be negative");
-      // Resolve organization_id from profile
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
-      const { data, error } = await supabase.from("items" as any).insert({ ...item, organization_id: profile.organization_id, created_by: user.id }).select().single();
+      const { data, error } = await supabase.from("items" as any).insert({ ...item, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -117,14 +117,14 @@ export function useWarehouses() {
 export function useCreateWarehouse() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   return useMutation({
     mutationFn: async (wh: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
       if (!wh.name?.trim()) throw new Error("Warehouse name is required");
-      // Resolve organization_id from profile
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
-      const { data, error } = await supabase.from("warehouses" as any).insert({ ...wh, organization_id: profile.organization_id, created_by: user.id }).select().single();
+      const { data, error } = await supabase.from("warehouses" as any).insert({ ...wh, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
