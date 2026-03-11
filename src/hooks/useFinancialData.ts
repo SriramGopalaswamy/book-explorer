@@ -320,10 +320,20 @@ export function useUpdateFinancialRecord() {
         throw new Error("Amount must be a positive number");
       }
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       const { data, error } = await supabase
         .from("financial_records")
         .update(record)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
 
