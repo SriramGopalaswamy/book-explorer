@@ -30,6 +30,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     reference_id: e.reference_id,
     notes: e.notes || null,
     posted_at: new Date().toISOString(),
+    ...(e.organization_id ? { organization_id: e.organization_id } : {}),
   }));
 
   const { error } = await supabase.from("stock_ledger" as any).insert(rows as any);
