@@ -320,7 +320,7 @@ export function useWeeklyAttendanceStats() {
 
       return weekData;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 

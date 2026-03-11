@@ -424,6 +424,21 @@ export function useRejectMemo() {
 
   return useMutation({
     mutationFn: async ({ id, reviewerNotes }: { id: string; reviewerNotes: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Self-rejection guard
+      const { data: memo } = await supabase
+        .from("memos")
+        .select("user_id, status")
+        .eq("id", id)
+        .single();
+      if (memo && (memo as any).user_id === user.id) {
+        throw new Error("You cannot reject your own memo.");
+      }
+      if (memo && (memo as any).status !== "pending_approval") {
+        throw new Error("Only pending memos can be rejected.");
+      }
+
       const { error } = await supabase
         .from("memos")
         .update({

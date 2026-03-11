@@ -356,10 +356,20 @@ export function useDeleteFinancialRecord() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("User not authenticated");
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       const { data, error } = await supabase
         .from("financial_records")
         .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select();
 
       if (error) throw error;
