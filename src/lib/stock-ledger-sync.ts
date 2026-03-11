@@ -86,6 +86,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
       reference_type: "goods_receipt",
       reference_id: goodsReceiptId,
       notes: `Auto stock-in from GR ${goodsReceiptId.slice(0, 8)}`,
+      organization_id: grOrgId,
     }));
 
   await postStockEntries(entries);
