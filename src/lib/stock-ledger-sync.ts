@@ -225,6 +225,7 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
         reference_type: "work_order",
         reference_id: workOrderId,
         notes: `BOM consumption: ${l.material_name}`,
+        organization_id: woOrgId,
       };
     });
 
