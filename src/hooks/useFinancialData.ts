@@ -101,11 +101,13 @@ export function useFinancialRecords() {
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["monthly-revenue", user?.id, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryKey: ["monthly-revenue", user?.id, orgId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<MonthlyData[]> => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
       const fromDate = dateRange?.from || (() => {
         const d = new Date();
@@ -118,6 +120,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
         .from("financial_records")
         .select("*")
         .eq("is_deleted", false)
+        .eq("organization_id", orgId)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
 
