@@ -213,6 +213,27 @@ export default function EwayBills() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
+                              {bill.status === "draft" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-green-600"
+                                  onClick={() =>
+                                    update({
+                                      id: bill.id,
+                                      status: "active",
+                                      eway_bill_number: `EWB${Date.now().toString(36).toUpperCase()}`,
+                                      eway_bill_date: new Date().toISOString(),
+                                      valid_until: new Date(
+                                        Date.now() + getEwayValidityDays(bill.distance_km || 0) * 24 * 60 * 60 * 1000
+                                      ).toISOString(),
+                                    })
+                                  }
+                                  title="Activate E-Way Bill"
+                                >
+                                  <Truck className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               {bill.status !== "cancelled" && (
                                 <Button size="sm" variant="ghost" onClick={() => setShowCancel(bill.id)}>
                                   <XCircle className="h-3.5 w-3.5" />

@@ -120,7 +120,7 @@ export default function EInvoices() {
   }), { assessable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 });
 
   async function handleCreate() {
-    if (!form.doc_number || !form.seller_gstin || !form.buyer_legal_name) {
+    if (!form.doc_number || !form.seller_gstin || !form.buyer_legal_name || !form.seller_pincode || !form.buyer_pincode) {
       toast.error("Please fill all required fields");
       return;
     }
