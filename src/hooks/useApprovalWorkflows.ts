@@ -36,13 +36,18 @@ export interface ApprovalRequest {
 }
 
 export function useApprovalWorkflows() {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
   return useQuery({
-    queryKey: ["approval-workflows"],
+    queryKey: ["approval-workflows", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("approval_workflows").select("*").order("created_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("approval_workflows").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalWorkflow[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -63,11 +68,12 @@ export function useCreateApprovalWorkflow() {
         throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
       }
 
-      // Prevent duplicate active workflows for same type
+      // Prevent duplicate active workflows for same type within this org
       const { data: existing } = await supabase
         .from("approval_workflows")
         .select("id")
         .eq("workflow_type", w.workflow_type)
+        .eq("organization_id", org!.organizationId)
         .eq("is_active", true)
         .limit(1);
       if (existing && existing.length > 0) {
@@ -91,7 +97,10 @@ export function useToggleWorkflow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from("approval_workflows").update({ is_active }).eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!profile?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.from("approval_workflows").update({ is_active }).eq("id", id).eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["approval-workflows"] }); toast.success("Workflow updated"); },
@@ -100,13 +109,18 @@ export function useToggleWorkflow() {
 }
 
 export function useApprovalRequests() {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
   return useQuery({
-    queryKey: ["approval-requests"],
+    queryKey: ["approval-requests", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("approval_requests" as any).select("*").order("created_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ApprovalRequest[];
     },
+    enabled: !!orgId,
   });
 }
 
@@ -120,12 +134,17 @@ export function useApproveRequest() {
       // Double-review guard: verify request is still pending
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status, document_type, document_id")
+        .select("status, document_type, document_id, requested_by")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
         throw new Error("This request has already been reviewed.");
+      }
+
+      // Maker-checker: prevent self-approval
+      if ((current as any)?.requested_by === user.id) {
+        throw new Error("You cannot approve your own request.");
       }
 
       const { error } = await supabase.from("approval_requests" as any).update({
@@ -182,12 +201,17 @@ export function useRejectRequest() {
       // Double-review guard
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status")
+        .select("status, requested_by")
         .eq("id", id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
         throw new Error("This request has already been reviewed.");
+      }
+
+      // Maker-checker: prevent self-rejection
+      if ((current as any)?.requested_by === user.id) {
+        throw new Error("You cannot reject your own request.");
       }
 
       const { error } = await supabase.from("approval_requests" as any).update({

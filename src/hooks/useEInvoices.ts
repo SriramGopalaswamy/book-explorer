@@ -172,6 +172,7 @@ export function useEInvoices() {
           signed_qr_code: btoa(qrData),
         })
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
@@ -191,6 +192,7 @@ export function useEInvoices() {
         .from("e_invoices")
         .select("irn_generated_at, status")
         .eq("id", id)
+        .eq("organization_id", orgId)
         .single();
 
       if (existing?.status === "cancelled") throw new Error("E-Invoice is already cancelled.");
@@ -212,6 +214,7 @@ export function useEInvoices() {
           cancelled_at: new Date().toISOString(),
         })
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
