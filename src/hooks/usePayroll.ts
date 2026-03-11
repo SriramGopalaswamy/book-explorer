@@ -288,11 +288,21 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
       // ── Only draft/cancelled records can be deleted ────────
       const { data: check, error: checkErr } = await supabase
         .from("payroll_records")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (checkErr) throw checkErr;
       const status = check?.status as string;
@@ -303,7 +313,8 @@ export function useDeletePayroll() {
       const { error } = await supabase
         .from("payroll_records")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

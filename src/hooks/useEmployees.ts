@@ -260,10 +260,28 @@ export function useUpdateEmployee() {
 
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdateEmployeeData) => {
+      // Resolve org_id to enforce tenant isolation on update
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", id)
+        .single();
+
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+
+      if (!profile || !callerProfile || profile.organization_id !== callerProfile.organization_id) {
+        throw new Error("Cannot update employee from another organization.");
+      }
+
       const { data: employee, error } = await supabase
         .from("profiles")
         .update(data)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
