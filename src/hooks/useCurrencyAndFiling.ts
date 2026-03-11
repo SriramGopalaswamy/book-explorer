@@ -50,8 +50,8 @@ export function useCreateExchangeRate() {
     mutationFn: async (r: { from_currency: string; to_currency: string; rate: number; effective_date: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
-      if (!profile?.organization_id) throw new Error("No organization found");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
       const { error } = await supabase.from("exchange_rates" as any).insert({ ...r, organization_id: profile.organization_id } as any);
       if (error) throw error;
     },

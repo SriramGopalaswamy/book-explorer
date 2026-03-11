@@ -120,7 +120,7 @@ export default function EInvoices() {
   }), { assessable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, total: 0 });
 
   async function handleCreate() {
-    if (!form.doc_number || !form.seller_gstin || !form.buyer_legal_name) {
+    if (!form.doc_number || !form.seller_gstin || !form.buyer_legal_name || !form.seller_pincode || !form.buyer_pincode) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -272,12 +272,12 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.seller_legal_name} onChange={(e) => setForm(p => ({ ...p, seller_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.seller_address} onChange={(e) => setForm(p => ({ ...p, seller_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.seller_location} onChange={(e) => setForm(p => ({ ...p, seller_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value }))} maxLength={6} /></div>
+                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value.replace(/\D/g, "") }))} maxLength={6} placeholder="6-digit pincode" /></div>
                       <div className="space-y-1">
                         <Label>State</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).map(([code, name]) => <SelectItem key={code} value={code}>{code} - {name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -293,12 +293,12 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.buyer_legal_name} onChange={(e) => setForm(p => ({ ...p, buyer_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.buyer_address} onChange={(e) => setForm(p => ({ ...p, buyer_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.buyer_location} onChange={(e) => setForm(p => ({ ...p, buyer_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.buyer_pincode} onChange={(e) => setForm(p => ({ ...p, buyer_pincode: e.target.value }))} maxLength={6} /></div>
+                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.buyer_pincode} onChange={(e) => setForm(p => ({ ...p, buyer_pincode: e.target.value.replace(/\D/g, "") }))} maxLength={6} placeholder="6-digit pincode" /></div>
                       <div className="space-y-1">
                         <Label>State / Place of Supply</Label>
                         <Select value={form.buyer_state_code} onValueChange={(v) => setForm(p => ({ ...p, buyer_state_code: v, buyer_pos: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).map(([code, name]) => <SelectItem key={code} value={code}>{code} - {name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>

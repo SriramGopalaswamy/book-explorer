@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -167,6 +168,7 @@ const SUGGESTED_PROMPTS = [
 
 export function AICommandCenter() {
   const { session } = useAuth();
+  const qc = useQueryClient();
 
   // Insights tab
   const pl = useProfitLoss();
@@ -446,7 +448,7 @@ export function AICommandCenter() {
               Automated Insights
               <Badge variant="outline" className="text-xs">local heuristics</Badge>
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { qc.invalidateQueries({ queryKey: ["rpc-profit-loss"] }); qc.invalidateQueries({ queryKey: ["rpc-balance-sheet"] }); qc.invalidateQueries({ queryKey: ["hr-analytics"] }); qc.invalidateQueries({ queryKey: ["payroll-summary"] }); }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
           </CardHeader>
