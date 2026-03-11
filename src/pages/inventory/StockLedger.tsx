@@ -10,11 +10,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
 export default function StockLedger() {
-  const [itemFilter, setItemFilter] = useState<string>("");
-  const [whFilter, setWhFilter] = useState<string>("");
+  const [itemFilter, setItemFilter] = useState<string>("all");
+  const [whFilter, setWhFilter] = useState<string>("all");
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
-  const { data: entries, isLoading } = useStockLedger(itemFilter || undefined, whFilter || undefined);
+  const { data: entries, isLoading } = useStockLedger(
+    itemFilter !== "all" ? itemFilter : undefined,
+    whFilter !== "all" ? whFilter : undefined
+  );
 
   const txnBadge = (type: string) => {
     const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment"];
@@ -50,14 +53,14 @@ export default function StockLedger() {
           <Select value={itemFilter} onValueChange={setItemFilter}>
             <SelectTrigger className="w-full sm:w-60"><SelectValue placeholder="All Items" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Items</SelectItem>
+              <SelectItem value="all">All Items</SelectItem>
               {(items || []).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={whFilter} onValueChange={setWhFilter}>
             <SelectTrigger className="w-full sm:w-60"><SelectValue placeholder="All Warehouses" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Warehouses</SelectItem>
+              <SelectItem value="all">All Warehouses</SelectItem>
               {(warehouses || []).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
             </SelectContent>
           </Select>

@@ -136,12 +136,13 @@ export function useEInvoices() {
 
   const createMutation = useMutation({
     mutationFn: async (einv: EInvoiceInsert) => {
+      if (!orgId) throw new Error("Organization not found. Please refresh and try again.");
       const validationError = validateEInvoice(einv);
       if (validationError) throw new Error(validationError);
 
       const { data, error } = await (supabase as any)
         .from("e_invoices")
-        .insert({ ...einv, user_id: user!.id })
+        .insert({ ...einv, user_id: user!.id, organization_id: orgId, status: einv.status ?? "pending" })
         .select()
         .single();
       if (error) throw error;

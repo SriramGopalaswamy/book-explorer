@@ -7,9 +7,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Warehouse, Search, Trash2 } from "lucide-react";
+import { Plus, Warehouse, Search, Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const INDIAN_STATES: Record<string, string> = {
+  "Andhra Pradesh": "Andhra Pradesh", "Arunachal Pradesh": "Arunachal Pradesh",
+  "Assam": "Assam", "Bihar": "Bihar", "Chhattisgarh": "Chhattisgarh",
+  "Goa": "Goa", "Gujarat": "Gujarat", "Haryana": "Haryana",
+  "Himachal Pradesh": "Himachal Pradesh", "Jharkhand": "Jharkhand",
+  "Karnataka": "Karnataka", "Kerala": "Kerala", "Madhya Pradesh": "Madhya Pradesh",
+  "Maharashtra": "Maharashtra", "Manipur": "Manipur", "Meghalaya": "Meghalaya",
+  "Mizoram": "Mizoram", "Nagaland": "Nagaland", "Odisha": "Odisha",
+  "Punjab": "Punjab", "Rajasthan": "Rajasthan", "Sikkim": "Sikkim",
+  "Tamil Nadu": "Tamil Nadu", "Telangana": "Telangana", "Tripura": "Tripura",
+  "Uttar Pradesh": "Uttar Pradesh", "Uttarakhand": "Uttarakhand",
+  "West Bengal": "West Bengal",
+  "Andaman & Nicobar Islands": "Andaman & Nicobar Islands",
+  "Chandigarh": "Chandigarh", "Dadra & Nagar Haveli": "Dadra & Nagar Haveli",
+  "Daman & Diu": "Daman & Diu", "Delhi": "Delhi", "Jammu & Kashmir": "Jammu & Kashmir",
+  "Ladakh": "Ladakh", "Lakshadweep": "Lakshadweep", "Puducherry": "Puducherry",
+};
 
 export default function Warehouses() {
   const { data: warehouses, isLoading } = useWarehouses();
@@ -17,6 +36,7 @@ export default function Warehouses() {
   const deleteWH = useDeleteWarehouse();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [pincodeLoading, setPincodeLoading] = useState(false);
   const [form, setForm] = useState({
     name: "", code: "", address: "", city: "", state: "", pincode: "",
     contact_person: "", contact_phone: "", contact_email: "",
@@ -26,6 +46,29 @@ export default function Warehouses() {
     w.name?.toLowerCase().includes(search.toLowerCase()) ||
     w.code?.toLowerCase().includes(search.toLowerCase())
   );
+
+  async function handlePincodeChange(pincode: string) {
+    setForm(f => ({ ...f, pincode }));
+    if (pincode.length === 6 && /^\d{6}$/.test(pincode)) {
+      setPincodeLoading(true);
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+        const json = await res.json();
+        if (json?.[0]?.Status === "Success" && json[0].PostOffice?.length > 0) {
+          const po = json[0].PostOffice[0];
+          setForm(f => ({
+            ...f,
+            city: po.District || po.Block || f.city,
+            state: po.State || f.state,
+          }));
+        }
+      } catch {
+        // silently ignore lookup failures
+      } finally {
+        setPincodeLoading(false);
+      }
+    }
+  }
 
   const handleCreate = () => {
     createWH.mutate({
@@ -75,9 +118,35 @@ export default function Warehouses() {
                 </div>
                 <div><Label>Address</Label><Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
                 <div className="grid grid-cols-3 gap-4">
-                  <div><Label>City</Label><Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
-                  <div><Label>State</Label><Input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} /></div>
-                  <div><Label>Pincode</Label><Input value={form.pincode} onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))} /></div>
+                  <div>
+                    <Label>Pincode</Label>
+                    <div className="relative">
+                      <Input
+                        value={form.pincode}
+                        onChange={e => handlePincodeChange(e.target.value)}
+                        maxLength={6}
+                        placeholder="6 digits"
+                      />
+                      {pincodeLoading && (
+                        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label>City / District</Label>
+                    <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} placeholder="Auto-filled by pincode" />
+                  </div>
+                  <div>
+                    <Label>State</Label>
+                    <Select value={form.state} onValueChange={v => setForm(f => ({ ...f, state: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.keys(INDIAN_STATES).map(s => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} /></div>
