@@ -272,7 +272,7 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.seller_legal_name} onChange={(e) => setForm(p => ({ ...p, seller_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.seller_address} onChange={(e) => setForm(p => ({ ...p, seller_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.seller_location} onChange={(e) => setForm(p => ({ ...p, seller_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value }))} maxLength={6} /></div>
+                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value.replace(/\D/g, "") }))} maxLength={6} placeholder="6-digit pincode" /></div>
                       <div className="space-y-1">
                         <Label>State</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
