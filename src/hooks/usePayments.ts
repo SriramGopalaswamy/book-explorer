@@ -112,6 +112,7 @@ export function useCreatePaymentReceipt() {
         bank_account_id: r.bank_account_id || null,
         notes: r.notes || null,
         created_by: user.id,
+        organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
 
