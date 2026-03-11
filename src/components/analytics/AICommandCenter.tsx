@@ -301,11 +301,11 @@ export function AICommandCenter() {
   return (
     <Tabs defaultValue="insights" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="chat" className="gap-2">
-          <Bot className="h-4 w-4" /> AI Chat
-        </TabsTrigger>
         <TabsTrigger value="insights" className="gap-2">
           <BarChart3 className="h-4 w-4" /> Insights
+        </TabsTrigger>
+        <TabsTrigger value="chat" className="gap-2">
+          <Bot className="h-4 w-4" /> AI Chat
         </TabsTrigger>
       </TabsList>
 
