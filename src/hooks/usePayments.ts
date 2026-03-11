@@ -231,6 +231,7 @@ export function useCreateVendorPayment() {
         bank_account_id: p.bank_account_id || null,
         notes: p.notes || null,
         created_by: user.id,
+        organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
 

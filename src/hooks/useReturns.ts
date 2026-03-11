@@ -235,6 +235,8 @@ export function useCreatePurchaseReturn() {
         }
       }
 
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single();
+      if (!profile?.organization_id) throw new Error("No organization found");
       const subtotal = r.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const num = `PR-${Date.now().toString(36).toUpperCase()}`;
@@ -252,6 +254,7 @@ export function useCreatePurchaseReturn() {
         total_amount: Math.round((subtotal + tax) * 100) / 100,
         notes: r.notes || null,
         created_by: user.id,
+        organization_id: profile.organization_id,
       } as any).select().single();
       if (error) throw error;
 
