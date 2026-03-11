@@ -788,7 +788,7 @@ function UserManagementSection() {
   // Set manager dialog state
   const [setManagerDialogOpen, setSetManagerDialogOpen] = useState(false);
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
-  const [newManagerProfileId, setNewManagerProfileId] = useState<string>("");
+  const [newManagerUserId, setNewManagerUserId] = useState<string>("");
   const [updatingManager, setUpdatingManager] = useState(false);
 
   const activeUsers = useMemo(
@@ -914,7 +914,7 @@ function UserManagementSection() {
       body: {
         action: "update_manager",
         user_id: setManagerTarget.user_id,
-        manager_profile_id: newManagerProfileId || undefined,
+        manager_user_id: newManagerUserId || undefined,
       },
     });
     if (error || data?.error) {
@@ -924,7 +924,7 @@ function UserManagementSection() {
       setUsers((prev) =>
         prev.map((u) =>
           u.user_id === setManagerTarget.user_id
-            ? { ...u, manager_id: newManagerProfileId || null, pending_manager_email: null }
+            ? { ...u, pending_manager_email: null }
             : u
         )
       );
@@ -970,7 +970,7 @@ function UserManagementSection() {
                 {activeUsers
                   .filter((u) => u.user_id !== managerDialogTarget?.user_id)
                   .map((u) => (
-                    <SelectItem key={u.user_id} value={u.manager_id || u.user_id}>
+                    <SelectItem key={u.user_id} value={u.user_id}>
                       {u.full_name || u.email}
                     </SelectItem>
                   ))}
@@ -1007,7 +1007,7 @@ function UserManagementSection() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Label>Manager</Label>
-            <Select value={newManagerProfileId} onValueChange={setNewManagerProfileId}>
+            <Select value={newManagerUserId} onValueChange={setNewManagerUserId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select manager..." />
               </SelectTrigger>
@@ -1015,7 +1015,7 @@ function UserManagementSection() {
                 {activeUsers
                   .filter((u) => u.user_id !== setManagerTarget?.user_id)
                   .map((u) => (
-                    <SelectItem key={u.user_id} value={u.manager_id || u.user_id}>
+                    <SelectItem key={u.user_id} value={u.user_id}>
                       {u.full_name || u.email}
                       {u.job_title ? ` · ${u.job_title}` : ""}
                     </SelectItem>
@@ -1171,7 +1171,7 @@ function UserManagementSection() {
                           title="Set Manager"
                           onClick={() => {
                             setSetManagerTarget(u);
-                            setNewManagerProfileId(u.manager_id || "");
+                            setNewManagerUserId("");
                             setSetManagerDialogOpen(true);
                           }}
                         >

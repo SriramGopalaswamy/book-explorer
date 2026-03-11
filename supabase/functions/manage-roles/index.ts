@@ -425,10 +425,11 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────
-    // update_manager — admin manually sets manager_id for a user
+    // update_manager — admin manually sets manager_id for a user.
+    // Accepts manager_user_id (auth user UUID) and resolves to profiles.id internally.
     // ─────────────────────────────────────────────
     if (action === "update_manager") {
-      const { user_id, manager_profile_id } = body;
+      const { user_id, manager_user_id } = body; // manager_user_id = null to remove manager
 
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
@@ -451,39 +452,36 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify the new manager is also in the same org (if provided)
-      if (manager_profile_id) {
-        const { data: managerMember } = await supabase
-          .from("profiles")
-          .select("user_id")
-          .eq("id", manager_profile_id)
-          .eq("organization_id", requestingOrgId)
-          .maybeSingle();
-        if (!managerMember) {
-          return new Response(JSON.stringify({ error: "Manager not found in your organization" }), {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        // Prevent self-assignment
-        const { data: targetProfileMgr } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("user_id", user_id)
-          .maybeSingle();
-        if (targetProfileMgr?.id === manager_profile_id) {
+      // Resolve manager_user_id → manager profiles.id (FK on profiles.manager_id)
+      let resolvedManagerProfileId: string | null = null;
+      if (manager_user_id) {
+        // Self-assignment check
+        if (manager_user_id === user_id) {
           return new Response(JSON.stringify({ error: "A user cannot be their own manager" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+
+        const { data: managerProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", manager_user_id)
+          .eq("organization_id", requestingOrgId)
+          .maybeSingle();
+        if (!managerProfile) {
+          return new Response(JSON.stringify({ error: "Manager not found in your organization" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        resolvedManagerProfileId = managerProfile.id;
       }
 
       const { error: mgrUpdateError } = await supabase
         .from("profiles")
         .update({
-          manager_id: manager_profile_id || null,
+          manager_id: resolvedManagerProfileId,
           pending_manager_email: null,
         })
         .eq("user_id", user_id);

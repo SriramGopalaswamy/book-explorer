@@ -6,6 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Default organization ID — the seeded GRX10 Solutions org
+const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
+
 // Helper: sync profile fields + manager_id from MS365 data.
 // If the manager email cannot be resolved to a profile yet, stores it in
 // pending_manager_email for deferred resolution on next login.
@@ -43,6 +46,7 @@ async function syncProfileFromMS365(
       full_name: fullName,
       email: email.toLowerCase(),
       status,
+      organization_id: DEFAULT_ORG_ID,
     };
     if (jobTitle) profileData.job_title = jobTitle;
     if (department) profileData.department = department;
@@ -67,6 +71,12 @@ async function syncProfileFromMS365(
         .from("profiles")
         .insert({ ...profileData, user_id: userId });
     }
+
+    // Ensure org membership exists (idempotent upsert)
+    await supabase
+      .from("organization_members")
+      .upsert({ user_id: userId, organization_id: DEFAULT_ORG_ID }, { onConflict: "organization_id,user_id" });
+
   } catch (err) {
     console.warn("Failed to sync profile from MS365:", err);
   }
