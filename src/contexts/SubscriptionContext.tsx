@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 
 interface SubscriptionState {
   /** No active subscription exists */
@@ -36,11 +37,15 @@ const SubscriptionContext = createContext<SubscriptionState>({
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { data: org, isLoading: orgLoading } = useUserOrganization();
+  const { data: org, isLoading: orgLoading, isError: orgError } = useUserOrganization();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
   const orgId = org?.organizationId;
 
-  // Only fetch subscription if user is authenticated
+  // Super admins skip subscription fetch entirely
+  const shouldSkipSubscription = isSuperAdmin === true;
+
+  // Only fetch subscription if user is authenticated and not a super admin
   const { data: subscription, isLoading: subLoading } = useQuery({
     queryKey: ["subscription", orgId],
     queryFn: async () => {
@@ -68,14 +73,46 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    enabled: !!user && !!orgId, // Only run if user exists and orgId exists
+    enabled: !!user && !!orgId && !shouldSkipSubscription, // Skip for super admins
     staleTime: 1000 * 60 * 5,
   });
 
   // Only show loading if user is authenticated, otherwise don't block
-  const loading = user ? (orgLoading || subLoading) : false;
+  // Don't wait for subscription if user is super admin
+  // If org query has error, don't stay in loading state
+  const loading = user ? (saLoading || (shouldSkipSubscription ? false : ((orgLoading && !orgError) || subLoading))) : false;
 
   const state = useMemo<SubscriptionState>(() => {
+    // Super admins get full access without subscription checks
+    if (shouldSkipSubscription && !saLoading) {
+      console.log("[SubscriptionContext] Super admin detected, skipping subscription validation");
+      return {
+        needsActivation: false,
+        readOnlyMode: false,
+        onboardingRequired: false,
+        plan: "platform_admin",
+        subscriptionStatus: "active",
+        loading: false,
+        organizationId: orgId ?? null,
+        enabledModules: ["all"],
+      };
+    }
+
+    // If org query has error, stop loading and let auth redirect to login
+    if (orgError) {
+      console.error("[SubscriptionContext] Organization query error - stopping loading");
+      return {
+        needsActivation: false,
+        readOnlyMode: false,
+        onboardingRequired: false,
+        plan: null,
+        subscriptionStatus: null,
+        loading: false,
+        organizationId: null,
+        enabledModules: null,
+      };
+    }
+
     if (loading || !org) {
       return {
         needsActivation: false,
@@ -105,7 +142,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       organizationId: orgId ?? null,
       enabledModules: subscription?.enabled_modules ?? null,
     };
-  }, [loading, org, subscription, orgId]);
+  }, [loading, org, subscription, orgId, shouldSkipSubscription, saLoading, orgError]);
 
   return (
     <SubscriptionContext.Provider value={state}>

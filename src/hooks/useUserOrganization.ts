@@ -11,6 +11,7 @@ export function useUserOrganization() {
 
   return useQuery({
     queryKey: ["user-organization", user?.id],
+    retry: false, // Don't retry if profile not found
     queryFn: async () => {
       console.log("[useUserOrganization] Fetching organization for user:", user?.id);
       if (!user) {
@@ -32,8 +33,14 @@ export function useUserOrganization() {
           throw profileError;
         }
         if (!profile) {
-          console.log("[useUserOrganization] No profile found for user");
-          return null;
+          console.error("[useUserOrganization] No profile found for user - clearing session");
+          // Clear local storage and session
+          localStorage.clear();
+          sessionStorage.clear();
+          // Sign out to force login
+          await supabase.auth.signOut();
+          // Throw error to stop loading
+          throw new Error("Profile not found - please log in again");
         }
 
         const orgId = profile.organization_id;

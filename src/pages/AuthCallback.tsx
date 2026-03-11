@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,6 +9,18 @@ export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  // Wait for user to be set before navigating
+  const [sessionProcessed, setSessionProcessed] = useState(false);
+
+  useEffect(() => {
+    if (sessionProcessed && user) {
+      console.log("[AuthCallback] User context updated, navigating to home");
+      toast.success("Signed in with Microsoft 365!");
+      navigate("/", { replace: true });
+    }
+  }, [user, sessionProcessed, navigate]);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -61,12 +74,23 @@ export default function AuthCallback() {
         }
 
         if (data?.session) {
-          await supabase.auth.setSession({
+          console.log("[AuthCallback] Setting session...");
+          const { error: setSessionError } = await supabase.auth.setSession({
             access_token: data.session.access_token,
             refresh_token: data.session.refresh_token,
           });
-          toast.success("Signed in with Microsoft 365!");
-          navigate("/", { replace: true });
+
+          if (setSessionError) {
+            console.error("[AuthCallback] Set session error:", setSessionError);
+            setError("Failed to set session");
+            toast.error("Failed to set session");
+            setTimeout(() => navigate("/auth", { replace: true }), 3000);
+            return;
+          }
+
+          console.log("[AuthCallback] Session set successfully, waiting for auth context to update...");
+          setSessionProcessed(true);
+          // The navigation will happen via the useEffect above once user is set
         } else {
           setError("No session returned");
           setTimeout(() => navigate("/auth", { replace: true }), 3000);

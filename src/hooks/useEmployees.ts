@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 
 export interface Employee {
   id: string;
@@ -35,14 +36,22 @@ export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
 }
 
 // Check if user has admin/HR role — server-side only
+// Super admins have full access
 export function useIsAdminOrHR() {
   const { user } = useAuth();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
   return useQuery({
-    queryKey: ["user-role", user?.id],
+    queryKey: ["user-role", user?.id, isSuperAdmin],
     queryFn: async () => {
       if (!user) return false;
-      
+
+      // Super admins have full access
+      if (isSuperAdmin) {
+        console.log("[useIsAdminOrHR] Super admin detected, granting access");
+        return true;
+      }
+
       const { data, error } = await supabase
         .from("grxbooks.user_roles")
         .select("role")
@@ -56,19 +65,27 @@ export function useIsAdminOrHR() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !saLoading,
   });
 }
 
 // Check if user has admin, HR, or finance role
+// Super admins have full access
 export function useIsAdminHROrFinance() {
   const { user } = useAuth();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "admin-hr-finance"],
+    queryKey: ["user-role", user?.id, "admin-hr-finance", isSuperAdmin],
     queryFn: async () => {
       if (!user) return false;
-      
+
+      // Super admins have full access
+      if (isSuperAdmin) {
+        console.log("[useIsAdminHROrFinance] Super admin detected, granting access");
+        return true;
+      }
+
       const { data, error } = await supabase
         .from("grxbooks.user_roles")
         .select("role")
@@ -82,7 +99,7 @@ export function useIsAdminHROrFinance() {
 
       return data && data.length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !saLoading,
   });
 }
 

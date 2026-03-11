@@ -3,7 +3,7 @@
  * Replaces Supabase client completely
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
 // Get auth token from localStorage
 function getAuthToken(): string | null {
@@ -120,18 +120,25 @@ class DatabaseClient {
                 return { data: null, error: { message: error.message } };
               }
             },
-              then: async () => this.query('GET', tableName, { 
-                [`${column}.eq`]: value, 
-                select: columns, 
-                order: `${orderColumn}.${options?.ascending === false ? 'desc' : 'asc'}`,
-                limit: limitValue.toString()
-              }),
+              then: async () => {
+                try {
+                  const result = await this.query('GET', tableName, {
+                    [`${column}.eq`]: value,
+                    select: columns,
+                    order: `${orderColumn}.${options?.ascending === false ? 'desc' : 'asc'}`,
+                    limit: limitValue.toString()
+                  });
+                  return { data: result, error: null };
+                } catch (error: any) {
+                  return { data: null, error: { message: error.message } };
+                }
+              },
             }),
             maybeSingle: async () => {
               try {
-                const result = await this.query('GET', tableName, { 
-                  [`${column}.eq`]: value, 
-                  select: columns, 
+                const result = await this.query('GET', tableName, {
+                  [`${column}.eq`]: value,
+                  select: columns,
                   order: `${orderColumn}.${options?.ascending === false ? 'desc' : 'asc'}`,
                   single: 'true'
                 });
@@ -140,20 +147,88 @@ class DatabaseClient {
                 return { data: null, error: { message: error.message } };
               }
             },
-            then: async () => this.query('GET', tableName, { 
-              [`${column}.eq`]: value, 
-              select: columns, 
-              order: `${orderColumn}.${options?.ascending === false ? 'desc' : 'asc'}`
-            }),
+            then: async () => {
+              try {
+                const result = await this.query('GET', tableName, {
+                  [`${column}.eq`]: value,
+                  select: columns,
+                  order: `${orderColumn}.${options?.ascending === false ? 'desc' : 'asc'}`
+                });
+                return { data: result, error: null };
+              } catch (error: any) {
+                return { data: null, error: { message: error.message } };
+              }
+            },
           }),
-          then: async () => this.query('GET', tableName, { [`${column}.eq`]: value, select: columns }),
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.eq`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          },
         }),
-        neq: (column: string, value: any) => this.query('GET', tableName, { [`${column}.neq`]: value, select: columns }),
-        gte: (column: string, value: any) => this.query('GET', tableName, { [`${column}.gte`]: value, select: columns }),
-        lte: (column: string, value: any) => this.query('GET', tableName, { [`${column}.lte`]: value, select: columns }),
-        gt: (column: string, value: any) => this.query('GET', tableName, { [`${column}.gt`]: value, select: columns }),
-        lt: (column: string, value: any) => this.query('GET', tableName, { [`${column}.lt`]: value, select: columns }),
-        in: (column: string, values: any[]) => this.query('GET', tableName, { [`${column}.in`]: values.join(','), select: columns }),
+        neq: (column: string, value: any) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.neq`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
+        gte: (column: string, value: any) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.gte`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
+        lte: (column: string, value: any) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.lte`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
+        gt: (column: string, value: any) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.gt`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
+        lt: (column: string, value: any) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.lt`]: value, select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
+        in: (column: string, values: any[]) => ({
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { [`${column}.in`]: values.join(','), select: columns });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
+        }),
         order: (column: string, options?: { ascending?: boolean }) => ({
           maybeSingle: async () => {
             try {
@@ -163,7 +238,14 @@ class DatabaseClient {
               return { data: null, error: { message: error.message } };
             }
           },
-          then: async () => this.query('GET', tableName, { select: columns, order: `${column}.${options?.ascending === false ? 'desc' : 'asc'}` })
+          then: async () => {
+            try {
+              const result = await this.query('GET', tableName, { select: columns, order: `${column}.${options?.ascending === false ? 'desc' : 'asc'}` });
+              return { data: result, error: null };
+            } catch (error: any) {
+              return { data: null, error: { message: error.message } };
+            }
+          }
         }),
         maybeSingle: async () => {
           try {
@@ -178,7 +260,14 @@ class DatabaseClient {
           if (!result) throw new Error('No rows returned');
           return result;
         },
-        then: async () => this.query('GET', tableName, { select: columns }),
+        then: async () => {
+          try {
+            const result = await this.query('GET', tableName, { select: columns });
+            return { data: result, error: null };
+          } catch (error: any) {
+            return { data: null, error: { message: error.message } };
+          }
+        },
       }),
       insert: (data: any) => ({
         select: (columns?: string) => ({

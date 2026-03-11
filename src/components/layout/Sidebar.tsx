@@ -436,7 +436,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
-        {currentRole === "admin" && (
+        {(effectiveRole === "admin" || isSuperAdmin) && (
           <NavLink
             to="/settings"
             onClick={closeMobile}

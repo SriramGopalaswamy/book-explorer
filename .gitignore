@@ -29,3 +29,6 @@ backend/.env
 *.njsproj
 *.sln
 *.sw?
+
+
+docs/

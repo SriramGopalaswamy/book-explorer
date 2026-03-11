@@ -1,3 +1,0 @@
-Generating Complete Structural System Audit Report...
-✓ Audit report generated successfully: /home/runner/work/book-explorer/book-explorer/SYSTEM_GOVERNANCE_AUDIT.txt
-  Report size: 61 KB

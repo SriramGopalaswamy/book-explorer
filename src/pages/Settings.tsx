@@ -830,6 +830,22 @@ export default function Settings() {
   useEffect(() => {
     if (!user) return;
     (async () => {
+      // Check for superadmin first
+      const { data: superAdminData } = await supabase
+        .from("grxbooks.platform_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "super_admin")
+        .maybeSingle();
+
+      if (superAdminData) {
+        console.log("[Settings] Super admin detected, granting access");
+        setIsAdmin(true);
+        setCheckingAdmin(false);
+        return;
+      }
+
+      // Check for regular admin role
       const { data } = await supabase
         .from("user_roles")
         .select("role")

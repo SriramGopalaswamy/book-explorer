@@ -49,10 +49,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkSession();
 
-    // Simple polling to check session changes (can be improved with WebSocket or events)
-    const interval = setInterval(checkSession, 60000); // Check every minute
+    // Listen to auth state changes (replaces polling)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[AuthContext] Auth state changed:', event, session?.user?.email);
+        if (session) {
+          setSession(session);
+          setUser(session.user);
+        } else {
+          setSession(null);
+          setUser(null);
+        }
+        setLoading(false);
+      }
+    );
 
-    return () => clearInterval(interval);
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {

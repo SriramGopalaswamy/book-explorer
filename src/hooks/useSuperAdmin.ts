@@ -20,12 +20,17 @@ export function useIsSuperAdmin() {
       console.log("[useSuperAdmin] Checking super_admin for user:", user.id);
       try {
         // Query all platform roles for this user (usually 0-1 records)
-        const data = await supabase
-          .from("platform_roles")
+        const { data, error } = await supabase
+          .from("grxbooks.platform_roles")
           .select("role")
-          .eq("user_id", user.id)
-          .then();
-        console.log("[useSuperAdmin] Query returned:", data);
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error("[useSuperAdmin] Query error:", error);
+          return false;
+        }
+
+        console.log("[useSuperAdmin] Query returned:", { data, error });
         // Filter for super_admin role in JavaScript
         const isSuperAdmin = Array.isArray(data) && data.some((r: any) => r.role === "super_admin");
         console.log("[useSuperAdmin] Is super admin:", isSuperAdmin);
@@ -37,6 +42,9 @@ export function useIsSuperAdmin() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: 1, // Only retry once
+    retryDelay: 1000, // Wait 1 second before retry
   });
 }
 
@@ -50,10 +58,9 @@ export function useOrganizations() {
     queryKey: ["platform-organizations"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("organizations")
+        .from("grxbooks.organizations")
         .select("*")
-        .order("created_at", { ascending: false })
-        .then();
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },

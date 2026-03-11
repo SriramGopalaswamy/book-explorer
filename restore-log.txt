@@ -1,0 +1,239 @@
+============================================================
+RESTORING PUBLIC SCHEMA TO TESTDB
+============================================================
+
+📖 Reading dump file...
+   File size: 52.10 MB
+   Total statements: 35331
+
+🚀 Starting restore...
+
+
+[1/35331] Processing: atr_tiers_id_seq
+
+[3/35331] Processing: atr_transactions_id_seq
+
+[5/35331] Processing: atr_users_id_seq
+
+[7/35331] Processing: atr_referrals_id_seq
+
+[9/35331] Processing: atr_gift_redemptions_id_seq
+
+[10/35331] Processing: atr_gift_vouchers_id_seq
+
+[11/35331] Processing: atr_data_integrity_audit_id_seq
+
+[13/35331] Processing: atr_meta_leads_id_seq
+
+[15/35331] Processing: atr_meta_sync_log_id_seq
+
+[16/35331] Processing: voice_users_id_seq
+
+[18/35331] Processing: voice_user_agents_id_seq
+
+[20/35331] Processing: atriafbleads_pages_id_seq
+
+[22/35331] Processing: atriafbleads_forms_id_seq
+
+[24/35331] Processing: atriafbleads_leads_id_seq
+
+[26/35331] Processing: atriafbleads_lead_field_mappings_id_seq
+
+[27/35331] Processing: atriafbleads_salesforce_sync_log_id_seq
+
+[29/35331] Processing: atriafbleads_email_logs_id_seq
+
+[30/35331] Processing: atriafbleads_lead_notes_id_seq
+
+[32/35331] Processing: atriafbleads_users_id_seq
+
+[34/35331] Processing: atr_campaign_analytics_id_seq
+
+[35/35331] Processing: atr_ai_agent_calls_id_seq
+
+[36/35331] Processing: atr_lead_communications_id_seq
+
+[37/35331] Processing: atr_automated_tasks_id_seq
+
+[38/35331] Processing: atr_call_transcripts_id_seq
+
+[39/35331] Processing: atr_lead_conversions_id_seq
+
+[40/35331] Processing: atr_bookings_id_seq
+
+[41/35331] Processing: atr_daily_reports_id_seq
+
+[42/35331] Processing: crm_campaign_analytics_id_seq
+
+[43/35331] Processing: crm_ai_agent_calls_id_seq
+
+[45/35331] Processing: crm_lead_communications_id_seq
+
+[47/35331] Processing: crm_automated_tasks_id_seq
+
+[49/35331] Processing: crm_call_transcripts_id_seq
+
+[50/35331] Processing: crm_lead_conversions_id_seq
+
+[51/35331] Processing: crm_bookings_id_seq
+
+[52/35331] Processing: crm_daily_reports_id_seq
+
+[54/35331] Processing: schema_migrations_id_seq
+
+[56/35331] Processing: demo_system_config_id_seq
+
+[58/35331] Processing: crm_lead_documents_id_seq
+
+[60/35331] Processing: crm_field_mappings_id_seq
+
+[62/35331] Processing: crm_system_preferences_id_seq
+
+[64/35331] Processing: grx10_interview_users_id_seq
+
+[66/35331] Processing: created_at
+   ✅ Table created
+
+[67/35331] Processing: GRX10_newsletter_signups
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "created_at" is of type timestamp with time zone but expression is of type jsonb
+
+[93/35331] Processing: created_at
+   ✅ Table created
+   ✅ Table created
+
+[95/35331] Processing: sync_count
+   ✅ Table created
+
+[96/35331] Processing: aileads_calls
+   ⚠️  INSERT error: column "start_time" is of type timestamp without time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "start_time" is of type timestamp without time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "start_time" is of type timestamp without time zone but expression is of type jsonb
+   ⚠️  INSERT error: column "start_time" is of type timestamp without time zone but expression is of type jsonb
+   ⚠️  (suppressing further errors...)
+
+[111/35331] Processing: updated_at
+   ✅ Table created
+
+[112/35331] Processing: aileads_leads
+
+[115/35331] Processing: read_at
+   ✅ Table created
+
+[116/35331] Processing: aileads_messages
+
+[125/35331] Processing: created_at
+   ✅ Table created
+   ✅ Table created
+
+[127/35331] Processing: aileads_transcriptions
+
+[138/35331] Processing: updated_at
+   ✅ Table created
+
+[139/35331] Processing: aileads_users
+
+[141/35331] Processing: version_num
+   ✅ Table created
+
+[142/35331] Processing: alembic_version
+
+[143/35331] Processing: updated_at
+
+[145/35331] Processing: created_at
+
+[150/35331] Processing: atr_data_integrity_audit
+
+[159/35331] Processing: error_message
+
+[160/35331] Processing: created_at
+
+[161/35331] Processing: raw
+   ✅ Table created
+
+[162/35331] Processing: atr_giftcards
+
+[627/35331] Processing: created_at
+
+[628/35331] Processing: updated_at
+
+[631/35331] Processing: call_analysis
+
+[632/35331] Processing: atr_meta_leads
+
+[639/35331] Processing: created_at
+
+[640/35331] Processing: ar_number
+
+[641/35331] Processing: atr_referrals
+
+[764/35331] Processing: updated_at
+
+[765/35331] Processing: atr_tiers
+
+[774/35331] Processing: source
+
+[775/35331] Processing: atr_transactions
+
+[833/35331] Processing: last_points_update_source
+
+[834/35331] Processing: atr_users
+
+--- Progress: 2.8% (1000/35331) ---
+    Tables created: 30, Inserts: 906
+    Success: 77, Errors: 924
+
+
+[1266/35331] Processing: created_at
+
+[1267/35331] Processing: updated_at
+
+[1268/35331] Processing: atriafbleads_forms
+
+[1275/35331] Processing: created_at
+
+[1277/35331] Processing: atriafbleads_lead_notes
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read ECONNRESET
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20)
+Emitted 'error' event on Client instance at:
+    at Client._handleErrorEvent (C:\Users\damod\Downloads\book-explorer\node_modules\pg\lib\client.js:393:10)
+    at Connection.emit (node:events:508:28)
+    at TLSSocket.reportStreamError (C:\Users\damod\Downloads\book-explorer\node_modules\pg\lib\connection.js:56:12)
+    at TLSSocket.emit (node:events:508:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -4077,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+
+Node.js v24.12.0

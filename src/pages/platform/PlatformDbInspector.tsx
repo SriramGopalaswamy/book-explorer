@@ -65,20 +65,31 @@ export default function PlatformDbInspector() {
   const fetchData = async (action = "full") => {
     setLoading(true);
     try {
-      const resp = await supabase.functions.invoke("db-inspector?action=" + action);
+      const token = localStorage.getItem('auth_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 
-      if (resp.error) throw new Error(resp.error.message || "Failed to fetch");
-      const result = resp.data;
+      const response = await fetch(`${API_URL}/api/db-inspector`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (action === "full" || action === "report") {
-        setTables(result.tables || []);
-        setRelations(result.relations || []);
-        setHealth(result.health || null);
-        setInspectedAt(result.inspected_at);
-        if (result.report_html) setReportHtml(result.report_html);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch');
       }
+
+      const result = await response.json();
+
+      setTables(result.tables || []);
+      setRelations(result.relations || []);
+      setHealth(result.health || null);
+      setInspectedAt(result.inspected_at);
+
       toast.success("Database inspection complete");
     } catch (err) {
+      console.error('[DB Inspector] Error:', err);
       toast.error(`Inspection failed: ${(err as Error).message}`);
     }
     setLoading(false);
@@ -120,29 +131,35 @@ export default function PlatformDbInspector() {
   const downloadReport = async () => {
     setLoading(true);
     try {
-      const resp = await supabase.functions.invoke("db-inspector?action=report");
-      if (resp.error) throw new Error(resp.error.message);
-      const html = resp.data.report_html;
-      if (html) {
-        const blob = new Blob([html], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `db-report-${new Date().toISOString().slice(0, 10)}.html`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Report downloaded");
+      const token = localStorage.getItem('auth_token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
+      const response = await fetch(`${API_URL}/api/db-inspector`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch');
       }
 
-      // Also download JSON
-      const jsonBlob = new Blob([JSON.stringify(resp.data, null, 2)], { type: "application/json" });
+      const data = await response.json();
+
+      // Download JSON report
+      const jsonBlob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const jsonUrl = URL.createObjectURL(jsonBlob);
-      const a2 = document.createElement("a");
-      a2.href = jsonUrl;
-      a2.download = `db-report-${new Date().toISOString().slice(0, 10)}.json`;
-      a2.click();
+      const a = document.createElement("a");
+      a.href = jsonUrl;
+      a.download = `db-report-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
       URL.revokeObjectURL(jsonUrl);
+
+      toast.success("Report downloaded");
     } catch (err) {
+      console.error('[DB Inspector] Download error:', err);
       toast.error(`Report generation failed: ${(err as Error).message}`);
     }
     setLoading(false);
