@@ -121,7 +121,10 @@ export function useCreateWarehouse() {
     mutationFn: async (wh: Record<string, any>) => {
       if (!user) throw new Error("Not authenticated");
       if (!wh.name?.trim()) throw new Error("Warehouse name is required");
-      const { data, error } = await supabase.from("warehouses" as any).insert(wh).select().single();
+      // Resolve organization_id from profile
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first.");
+      const { data, error } = await supabase.from("warehouses" as any).insert({ ...wh, organization_id: profile.organization_id, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
