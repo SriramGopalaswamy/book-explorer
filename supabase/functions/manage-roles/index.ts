@@ -179,14 +179,15 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Protect sriram@grx10.com from deletion
+      // Protect designated admin accounts from deletion
+      const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
       const { data: targetProfile } = await supabase
         .from("profiles")
         .select("email")
         .eq("user_id", user_id)
         .maybeSingle();
 
-      if (targetProfile?.email?.toLowerCase() === "sriram@grx10.com") {
+      if (targetProfile?.email && protectedEmails.includes(targetProfile.email.toLowerCase())) {
         return new Response(JSON.stringify({ error: "This account is protected and cannot be deleted" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
