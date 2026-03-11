@@ -40,17 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Rate limiting: 5 failed attempts per 15 minutes triggers a full lockout.
-  // Attempts are stored in localStorage so they survive page refreshes.
+  // Rate limiting: separate counters for sign-in vs sign-up
   const MAX_AUTH_ATTEMPTS = 5;
   const AUTH_WINDOW_MS = 15 * 60_000; // 15 minutes
-  const LOCKOUT_KEY = "grx10_auth_attempts";
+  const SIGNIN_LOCKOUT_KEY = "grx10_signin_attempts";
+  const SIGNUP_LOCKOUT_KEY = "grx10_signup_attempts";
 
-  const checkRateLimit = () => {
+  const checkRateLimit = (key: string) => {
     const now = Date.now();
     let stored: number[] = [];
     try {
-      stored = JSON.parse(localStorage.getItem(LOCKOUT_KEY) || "[]");
+      stored = JSON.parse(localStorage.getItem(key) || "[]");
     } catch {
       stored = [];
     }
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     recent.push(now);
     try {
-      localStorage.setItem(LOCKOUT_KEY, JSON.stringify(recent));
+      localStorage.setItem(key, JSON.stringify(recent));
     } catch {
       // localStorage unavailable — continue without persisting
     }
@@ -78,14 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Clear rate-limit counter after a successful login
   const clearRateLimit = () => {
     try {
-      localStorage.removeItem(LOCKOUT_KEY);
+      localStorage.removeItem(SIGNIN_LOCKOUT_KEY);
     } catch {
       // ignore
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    checkRateLimit();
+    checkRateLimit(SIGNUP_LOCKOUT_KEY);
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    checkRateLimit();
+    checkRateLimit(SIGNIN_LOCKOUT_KEY);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,

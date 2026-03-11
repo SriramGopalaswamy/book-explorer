@@ -203,7 +203,11 @@ export default function ReimbursementsFinance() {
         })
         .eq("id", approveDialog.id);
 
-      if (updErr) throw updErr;
+      if (updErr) {
+        // Rollback: delete orphan expense record to prevent inconsistent state
+        await supabase.from("expenses").delete().eq("id", expense.id);
+        throw updErr;
+      }
 
       // Auto-create bank transaction (debit/money out)
       const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
