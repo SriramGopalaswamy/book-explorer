@@ -272,12 +272,12 @@ export default function EInvoices() {
                       <div className="space-y-1"><Label>Legal Name *</Label><Input value={form.seller_legal_name} onChange={(e) => setForm(p => ({ ...p, seller_legal_name: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Address</Label><Input value={form.seller_address} onChange={(e) => setForm(p => ({ ...p, seller_address: e.target.value }))} /></div>
                       <div className="space-y-1"><Label>Location</Label><Input value={form.seller_location} onChange={(e) => setForm(p => ({ ...p, seller_location: e.target.value }))} /></div>
-                      <div className="space-y-1"><Label>Pincode</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value }))} maxLength={6} /></div>
+                      <div className="space-y-1"><Label>Pincode *</Label><Input value={form.seller_pincode} onChange={(e) => setForm(p => ({ ...p, seller_pincode: e.target.value.replace(/\D/g, "").slice(0, 6) }))} maxLength={6} placeholder="6-digit pincode" /></div>
                       <div className="space-y-1">
-                        <Label>State</Label>
+                        <Label>State *</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).map(([code, name]) => <SelectItem key={code} value={code}>{code} - {name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
