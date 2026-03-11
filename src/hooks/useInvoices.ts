@@ -302,6 +302,7 @@ export function useUpdateInvoiceStatus() {
         .from("invoices")
         .update({ status })
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
