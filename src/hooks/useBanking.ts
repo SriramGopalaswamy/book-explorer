@@ -254,11 +254,13 @@ export function useCreateTransaction() {
 // Monthly stats
 export function useMonthlyTransactionStats() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["monthly-transaction-stats", user?.id],
+    queryKey: ["monthly-transaction-stats", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return { inflow: 0, outflow: 0 };
+      if (!user || !orgId) return { inflow: 0, outflow: 0 };
 
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -266,6 +268,7 @@ export function useMonthlyTransactionStats() {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
+        .eq("organization_id", orgId)
         .gte("transaction_date", firstDay.toISOString().split("T")[0]);
 
       if (error) throw error;
@@ -284,7 +287,7 @@ export function useMonthlyTransactionStats() {
 
       return stats;
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
