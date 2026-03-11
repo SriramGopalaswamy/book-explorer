@@ -15,6 +15,7 @@ interface StockEntry {
   reference_type: string;
   reference_id: string;
   notes?: string;
+  organization_id?: string;
 }
 
 async function postStockEntries(entries: StockEntry[]): Promise<void> {
