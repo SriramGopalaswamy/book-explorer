@@ -84,9 +84,19 @@ export function useMyTeamRevisionRequests() {
     queryKey: ["my-team-revision-requests", user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      // Org-scoped to prevent cross-tenant data leaks
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return [];
+
       const { data, error } = await (supabase.from("compensation_revision_requests" as any) as any)
         .select("*")
         .eq("requested_by", user.id)
+        .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return enrichWithProfiles(data || []);
