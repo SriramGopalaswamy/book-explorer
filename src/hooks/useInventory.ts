@@ -55,7 +55,9 @@ export function useUpdateItem() {
       if (!user) throw new Error("Not authenticated");
       if (updates.selling_price !== undefined && updates.selling_price < 0) throw new Error("Selling price cannot be negative");
       if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
-      const { error } = await supabase.from("items" as any).update(updates).eq("id", id);
+      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
+      if (!orgId) throw new Error("No organization found");
+      const { error } = await supabase.from("items" as any).update(updates).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
