@@ -191,6 +191,7 @@ export function useEwayBills() {
         .from("eway_bills")
         .select("eway_bill_date, status")
         .eq("id", id)
+        .eq("organization_id", orgId)
         .single();
 
       if (existing?.status === "cancelled") throw new Error("E-Way Bill is already cancelled.");
