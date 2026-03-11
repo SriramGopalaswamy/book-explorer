@@ -386,7 +386,9 @@ export function useUpdateBinLocation() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; bin_code?: string; zone?: string; aisle?: string; rack?: string; level?: string; capacity_units?: number; is_active?: boolean; notes?: string }) => {
       if (updates.bin_code !== undefined && !updates.bin_code?.trim()) throw new Error("Bin code cannot be empty");
-      const { error } = await supabase.from("bin_locations" as any).update(updates as any).eq("id", id);
+      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!orgData?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.from("bin_locations" as any).update(updates as any).eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location updated"); },
