@@ -1558,8 +1558,8 @@ Deno.serve(async (req) => {
           patterns: { date_count: 0, time_count: 0, employee_code_count: 0, status_count: 0, date_samples: [], time_samples: [] },
           fragmentation: { single_token_lines: 0, numeric_only_lines: 0, time_only_lines: 0, avg_line_length: 0, max_line_length: 0, min_line_length: 0, empty_line_count: 0 },
           classification: { guess: "unknown", confidence_signals: [`EXTRACTION FAILED: ${extractErr.message}`] },
-          delimiter_analysis: { detected_delimiter: "unknown", delimiter_counts: {}, consistency_score: 0 },
-          column_analysis: { estimated_columns: 0, header_row_guess: null, sample_rows: [] },
+          delimiter_analysis: { primary_delimiter: "unknown", status: "NONE" as const, candidates: {} },
+          column_analysis: { avg_columns: 0, variance: 0, consistency: "UNSTABLE" as const, outlier_rows: 0, total_table_rows: 0 },
           encoding_anomalies: [],
           structural_confidence: 0,
         };
