@@ -197,11 +197,17 @@ export function useUpdateAsset() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<AssetInsert>) => {
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", supabase.auth.getUser ? (await supabase.auth.getUser()).data.user?.id : "").maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // Fetch current state to enforce lifecycle rules
       const { data: current, error: fetchErr } = await supabase
         .from("assets")
-        .select("status")
+        .select("status, organization_id")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr || !current) throw fetchErr || new Error("Asset not found.");
 
