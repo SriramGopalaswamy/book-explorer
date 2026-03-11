@@ -132,8 +132,7 @@ export default function DeliveryNotes() {
   return (
     <MainLayout title="Delivery Notes" subtitle="Track outbound shipments">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Delivery Notes</h1>
+        <div></div>
           <p className="text-muted-foreground">Track outbound shipments with carrier & logistics details</p>
         </div>
 

@@ -116,10 +116,6 @@ export default function SalesOrders() {
     <MainLayout title="Sales Orders" subtitle="Manage customer order lifecycle">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Sales Orders</h1>
-            <p className="text-muted-foreground">Manage customer order lifecycle</p>
-          </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New SO</Button>

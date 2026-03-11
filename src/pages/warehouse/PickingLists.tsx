@@ -79,10 +79,6 @@ export default function PickingLists() {
     <MainLayout title="Picking Lists" subtitle="Manage warehouse picking operations">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Picking Lists</h1>
-            <p className="text-muted-foreground">Pick items from warehouse for sales orders</p>
-          </div>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Generate Pick List
           </Button>
