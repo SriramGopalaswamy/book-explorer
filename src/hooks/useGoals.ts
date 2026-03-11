@@ -55,6 +55,8 @@ export function useGoals() {
 export function useGoalStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
     queryKey: ["goal-stats", orgId, isDevMode],
