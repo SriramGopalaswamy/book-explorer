@@ -364,6 +364,22 @@ export function useApproveMemo() {
       updatedSubject?: string;
       updatedRecipients?: string[];
     }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Self-approval guard (maker-checker)
+      const { data: memo, error: fetchErr } = await supabase
+        .from("memos")
+        .select("user_id, status")
+        .eq("id", id)
+        .single();
+      if (fetchErr || !memo) throw fetchErr || new Error("Memo not found.");
+      if ((memo as any).user_id === user.id) {
+        throw new Error("You cannot approve your own memo.");
+      }
+      if ((memo as any).status !== "pending_approval") {
+        throw new Error("Only pending memos can be approved.");
+      }
+
       const updates: Record<string, unknown> = {
         status: "published",
         published_at: new Date().toISOString(),
