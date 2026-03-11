@@ -265,7 +265,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         color: getCategoryColor(name),
       }));
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
