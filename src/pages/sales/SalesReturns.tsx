@@ -42,10 +42,6 @@ export default function SalesReturnsPage() {
     <MainLayout title="Sales Returns">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Sales Returns</h1>
-            <p className="text-muted-foreground">Manage customer returns and RMAs</p>
-          </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Return</Button></DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
