@@ -464,11 +464,16 @@ export function useUpdatePickingListStatus() {
         completed: [],
         cancelled: [],
       };
-      const { data: current, error: cErr } = await supabase.from("picking_lists" as any).select("status").eq("id", id).single();
+      // Resolve caller org for tenant isolation
+      const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      const callerOrgId = orgProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
+      const { data: current, error: cErr } = await supabase.from("picking_lists" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       const allowed = TRANSITIONS[(current as any).status] ?? [];
       if (!allowed.includes(status)) throw new Error(`Cannot transition picking list from "${(current as any).status}" to "${status}"`);
-      const { error } = await supabase.from("picking_lists" as any).update({ status } as any).eq("id", id);
+      const { error } = await supabase.from("picking_lists" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["picking-lists"] }); toast.success("Status updated"); },
