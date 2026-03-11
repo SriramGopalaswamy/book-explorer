@@ -162,7 +162,9 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
     const orgId = currentProfile?.organization_id;
 
-    const { data: profiles } = await supabase.from("profiles").select("id, user_id, email, full_name");
+    const { data: profiles } = await (orgId
+      ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId)
+      : supabase.from("profiles").select("id, user_id, email, full_name"));
     const errors: string[] = [];
     let success = 0;
 
@@ -237,9 +239,10 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
           check_in: checkInDate,
           check_out: checkOutDate,
           notes: row.notes || null,
-          ...(orgId ? { organization_id: orgId } : {}),
+          organization_id: orgId || null,
         }, {
           onConflict: "profile_id,date",
+          ignoreDuplicates: false,
         });
 
       if (error) errors.push(`Row ${row.employee_id} ${row.date}: ${error.message}`);

@@ -875,6 +875,11 @@ export default function Bills() {
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openPreview(b)}>
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {b.status === "draft" && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary" onClick={() => openEditDialog(b)} title="Edit draft bill">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
