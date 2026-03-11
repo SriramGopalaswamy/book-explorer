@@ -338,7 +338,7 @@ export default function EwayBills() {
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
                           {INDIAN_STATES.map((s) => (
-                            <SelectItem key={s.code} value={s.code}>{s.code} – {s.name}</SelectItem>
+                            <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
