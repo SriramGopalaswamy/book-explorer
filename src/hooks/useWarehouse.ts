@@ -338,8 +338,13 @@ export function useApproveInventoryCount() {
     mutationFn: async (countId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Fetch count + lines
-      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id").eq("id", countId).single();
+      // Resolve caller org for tenant isolation
+      const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = orgProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
+      // Fetch count + lines (org-scoped)
+      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       if ((count as any).status === "approved") throw new Error("Count already approved");
 
