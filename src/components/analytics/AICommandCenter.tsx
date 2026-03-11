@@ -168,6 +168,7 @@ const SUGGESTED_PROMPTS = [
 
 export function AICommandCenter() {
   const { session } = useAuth();
+  const queryClient = useQueryClient();
 
   // Insights tab
   const pl = useProfitLoss();
