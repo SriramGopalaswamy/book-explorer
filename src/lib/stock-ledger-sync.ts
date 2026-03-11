@@ -133,6 +133,7 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
       reference_type: "delivery_note",
       reference_id: deliveryNoteId,
       notes: `Auto stock-out from DN ${deliveryNoteId.slice(0, 8)}`,
+      organization_id: dnOrgId,
     }));
 
   await postStockEntries(entries);
