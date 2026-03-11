@@ -65,6 +65,7 @@ import {
    Banknote,
    CheckSquare,
    Plug,
+   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -106,6 +107,7 @@ const financialNav: NavItem[] = [
   { name: "E-Way Bills", path: "/financial/eway-bills", icon: Truck, module: "financial" },
   { name: "E-Invoices", path: "/financial/e-invoices", icon: FileText, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
+  { name: "Recurring", path: "/financial/recurring", icon: RefreshCw, module: "financial" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, module: "financial" },
 ];

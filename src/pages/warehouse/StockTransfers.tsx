@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2 } from "lucide-react";
 import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
+import { useWarehouses, useItems } from "@/hooks/useInventory";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -22,12 +23,14 @@ const statusColors: Record<string, string> = {
 
 export default function StockTransfers() {
   const { data: transfers = [], isLoading } = useStockTransfers();
+  const { data: warehouses = [] } = useWarehouses();
+  const { data: itemMaster = [] } = useItems();
   const createTransfer = useCreateStockTransfer();
   const updateStatus = useUpdateTransferStatus();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
-  const [items, setItems] = useState([{ item_name: "", quantity: 1 }]);
+  const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number }[]>([{ item_name: "", quantity: 1 }]);
 
   const filtered = transfers.filter((t) => t.transfer_number.toLowerCase().includes(search.toLowerCase()));
 
@@ -81,16 +84,40 @@ export default function StockTransfers() {
               <DialogHeader><DialogTitle>Create Stock Transfer</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>From Warehouse ID *</Label><Input value={form.from_warehouse_id} onChange={(e) => setForm({ ...form, from_warehouse_id: e.target.value })} /></div>
-                  <div><Label>To Warehouse ID *</Label><Input value={form.to_warehouse_id} onChange={(e) => setForm({ ...form, to_warehouse_id: e.target.value })} /></div>
+                  <div>
+                    <Label>From Warehouse *</Label>
+                    <Select value={form.from_warehouse_id} onValueChange={(v) => setForm({ ...form, from_warehouse_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>To Warehouse *</Label>
+                    <Select value={form.to_warehouse_id} onValueChange={(v) => setForm({ ...form, to_warehouse_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>Transfer Date</Label><Input type="date" value={form.transfer_date} onChange={(e) => setForm({ ...form, transfer_date: e.target.value })} /></div>
                 </div>
                 <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between"><Label className="text-base font-semibold">Items</Label><Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_100px_32px] gap-2 items-end">
-                      <div><Label className="text-xs">Item Name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} /></div>
+                    <div key={i} className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-end">
+                      <div>
+                        <Label className="text-xs">Item</Label>
+                        <Select value={item.item_id || ""} onValueChange={(v) => {
+                          const found = itemMaster.find((it: any) => it.id === v);
+                          const u = [...items];
+                          u[i] = { ...u[i], item_id: v, item_name: (found as any)?.name || (found as any)?.item_name || u[i].item_name };
+                          setItems(u);
+                        }}>
+                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>{itemMaster.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div><Label className="text-xs">Or custom name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} placeholder="Item name" /></div>
                       <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
                       <Button variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
-import { useSalesReturns, useCreateSalesReturn, useUpdateSalesReturnStatus } from "@/hooks/useReturns";
+import { useSalesReturns, useCreateSalesReturn, useUpdateSalesReturnStatus, useCreateCreditNoteFromReturn } from "@/hooks/useReturns";
 import { format } from "date-fns";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -20,6 +20,7 @@ export default function SalesReturnsPage() {
   const { data: returns = [], isLoading } = useSalesReturns();
   const createReturn = useCreateSalesReturn();
   const updateStatus = useUpdateSalesReturnStatus();
+  const createCreditNote = useCreateCreditNoteFromReturn();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
@@ -96,15 +97,34 @@ export default function SalesReturnsPage() {
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.total_amount).toLocaleString()}</TableCell>
                     <TableCell><Badge variant={statusColors[r.status] || "secondary"}>{r.status}</Badge></TableCell>
                     <TableCell>
-                      {r.status === "draft" && (
-                        <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
-                          <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Update" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="confirmed">Confirm</SelectItem>
-                            <SelectItem value="cancelled">Cancel</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {r.status === "draft" && (
+                          <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
+                            <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Advance…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="submitted">Submit</SelectItem>
+                              <SelectItem value="cancelled">Cancel</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {r.status === "submitted" && (
+                          <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
+                            <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Advance…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="approved">Approve</SelectItem>
+                              <SelectItem value="cancelled">Cancel</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {r.status === "approved" && !r.credit_note_id && (
+                          <Button size="sm" variant="outline" onClick={() => createCreditNote.mutate(r.id)} disabled={createCreditNote.isPending}>
+                            Credit Note
+                          </Button>
+                        )}
+                        {r.status === "approved" && r.credit_note_id && (
+                          <Badge variant="outline" className="text-green-500 border-green-500/50">CN Issued</Badge>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
