@@ -1029,7 +1029,7 @@ function UserManagementSection() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSetManagerDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setAssignManagerDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleSetManager} disabled={updatingManager}>
