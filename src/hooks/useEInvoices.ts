@@ -89,10 +89,10 @@ export type EInvoiceInsert = Partial<EInvoice> & {
 function validateEInvoice(einv: EInvoiceInsert): string | null {
   if (!isValidGSTIN(einv.seller_gstin)) return "Invalid Seller GSTIN format. Must be 15 characters (e.g., 29ABCDE1234F1Z5).";
   if (einv.buyer_gstin && !isValidGSTIN(einv.buyer_gstin)) return "Invalid Buyer GSTIN format.";
-  if (einv.seller_pincode && !PINCODE_REGEX.test(einv.seller_pincode)) return "Seller Pincode must be 6 digits.";
-  if (einv.buyer_pincode && !PINCODE_REGEX.test(einv.buyer_pincode)) return "Buyer Pincode must be 6 digits.";
-  if (einv.seller_state_code && !isValidStateCode(einv.seller_state_code)) return "Seller State Code must be 01-38.";
-  if (einv.buyer_state_code && !isValidStateCode(einv.buyer_state_code)) return "Buyer State Code must be 01-38.";
+  if (!einv.seller_pincode || !PINCODE_REGEX.test(einv.seller_pincode)) return "Seller Pincode is required and must be 6 digits.";
+  if (!einv.buyer_pincode || !PINCODE_REGEX.test(einv.buyer_pincode)) return "Buyer Pincode is required and must be 6 digits.";
+  if (!einv.seller_state_code || !isValidStateCode(einv.seller_state_code)) return "Seller State is required.";
+  if (!einv.buyer_state_code || !isValidStateCode(einv.buyer_state_code)) return "Buyer State / Place of Supply is required.";
   if (einv.total_invoice_value <= 0) return "Invoice value must be greater than zero.";
 
   // HSN validation on items
