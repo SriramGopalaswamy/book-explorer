@@ -9,6 +9,7 @@ import { useSubscription } from "@/contexts/SubscriptionContext";
 import { AlertTriangle } from "lucide-react";
 import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { AIAgentChat } from "@/components/ai/AIAgentChat";
 
 interface MainLayoutProps {
   children: ReactNode;
