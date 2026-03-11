@@ -141,7 +141,7 @@ export function useEInvoices() {
 
       const { data, error } = await (supabase as any)
         .from("e_invoices")
-        .insert({ ...einv, user_id: user!.id })
+        .insert({ ...einv, user_id: user!.id, organization_id: orgId })
         .select()
         .single();
       if (error) throw error;

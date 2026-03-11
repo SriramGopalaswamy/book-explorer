@@ -446,7 +446,11 @@ export function AICommandCenter() {
               Automated Insights
               <Badge variant="outline" className="text-xs">local heuristics</Badge>
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => {
+              const qc = (window as any).__queryClient;
+              if (qc) { qc.invalidateQueries(); }
+              else { import("@tanstack/react-query").then(() => window.location.reload()); }
+            }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
           </CardHeader>

@@ -52,7 +52,7 @@ export function useMyPayslipDisputes() {
         .from("profiles")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       if (!profile) return [];
 
       const { data, error } = await supabase
