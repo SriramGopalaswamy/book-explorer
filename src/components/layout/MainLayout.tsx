@@ -93,6 +93,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         </main>
       </div>
       <MobileBottomNav />
+      <AIAgentChat />
     </div>
   );
 }
