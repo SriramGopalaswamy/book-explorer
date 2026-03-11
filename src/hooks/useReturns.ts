@@ -311,3 +311,75 @@ export function useUpdatePurchaseReturnStatus() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+export function useCreateCreditNoteFromReturn() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (salesReturnId: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: ret, error: rErr } = await supabase.from("sales_returns" as any).select("*").eq("id", salesReturnId).single();
+      if (rErr) throw rErr;
+      if ((ret as any).status !== "approved") throw new Error("Sales return must be approved before creating a credit note.");
+      if ((ret as any).credit_note_id) throw new Error("A credit note already exists for this return.");
+
+      const cnNumber = `CN-${Date.now().toString(36).toUpperCase()}`;
+      const { data: cn, error: cnErr } = await supabase.from("credit_notes" as any).insert({
+        credit_note_number: cnNumber,
+        client_name: (ret as any).customer_name,
+        customer_id: (ret as any).customer_id || null,
+        amount: (ret as any).total_amount,
+        reason: `Credit for sales return ${(ret as any).return_number}`,
+        status: "issued",
+        issue_date: new Date().toISOString().split("T")[0],
+        user_id: user.id,
+      } as any).select().single();
+      if (cnErr) throw cnErr;
+
+      await supabase.from("sales_returns" as any).update({ credit_note_id: (cn as any).id } as any).eq("id", salesReturnId);
+      return cn;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sales-returns"] });
+      qc.invalidateQueries({ queryKey: ["credit-notes"] });
+      toast.success("Credit note issued");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useCreateVendorCreditFromReturn() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (purchaseReturnId: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: ret, error: rErr } = await supabase.from("purchase_returns" as any).select("*").eq("id", purchaseReturnId).single();
+      if (rErr) throw rErr;
+      if ((ret as any).status !== "approved") throw new Error("Purchase return must be approved before creating a vendor credit.");
+      if ((ret as any).vendor_credit_id) throw new Error("A vendor credit already exists for this return.");
+
+      const vcNumber = `VC-${Date.now().toString(36).toUpperCase()}`;
+      const { data: vc, error: vcErr } = await supabase.from("vendor_credits" as any).insert({
+        vendor_credit_number: vcNumber,
+        vendor_name: (ret as any).vendor_name,
+        vendor_id: (ret as any).vendor_id || null,
+        amount: (ret as any).total_amount,
+        reason: `Vendor credit for purchase return ${(ret as any).return_number}`,
+        status: "issued",
+        issue_date: new Date().toISOString().split("T")[0],
+        user_id: user.id,
+      } as any).select().single();
+      if (vcErr) throw vcErr;
+
+      await supabase.from("purchase_returns" as any).update({ vendor_credit_id: (vc as any).id } as any).eq("id", purchaseReturnId);
+      return vc;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchase-returns"] });
+      qc.invalidateQueries({ queryKey: ["vendor-credits"] });
+      toast.success("Vendor credit issued");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}

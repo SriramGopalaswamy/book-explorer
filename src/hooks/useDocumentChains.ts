@@ -195,8 +195,8 @@ export function useUpdateGRStatus() {
       if (status === "accepted") {
         try {
           await postGoodsReceiptStock(id);
-        } catch (stockErr) {
-          console.warn("Stock ledger sync failed for GR:", stockErr);
+        } catch (stockErr: any) {
+          toast.error(`Stock ledger sync failed for GR: ${stockErr?.message ?? stockErr}`);
         }
       }
     },
@@ -336,8 +336,8 @@ export function useUpdateDNStatus() {
       if (status === "delivered") {
         try {
           await postDeliveryNoteStock(id);
-        } catch (stockErr) {
-          console.warn("Stock ledger sync failed for DN:", stockErr);
+        } catch (stockErr: any) {
+          toast.error(`Stock ledger sync failed for DN: ${stockErr?.message ?? stockErr}`);
         }
       }
 

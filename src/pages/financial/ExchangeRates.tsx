@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info } from "lucide-react";
+import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
 import { useFinancialRecords } from "@/hooks/useFinancialData";
 import { format } from "date-fns";
@@ -35,10 +35,34 @@ export default function ExchangeRatesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] });
 
+  const [fetchingLive, setFetchingLive] = useState(false);
+  const [liveRateError, setLiveRateError] = useState<string | null>(null);
+
   const handleCreate = () => {
     if (!form.rate) return;
     createRate.mutate({ ...form, rate: Number(form.rate) }, { onSuccess: () => { setOpen(false); setForm({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] }); } });
   };
+
+  const fetchLiveRates = useCallback(async () => {
+    setFetchingLive(true);
+    setLiveRateError(null);
+    try {
+      const res = await fetch("https://api.frankfurter.app/latest?base=USD");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const today = new Date().toISOString().split("T")[0];
+      // Post USD→INR and USD→EUR if available
+      const toCodes = Object.keys(json.rates);
+      const interesting = toCodes.filter((c) => ["INR", "EUR", "GBP", "JPY", "AED", "SGD"].includes(c));
+      for (const to of interesting) {
+        createRate.mutate({ from_currency: "USD", to_currency: to, rate: json.rates[to], effective_date: today });
+      }
+    } catch (e: any) {
+      setLiveRateError(e.message || "Failed to fetch live rates");
+    } finally {
+      setFetchingLive(false);
+    }
+  }, [createRate]);
 
   // IAS 21: Compute unrealized FX gain/loss for foreign-currency financial records
   const unrealizedLines = useMemo<UnrealizedFXLine[]>(() => {
@@ -90,6 +114,11 @@ export default function ExchangeRatesPage() {
             <h1 className="text-2xl font-bold text-foreground">Multi-Currency & Exchange Rates</h1>
             <p className="text-muted-foreground">Manage currencies, conversion rates, and IAS 21 FX exposure</p>
           </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={fetchLiveRates} disabled={fetchingLive}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${fetchingLive ? "animate-spin" : ""}`} />
+              {fetchingLive ? "Fetching…" : "Fetch Live Rates"}
+            </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Rate</Button></DialogTrigger>
             <DialogContent>
@@ -117,7 +146,14 @@ export default function ExchangeRatesPage() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+        {liveRateError && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Live rate fetch failed: {liveRateError}
+          </div>
+        )}
 
         <Tabs defaultValue="rates">
           <TabsList>

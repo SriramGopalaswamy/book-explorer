@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
-import { usePurchaseReturns, useCreatePurchaseReturn, useUpdatePurchaseReturnStatus } from "@/hooks/useReturns";
+import { usePurchaseReturns, useCreatePurchaseReturn, useUpdatePurchaseReturnStatus, useCreateVendorCreditFromReturn } from "@/hooks/useReturns";
 import { format } from "date-fns";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -20,6 +20,7 @@ export default function PurchaseReturnsPage() {
   const { data: returns = [], isLoading } = usePurchaseReturns();
   const createReturn = useCreatePurchaseReturn();
   const updateStatus = useUpdatePurchaseReturnStatus();
+  const createVendorCredit = useCreateVendorCreditFromReturn();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ vendor_name: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
@@ -96,15 +97,34 @@ export default function PurchaseReturnsPage() {
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.total_amount).toLocaleString()}</TableCell>
                     <TableCell><Badge variant={statusColors[r.status] || "secondary"}>{r.status}</Badge></TableCell>
                     <TableCell>
-                      {r.status === "draft" && (
-                        <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
-                          <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Update" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="confirmed">Confirm</SelectItem>
-                            <SelectItem value="cancelled">Cancel</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {r.status === "draft" && (
+                          <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
+                            <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Advance…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="submitted">Submit</SelectItem>
+                              <SelectItem value="cancelled">Cancel</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {r.status === "submitted" && (
+                          <Select onValueChange={v => updateStatus.mutate({ id: r.id, status: v })}>
+                            <SelectTrigger className="w-[120px] h-8"><SelectValue placeholder="Advance…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="approved">Approve</SelectItem>
+                              <SelectItem value="cancelled">Cancel</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {r.status === "approved" && !r.vendor_credit_id && (
+                          <Button size="sm" variant="outline" onClick={() => createVendorCredit.mutate(r.id)} disabled={createVendorCredit.isPending}>
+                            Vendor Credit
+                          </Button>
+                        )}
+                        {r.status === "approved" && r.vendor_credit_id && (
+                          <Badge variant="outline" className="text-green-500 border-green-500/50">VC Issued</Badge>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

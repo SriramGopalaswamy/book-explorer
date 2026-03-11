@@ -277,7 +277,7 @@ export function useUpdateWOStatus() {
         try {
           await consumeBOMForWorkOrder(id);
         } catch (consumeErr: any) {
-          console.warn("BOM auto-consumption warning:", consumeErr.message);
+          toast.error(`Material consumption warning: ${consumeErr.message}`);
           // Don't fail the status change, but notify
         }
       }
@@ -286,7 +286,116 @@ export function useUpdateWOStatus() {
       qc.invalidateQueries({ queryKey: ["work-orders"] });
       qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       qc.invalidateQueries({ queryKey: ["items"] });
+      qc.invalidateQueries({ queryKey: ["finished-goods"] });
       toast.success("Status updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+/** Record actual production quantities on a work order (sets completed_quantity, rejected_quantity, actual_end) */
+export function useRecordProduction() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (params: {
+      id: string;
+      completed_quantity: number;
+      rejected_quantity?: number;
+      actual_end?: string;
+      notes?: string;
+    }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (params.completed_quantity < 0) throw new Error("Completed quantity cannot be negative");
+      if ((params.rejected_quantity ?? 0) < 0) throw new Error("Rejected quantity cannot be negative");
+
+      const { error } = await supabase
+        .from("work_orders" as any)
+        .update({
+          completed_quantity: params.completed_quantity,
+          rejected_quantity: params.rejected_quantity ?? 0,
+          actual_end: params.actual_end ?? new Date().toISOString().split("T")[0],
+          notes: params.notes ?? null,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", params.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["work-orders"] });
+      toast.success("Production recorded");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+/** Post finished goods entry after WO completion and add stock-in to inventory */
+export function usePostFinishedGoods() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (params: {
+      work_order_id: string;
+      product_name: string;
+      product_item_id?: string | null;
+      quantity: number;
+      rejected_quantity?: number;
+      cost_per_unit?: number;
+      warehouse_id?: string | null;
+      notes?: string;
+    }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (params.quantity <= 0) throw new Error("Quantity must be greater than zero");
+
+      const totalCost = params.cost_per_unit ? params.cost_per_unit * params.quantity : null;
+
+      // Insert finished goods entry
+      const { data: fgEntry, error: fgErr } = await supabase
+        .from("finished_goods_entries" as any)
+        .insert({
+          work_order_id: params.work_order_id,
+          product_name: params.product_name,
+          product_item_id: params.product_item_id ?? null,
+          quantity: params.quantity,
+          rejected_quantity: params.rejected_quantity ?? 0,
+          cost_per_unit: params.cost_per_unit ?? null,
+          total_cost: totalCost,
+          posted_at: new Date().toISOString(),
+          posted_by: user.id,
+          notes: params.notes ?? null,
+        } as any)
+        .select()
+        .single();
+      if (fgErr) throw fgErr;
+
+      // Post stock-in for the finished product if linked to an item master
+      if (params.product_item_id) {
+        let warehouseId = params.warehouse_id;
+        if (!warehouseId) {
+          const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").limit(1);
+          warehouseId = (defaultWh as any)?.[0]?.id ?? null;
+        }
+        if (warehouseId) {
+          await supabase.from("stock_ledger" as any).insert({
+            item_id: params.product_item_id,
+            warehouse_id: warehouseId,
+            quantity: params.quantity,
+            entry_type: "in",
+            reference_type: "finished_goods",
+            reference_id: (fgEntry as any).id,
+            notes: `Finished goods receipt: ${params.product_name}`,
+            posted_at: new Date().toISOString(),
+          } as any);
+        }
+      }
+
+      return fgEntry;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finished-goods"] });
+      qc.invalidateQueries({ queryKey: ["stock-ledger"] });
+      qc.invalidateQueries({ queryKey: ["items"] });
+      toast.success("Finished goods posted to inventory");
     },
     onError: (e: any) => toast.error(e.message),
   });
