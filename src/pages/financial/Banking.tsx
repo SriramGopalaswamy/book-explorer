@@ -130,7 +130,7 @@ export default function Banking() {
     transaction_date: new Date().toISOString().split("T")[0],
   });
 
-  const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+  const totalBalance = (monthlyStats?.inflow || 0) - (monthlyStats?.outflow || 0);
 
   const filteredTransactions = transactions
     .filter((tx) => {
@@ -249,7 +249,7 @@ export default function Banking() {
         animate="show"
       >
         {[
-          { label: "Total Balance", value: formatCurrency(totalBalance), sub: `Across ${accounts.length} accounts`, icon: Wallet, iconClass: "text-primary" },
+          { label: "Total Balance", value: formatCurrency(totalBalance), sub: "This month net (inflow − outflow)", icon: Wallet, iconClass: "text-primary" },
           { label: "This Month Inflow", value: formatCurrency(monthlyStats?.inflow || 0), sub: "Credits received", icon: ArrowDownLeft, iconClass: "text-green-500", valueClass: "text-green-500" },
           { label: "This Month Outflow", value: formatCurrency(monthlyStats?.outflow || 0), sub: "Debits paid", icon: ArrowUpRight, iconClass: "text-red-500", valueClass: "text-red-500" },
           { label: "Accounts", value: String(accounts.length), sub: "Connected accounts", icon: CreditCard, iconClass: "text-primary" },
