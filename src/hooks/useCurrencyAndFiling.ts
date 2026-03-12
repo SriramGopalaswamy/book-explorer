@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 export interface Currency {
@@ -91,8 +92,13 @@ export interface GSTFilingStatus {
 
 export function useUpdateFilingStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (update: { id?: string; filing_type: string; period_month: number; period_year: number; financial_year: string; status: string; arn_number?: string; challan_number?: string; filed_date?: string; total_tax_liability?: number; total_itc_claimed?: number; net_tax_payable?: number }) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       if (update.id) {
         const { error } = await supabase.from("gst_filing_status" as any).update({
           status: update.status,
@@ -103,7 +109,7 @@ export function useUpdateFilingStatus() {
           total_itc_claimed: update.total_itc_claimed || 0,
           net_tax_payable: update.net_tax_payable || 0,
           updated_at: new Date().toISOString(),
-        } as any).eq("id", update.id);
+        } as any).eq("id", update.id).eq("organization_id", callerProfile.organization_id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("gst_filing_status" as any).insert({
