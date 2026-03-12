@@ -884,14 +884,6 @@ export default function Bills() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openPreview(b)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {b.status === "draft" && (
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary" onClick={() => openEditDialog(b)} title="Edit draft bill">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
@@ -899,6 +891,9 @@ export default function Bills() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => openPreview(b)}>
+                                <Eye className="h-4 w-4 mr-2 text-muted-foreground" /> View Bill
+                              </DropdownMenuItem>
                               {b.status === "draft" && (
                                 <>
                                   <DropdownMenuItem onClick={() => openEditDialog(b)}>
@@ -919,7 +914,7 @@ export default function Bills() {
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => deleteMutation.mutate(b.id)}
                               >
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete Bill
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

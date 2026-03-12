@@ -49,7 +49,7 @@ export function CountrySelect({ value, onChange, placeholder = "Select country..
   }, [search]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
