@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import {
   Plug, ShoppingBag, CreditCard, Package, Globe, Check, AlertTriangle,
-  ArrowRight, Clock, Store, Bot, Cpu, Terminal, Copy, CheckCheck,
+  ArrowRight, Clock, Store, Bot, Cpu, Terminal, Copy, CheckCheck, Brain,
 } from "lucide-react";
 import { useIntegrations, useConnectProvider } from "@/hooks/useConnectors";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +23,16 @@ interface ConnectorDef {
   fields: { key: string; label: string; placeholder: string; type?: string }[];
   connectLabel: string;
 }
+
+const AI_PROVIDERS: ConnectorDef[] = [
+  {
+    id: "anthropic", name: "Anthropic",
+    description: "Bring your own Anthropic API key to power the Analytics AI Chat with your own quota.",
+    icon: Brain,
+    fields: [{ key: "apiKey", label: "API Key", placeholder: "sk-ant-api03-xxxxxxxxxxxx", type: "password" }],
+    connectLabel: "Save API Key",
+  },
+];
 
 const CONNECTORS: ConnectorDef[] = [
   {
@@ -233,6 +243,62 @@ export default function Connectors() {
               </pre>
             </CardContent>
           </Card>
+        </div>
+
+        <Separator />
+
+        {/* ── AI Providers ───────────────────────────────────────────── */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-muted">
+              <Brain className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-base">AI Providers</h2>
+              <p className="text-sm text-muted-foreground">Use your own API keys for AI features</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {AI_PROVIDERS.map(connector => {
+              const status = getStatus(connector.id);
+              const statusInfo = STATUS_MAP[status] || STATUS_MAP.disconnected;
+              const Icon = connector.icon;
+              return (
+                <Card key={connector.id} className="relative overflow-hidden transition-all hover:border-primary/50 hover:shadow-md">
+                  {status === "connected" && (
+                    <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
+                      <div className="absolute top-2 right-[-20px] w-[80px] bg-primary text-primary-foreground text-[10px] font-semibold text-center rotate-45">
+                        Active
+                      </div>
+                    </div>
+                  )}
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
+                        <Icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <CardTitle className="text-base">{connector.name}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <CardDescription className="text-sm">{connector.description}</CardDescription>
+                    <div className="mt-3">
+                      <Badge variant={statusInfo.variant} className="gap-1">
+                        <statusInfo.icon className="h-3 w-3" />
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-0">
+                    <Button size="sm" className="w-full" onClick={() => { setActiveConnector(connector); setFormValues({}); }}>
+                      <Plug className="h-3 w-3 mr-1" /> {connector.connectLabel}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         <Separator />

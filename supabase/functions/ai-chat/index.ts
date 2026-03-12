@@ -11,14 +11,6 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI service is not configured. Please contact support." }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -57,6 +49,27 @@ serve(async (req) => {
     if (!orgId) {
       return new Response(JSON.stringify({ error: "Your account is not linked to an organization. Please contact support." }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Resolve Anthropic API key: org's own key takes priority over shared env key
+    const { data: aiIntegration } = await supabase
+      .from("integrations")
+      .select("shop_domain, metadata")
+      .eq("organization_id", orgId)
+      .eq("provider", "anthropic")
+      .eq("status", "connected")
+      .maybeSingle();
+
+    const ANTHROPIC_API_KEY =
+      aiIntegration?.metadata?.apiKey ||
+      aiIntegration?.shop_domain ||
+      Deno.env.get("ANTHROPIC_API_KEY");
+
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ error: "AI service is not configured. Add your Anthropic API key in Connectors → AI Providers, or contact your administrator." }), {
+        status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
