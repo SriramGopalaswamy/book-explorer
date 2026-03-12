@@ -164,6 +164,12 @@ export function useDeleteWarehouse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
+      if (!orgId) throw new Error("No organization found");
+
       // Prevent deleting warehouses with stock
       const { data: stock, error: stockErr } = await supabase
         .from("stock_ledger" as any)
@@ -175,7 +181,7 @@ export function useDeleteWarehouse() {
         throw new Error("Cannot delete a warehouse with existing stock entries. Transfer stock out first.");
       }
 
-      const { error } = await supabase.from("warehouses" as any).delete().eq("id", id);
+      const { error } = await supabase.from("warehouses" as any).delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
