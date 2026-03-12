@@ -418,8 +418,8 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId);
       }
 
-      // Delete user roles
-      await supabase.from("user_roles").delete().eq("user_id", user_id);
+      // Delete user roles scoped to this organization only
+      await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
       // Soft delete profile (prevent_profile_hard_delete trigger blocks actual DELETE)
       await supabase

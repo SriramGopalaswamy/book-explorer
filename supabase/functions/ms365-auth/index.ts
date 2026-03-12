@@ -209,7 +209,10 @@ Deno.serve(async (req) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      const adminEmails = ["sriram@grx10.com", "nikita@grx10.com", "anchal@grx10.com"];
+      const adminEmails = (Deno.env.get("ADMIN_EMAILS") || "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
       // Check if user exists - paginate through all users or filter
