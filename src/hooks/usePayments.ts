@@ -137,7 +137,8 @@ export function useCreatePaymentReceipt() {
           await supabase
             .from("invoices")
             .update({ status: newStatus })
-            .eq("id", r.invoice_id);
+            .eq("id", r.invoice_id)
+            .eq("organization_id", profile.organization_id);
 
           // Create bank transaction for every payment (partial or full)
           const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
