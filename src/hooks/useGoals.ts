@@ -100,11 +100,16 @@ export function useCreateGoal() {
       if (!goal.title?.trim()) throw new Error("Goal title is required");
       if (!goal.category?.trim()) throw new Error("Goal category is required");
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .insert({
           ...goal,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         })
         .select()
         .single();
@@ -148,10 +153,15 @@ export function useUpdateGoal() {
       }
 
       // Prevent editing completed goals (except to reopen)
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: current, error: fetchErr } = await supabase
         .from("goals")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
       if (current?.status === "completed" && updates.status !== "on_track" && updates.status !== "at_risk" && updates.status !== "delayed") {
@@ -162,10 +172,6 @@ export function useUpdateGoal() {
       if (updates.title !== undefined && !updates.title?.trim()) {
         throw new Error("Goal title cannot be empty.");
       }
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("goals")
@@ -237,20 +243,20 @@ export function useDeleteGoal() {
       if (!user) throw new Error("Not authenticated");
 
       // Prevent deleting completed goals — they should be archived
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: goal, error: fetchErr } = await supabase
         .from("goals")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
       if (goal?.status === "completed") {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
-
       const { error } = await supabase
         .from("goals")
         .delete()

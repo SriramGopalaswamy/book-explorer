@@ -206,11 +206,16 @@ export function useCreateLeaveRequest() {
         throw new Error(`Invalid date range: ${days} days. Please check your from/to dates.`);
       }
 
-      // Check for overlapping pending/approved leave requests
+      // Resolve caller org for tenant isolation on pre-checks
+      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Check for overlapping pending/approved leave requests (org-scoped)
       const { data: overlapping } = await supabase
         .from("leave_requests")
         .select("id")
         .eq("user_id", user.id)
+        .eq("organization_id", callerProfile.organization_id)
         .in("status", ["pending", "approved"])
         .lte("from_date", request.to_date)
         .gte("to_date", request.from_date)
@@ -219,12 +224,13 @@ export function useCreateLeaveRequest() {
         throw new Error("You already have a leave request overlapping with these dates");
       }
 
-      // Check leave balance — block if insufficient
+      // Check leave balance — block if insufficient (org-scoped)
       const currentYear = new Date().getFullYear();
       const { data: balances } = await supabase
         .from("leave_balances")
         .select("total_days, used_days")
         .eq("user_id", user.id)
+        .eq("organization_id", callerProfile.organization_id)
         .eq("leave_type", request.leave_type)
         .eq("year", currentYear)
         .maybeSingle();
@@ -257,18 +263,12 @@ export function useCreateLeaveRequest() {
         attachment_url = filePath;
       }
 
-      // Fetch the user's profile_id so the join works in the table
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user?.id)
-        .maybeSingle();
-
       const { data, error } = await supabase
         .from("leave_requests")
         .insert({
           user_id: user?.id,
-          profile_id: profile?.id ?? null,
+          profile_id: callerProfile.id ?? null,
+          organization_id: callerProfile.organization_id,
           leave_type: request.leave_type,
           from_date: request.from_date,
           to_date: request.to_date,
