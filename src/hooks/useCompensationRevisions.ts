@@ -200,13 +200,29 @@ export function useReviewRevisionRequest() {
         throw new Error("Invalid review status");
       }
 
-      // Verify request is still pending before updating
-      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
-        .select("status")
-        .eq("id", data.id)
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
         .maybeSingle();
-      if (current?.status !== "pending") {
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
+      // Verify request is still pending & org-scoped
+      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
+        .select("status, requested_by")
+        .eq("id", data.id)
+        .eq("organization_id", callerOrgId)
+        .maybeSingle();
+      if (!current) throw new Error("Revision request not found in your organization.");
+      if (current.status !== "pending") {
         throw new Error("This request has already been reviewed");
+      }
+
+      // Maker-checker: requester cannot review their own request
+      if (current.requested_by === user.id) {
+        throw new Error("You cannot review your own compensation revision request.");
       }
 
       const { error } = await (supabase.from("compensation_revision_requests" as any) as any)
@@ -216,7 +232,8 @@ export function useReviewRevisionRequest() {
           reviewed_at: new Date().toISOString(),
           reviewer_notes: data.reviewer_notes || null,
         })
-        .eq("id", data.id);
+        .eq("id", data.id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
