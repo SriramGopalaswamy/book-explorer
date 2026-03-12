@@ -151,13 +151,19 @@ export function useUpdateMasterComponent() {
 
 export function useDeleteMasterComponent() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("master_ctc_components" as any)
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
