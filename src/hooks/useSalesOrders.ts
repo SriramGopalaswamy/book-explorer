@@ -93,6 +93,10 @@ export function useCreateSalesOrder() {
       const tax = so.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const soNum = `SO-${Date.now().toString(36).toUpperCase()}`;
 
+      // Resolve org_id explicitly for RLS compliance
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
       const { data: soData, error: soErr } = await supabase
         .from("sales_orders" as any)
         .insert({
@@ -106,6 +110,7 @@ export function useCreateSalesOrder() {
           tax_amount: Math.round(tax * 100) / 100,
           total_amount: Math.round((subtotal + tax) * 100) / 100,
           created_by: user.id,
+          organization_id: profile.organization_id,
         } as any)
         .select()
         .single();
