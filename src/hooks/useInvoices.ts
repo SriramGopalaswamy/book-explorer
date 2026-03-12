@@ -386,7 +386,7 @@ export function useUpdateInvoice() {
       if (fetchErr) throw fetchErr;
 
       const currentVersion = current?.version ?? 1;
-      const { error: invoiceError } = await (supabase as any)
+      const { data: updateResult, error: invoiceError } = await (supabase as any)
         .from("invoices")
         .update({
           client_name: data.client_name,
@@ -407,8 +407,12 @@ export function useUpdateInvoice() {
           version: currentVersion + 1,
         })
         .eq("id", data.id)
-        .eq("version", currentVersion);
+        .eq("version", currentVersion)
+        .select();
       if (invoiceError) throw invoiceError;
+      if (!updateResult || updateResult.length === 0) {
+        throw new Error("This invoice was modified by another user. Please refresh and try again.");
+      }
 
       // Delete old items and reinsert
       const { error: deleteError } = await supabase

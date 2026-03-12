@@ -55,12 +55,12 @@ export default function PurchaseReturnsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2"><Label>Return Items</Label><Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_40px] gap-2 mb-2">
-                      <Input placeholder="Description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} />
-                      <Input type="number" placeholder="Qty" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} />
-                      <Input type="number" placeholder="Price" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} />
-                      <Input type="number" placeholder="Tax %" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_40px] gap-2 mb-2 items-end">
+                      <div><Label className="text-xs">Description</Label><Input placeholder="Item description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} /></div>
+                      <div><Label className="text-xs">Qty</Label><Input type="number" placeholder="Qty" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                      <div><Label className="text-xs">Unit Price</Label><Input type="number" placeholder="Price" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} /></div>
+                      <div><Label className="text-xs">Tax %</Label><Input type="number" placeholder="Tax %" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
+                      <div><Label className="text-xs">&nbsp;</Label><Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
                     </div>
                   ))}
                 </div>
