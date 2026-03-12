@@ -229,10 +229,10 @@ export default function WorkOrders() {
                 <div><Label>Product Name *</Label><Input value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })} /></div>
                 <div>
                   <Label>Bill of Materials (optional)</Label>
-                  <Select value={form.bom_id} onValueChange={(v) => setForm({ ...form, bom_id: v })}>
+                  <Select value={form.bom_id || "none"} onValueChange={(v) => setForm({ ...form, bom_id: v === "none" ? "" : v })}>
                     <SelectTrigger><SelectValue placeholder="Select BOM…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">— None —</SelectItem>
+                      <SelectItem value="none">— None —</SelectItem>
                       {boms.map((b) => <SelectItem key={b.id} value={b.id}>{b.product_name} ({b.bom_code})</SelectItem>)}
                     </SelectContent>
                   </Select>
