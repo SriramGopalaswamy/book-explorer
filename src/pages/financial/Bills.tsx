@@ -4,7 +4,7 @@ import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
   Eye, ExternalLink, CheckCircle2, Clock, AlertCircle, FileText, X,
   AlertTriangle, Building2, Calendar, ChevronDown, FileCheck, Receipt,
-  ChevronsUpDown, Check as CheckIcon, Pencil,
+  ChevronsUpDown, Check as CheckIcon, Pencil, XCircle,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,11 +76,14 @@ interface AIExtracted {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
-  draft:    { label: "Draft",    className: "bg-muted text-muted-foreground border-border",           icon: FileText },
-  received: { label: "Received", className: "bg-primary/10 text-primary border-primary/30",           icon: Receipt },
-  
-  paid:     { label: "Paid",     className: "bg-accent/40 text-accent-foreground border-accent/50",   icon: CheckCircle2 },
-  overdue:  { label: "Overdue",  className: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertCircle },
+  draft:            { label: "Draft",            className: "bg-muted text-muted-foreground border-border",              icon: FileText },
+  received:         { label: "Received",         className: "bg-primary/10 text-primary border-primary/30",              icon: Receipt },
+  pending_approval: { label: "Pending Approval", className: "bg-yellow-500/10 text-yellow-700 border-yellow-400/30",     icon: Clock },
+  approved:         { label: "Approved",         className: "bg-secondary/20 text-secondary-foreground border-border",   icon: CheckCircle2 },
+  paid:             { label: "Paid",             className: "bg-accent/40 text-accent-foreground border-accent/50",      icon: CheckCircle2 },
+  partially_paid:   { label: "Partially Paid",   className: "bg-accent/20 text-accent-foreground border-accent/30",     icon: Receipt },
+  cancelled:        { label: "Cancelled",        className: "bg-muted text-muted-foreground border-border",              icon: XCircle },
+  overdue:          { label: "Overdue",          className: "bg-destructive/15 text-destructive border-destructive/30",  icon: AlertCircle },
 };
 
 const CONFIDENCE_CONFIG = {
@@ -156,7 +159,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
+  const cfg = STATUS_CONFIG[status] ?? { label: status, className: "bg-muted text-muted-foreground border-border", icon: FileText };
   return (
     <Badge variant="outline" className={`gap-1 ${cfg.className} capitalize`}>
       <cfg.icon className="h-2.5 w-2.5" />
