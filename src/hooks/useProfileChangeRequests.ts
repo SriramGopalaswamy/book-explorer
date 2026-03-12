@@ -151,12 +151,14 @@ export function useReviewChangeRequest() {
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      // Double-review guard
+      // Double-review guard (org-scoped)
       const { data: current } = await supabase
         .from("profile_change_requests" as any)
         .select("status, user_id")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
+      if (!current) throw new Error("Change request not found in your organization.");
       if ((current as any)?.status !== "pending") {
         throw new Error("This change request has already been reviewed");
       }

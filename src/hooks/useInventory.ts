@@ -171,11 +171,12 @@ export function useDeleteWarehouse() {
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
 
-      // Prevent deleting warehouses with stock
+      // Prevent deleting warehouses with stock (org-scoped)
       const { data: stock, error: stockErr } = await supabase
         .from("stock_ledger" as any)
         .select("id")
         .eq("warehouse_id", id)
+        .eq("organization_id", orgId)
         .limit(1);
       if (stockErr) throw stockErr;
       if (stock && stock.length > 0) {

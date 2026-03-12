@@ -179,7 +179,7 @@ export function useApproveRequest() {
         const table = tableMap[docType];
         const newStatus = statusMap[docType];
         if (table && newStatus) {
-          await supabase.from(table as any).update({ status: newStatus } as any).eq("id", docId);
+          await supabase.from(table as any).update({ status: newStatus } as any).eq("id", docId).eq("organization_id", callerProfile.organization_id);
         }
       }
     },
