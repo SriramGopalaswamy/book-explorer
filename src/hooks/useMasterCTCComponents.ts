@@ -120,16 +120,22 @@ export function useCreateMasterComponent() {
 
 export function useUpdateMasterComponent() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
       id,
       ...updates
     }: Partial<MasterCTCComponent> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("master_ctc_components" as any)
         .update({ ...updates, updated_at: new Date().toISOString() } as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
       if (error) throw error;
