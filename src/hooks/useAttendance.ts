@@ -371,14 +371,15 @@ export function useSelfCheckIn() {
         throw new Error("You have already checked in today");
       }
 
-      // First get user's profile
+      // First get user's profile (includes org_id)
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, organization_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (profileError) throw profileError;
+      if (!profile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("attendance_records")
@@ -388,6 +389,7 @@ export function useSelfCheckIn() {
           date: today,
           check_in: now,
           status,
+          organization_id: profile.organization_id,
         })
         .select()
         .single();
