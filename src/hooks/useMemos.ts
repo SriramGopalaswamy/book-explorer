@@ -570,7 +570,11 @@ export function useDeleteMemo() {
         throw new Error("Published memos cannot be deleted. They are part of the official record.");
       }
 
-      const { error } = await supabase.from("memos").delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user?.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("memos").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
