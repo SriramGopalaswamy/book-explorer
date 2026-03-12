@@ -857,42 +857,13 @@ function UserManagementSection() {
     setActionUser(null);
   };
 
-  // Check for direct reports before deactivating/deleting
-  const initiateDeactivateOrDelete = async (targetUser: UserWithRole, action: "deactivate" | "delete") => {
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "get_direct_reports", user_id: targetUser.user_id },
-    });
-    const hasDirectReports = (data?.direct_reports?.length ?? 0) > 0;
+  // Always show the confirm dialog before deactivating/deleting.
+  // The optional reassignment selector handles users with or without direct reports.
+  const initiateDeactivateOrDelete = (targetUser: UserWithRole, action: "deactivate" | "delete") => {
     setManagerDialogTarget(targetUser);
     setManagerDialogAction(action);
     setReplacementManagerId("");
-    if (hasDirectReports) {
-      setManagerDialogOpen(true);
-    } else {
-      // No direct reports — execute immediately without the reassignment dialog
-      setActionUser(targetUser.user_id);
-      const actionName = action === "deactivate" ? "deactivate_user" : "delete_user";
-      const { data: result, error } = await supabase.functions.invoke("manage-roles", {
-        body: { action: actionName, user_id: targetUser.user_id },
-      });
-      if (error || result?.error) {
-        toast.error(result?.error || `Failed to ${action} user`);
-        setActionUser(null);
-      } else {
-        if (action === "deactivate") {
-          toast.success(`${targetUser.full_name || targetUser.email} has been deactivated`);
-          setUsers((prev) =>
-            prev.map((u) => u.user_id === targetUser.user_id ? { ...u, status: "inactive" } : u)
-          );
-        } else {
-          toast.success(`${targetUser.full_name || targetUser.email} has been removed`);
-          setUsers((prev) => prev.filter((u) => u.user_id !== targetUser.user_id));
-        }
-        setActionUser(null);
-      }
-      setManagerDialogTarget(null);
-      setManagerDialogAction(null);
-    }
+    setManagerDialogOpen(true);
   };
 
   const executeDeactivateOrDelete = async () => {
@@ -943,14 +914,8 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to update manager");
     } else {
       toast.success("Manager updated successfully");
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.user_id === setManagerTarget.user_id
-            ? { ...u, pending_manager_email: null }
-            : u
-        )
-      );
       setSetManagerDialogOpen(false);
+      await refreshUsers();
     }
     setUpdatingManager(false);
   };

@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(role)) {
         return new Response(JSON.stringify({ error: "Invalid role" }), {
           status: 400,
@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
       }
 
       const assignedRole = (role || "employee").toLowerCase();
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(assignedRole)) {
         return new Response(JSON.stringify({ error: "Invalid role" }), {
           status: 400,
@@ -528,9 +528,10 @@ Deno.serve(async (req) => {
           .select("id")
           .eq("user_id", manager_user_id)
           .eq("organization_id", requestingOrgId)
+          .neq("status", "inactive")
           .maybeSingle();
         if (!managerProfile) {
-          return new Response(JSON.stringify({ error: "Manager not found in your organization" }), {
+          return new Response(JSON.stringify({ error: "Manager not found or is inactive" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -573,7 +574,7 @@ Deno.serve(async (req) => {
       }
 
       const assignedRole = (role || "employee").toLowerCase();
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(assignedRole)) {
         return new Response(JSON.stringify({ error: `Invalid role: ${assignedRole}` }), {
           status: 400,
@@ -677,7 +678,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+        const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
         if (!validRoles.includes(role)) {
           results.push({ email, success: false, error: `Invalid role: ${role}` });
           continue;
