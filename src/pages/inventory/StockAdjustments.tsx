@@ -6,19 +6,62 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ClipboardList, Search } from "lucide-react";
+import { Plus, ClipboardList, Search, MoreHorizontal, Eye, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+function useUpdateAdjustmentStatus() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
+      const VALID = ["draft", "approved", "posted", "cancelled"];
+      if (!VALID.includes(status)) throw new Error(`Invalid status: ${status}`);
+      const { error } = await supabase.from("stock_adjustments" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-adjustments"] }); toast.success("Status updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+function useDeleteAdjustment() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("No organization found");
+      const { error } = await supabase.from("stock_adjustments" as any).delete().eq("id", id).eq("organization_id", orgId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-adjustments"] }); toast.success("Adjustment deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
 
 export default function StockAdjustments() {
   const { user } = useAuth();
   const { data: adjustments, isLoading } = useStockAdjustments();
   const { data: warehouses } = useWarehouses();
   const createAdj = useCreateStockAdjustment();
+  const updateStatus = useUpdateAdjustmentStatus();
+  const deleteAdj = useDeleteAdjustment();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ adjustment_number: "", warehouse_id: "", reason: "", notes: "" });
@@ -111,11 +154,12 @@ export default function StockAdjustments() {
                     <TableHead>Reason</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No stock adjustments found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No stock adjustments found.</TableCell></TableRow>
                   ) : filtered.map((adj: any) => (
                     <TableRow key={adj.id}>
                       <TableCell className="font-mono font-medium text-foreground">{adj.adjustment_number}</TableCell>
@@ -124,6 +168,35 @@ export default function StockAdjustments() {
                       <TableCell className="text-muted-foreground">{adj.reason}</TableCell>
                       <TableCell><Badge variant={statusColor(adj.status)}>{adj.status}</Badge></TableCell>
                       <TableCell className="text-muted-foreground max-w-[200px] truncate">{adj.notes || "—"}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {adj.status === "draft" && (
+                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: adj.id, status: "approved" })}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Approve
+                              </DropdownMenuItem>
+                            )}
+                            {adj.status === "approved" && (
+                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: adj.id, status: "posted" })}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Post
+                              </DropdownMenuItem>
+                            )}
+                            {(adj.status === "draft" || adj.status === "approved") && (
+                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: adj.id, status: "cancelled" })} className="text-destructive">
+                                <XCircle className="h-4 w-4 mr-2" /> Cancel
+                              </DropdownMenuItem>
+                            )}
+                            {adj.status === "draft" && (
+                              <DropdownMenuItem onClick={() => deleteAdj.mutate(adj.id)} className="text-destructive">
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -194,6 +194,42 @@ export function useCreateBOM() {
   });
 }
 
+export function useUpdateBOMStatus() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      const VALID = ["draft", "active", "archived"] as const;
+      if (!VALID.includes(status as any)) throw new Error(`Invalid BOM status: ${status}`);
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+      const { error } = await supabase.from("bill_of_materials" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", profile.organization_id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["boms"] }); toast.success("BOM status updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteBOM() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+      // Delete lines first
+      await supabase.from("bom_lines" as any).delete().eq("bom_id", id);
+      const { error } = await supabase.from("bill_of_materials" as any).delete().eq("id", id).eq("organization_id", profile.organization_id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["boms"] }); toast.success("BOM deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useWorkOrders() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;

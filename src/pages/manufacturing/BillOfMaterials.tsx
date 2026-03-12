@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, Layers, CheckCircle, Archive, Search, Trash2 } from "lucide-react";
-import { useBOMs, useCreateBOM, BOM } from "@/hooks/useManufacturing";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Layers, CheckCircle, Archive, Search, Trash2, MoreHorizontal, Eye, Pencil, Power } from "lucide-react";
+import { useBOMs, useCreateBOM, useBOMLines, useBOMCostRollup, useUpdateBOMStatus, useDeleteBOM, BOM } from "@/hooks/useManufacturing";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -18,11 +20,79 @@ const statusColors: Record<string, string> = {
   archived: "bg-yellow-500/20 text-yellow-400",
 };
 
+function BOMDetailDialog({ bom, open, onClose }: { bom: BOM; open: boolean; onClose: () => void }) {
+  const { data: lines = [], isLoading } = useBOMLines(open ? bom.id : undefined);
+  const { data: rollup } = useBOMCostRollup(open ? bom.id : undefined);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>BOM Details — {bom.bom_code}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div><span className="text-muted-foreground">Product:</span> <span className="font-medium text-foreground">{bom.product_name}</span></div>
+            <div><span className="text-muted-foreground">Version:</span> <span className="font-medium text-foreground">v{bom.version}</span></div>
+            <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[bom.status] || ""}>{bom.status}</Badge></div>
+            <div><span className="text-muted-foreground">Created:</span> <span className="text-foreground">{format(new Date(bom.created_at), "dd MMM yyyy")}</span></div>
+          </div>
+          {bom.notes && <p className="text-sm text-muted-foreground">{bom.notes}</p>}
+
+          <div>
+            <h4 className="text-sm font-semibold mb-2">Materials ({lines.length})</h4>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : lines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No materials found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Material</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>UOM</TableHead>
+                    <TableHead className="text-right">Wastage %</TableHead>
+                    <TableHead className="text-right">Est. Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lines.map((l: any) => {
+                    const detail = rollup?.lineDetails.find((d) => d.material_name === l.material_name);
+                    return (
+                      <TableRow key={l.id}>
+                        <TableCell className="font-medium text-foreground">{l.material_name}</TableCell>
+                        <TableCell className="text-right">{l.quantity}</TableCell>
+                        <TableCell>{l.uom}</TableCell>
+                        <TableCell className="text-right">{l.wastage_pct}%</TableCell>
+                        <TableCell className="text-right">₹{(detail?.effectiveCost ?? 0).toLocaleString("en-IN")}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+            {rollup && (
+              <p className="text-sm text-right mt-2 text-muted-foreground">
+                Total cost (incl. wastage): <span className="font-semibold text-foreground">₹{rollup.totalWithWastage.toLocaleString("en-IN")}</span>
+              </p>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function BillOfMaterials() {
   const { data: boms = [], isLoading } = useBOMs();
   const createBOM = useCreateBOM();
+  const updateStatus = useUpdateBOMStatus();
+  const deleteBOM = useDeleteBOM();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewBom, setViewBom] = useState<BOM | null>(null);
   const [form, setForm] = useState({ product_name: "", notes: "" });
   const [lines, setLines] = useState([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0 }]);
 
@@ -63,6 +133,40 @@ export default function BillOfMaterials() {
     { key: "version", header: "Version", render: (r) => <span className="text-muted-foreground">v{r.version}</span> },
     { key: "status", header: "Status", render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</Badge> },
     { key: "created_at", header: "Created", render: (r) => format(new Date(r.created_at), "dd MMM yyyy") },
+    {
+      key: "id" as any, header: "Actions",
+      render: (r) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setViewBom(r)}>
+              <Eye className="h-4 w-4 mr-2" /> View Details
+            </DropdownMenuItem>
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "active" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Mark Active
+              </DropdownMenuItem>
+            )}
+            {r.status === "active" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "archived" })}>
+                <Archive className="h-4 w-4 mr-2" /> Archive
+              </DropdownMenuItem>
+            )}
+            {r.status === "archived" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "active" })}>
+                <Power className="h-4 w-4 mr-2" /> Reactivate
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => deleteBOM.mutate(r.id)} className="text-destructive">
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
   ];
 
   return (
@@ -106,6 +210,8 @@ export default function BillOfMaterials() {
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search BOMs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
 
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No BOMs yet. Create your first Bill of Materials." />
+
+        {viewBom && <BOMDetailDialog bom={viewBom} open={!!viewBom} onClose={() => setViewBom(null)} />}
       </div>
     </MainLayout>
   );
