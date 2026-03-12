@@ -8220,6 +8220,77 @@ export type Database = {
           },
         ]
       }
+      recurring_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          credit_account_id: string | null
+          currency: string
+          debit_account_id: string | null
+          description: string | null
+          end_date: string | null
+          frequency: string
+          id: string
+          last_run_date: string | null
+          name: string
+          next_run_date: string | null
+          notes: string | null
+          organization_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          created_by: string
+          credit_account_id?: string | null
+          currency?: string
+          debit_account_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          last_run_date?: string | null
+          name: string
+          next_run_date?: string | null
+          notes?: string | null
+          organization_id: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          credit_account_id?: string | null
+          currency?: string
+          debit_account_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          last_run_date?: string | null
+          name?: string
+          next_run_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reimbursement_requests: {
         Row: {
           ai_extracted: boolean
