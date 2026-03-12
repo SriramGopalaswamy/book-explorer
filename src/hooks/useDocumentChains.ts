@@ -180,15 +180,20 @@ export function useCreateGoodsReceipt() {
 // ─── GR Status Updates ──────────────────────────────────────────
 export function useUpdateGRStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: current } = await supabase.from("goods_receipts" as any).select("status").eq("id", id).maybeSingle();
       const currentStatus = (current as any)?.status;
       const allowed = GR_TRANSITIONS[currentStatus];
       if (!allowed || !allowed.includes(status)) {
         throw new Error(`Cannot transition GR from "${currentStatus}" to "${status}"`);
       }
-      const { error } = await supabase.from("goods_receipts" as any).update({ status } as any).eq("id", id);
+      const { error } = await supabase.from("goods_receipts" as any).update({ status } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
       // ── Auto stock-in when GR is accepted ──
