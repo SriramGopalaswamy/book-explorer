@@ -438,22 +438,25 @@ export function useRejectMemo() {
     mutationFn: async ({ id, reviewerNotes }: { id: string; reviewerNotes: string }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Self-rejection guard
+      // Self-rejection guard & status check
+      // Resolve caller org first for scoping
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: memo } = await supabase
         .from("memos")
         .select("user_id, status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
-      if (memo && (memo as any).user_id === user.id) {
+      if (!memo) throw new Error("Memo not found in your organization.");
+      if ((memo as any).user_id === user.id) {
         throw new Error("You cannot reject your own memo.");
       }
-      if (memo && (memo as any).status !== "pending_approval") {
+      if ((memo as any).status !== "pending_approval") {
         throw new Error("Only pending memos can be rejected.");
       }
 
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase
         .from("memos")
@@ -534,16 +537,24 @@ export function useIncrementMemoViews() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: current } = await supabase
         .from("memos")
         .select("views")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
 
       const { data, error } = await supabase
         .from("memos")
         .update({ views: (current?.views || 0) + 1 } as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 

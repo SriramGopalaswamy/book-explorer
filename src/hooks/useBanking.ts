@@ -203,13 +203,17 @@ export function useCreateTransaction() {
         throw new Error("Transaction date cannot be in the future.");
       }
 
-      // Verify the linked bank account exists and is active
+      // Verify the linked bank account exists, is active, and belongs to caller's org
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: account, error: acctErr } = await supabase
         .from("bank_accounts")
         .select("balance, status")
         .eq("id", validated.account_id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
-      if (acctErr || !account) throw new Error("Bank account not found.");
+      if (acctErr || !account) throw new Error("Bank account not found in your organization.");
       if ((account as any).status === "Closed") {
         throw new Error("Cannot add transactions to a closed bank account.");
       }
@@ -225,12 +229,13 @@ export function useCreateTransaction() {
           category: validated.category ?? null,
           transaction_date: validated.transaction_date,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         })
         .select()
         .single();
       if (error) throw error;
 
-      // Update account balance
+      // Update account balance (org-scoped)
       const newBalance = validated.transaction_type === "credit"
         ? Number(account.balance) + Number(validated.amount)
         : Number(account.balance) - Number(validated.amount);
@@ -238,7 +243,8 @@ export function useCreateTransaction() {
       await supabase
         .from("bank_accounts")
         .update({ balance: newBalance })
-        .eq("id", validated.account_id);
+        .eq("id", validated.account_id)
+        .eq("organization_id", callerProfile.organization_id);
 
       return transaction;
     },
