@@ -268,6 +268,10 @@ export function useHRReviewDispute() {
   return useMutation({
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "forward" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const update: any = {
         hr_reviewed_at: new Date().toISOString(),
         hr_reviewed_by: user.id,
@@ -284,7 +288,8 @@ export function useHRReviewDispute() {
       const { error } = await supabase
         .from("payslip_disputes" as any)
         .update(update)
-        .eq("id", disputeId);
+        .eq("id", disputeId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
