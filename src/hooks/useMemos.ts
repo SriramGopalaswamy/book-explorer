@@ -558,6 +558,7 @@ export function useIncrementMemoViews() {
 
 export function useDeleteMemo() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
