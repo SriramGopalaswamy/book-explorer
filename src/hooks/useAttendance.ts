@@ -489,15 +489,22 @@ export function useCheckIn() {
 
 export function useCheckOut() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (recordId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const now = new Date().toISOString();
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("attendance_records")
         .update({ check_out: now })
         .eq("id", recordId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 

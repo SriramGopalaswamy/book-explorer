@@ -348,6 +348,11 @@ export function useApproveInventoryCount() {
       if (cErr) throw cErr;
       if ((count as any).status === "approved") throw new Error("Count already approved");
 
+      // Maker-checker: prevent self-approval
+      if ((count as any).created_by === user.id) {
+        throw new Error("You cannot approve an inventory count you created. Another user must approve it.");
+      }
+
       const { data: lines, error: lErr } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId);
       if (lErr) throw lErr;
 

@@ -117,23 +117,24 @@ export function useConnectProvider() {
 
 export function useDisconnectIntegration() {
   const qc = useQueryClient();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
 
   return useMutation({
     mutationFn: async ({ provider }: { provider: string }) => {
-      let q = supabase
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase
         .from("integrations")
         .update({
           status: "disconnected",
           access_token: null,
           updated_at: new Date().toISOString(),
         })
-        .eq("provider", provider);
-      // Scope disconnect to current org
-      if (orgId) q = q.eq("organization_id", orgId);
-
-      const { error } = await q;
+        .eq("provider", provider)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
       await supabase.from("connector_logs").insert({
