@@ -319,6 +319,10 @@ export function useApproveLeaveRequest() {
         throw new Error("You cannot approve your own leave request.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("leave_requests")
         .update({
@@ -327,6 +331,7 @@ export function useApproveLeaveRequest() {
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
