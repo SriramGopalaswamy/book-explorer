@@ -100,11 +100,16 @@ export function useCreateGoal() {
       if (!goal.title?.trim()) throw new Error("Goal title is required");
       if (!goal.category?.trim()) throw new Error("Goal category is required");
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .insert({
           ...goal,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         })
         .select()
         .single();
