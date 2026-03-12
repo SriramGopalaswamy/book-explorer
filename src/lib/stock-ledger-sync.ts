@@ -18,6 +18,15 @@ interface StockEntry {
   organization_id?: string;
 }
 
+function deriveTransactionType(e: StockEntry): string {
+  if (e.entry_type === "adjustment") return "adjustment";
+  if (e.reference_type === "goods_receipt") return "purchase";
+  if (e.reference_type === "delivery_note") return "sale";
+  if (e.reference_type === "stock_transfer") return e.entry_type === "in" ? "transfer_in" : "transfer_out";
+  if (e.reference_type === "work_order") return e.entry_type === "out" ? "production_out" : "production_in";
+  return e.entry_type === "in" ? "purchase" : "sale";
+}
+
 async function postStockEntries(entries: StockEntry[]): Promise<void> {
   if (entries.length === 0) return;
 
@@ -25,7 +34,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     item_id: e.item_id,
     warehouse_id: e.warehouse_id,
     quantity: e.entry_type === "out" ? -Math.abs(e.quantity) : Math.abs(e.quantity),
-    entry_type: e.entry_type,
+    transaction_type: deriveTransactionType(e),
     reference_type: e.reference_type,
     reference_id: e.reference_id,
     notes: e.notes || null,
