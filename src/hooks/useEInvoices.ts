@@ -192,12 +192,18 @@ export function useEInvoices() {
 
   const cancelEInvoice = useMutation({
     mutationFn: async ({ id, reason, remark }: { id: string; reason: string; remark?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const callerOrgId = callerProfile.organization_id;
+
       // Enforce 24-hour cancellation window (Rule 48(4))
       const { data: existing } = await (supabase as any)
         .from("e_invoices")
         .select("irn_generated_at, status")
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerOrgId)
         .single();
 
       if (existing?.status === "cancelled") throw new Error("E-Invoice is already cancelled.");
@@ -219,7 +225,7 @@ export function useEInvoices() {
           cancelled_at: new Date().toISOString(),
         })
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;

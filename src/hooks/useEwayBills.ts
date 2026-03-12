@@ -192,12 +192,18 @@ export function useEwayBills() {
 
   const cancelMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const callerOrgId = callerProfile.organization_id;
+
       // Enforce 24-hour cancellation window
       const { data: existing } = await (supabase as any)
         .from("eway_bills")
         .select("eway_bill_date, status")
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerOrgId)
         .single();
 
       if (existing?.status === "cancelled") throw new Error("E-Way Bill is already cancelled.");
@@ -217,7 +223,7 @@ export function useEwayBills() {
           cancelled_at: new Date().toISOString(),
         })
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
