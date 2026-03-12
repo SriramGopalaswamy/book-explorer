@@ -51,6 +51,7 @@ import EInvoices from "./pages/financial/EInvoices";
 // HRMS
 import Employees from "./pages/hrms/Employees";
 import Attendance from "./pages/hrms/Attendance";
+import AttendanceImport from "./pages/hrms/AttendanceImport";
 import Leaves from "./pages/hrms/Leaves";
 import Payroll from "./pages/hrms/Payroll";
 import CTCComponents from "./pages/hrms/CTCComponents";
