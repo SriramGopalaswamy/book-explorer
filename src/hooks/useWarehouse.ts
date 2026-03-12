@@ -433,10 +433,14 @@ export function useGeneratePickingList() {
       if (!params.warehouse_id) throw new Error("Warehouse is required");
       if (!params.items || params.items.length === 0) throw new Error("At least one item is required");
 
+      // Resolve org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
       const pickNumber = `PICK-${Date.now().toString(36).toUpperCase()}`;
       const { data: pickData, error: pickErr } = await supabase
         .from("picking_lists" as any)
-        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "draft", notes: params.notes || null, created_by: user.id } as any)
+        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "draft", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (pickErr) throw pickErr;
 

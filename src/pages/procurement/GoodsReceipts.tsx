@@ -52,7 +52,7 @@ export default function GoodsReceipts() {
   });
 
   const { data: purchaseOrders = [] } = usePurchaseOrders();
-  const approvedPOs = purchaseOrders.filter(po => ["approved", "partially_received"].includes(po.status));
+  const approvedPOs = purchaseOrders.filter(po => ["draft", "approved", "confirmed", "partially_received"].includes(po.status));
 
   const createGR = useCreateGoodsReceipt();
   const updateGRStatus = useUpdateGRStatus();

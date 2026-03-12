@@ -98,7 +98,7 @@ export default function StockLedger() {
                       <TableCell className="text-muted-foreground">{(() => { try { return format(new Date(e.posted_at), "dd MMM yyyy"); } catch { return e.posted_at ?? "—"; } })()}</TableCell>
                       <TableCell className="font-medium text-foreground">{itemName(e.item_id)}</TableCell>
                       <TableCell className="text-muted-foreground">{whName(e.warehouse_id)}</TableCell>
-                      <TableCell><Badge variant={txnBadge(e.transaction_type) as any}>{e.transaction_type?.replace("_", " ")}</Badge></TableCell>
+                      <TableCell><Badge variant={txnBadge(e.entry_type || e.transaction_type) as any}>{(e.entry_type || e.transaction_type || "—")?.replace("_", " ")}</Badge></TableCell>
                       <TableCell className={`text-right font-medium ${Number(e.quantity) >= 0 ? "text-emerald-500" : "text-destructive"}`}>{Number(e.quantity) > 0 ? "+" : ""}{Number(e.quantity)}</TableCell>
                       <TableCell className="text-right text-foreground">₹{Number(e.rate).toLocaleString("en-IN")}</TableCell>
                       <TableCell className="text-right text-foreground">₹{Number(e.value).toLocaleString("en-IN")}</TableCell>

@@ -469,6 +469,9 @@ export function AICommandCenter() {
               queryClient.invalidateQueries({ queryKey: ["rpc-balance-sheet"] });
               queryClient.invalidateQueries({ queryKey: ["hr-analytics"] });
               queryClient.invalidateQueries({ queryKey: ["payroll-summary"] });
+              queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+              const { toast } = require("sonner");
+              toast.success("Insights refreshed");
             }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
