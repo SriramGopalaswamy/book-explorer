@@ -53,7 +53,10 @@ export function useCreateExchangeRate() {
       if (!user) throw new Error("Not authenticated");
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
-      const { error } = await supabase.from("exchange_rates" as any).insert({ ...r, organization_id: profile.organization_id } as any);
+      const { error } = await supabase.from("exchange_rates" as any).upsert(
+        { ...r, organization_id: profile.organization_id } as any,
+        { onConflict: 'organization_id,from_currency,to_currency,effective_date' }
+      );
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["exchange-rates"] }); toast.success("Exchange rate saved"); },
