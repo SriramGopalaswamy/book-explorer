@@ -5659,15 +5659,17 @@ async function runChaosTest(client: any, orgId: string, userId: string, runId?: 
   }
 
   // CHAOS-NEW-5: Item with invalid item_type (schema enum guard)
+  // NOTE: 'goods' is now a VALID item_type (added in migration 20260312400100).
+  // Chaos test updated to use a truly invalid value ('__invalid_type__').
   {
     const { error: badTypeErr } = await client.from("items").insert({
       name: "CHAOS Item", sku: `CHAOS-SKU-${Date.now()}`,
-      item_type: "goods",  // invalid — constraint is 'product','service','raw_material','finished_good','consumable'
+      item_type: "__invalid_type__",  // truly invalid — not in allowed set
       organization_id: orgId, created_by: userId, is_active: true,
       purchase_price: 100, selling_price: 200, opening_stock: 0,
     });
     results.push({
-      test: "Chaos: Item with invalid item_type='goods'", module: "Inventory",
+      test: "Chaos: Item with invalid item_type='__invalid_type__'", module: "Inventory",
       status: badTypeErr ? "blocked" : "anomaly",
       detail: badTypeErr
         ? `Correctly blocked: ${badTypeErr.message}`
