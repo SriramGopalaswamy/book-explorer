@@ -371,14 +371,15 @@ export function useSelfCheckIn() {
         throw new Error("You have already checked in today");
       }
 
-      // First get user's profile
+      // First get user's profile (includes org_id)
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, organization_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (profileError) throw profileError;
+      if (!profile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("attendance_records")
@@ -388,6 +389,7 @@ export function useSelfCheckIn() {
           date: today,
           check_in: now,
           status,
+          organization_id: profile.organization_id,
         })
         .select()
         .single();
@@ -417,10 +419,14 @@ export function useSelfCheckOut() {
       const now = new Date().toISOString();
 
       // Verify record belongs to user and has a check_in but no check_out
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: record } = await supabase
         .from("attendance_records")
         .select("user_id, check_in, check_out")
         .eq("id", recordId)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (!record) throw new Error("Attendance record not found");
       if (record.user_id !== user.id) throw new Error("You can only check out your own record");
@@ -431,6 +437,7 @@ export function useSelfCheckOut() {
         .from("attendance_records")
         .update({ check_out: now })
         .eq("id", recordId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -454,10 +461,15 @@ export function useCheckIn() {
 
   return useMutation({
     mutationFn: async (profileId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const today = new Date().toISOString().split("T")[0];
       const now = new Date().toISOString();
       const hour = new Date().getHours();
       const status = hour >= 10 ? "late" : "present";
+
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("attendance_records")
@@ -467,6 +479,7 @@ export function useCheckIn() {
           date: today,
           check_in: now,
           status,
+          organization_id: callerProfile.organization_id,
         }, {
           onConflict: "profile_id,date",
         })
@@ -551,11 +564,16 @@ export function useCreateAttendance() {
         throw new Error("Invalid attendance status");
       }
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("attendance_records")
         .upsert({
           ...record,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         }, {
           onConflict: "profile_id,date",
         })
