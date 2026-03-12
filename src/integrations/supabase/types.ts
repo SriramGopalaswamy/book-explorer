@@ -5260,6 +5260,50 @@ export type Database = {
           },
         ]
       }
+      inventory_count_lines: {
+        Row: {
+          actual_qty: number | null
+          count_id: string
+          created_at: string
+          expected_qty: number
+          id: string
+          item_id: string | null
+          item_name: string
+          notes: string | null
+          variance: number | null
+        }
+        Insert: {
+          actual_qty?: number | null
+          count_id: string
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          item_id?: string | null
+          item_name: string
+          notes?: string | null
+          variance?: number | null
+        }
+        Update: {
+          actual_qty?: number | null
+          count_id?: string
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          notes?: string | null
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_count_lines_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_counts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_counts: {
         Row: {
           approved_at: string | null
