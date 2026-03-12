@@ -58,8 +58,11 @@ export interface UploadParseResult {
   inserted: number;
   duplicates_skipped: number;
   matched_employees: number;
+  // Mark IV: list of matched employee codes for de-duplication across ZIP files
+  matched_employee_codes?: string[];
   unmatched_codes: string[];
   parse_errors: string[];
+  extraction_method?: string;
   error?: string;
 }
 
