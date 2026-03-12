@@ -362,6 +362,20 @@ export function usePostFinishedGoods() {
       if (!user) throw new Error("Not authenticated");
       if (params.quantity <= 0) throw new Error("Quantity must be greater than zero");
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Verify work order belongs to caller's org
+      const { data: wo, error: woErr } = await supabase
+        .from("work_orders" as any)
+        .select("id, status")
+        .eq("id", params.work_order_id)
+        .eq("organization_id", callerProfile.organization_id)
+        .maybeSingle();
+      if (woErr) throw woErr;
+      if (!wo) throw new Error("Work order not found in your organization.");
+
       const totalCost = params.cost_per_unit ? params.cost_per_unit * params.quantity : null;
 
       // Insert finished goods entry
@@ -378,6 +392,7 @@ export function usePostFinishedGoods() {
           posted_at: new Date().toISOString(),
           posted_by: user.id,
           notes: params.notes ?? null,
+          organization_id: callerProfile.organization_id,
         } as any)
         .select()
         .single();
