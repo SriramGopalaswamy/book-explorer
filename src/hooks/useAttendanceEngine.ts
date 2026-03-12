@@ -50,6 +50,37 @@ export interface AttendanceUploadLog {
   created_at: string;
 }
 
+export interface PreviewRecord {
+  date: string;
+  in_time: string | null;
+  out_time: string | null;
+  late_minutes: number | null;
+  early_departure: number | null;
+  work_hours: string | null;
+  status: string | undefined;
+}
+
+export interface PreviewEmployee {
+  employee_code: string;
+  employee_name: string;
+  department?: string;
+  records: PreviewRecord[];
+}
+
+export interface PreviewResult {
+  success: boolean;
+  preview: boolean;
+  employees: PreviewEmployee[];
+  total_records: number;
+  total_employees: number;
+  format: string;
+  warnings: string[];
+  errors: string[];
+  extraction_method: string;
+  report_period?: string;
+  organization?: string;
+}
+
 export interface UploadParseResult {
   success: boolean;
   format: string;
@@ -58,11 +89,12 @@ export interface UploadParseResult {
   inserted: number;
   duplicates_skipped: number;
   matched_employees: number;
-  // Mark IV: list of matched employee codes for de-duplication across ZIP files
   matched_employee_codes?: string[];
   unmatched_codes: string[];
   parse_errors: string[];
+  warnings?: string[];
   extraction_method?: string;
+  report_period?: string;
   error?: string;
 }
 
@@ -128,6 +160,43 @@ export function useAttendanceUploadLogs() {
   });
 }
 
+/** Preview-only parse — does NOT insert into DB */
+export function usePreviewBiometricAttendance() {
+  const { data: org } = useUserOrganization();
+
+  return useMutation({
+    mutationFn: async ({
+      textContent,
+      fileData,
+      fileName,
+    }: {
+      textContent?: string;
+      fileData?: string;
+      fileName: string;
+    }): Promise<PreviewResult> => {
+      const orgId = org?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
+
+      const body: Record<string, any> = {
+        organization_id: orgId,
+        file_name: fileName,
+        preview_only: true,
+      };
+      if (fileData) body.file_data = fileData;
+      else if (textContent) body.text_content = textContent;
+      else throw new Error("No file content provided");
+
+      const { data, error } = await supabase.functions.invoke("parse-attendance", { body });
+      if (error) throw error;
+      return data as PreviewResult;
+    },
+    onError: (err: any) => {
+      toast.error("Preview failed: " + err.message);
+    },
+  });
+}
+
+/** Final import — inserts parsed data into DB */
 export function useUploadBiometricAttendance() {
   const queryClient = useQueryClient();
   const { data: org } = useUserOrganization();
@@ -139,7 +208,7 @@ export function useUploadBiometricAttendance() {
       fileName,
     }: {
       textContent?: string;
-      fileData?: string; // base64-encoded PDF binary
+      fileData?: string;
       fileName: string;
     }): Promise<UploadParseResult> => {
       const orgId = org?.organizationId;
@@ -149,19 +218,11 @@ export function useUploadBiometricAttendance() {
         organization_id: orgId,
         file_name: fileName,
       };
-      if (fileData) {
-        body.file_data = fileData;
-      } else if (textContent) {
-        body.text_content = textContent;
-      } else {
-        throw new Error("No file content provided");
-      }
+      if (fileData) body.file_data = fileData;
+      else if (textContent) body.text_content = textContent;
+      else throw new Error("No file content provided");
 
-      const { data, error } = await supabase.functions.invoke(
-        "parse-attendance",
-        { body }
-      );
-
+      const { data, error } = await supabase.functions.invoke("parse-attendance", { body });
       if (error) throw error;
       return data as UploadParseResult;
     },
@@ -171,7 +232,7 @@ export function useUploadBiometricAttendance() {
       queryClient.invalidateQueries({ queryKey: ["attendance-upload-logs"] });
       if (data.success) {
         toast.success(
-          `Parsed ${data.total_parsed} punches, inserted ${data.inserted} (${data.duplicates_skipped} duplicates skipped)`
+          `Imported ${data.inserted} punches (${data.duplicates_skipped} duplicates skipped)`
         );
       }
     },
@@ -186,39 +247,23 @@ export function useRecalculateAttendance() {
   const { data: org } = useUserOrganization();
 
   return useMutation({
-    mutationFn: async ({
-      startDate,
-      endDate,
-    }: {
-      startDate: string;
-      endDate: string;
-    }) => {
+    mutationFn: async ({ startDate, endDate }: { startDate: string; endDate: string }) => {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
-
-      // Validate date range
-      if (startDate > endDate) throw new Error("Start date must be before or equal to end date");
+      if (startDate > endDate) throw new Error("Start date must be before end date");
       const daySpan = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
-      if (daySpan > 90) throw new Error("Recalculation range cannot exceed 90 days");
+      if (daySpan > 90) throw new Error("Range cannot exceed 90 days");
 
       const { data, error } = await supabase.rpc("recalculate_attendance", {
-        _org_id: orgId,
-        _start_date: startDate,
-        _end_date: endDate,
+        _org_id: orgId, _start_date: startDate, _end_date: endDate,
       });
-
       if (error) throw error;
       return data as any;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["attendance-daily"] });
-      if (data?.success) {
-        toast.success(
-          `Recalculated: ${data.processed} days processed, ${data.skipped_locked} locked days skipped`
-        );
-      } else {
-        toast.error(data?.error || "Recalculation failed");
-      }
+      if (data?.success) toast.success(`Recalculated: ${data.processed} days processed`);
+      else toast.error(data?.error || "Recalculation failed");
     },
     onError: (err: any) => {
       toast.error("Recalculation failed: " + err.message);
@@ -233,7 +278,6 @@ export function usePayrollAttendanceSummary(month?: string) {
     queryKey: ["payroll-attendance-summary", month],
     queryFn: async () => {
       if (!month) return [];
-      // The view groups by month as a date — we need to match the first of the month
       const monthDate = `${month}-01`;
       const { data, error } = await supabase
         .from("payroll_attendance_summary" as any)
