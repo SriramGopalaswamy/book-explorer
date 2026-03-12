@@ -262,12 +262,28 @@ export function AICommandCenter() {
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setMessages((prev) => {
-        const next = [...prev];
-        if (next[next.length - 1]?.isStreaming) next.pop();
-        return next;
-      });
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      const isAuthError = msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("not authenticated");
+      if (isAuthError) {
+        setError(msg);
+        setMessages((prev) => {
+          const next = [...prev];
+          if (next[next.length - 1]?.isStreaming) next.pop();
+          return next;
+        });
+      } else {
+        setMessages((prev) => {
+          const next = [...prev];
+          if (next[next.length - 1]?.isStreaming) {
+            next[next.length - 1] = {
+              role: "assistant",
+              content: `I'm sorry, I couldn't complete that request. ${msg} Please try rephrasing or try again in a moment.`,
+              isStreaming: false,
+            };
+          }
+          return next;
+        });
+      }
     } finally {
       setIsLoading(false);
       abortRef.current = null;
