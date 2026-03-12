@@ -439,6 +439,18 @@ export function useRejectGoalPlan() {
       notes?: string;
       isScoring?: boolean;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Self-rejection guard
+      const { data: existing } = await supabase.from("goal_plans").select("user_id").eq("id", planId).single();
+      if (existing?.user_id === user.id) {
+        throw new Error("You cannot reject your own goal plan.");
+      }
+
       const { data, error } = await supabase
         .from("goal_plans")
         .update({
@@ -448,6 +460,7 @@ export function useRejectGoalPlan() {
           reviewer_notes: notes || null,
         })
         .eq("id", planId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
       if (error) throw error;
