@@ -457,9 +457,6 @@ export function useRejectMemo() {
         throw new Error("Only pending memos can be rejected.");
       }
 
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase
         .from("memos")
