@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 type ExportFormat = "xlsx" | "csv";
 
@@ -13,31 +13,42 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function exportToExcel(data: Record<string, unknown>[], filename: string, sheetName = "Sheet1", format: ExportFormat = "xlsx") {
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-
-  if (format === "csv") {
-    const csv = XLSX.utils.sheet_to_csv(ws);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    downloadBlob(blob, filename.replace(/\.xlsx$/, ".csv"));
-  } else {
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    downloadBlob(blob, filename);
-  }
+function toCsv(data: Record<string, unknown>[]): string {
+  if (data.length === 0) return "";
+  const headers = Object.keys(data[0]);
+  const escape = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [headers.join(","), ...data.map(row => headers.map(h => escape(row[h])).join(","))].join("\n");
 }
 
-export function exportMultiSheet(sheets: { name: string; data: Record<string, unknown>[] }[], filename: string) {
-  const wb = XLSX.utils.book_new();
-  for (const sheet of sheets) {
-    const ws = XLSX.utils.json_to_sheet(sheet.data);
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name.substring(0, 31));
+export async function exportToExcel(data: Record<string, unknown>[], filename: string, sheetName = "Sheet1", format: ExportFormat = "xlsx") {
+  if (format === "csv") {
+    downloadBlob(new Blob([toCsv(data)], { type: "text/csv;charset=utf-8;" }), filename.replace(/\.xlsx$/, ".csv"));
+    return;
   }
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  downloadBlob(blob, filename);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(sheetName);
+  if (data.length > 0) {
+    ws.columns = Object.keys(data[0]).map(key => ({ header: key, key }));
+    ws.addRows(data);
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+}
+
+export async function exportMultiSheet(sheets: { name: string; data: Record<string, unknown>[] }[], filename: string) {
+  const wb = new ExcelJS.Workbook();
+  for (const sheet of sheets) {
+    const ws = wb.addWorksheet(sheet.name.substring(0, 31));
+    if (sheet.data.length > 0) {
+      ws.columns = Object.keys(sheet.data[0]).map(key => ({ header: key, key }));
+      ws.addRows(sheet.data);
+    }
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBlob(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 }
 
 // ── GSTR-1 Export ──

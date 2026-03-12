@@ -64,6 +64,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const department = DOMPurify.sanitize(record.profiles?.department || "—");
   const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
+  const sanitizedStatus = DOMPurify.sanitize(record.status);
+  const sanitizedEarnings = earnings.map(e => ({ ...e, label: DOMPurify.sanitize(e.label) }));
+  const sanitizedDeductions = deductions.map(d => ({ ...d, label: DOMPurify.sanitize(d.label) }));
   const period = periodLabel(record.pay_period);
   const processedDate = record.processed_at
     ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
@@ -127,7 +130,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
       <div class="per">${period}</div>
       </div>
     </div>
-    <span class="status s-${record.status}">${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
+    <span class="status s-${sanitizedStatus}">${sanitizedStatus.charAt(0).toUpperCase() + sanitizedStatus.slice(1)}</span>
   </div>
 
    <div class="emp-grid">
@@ -143,14 +146,14 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     <div class="tbl-section">
       <h3>Earnings</h3>
       <table><tbody>
-        ${earnings.map(e => `<tr><td>${e.label}</td><td class="r${e.amount === 0 ? ' nil' : ''}">${e.amount === 0 ? '—' : fmtFull(e.amount)}</td></tr>`).join("")}
+        ${sanitizedEarnings.map(e => `<tr><td>${e.label}</td><td class="r${e.amount === 0 ? ' nil' : ''}">${e.amount === 0 ? '—' : fmtFull(e.amount)}</td></tr>`).join("")}
         <tr class="sub"><td>Total Earnings</td><td class="r earn">${fmtFull(totalEarnings)}</td></tr>
       </tbody></table>
     </div>
     <div class="tbl-section">
       <h3>Deductions</h3>
       <table><tbody>
-        ${deductions.map(d => `<tr><td>${d.label}</td><td class="r${d.amount === 0 ? ' nil' : ''}">${d.amount === 0 ? '—' : fmtFull(d.amount)}</td></tr>`).join("")}
+        ${sanitizedDeductions.map(d => `<tr><td>${d.label}</td><td class="r${d.amount === 0 ? ' nil' : ''}">${d.amount === 0 ? '—' : fmtFull(d.amount)}</td></tr>`).join("")}
         <tr class="sub"><td>Total Deductions</td><td class="r deduct">${fmtFull(totalDeductions)}</td></tr>
       </tbody></table>
     </div>

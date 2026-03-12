@@ -100,12 +100,29 @@ function BiometricUploadDialog({
     setFile(f);
   }, []);
 
-  // Mark IV: convert XLSX/XLS to CSV text using the xlsx library
+  // Mark IV: convert XLSX/XLS to CSV text using the exceljs library
   const xlsxToText = async (buffer: ArrayBuffer): Promise<string> => {
-    const XLSX = (await import("xlsx")).default || (await import("xlsx"));
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    return XLSX.utils.sheet_to_csv(firstSheet);
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ws = wb.worksheets[0];
+    const csvRows: string[] = [];
+    const colCount = ws.columnCount || 1;
+    ws.eachRow((row) => {
+      const cells: string[] = [];
+      for (let i = 1; i <= colCount; i++) {
+        let val: ExcelJS.CellValue = row.getCell(i).value;
+        if (val instanceof Date) {
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, "0");
+          const d = String(val.getDate()).padStart(2, "0");
+          val = `${y}-${m}-${d}`;
+        }
+        cells.push(val == null ? "" : String(val));
+      }
+      csvRows.push(cells.join(","));
+    });
+    return csvRows.join("\n");
   };
 
   const handleUpload = async () => {

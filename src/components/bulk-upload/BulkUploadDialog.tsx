@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -127,13 +127,22 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const rows = parseCSV(config.templateContent);
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Template");
+    ws.addRows(rows);
     const xlsxName = config.templateFileName.replace(/\.csv$/, ".xlsx");
-    XLSX.writeFile(wb, xlsxName);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = xlsxName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     toast.success("Template downloaded");
   };
 
@@ -213,17 +222,26 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       reader.readAsText(file);
     } else {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
-        // cellDates: true → Excel date cells become JS Date objects
-        // dateNF + raw: false → dates are serialised as "yyyy-mm-dd" strings
-        const workbook = XLSX.read(data, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: string[][] = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          defval: "",
-          raw: false,
-          dateNF: "yyyy-mm-dd",
+      reader.onload = async (ev) => {
+        const data = ev.target?.result as ArrayBuffer;
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(data);
+        const ws = wb.worksheets[0];
+        const rows: string[][] = [];
+        const colCount = ws.columnCount || 1;
+        ws.eachRow((row) => {
+          const cells: string[] = [];
+          for (let i = 1; i <= colCount; i++) {
+            let val: ExcelJS.CellValue = row.getCell(i).value;
+            if (val instanceof Date) {
+              const y = val.getFullYear();
+              const m = String(val.getMonth() + 1).padStart(2, "0");
+              const d = String(val.getDate()).padStart(2, "0");
+              val = `${y}-${m}-${d}`;
+            }
+            cells.push(val == null ? "" : String(val));
+          }
+          rows.push(cells);
         });
         processRows(rows);
       };

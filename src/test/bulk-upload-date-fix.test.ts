@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 // ─── Replicate the helper from BulkUploadDialog ───────────────────────────────
 function maybeConvertExcelSerial(value: string): string {
@@ -32,34 +32,43 @@ function parseCSV(text: string): string[][] {
 }
 
 // ─── Build an in-memory Excel workbook with date cells ────────────────────────
-function makeHolidayExcel(holidays: Array<{ name: string; date: string }>): Uint8Array {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ["name", "date"],
-    ...holidays.map((h) => [h.name, h.date]),
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Holidays");
-  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+async function makeHolidayExcel(holidays: Array<{ name: string; date: string }>): Promise<Uint8Array> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Holidays");
+  ws.addRow(["name", "date"]);
+  for (const h of holidays) ws.addRow([h.name, h.date]);
+  const buf = await wb.xlsx.writeBuffer();
   return new Uint8Array(buf);
 }
 
 // ─── Parse the Excel buffer the same way BulkUploadDialog does ───────────────
-function parseExcelBuffer(buf: Uint8Array): Record<string, string>[] {
-  const workbook = XLSX.read(buf, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows: string[][] = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-    dateNF: "yyyy-mm-dd",
+async function parseExcelBuffer(buf: Uint8Array): Promise<Record<string, string>[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf.buffer as ArrayBuffer);
+  const ws = wb.worksheets[0];
+  const colCount = ws.columnCount || 1;
+  const rows: string[][] = [];
+  ws.eachRow((row) => {
+    const cells: string[] = [];
+    for (let i = 1; i <= colCount; i++) {
+      let val: ExcelJS.CellValue = row.getCell(i).value;
+      if (val instanceof Date) {
+        const y = val.getFullYear();
+        const m = String(val.getMonth() + 1).padStart(2, "0");
+        const d = String(val.getDate()).padStart(2, "0");
+        val = `${y}-${m}-${d}`;
+      }
+      cells.push(val == null ? "" : String(val));
+    }
+    rows.push(cells);
   });
 
-  if (rawRows.length < 2) return [];
-  const fileHeaders = (rawRows[0] as string[]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
-  return rawRows.slice(1).map((cells) => {
+  if (rows.length < 2) return [];
+  const fileHeaders = rows[0].map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+  return rows.slice(1).map((cells) => {
     const row: Record<string, string> = {};
     fileHeaders.forEach((h, i) => {
-      row[h] = maybeConvertExcelSerial(String((cells as string[])[i] ?? "").trim());
+      row[h] = maybeConvertExcelSerial(String(cells[i] ?? "").trim());
     });
     return row;
   });
@@ -107,17 +116,17 @@ describe("XLSX Excel parsing with cellDates:true + raw:false", () => {
     { name: "Christmas",       date: "2026-12-25" },
   ];
 
-  it("parses holiday names correctly (no date values leaking into name column)", () => {
-    const buf = makeHolidayExcel(holidays);
-    const rows = parseExcelBuffer(buf);
+  it("parses holiday names correctly (no date values leaking into name column)", async () => {
+    const buf = await makeHolidayExcel(holidays);
+    const rows = await parseExcelBuffer(buf);
     rows.forEach((row, i) => {
       expect(row.name).toBe(holidays[i].name);
     });
   });
 
-  it("parses dates as YYYY-MM-DD strings (not serial numbers)", () => {
-    const buf = makeHolidayExcel(holidays);
-    const rows = parseExcelBuffer(buf);
+  it("parses dates as YYYY-MM-DD strings (not serial numbers)", async () => {
+    const buf = await makeHolidayExcel(holidays);
+    const rows = await parseExcelBuffer(buf);
     rows.forEach((row, i) => {
       expect(row.date).toBe(holidays[i].date);
       // Must NOT be a raw serial number like "46023"
@@ -125,18 +134,18 @@ describe("XLSX Excel parsing with cellDates:true + raw:false", () => {
     });
   });
 
-  it("date strings pass new Date() parsing", () => {
-    const buf = makeHolidayExcel(holidays);
-    const rows = parseExcelBuffer(buf);
+  it("date strings pass new Date() parsing", async () => {
+    const buf = await makeHolidayExcel(holidays);
+    const rows = await parseExcelBuffer(buf);
     rows.forEach((row) => {
       const parsed = new Date(row.date);
       expect(isNaN(parsed.getTime())).toBe(false);
     });
   });
 
-  it("year extracted from date is correct", () => {
-    const buf = makeHolidayExcel(holidays);
-    const rows = parseExcelBuffer(buf);
+  it("year extracted from date is correct", async () => {
+    const buf = await makeHolidayExcel(holidays);
+    const rows = await parseExcelBuffer(buf);
     rows.forEach((row) => {
       const year = new Date(row.date).getFullYear();
       expect(year).toBe(2026);
