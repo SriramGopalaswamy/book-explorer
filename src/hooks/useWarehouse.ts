@@ -474,10 +474,10 @@ export function useUpdatePickingListStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const VALID = ["draft", "in_progress", "completed", "cancelled"] as const;
+      const VALID = ["pending", "in_progress", "completed", "cancelled"] as const;
       if (!VALID.includes(status as any)) throw new Error(`Invalid picking list status: ${status}`);
       const TRANSITIONS: Record<string, string[]> = {
-        draft: ["in_progress", "cancelled"],
+        pending: ["in_progress", "cancelled"],
         in_progress: ["completed", "cancelled"],
         completed: [],
         cancelled: [],
