@@ -445,15 +445,15 @@ export function useGeneratePickingList() {
       if (pickErr) throw pickErr;
 
       const lines = params.items.map((item) => ({
-        pick_list_id: (pickData as any).id,
+        picking_list_id: (pickData as any).id,
         item_id: item.item_id || null,
         item_name: item.item_name,
-        quantity_required: item.quantity,
-        quantity_picked: 0,
-        bin_location: item.bin_location || null,
+        required_quantity: item.quantity,
+        picked_quantity: 0,
+        bin_id: null,
         status: "pending",
       }));
-      const { error: linesErr } = await supabase.from("pick_list_lines" as any).insert(lines as any);
+      const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
       if (linesErr) {
         await supabase.from("picking_lists" as any).delete().eq("id", (pickData as any).id);
         throw linesErr;
