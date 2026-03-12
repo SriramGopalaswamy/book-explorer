@@ -2142,19 +2142,18 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, supabaseKey);
 
-    // Verify JWT via getClaims (no DB call)
+    // Verify JWT via getUser
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: authError } = await authClient.auth.getClaims(token);
-    if (authError || !claimsData?.claims) {
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const user = { id: claimsData.claims.sub };
 
     const body = await req.json();
     const { organization_id, file_name, diagnostic_mode } = body;
