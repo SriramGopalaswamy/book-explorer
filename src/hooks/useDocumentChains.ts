@@ -315,7 +315,7 @@ export function useCreateDeliveryNote() {
           delivery_date: params.delivery_date,
           notes: params.notes || null,
           status: "draft",
-          created_by: user.id,
+          dispatched_by: user.id,
           organization_id: callerOrgId,
         } as any)
         .select()
