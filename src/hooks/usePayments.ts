@@ -192,7 +192,7 @@ export function useCreateVendorPayment() {
       if (!p.payment_date) throw new Error("Payment date is required.");
 
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found");
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
 
       // Prevent future-dated payments
       const today = new Date().toISOString().split("T")[0];
