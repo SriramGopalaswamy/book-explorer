@@ -419,10 +419,14 @@ export function useSelfCheckOut() {
       const now = new Date().toISOString();
 
       // Verify record belongs to user and has a check_in but no check_out
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: record } = await supabase
         .from("attendance_records")
         .select("user_id, check_in, check_out")
         .eq("id", recordId)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (!record) throw new Error("Attendance record not found");
       if (record.user_id !== user.id) throw new Error("You can only check out your own record");
@@ -433,6 +437,7 @@ export function useSelfCheckOut() {
         .from("attendance_records")
         .update({ check_out: now })
         .eq("id", recordId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
