@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, MoreHorizontal, Trash2, Search, FileX, Pencil, Filter, X, Eye } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,6 +65,39 @@ const STATUS_COLORS: Record<string, string> = {
   void: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
+const STATUS_STEPS = ["draft", "issued", "applied", "void"] as const;
+
+const StatusStepper = ({ status }: { status: string }) => {
+  const currentIdx = STATUS_STEPS.indexOf(status as typeof STATUS_STEPS[number]);
+  return (
+    <div className="flex items-center gap-0.5">
+      {STATUS_STEPS.map((step, i) => {
+        const isCompleted = i < currentIdx;
+        const isCurrent   = i === currentIdx;
+        const isVoid      = step === "void";
+        return (
+          <div key={step} className="flex items-center gap-0.5">
+            {i > 0 && <div className={`h-px w-3 ${isCompleted ? "bg-primary" : "bg-border"}`} />}
+            <div
+              title={step.charAt(0).toUpperCase() + step.slice(1)}
+              className={[
+                "h-2 w-2 rounded-full border transition-colors",
+                isCurrent && isVoid ? "bg-destructive border-destructive" :
+                isCurrent           ? "bg-primary border-primary" :
+                isCompleted         ? "bg-primary/40 border-primary/40" :
+                                      "bg-muted border-border",
+              ].join(" ")}
+            />
+          </div>
+        );
+      })}
+      <Badge variant="outline" className={`ml-1.5 text-xs ${STATUS_COLORS[status] || ""}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    </div>
+  );
+};
+
 export default function CreditNotes() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
@@ -76,6 +113,7 @@ export default function CreditNotes() {
   const [editCustomerId, setEditCustomerId] = useState("");
   const [form, setForm] = useState({ amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
   const [editForm, setEditForm] = useState({ amount: "", reason: "", issue_date: "", status: "" });
+  const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
 
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["credit-notes", user?.id],
@@ -283,7 +321,7 @@ export default function CreditNotes() {
               <TableRow>
                 <TableHead>Credit Note #</TableHead><TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead><TableHead>Issue Date</TableHead>
-                <TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead className="w-12"></TableHead>
+                <TableHead>Reason</TableHead><TableHead className="min-w-[220px]">Status</TableHead><TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,7 +340,7 @@ export default function CreditNotes() {
                     <TableCell className="font-semibold">{formatCurrency(cn.amount)}</TableCell>
                     <TableCell className="text-sm">{new Date(cn.issue_date).toLocaleDateString("en-IN")}</TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={cn.reason || "—"}>{cn.reason || "—"}</TableCell>
-                    <TableCell><Badge variant="outline" className={STATUS_COLORS[cn.status] || ""}>{cn.status.charAt(0).toUpperCase() + cn.status.slice(1)}</Badge></TableCell>
+                    <TableCell><StatusStepper status={cn.status} /></TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -316,8 +354,8 @@ export default function CreditNotes() {
                               Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
                             </DropdownMenuItem>
                           ))}
-                          {cn.status === "draft" && (
-                            <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(cn.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                          {(cn.status === "draft" || cn.status === "void") && (
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(cn)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -379,6 +417,27 @@ export default function CreditNotes() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Credit Note</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteTarget?.status === "void"
+                  ? `This void credit note (${deleteTarget?.credit_note_number}) has been permanently cancelled. Are you sure you want to delete it? This action cannot be undone.`
+                  : `Are you sure you want to delete ${deleteTarget?.credit_note_number}? This action cannot be undone.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (deleteTarget) { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null); } }}
+              >Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Edit Dialog — only for draft status */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setEditingCreditNote(null); }}>
