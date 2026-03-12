@@ -67,6 +67,7 @@ import {
    Plug,
    RefreshCw,
    Cpu,
+   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
