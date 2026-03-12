@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useWarehouses, useCreateWarehouse, useDeleteWarehouse } from "@/hooks/useInventory";
+import { useWarehouses, useCreateWarehouse, useUpdateWarehouse, useDeleteWarehouse } from "@/hooks/useInventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Warehouse, Search, Trash2 } from "lucide-react";
+import { Plus, Warehouse, Search, Trash2, MoreHorizontal, Edit, Eye, ToggleLeft, ToggleRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const INDIAN_STATES = [
