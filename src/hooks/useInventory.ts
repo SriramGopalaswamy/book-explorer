@@ -75,20 +75,21 @@ export function useDeleteItem() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Prevent deleting items with stock ledger entries
+      // Resolve caller org for tenant isolation
+      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
+      if (!orgId) throw new Error("No organization found");
+
+      // Prevent deleting items with stock ledger entries (org-scoped)
       const { data: ledgerEntries, error: ledgerErr } = await supabase
         .from("stock_ledger" as any)
         .select("id")
         .eq("item_id", id)
+        .eq("organization_id", orgId)
         .limit(1);
       if (ledgerErr) throw ledgerErr;
       if (ledgerEntries && ledgerEntries.length > 0) {
         throw new Error("Cannot delete an item with existing stock movements. Deactivate it instead.");
       }
-
-      // Resolve caller org for tenant isolation
-      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
-      if (!orgId) throw new Error("No organization found");
       const { error } = await supabase.from("items" as any).delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
