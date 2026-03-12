@@ -314,7 +314,11 @@ export function useUpdatePurchaseReturnStatus() {
         throw new Error(`Cannot change purchase return from "${currentStatus}" to "${status}".`);
       }
 
-      const { error } = await supabase.from("purchase_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("purchase_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-returns"] }); toast.success("Status updated"); },
