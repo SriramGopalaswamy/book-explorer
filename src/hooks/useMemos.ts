@@ -438,16 +438,22 @@ export function useRejectMemo() {
     mutationFn: async ({ id, reviewerNotes }: { id: string; reviewerNotes: string }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Self-rejection guard
+      // Self-rejection guard & status check
+      // Resolve caller org first for scoping
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: memo } = await supabase
         .from("memos")
         .select("user_id, status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
-      if (memo && (memo as any).user_id === user.id) {
+      if (!memo) throw new Error("Memo not found in your organization.");
+      if ((memo as any).user_id === user.id) {
         throw new Error("You cannot reject your own memo.");
       }
-      if (memo && (memo as any).status !== "pending_approval") {
+      if ((memo as any).status !== "pending_approval") {
         throw new Error("Only pending memos can be rejected.");
       }
 
