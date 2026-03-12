@@ -562,6 +562,7 @@ export function useDeleteMemo() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       // Block deletion of published memos (permanent record)
       const { data: memo, error: fetchErr } = await supabase
         .from("memos")
