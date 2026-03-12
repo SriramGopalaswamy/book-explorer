@@ -116,6 +116,7 @@ const financialNav: NavItem[] = [
 const hrmsNav: NavItem[] = [
   { name: "Employees", path: "/hrms/employees", icon: Users, module: "hrms" },
   { name: "Attendance", path: "/hrms/attendance", icon: Clock, module: "hrms" },
+  { name: "Attendance Import", path: "/hrms/attendance-import", icon: Upload, module: "hrms" },
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, module: "hrms" },
   { name: "Holidays", path: "/hrms/holidays", icon: PartyPopper, module: "hrms" },
