@@ -62,6 +62,7 @@ export function useConvertQuoteToSO() {
           created_by: user.id,
           organization_id: callerOrgId,
           status: "draft",
+          quote_id: quote.id,
         } as any)
         .select()
         .single();
@@ -84,8 +85,8 @@ export function useConvertQuoteToSO() {
         }
       }
 
-      // Mark quote as converted (org-scoped)
-      await supabase.from("quotes").update({ status: "converted" } as any).eq("id", quote.id).eq("organization_id", callerOrgId);
+      // Mark quote as converted (scoped by user_id per quotes RLS)
+      await supabase.from("quotes").update({ status: "converted" } as any).eq("id", quote.id).eq("user_id", user.id);
       return so;
     },
     onSuccess: () => {
@@ -455,8 +456,8 @@ export function useConvertSOToInvoice() {
         }
       }
 
-      // Mark SO as closed (org-scoped)
-      await supabase.from("sales_orders" as any).update({ status: "closed" } as any).eq("id", so.id).eq("organization_id", callerOrgId);
+      // Mark SO as invoiced (org-scoped)
+      await supabase.from("sales_orders" as any).update({ status: "invoiced" } as any).eq("id", so.id).eq("organization_id", callerOrgId);
       return inv;
     },
     onSuccess: () => {
