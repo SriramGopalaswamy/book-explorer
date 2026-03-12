@@ -72,6 +72,9 @@ export interface EInvoice {
   total_invoice_value: number;
   items: EInvoiceItem[];
   eway_bill_number: string | null;
+  cancel_reason: string | null;
+  cancel_remark: string | null;
+  cancelled_at: string | null;
   created_at: string;
   updated_at: string;
 }

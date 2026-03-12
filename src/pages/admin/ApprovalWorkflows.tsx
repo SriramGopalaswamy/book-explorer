@@ -38,13 +38,10 @@ export default function ApprovalWorkflowsPage() {
   const processedRequests = requests.filter(r => r.status !== "pending");
 
   return (
-    <MainLayout title="Approval Workflows">
+    <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Approval Workflows</h1>
-            <p className="text-muted-foreground">Configure and manage approval rules</p>
-          </div>
+          <div />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Workflow</Button></DialogTrigger>
             <DialogContent>

@@ -74,10 +74,7 @@ export default function RecurringTransactionsPage() {
     <MainLayout title="Recurring Transactions" subtitle="Automate repeating journal entries">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Recurring Transactions</h1>
-            <p className="text-muted-foreground">Set up templates for automatically recurring journal entries</p>
-          </div>
+          <div />
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> New Recurring
           </Button>
