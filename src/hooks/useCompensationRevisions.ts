@@ -84,9 +84,19 @@ export function useMyTeamRevisionRequests() {
     queryKey: ["my-team-revision-requests", user?.id],
     queryFn: async () => {
       if (!user) return [];
+
+      // Org-scoped to prevent cross-tenant data leaks
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) return [];
+
       const { data, error } = await (supabase.from("compensation_revision_requests" as any) as any)
         .select("*")
         .eq("requested_by", user.id)
+        .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return enrichWithProfiles(data || []);
@@ -147,6 +157,14 @@ export function useCreateRevisionRequest() {
         throw new Error("A pending revision request already exists for this employee");
       }
 
+      // Resolve org_id explicitly for RLS compliance
+      const { data: reqProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!reqProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
         profile_id: data.profile_id,
         requested_by: user.id,
@@ -156,6 +174,7 @@ export function useCreateRevisionRequest() {
         revision_reason: data.revision_reason.trim(),
         effective_from: data.effective_from,
         proposed_components: data.proposed_components,
+        organization_id: reqProfile.organization_id,
       });
       if (error) throw error;
     },
@@ -181,13 +200,29 @@ export function useReviewRevisionRequest() {
         throw new Error("Invalid review status");
       }
 
-      // Verify request is still pending before updating
-      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
-        .select("status")
-        .eq("id", data.id)
+      // Resolve caller's org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
         .maybeSingle();
-      if (current?.status !== "pending") {
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
+      // Verify request is still pending & org-scoped
+      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
+        .select("status, requested_by")
+        .eq("id", data.id)
+        .eq("organization_id", callerOrgId)
+        .maybeSingle();
+      if (!current) throw new Error("Revision request not found in your organization.");
+      if (current.status !== "pending") {
         throw new Error("This request has already been reviewed");
+      }
+
+      // Maker-checker: requester cannot review their own request
+      if (current.requested_by === user.id) {
+        throw new Error("You cannot review your own compensation revision request.");
       }
 
       const { error } = await (supabase.from("compensation_revision_requests" as any) as any)
@@ -197,7 +232,8 @@ export function useReviewRevisionRequest() {
           reviewed_at: new Date().toISOString(),
           reviewer_notes: data.reviewer_notes || null,
         })
-        .eq("id", data.id);
+        .eq("id", data.id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: (_, variables) => {

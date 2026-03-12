@@ -103,10 +103,16 @@ export function useUpdateRecurringTransactionStatus() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const VALID = ["active", "paused", "completed", "cancelled"] as const;
       if (!VALID.includes(status as any)) throw new Error(`Invalid status: ${status}`);
+
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!profile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("recurring_transactions" as any)
         .update({ status, updated_at: new Date().toISOString() } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -255,8 +255,13 @@ export function useUpdateWOStatus() {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_WO_STATUSES.includes(status as any)) throw new Error(`Invalid work order status: ${status}`);
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // Verify transition is allowed
-      const { data: current } = await supabase.from("work_orders" as any).select("status").eq("id", id).maybeSingle();
+      const { data: current } = await supabase.from("work_orders" as any).select("status, actual_start, completed_quantity").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       const currentStatus = (current as any)?.status;
       if (currentStatus && WO_TRANSITIONS[currentStatus] && !WO_TRANSITIONS[currentStatus].includes(status)) {
         throw new Error(`Cannot transition work order from '${currentStatus}' to '${status}'`);
@@ -272,7 +277,7 @@ export function useUpdateWOStatus() {
           throw new Error("Cannot mark work order as completed with zero completed quantity. Record production first.");
         }
       }
-      const { error } = await supabase.from("work_orders" as any).update(updates).eq("id", id);
+      const { error } = await supabase.from("work_orders" as any).update(updates).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto-consume BOM materials on completion ──
@@ -313,6 +318,11 @@ export function useRecordProduction() {
       if (params.completed_quantity < 0) throw new Error("Completed quantity cannot be negative");
       if ((params.rejected_quantity ?? 0) < 0) throw new Error("Rejected quantity cannot be negative");
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("work_orders" as any)
         .update({
@@ -322,7 +332,8 @@ export function useRecordProduction() {
           notes: params.notes ?? null,
           updated_at: new Date().toISOString(),
         } as any)
-        .eq("id", params.id);
+        .eq("id", params.id)
+        .eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

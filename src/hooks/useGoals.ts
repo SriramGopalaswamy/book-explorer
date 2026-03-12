@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockGoals, mockGoalStats } from "@/lib/mock-data";
 import { toast } from "sonner";
 
@@ -30,34 +31,42 @@ export interface GoalStats {
 export function useGoals() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goals", isDevMode],
+    queryKey: ["goals", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoals;
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("goals")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Goal[];
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
 export function useGoalStats() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goal-stats", isDevMode],
+    queryKey: ["goal-stats", orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoalStats;
+      if (!orgId) return { total: 0, completed: 0, onTrack: 0, atRisk: 0, delayed: 0 };
       const { data, error } = await supabase
         .from("goals")
-        .select("status");
+        .select("status")
+        .eq("organization_id", orgId);
 
       if (error) throw error;
 
@@ -71,7 +80,7 @@ export function useGoalStats() {
 
       return stats;
     },
-    enabled: !!user || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
   });
 }
 
@@ -154,10 +163,15 @@ export function useUpdateGoal() {
         throw new Error("Goal title cannot be empty.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .update(updates)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -186,6 +200,10 @@ export function useUpdateGoalProgress() {
       const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
       const status = clampedProgress >= 100 ? "completed" : undefined;
       
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .update({ 
@@ -193,6 +211,7 @@ export function useUpdateGoalProgress() {
           ...(status && { status }),
         })
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -228,10 +247,15 @@ export function useDeleteGoal() {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("goals")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
 
       if (error) throw error;
     },

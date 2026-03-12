@@ -305,15 +305,23 @@ export function useApproveLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Verify request is still pending
+      // Verify request is still pending & enforce self-approval guard
       const { data: check } = await supabase
         .from("leave_requests")
-        .select("status")
+        .select("status, user_id")
         .eq("id", requestId)
         .maybeSingle();
       if (check?.status !== "pending") {
         throw new Error("This leave request has already been reviewed");
       }
+      // Maker-checker: manager cannot approve their own leave
+      if (check?.user_id === user.id) {
+        throw new Error("You cannot approve your own leave request.");
+      }
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("leave_requests")
@@ -323,6 +331,7 @@ export function useApproveLeaveRequest() {
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -427,15 +436,22 @@ export function useRejectLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Verify request is still pending
+      // Verify request is still pending & enforce self-rejection guard
       const { data: check } = await supabase
         .from("leave_requests")
-        .select("status")
+        .select("status, user_id")
         .eq("id", requestId)
         .maybeSingle();
       if (check?.status !== "pending") {
         throw new Error("This leave request has already been reviewed");
       }
+      if (check?.user_id === user.id) {
+        throw new Error("You cannot reject your own leave request.");
+      }
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("leave_requests")
@@ -445,6 +461,7 @@ export function useRejectLeaveRequest() {
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", requestId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -474,15 +491,55 @@ export function useDeleteLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Only allow deleting own pending requests
+      // Only allow deleting own pending/approved requests
       const { data: check } = await supabase
         .from("leave_requests")
-        .select("status, user_id")
+        .select("status, user_id, leave_type, days, from_date, to_date, profile_id")
         .eq("id", requestId)
         .maybeSingle();
       if (!check) throw new Error("Leave request not found");
       if (check.user_id !== user.id) throw new Error("You can only cancel your own leave requests");
-      if (check.status !== "pending") throw new Error("Only pending leave requests can be cancelled");
+      if (check.status !== "pending" && check.status !== "approved") throw new Error("Only pending or approved leave requests can be cancelled");
+
+      const wasApproved = check.status === "approved";
+
+      // If approved, restore leave balance and clean up attendance
+      if (wasApproved) {
+        try {
+          const currentYear = new Date().getFullYear();
+          const { data: balance } = await supabase
+            .from("leave_balances")
+            .select("id, used_days")
+            .eq("user_id", user.id)
+            .eq("leave_type", check.leave_type)
+            .eq("year", currentYear)
+            .maybeSingle();
+          if (balance) {
+            const restoredUsed = Math.max(0, Number(balance.used_days) - Number(check.days));
+            await supabase
+              .from("leave_balances")
+              .update({ used_days: restoredUsed })
+              .eq("id", balance.id);
+          }
+        } catch (balErr) {
+          console.warn("Failed to restore leave balance:", balErr);
+        }
+
+        // Delete attendance records created for this leave
+        try {
+          if (check.profile_id) {
+            await supabase
+              .from("attendance_records")
+              .delete()
+              .eq("profile_id", check.profile_id)
+              .eq("status", "leave")
+              .gte("date", check.from_date)
+              .lte("date", check.to_date);
+          }
+        } catch (attErr) {
+          console.warn("Failed to clean up attendance records:", attErr);
+        }
+      }
 
       const { error } = await supabase
         .from("leave_requests")

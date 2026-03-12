@@ -15,6 +15,7 @@ interface StockEntry {
   reference_type: string;
   reference_id: string;
   notes?: string;
+  organization_id?: string;
 }
 
 async function postStockEntries(entries: StockEntry[]): Promise<void> {
@@ -29,6 +30,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     reference_id: e.reference_id,
     notes: e.notes || null,
     posted_at: new Date().toISOString(),
+    ...(e.organization_id ? { organization_id: e.organization_id } : {}),
   }));
 
   const { error } = await supabase.from("stock_ledger" as any).insert(rows as any);
@@ -47,13 +49,14 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
   if (grErr) throw grErr;
   if (!grItems || grItems.length === 0) return;
 
-  // Fetch GR → PO → warehouse
+  // Fetch GR → PO → warehouse + organization_id
   const { data: gr } = await supabase
     .from("goods_receipts" as any)
-    .select("purchase_order_id")
+    .select("purchase_order_id, organization_id")
     .eq("id", goodsReceiptId)
     .single();
   if (!gr) return;
+  const grOrgId = (gr as any).organization_id;
 
   const { data: po } = await supabase
     .from("purchase_orders" as any)
@@ -61,12 +64,13 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
     .eq("id", (gr as any).purchase_order_id)
     .maybeSingle();
 
-  // Find a default warehouse if PO doesn't specify one
+  // Find a default warehouse if PO doesn't specify one — org-scoped
   let warehouseId = (po as any)?.warehouse_id;
-  if (!warehouseId) {
+  if (!warehouseId && grOrgId) {
     const { data: defaultWh } = await supabase
       .from("warehouses" as any)
       .select("id")
+      .eq("organization_id", grOrgId)
       .limit(1);
     warehouseId = (defaultWh as any)?.[0]?.id;
   }
@@ -82,6 +86,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
       reference_type: "goods_receipt",
       reference_id: goodsReceiptId,
       notes: `Auto stock-in from GR ${goodsReceiptId.slice(0, 8)}`,
+      organization_id: grOrgId,
     }));
 
   await postStockEntries(entries);
@@ -98,12 +103,24 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
   if (dnErr) throw dnErr;
   if (!dnItems || dnItems.length === 0) return;
 
-  // Find a default warehouse (SO doesn't always have one)
-  const { data: defaultWh } = await supabase
-    .from("warehouses" as any)
-    .select("id")
-    .limit(1);
-  const warehouseId = (defaultWh as any)?.[0]?.id;
+  // Fetch DN's organization for org-scoped warehouse lookup
+  const { data: dn } = await supabase
+    .from("delivery_notes" as any)
+    .select("organization_id")
+    .eq("id", deliveryNoteId)
+    .maybeSingle();
+  const dnOrgId = (dn as any)?.organization_id;
+
+  // Find a default warehouse — org-scoped
+  let warehouseId: string | undefined;
+  if (dnOrgId) {
+    const { data: defaultWh } = await supabase
+      .from("warehouses" as any)
+      .select("id")
+      .eq("organization_id", dnOrgId)
+      .limit(1);
+    warehouseId = (defaultWh as any)?.[0]?.id;
+  }
   if (!warehouseId) return;
 
   const entries: StockEntry[] = (dnItems as any[])
@@ -116,6 +133,7 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
       reference_type: "delivery_note",
       reference_id: deliveryNoteId,
       notes: `Auto stock-out from DN ${deliveryNoteId.slice(0, 8)}`,
+      organization_id: dnOrgId,
     }));
 
   await postStockEntries(entries);
@@ -185,10 +203,12 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
     .eq("bom_id", woData.bom_id);
   if (lErr || !lines || lines.length === 0) return;
 
-  // Resolve warehouse
+  // Resolve warehouse — org-scoped
   let warehouseId = woData.warehouse_id;
-  if (!warehouseId) {
-    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").limit(1);
+  const { data: woFull } = await supabase.from("work_orders" as any).select("organization_id").eq("id", workOrderId).maybeSingle();
+  const woOrgId = (woFull as any)?.organization_id;
+  if (!warehouseId && woOrgId) {
+    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").eq("organization_id", woOrgId).limit(1);
     warehouseId = (defaultWh as any)?.[0]?.id;
   }
   if (!warehouseId) return;
@@ -205,6 +225,7 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
         reference_type: "work_order",
         reference_id: workOrderId,
         notes: `BOM consumption: ${l.material_name}`,
+        organization_id: woOrgId,
       };
     });
 
@@ -225,15 +246,23 @@ export async function checkReorderAlerts(organizationId: string): Promise<
     .gt("reorder_level", 0);
   if (iErr || !items || items.length === 0) return [];
 
-  // For each item, calculate current stock from stock_ledger
+  // Batch: fetch ALL stock ledger entries for the org in one query (eliminates N+1)
+  const itemIds = (items as any[]).map((i: any) => i.id);
+  const { data: allLedger } = await supabase
+    .from("stock_ledger" as any)
+    .select("item_id, quantity")
+    .eq("organization_id", organizationId)
+    .in("item_id", itemIds);
+
+  // Aggregate stock by item_id
+  const stockMap = new Map<string, number>();
+  for (const entry of (allLedger || []) as any[]) {
+    stockMap.set(entry.item_id, (stockMap.get(entry.item_id) || 0) + Number(entry.quantity));
+  }
+
   const alerts: { itemId: string; itemName: string; currentStock: number; reorderLevel: number }[] = [];
   for (const item of items as any[]) {
-    const { data: ledger } = await supabase
-      .from("stock_ledger" as any)
-      .select("quantity")
-      .eq("item_id", item.id)
-      .eq("organization_id", organizationId);
-    const currentStock = (ledger || []).reduce((sum: number, e: any) => sum + Number(e.quantity), 0);
+    const currentStock = stockMap.get(item.id) || 0;
     if (currentStock <= Number(item.reorder_level)) {
       alerts.push({
         itemId: item.id,

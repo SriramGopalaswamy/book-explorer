@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-upload/BulkUploadDialog";
@@ -106,6 +107,8 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       return null;
     };
 
+    const insertedIds: string[] = [];
+
     for (const row of rows) {
       const basic = parseFloat(row.basic_salary) || 0;
       const hra = parseFloat(row.hra) || 0;
@@ -123,7 +126,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         continue;
       }
 
-      const { error } = await supabase.from("payroll_records").upsert({
+      const { data, error } = await supabase.from("payroll_records").upsert({
         user_id: profile.user_id,
         profile_id: profile.id,
         organization_id: orgId || null,
@@ -137,10 +140,20 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         other_deductions: otherDed,
         net_pay: net,
         status: "draft",
-      }, { onConflict: "profile_id,pay_period" });
+      }, { onConflict: "profile_id,pay_period" }).select("id");
 
-      if (error) errors.push(`Row ${row.employee_id}: ${error.message}`);
-      else success++;
+      if (error) {
+        errors.push(`Row ${row.employee_id}: ${error.message}`);
+        // If error rate exceeds 50%, rollback all inserted records
+        if (errors.length > rows.length * 0.5 && insertedIds.length > 0) {
+          await supabase.from("payroll_records").delete().in("id", insertedIds);
+          errors.push("Bulk upload aborted: too many errors. All changes rolled back.");
+          return { success: 0, errors };
+        }
+      } else {
+        if (data?.[0]?.id) insertedIds.push(data[0].id);
+        success++;
+      }
     }
 
     qc.invalidateQueries({ queryKey: ["payroll"] });
@@ -278,10 +291,16 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
 
 export function useHolidaysBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     const errors: string[] = [];
     let success = 0;
+
+    if (!orgId) {
+      return { success: 0, errors: ["No organization found. Please try again."] };
+    }
 
     for (const row of rows) {
       const name = row.name?.trim();
@@ -296,14 +315,14 @@ export function useHolidaysBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      const { error } = await supabase.from("holidays").insert({ name, date, year });
+      const { error } = await supabase.from("holidays").insert({ name, date, year, organization_id: orgId });
       if (error) errors.push(`${name}: ${error.message}`);
       else success++;
     }
 
     qc.invalidateQueries({ queryKey: ["holidays"] });
     return { success, errors };
-  }, [qc]);
+  }, [qc, orgId]);
 
   return {
     module: "holidays",

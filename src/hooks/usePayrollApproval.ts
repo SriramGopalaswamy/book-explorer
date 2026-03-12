@@ -26,10 +26,15 @@ export function useSubmitForReview() {
         throw new Error(`Cannot submit for review: current status is '${run.status}'`);
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "under_review", reviewed_by: user.id, reviewed_at: new Date().toISOString() } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -49,10 +54,28 @@ export function useApprovePayroll() {
     mutationFn: async (runId: string) => {
       if (!user) throw new Error("Not authenticated");
 
+      // RBAC: verify caller has admin, hr, or finance role in the org
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!profile?.organization_id) throw new Error("Organization not found");
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("organization_id", profile.organization_id)
+        .in("role", ["admin", "hr", "finance"]);
+      if (!roles || roles.length === 0) {
+        throw new Error("Insufficient permissions: only Admin, HR, or Finance can approve payroll");
+      }
+
       // Only under_review runs can be approved
       const { data: run } = await supabase
         .from("payroll_runs")
-        .select("status")
+        .select("status, reviewed_by")
         .eq("id", runId)
         .single();
       if (!run) throw new Error("Payroll run not found");
@@ -60,10 +83,16 @@ export function useApprovePayroll() {
         throw new Error(`Cannot approve: current status is '${run.status}'. Must be under_review.`);
       }
 
+      // Segregation of duties: submitter cannot approve their own submission
+      if ((run as any).reviewed_by === user.id) {
+        throw new Error("Segregation of duties: you cannot approve a payroll run you submitted for review.");
+      }
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -95,10 +124,15 @@ export function useLockApprovedPayroll() {
         throw new Error(`Cannot lock: current status is '${run.status}'. Must be approved.`);
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {

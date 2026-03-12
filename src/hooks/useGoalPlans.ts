@@ -361,6 +361,18 @@ export function useApproveGoalPlan() {
       isScoring?: boolean;
       isHRApproval?: boolean;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Self-approval guard
+      const { data: existing } = await supabase.from("goal_plans").select("user_id").eq("id", planId).single();
+      if (existing?.user_id === user.id) {
+        throw new Error("You cannot approve your own goal plan.");
+      }
+
       // Determine the new status:
       // - If scoring approval → completed
       // - If HR approval (pending_hr_approval → approved) → approved
@@ -386,6 +398,7 @@ export function useApproveGoalPlan() {
         .from("goal_plans")
         .update(update as any)
         .eq("id", planId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
       if (error) throw error;
@@ -426,6 +439,18 @@ export function useRejectGoalPlan() {
       notes?: string;
       isScoring?: boolean;
     }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Self-rejection guard
+      const { data: existing } = await supabase.from("goal_plans").select("user_id").eq("id", planId).single();
+      if (existing?.user_id === user.id) {
+        throw new Error("You cannot reject your own goal plan.");
+      }
+
       const { data, error } = await supabase
         .from("goal_plans")
         .update({
@@ -435,6 +460,7 @@ export function useRejectGoalPlan() {
           reviewer_notes: notes || null,
         })
         .eq("id", planId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
       if (error) throw error;
@@ -475,7 +501,11 @@ export function useDeleteGoalPlan() {
         throw new Error("Only draft or rejected goal plans can be deleted");
       }
 
-      const { error } = await supabase.from("goal_plans").delete().eq("id", planId);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("goal_plans").delete().eq("id", planId).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: async () => {

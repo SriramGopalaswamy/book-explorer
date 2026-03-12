@@ -197,11 +197,17 @@ export function useUpdateAsset() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<AssetInsert>) => {
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", supabase.auth.getUser ? (await supabase.auth.getUser()).data.user?.id : "").maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // Fetch current state to enforce lifecycle rules
       const { data: current, error: fetchErr } = await supabase
         .from("assets")
-        .select("status")
+        .select("status, organization_id")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr || !current) throw fetchErr || new Error("Asset not found.");
 
@@ -224,6 +230,7 @@ export function useUpdateAsset() {
         .from("assets")
         .update(updates as any)
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
@@ -249,11 +256,17 @@ export function useDeleteAsset() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      const callerOrgId = profile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
       // Block deletion of disposed/written-off assets (audit trail)
       const { data: asset, error: fetchErr } = await supabase
         .from("assets")
         .select("status, name")
         .eq("id", id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr || !asset) throw fetchErr || new Error("Asset not found.");
 
@@ -270,7 +283,7 @@ export function useDeleteAsset() {
         throw new Error("Cannot delete an asset with depreciation history. Dispose or write off instead.");
       }
 
-      const { error } = await supabase.from("assets").delete().eq("id", id);
+      const { error } = await supabase.from("assets").delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {

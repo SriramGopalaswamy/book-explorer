@@ -22,22 +22,25 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  // Verify JWT via getClaims (no DB call)
+  const authClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-
-  // Verify JWT and get user ID using getUser (faster than getClaims)
   const token = authHeader.replace("Bearer ", "");
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
 
-  if (userError || !userData?.user) {
+  if (claimsError || !claimsData?.claims) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const requestingUserId = userData.user.id;
+  const requestingUserId = claimsData.claims.sub;
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   // Combined: verify admin role AND get org in parallel
   const [membershipResult, adminRoleResult] = await Promise.all([

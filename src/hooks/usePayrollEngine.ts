@@ -189,7 +189,11 @@ export function useGeneratePayroll() {
         });
 
         const { error: fbErr } = await supabase.from("payroll_entries").insert(fallbackEntries);
-        if (fbErr) throw fbErr;
+        if (fbErr) {
+          // Rollback: delete orphan run
+          await supabase.from("payroll_runs").delete().eq("id", run.id);
+          throw fbErr;
+        }
 
         const fbGross = fallbackEntries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
         const fbDed = fallbackEntries.reduce((s: number, e: any) => s + e.total_deductions, 0);
@@ -392,7 +396,11 @@ export function useGeneratePayroll() {
 
       if (entries.length > 0) {
         const { error: eErr } = await supabase.from("payroll_entries").insert(entries);
-        if (eErr) throw eErr;
+        if (eErr) {
+          // Rollback: delete orphan run
+          await supabase.from("payroll_runs").delete().eq("id", run.id);
+          throw eErr;
+        }
       }
 
       // 5. Update run totals
@@ -444,10 +452,15 @@ export function useLockPayrollRun() {
         throw new Error(`Cannot lock a payroll run with status '${run.status}'. Must be approved first.`);
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id })
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -479,7 +492,11 @@ export function useDeletePayrollRun() {
         throw new Error(`Cannot delete a payroll run with status '${run.status}'`);
       }
 
-      const { error } = await supabase.from("payroll_runs").delete().eq("id", runId);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("payroll_runs").delete().eq("id", runId).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
