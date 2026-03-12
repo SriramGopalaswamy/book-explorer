@@ -303,9 +303,15 @@ export default function JournalEntry() {
             <div className="space-y-4">
               {/* Warnings */}
               {controlAccountWarnings.length > 0 && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                  <ShieldAlert className="h-4 w-4 flex-shrink-0" />
-                  <span>Control account(s) selected — manual journals to control accounts are blocked.</span>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                  <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-medium">Control account(s) selected.</span>
+                    <p className="text-xs mt-0.5 opacity-80">
+                      Control accounts (e.g. Accounts Receivable, Accounts Payable) are managed automatically by invoices, bills, and payments. 
+                      Manual journals to these accounts are blocked to preserve sub-ledger integrity. Choose a non-control account instead.
+                    </p>
+                  </div>
                 </div>
               )}
               {periodWarning && (
