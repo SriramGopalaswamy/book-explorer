@@ -159,6 +159,12 @@ export function useEwayBills() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<EwayBill> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const callerOrgId = callerProfile.organization_id;
+
       // Validate vehicle number if being updated
       if (updates.vehicle_number) {
         updates.vehicle_number = updates.vehicle_number.replace(/\s/g, "").toUpperCase();
@@ -171,7 +177,7 @@ export function useEwayBills() {
         .from("eway_bills")
         .update(updates)
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerOrgId)
         .select()
         .single();
       if (error) throw error;
