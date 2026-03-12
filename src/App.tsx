@@ -217,6 +217,7 @@ const App = () => (
                 {/* HRMS */}
                 <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
                 <Route path="/hrms/attendance" element={<Guarded><HRAdminRoute><Attendance /></HRAdminRoute></Guarded>} />
+                <Route path="/hrms/attendance-import" element={<Guarded><HRAdminRoute><AttendanceImport /></HRAdminRoute></Guarded>} />
                 <Route path="/hrms/leaves" element={<Guarded><Leaves /></Guarded>} />
                 <Route path="/hrms/payroll" element={<Guarded><PayrollRoute><Payroll /></PayrollRoute></Guarded>} />
                 <Route path="/hrms/ctc-components" element={<Guarded><FinanceRoute><CTCComponents /></FinanceRoute></Guarded>} />
