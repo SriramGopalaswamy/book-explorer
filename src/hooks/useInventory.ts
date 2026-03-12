@@ -86,7 +86,10 @@ export function useDeleteItem() {
         throw new Error("Cannot delete an item with existing stock movements. Deactivate it instead.");
       }
 
-      const { error } = await supabase.from("items" as any).delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
+      if (!orgId) throw new Error("No organization found");
+      const { error } = await supabase.from("items" as any).delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {

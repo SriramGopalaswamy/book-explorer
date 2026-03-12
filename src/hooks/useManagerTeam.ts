@@ -119,6 +119,14 @@ export function useLeaveApproval() {
         .eq("user_id", user.id)
         .maybeSingle();
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Self-approval guard
+      const { data: leaveCheck } = await supabase.from("leave_requests").select("user_id").eq("id", leaveId).single();
+      if (leaveCheck?.user_id === user.id) throw new Error("You cannot review your own leave request.");
+
       const { data: leaveData, error } = await supabase
         .from("leave_requests")
         .update({
@@ -127,6 +135,7 @@ export function useLeaveApproval() {
           reviewed_at: new Date().toISOString(),
         })
         .eq("id", leaveId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 

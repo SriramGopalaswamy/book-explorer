@@ -128,7 +128,11 @@ export function useDeleteEmployeeDocument() {
     mutationFn: async ({ id, filePath, profileId }: { id: string; filePath: string; profileId: string }) => {
       if (!user) throw new Error("Not authenticated");
       await supabase.storage.from("employee-documents").remove([filePath]);
-      const { error } = await supabase.from("employee_documents").delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("employee_documents").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
       return profileId;
     },

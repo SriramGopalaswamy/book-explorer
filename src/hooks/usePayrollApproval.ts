@@ -26,10 +26,15 @@ export function useSubmitForReview() {
         throw new Error(`Cannot submit for review: current status is '${run.status}'`);
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "under_review", reviewed_by: user.id, reviewed_at: new Date().toISOString() } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -86,7 +91,8 @@ export function useApprovePayroll() {
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -118,10 +124,15 @@ export function useLockApprovedPayroll() {
         throw new Error(`Cannot lock: current status is '${run.status}'. Must be approved.`);
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: user.id } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {

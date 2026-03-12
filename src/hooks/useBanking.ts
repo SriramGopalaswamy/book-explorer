@@ -118,9 +118,11 @@ export function useCreateBankAccount() {
 
 export function useDeleteBankAccount() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       // Prevent deleting accounts with linked transactions
       const { data: txns, error: txErr } = await supabase
         .from("bank_transactions")
@@ -143,7 +145,11 @@ export function useDeleteBankAccount() {
         throw new Error(`Cannot delete account with balance of ₹${Number(acct.balance).toLocaleString("en-IN")}. Zero the balance first.`);
       }
 
-      const { error } = await supabase.from("bank_accounts").delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("bank_accounts").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -199,14 +199,22 @@ export function useManagerReviewDispute() {
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "forward" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Double-review guard
       const { data: check } = await supabase
         .from("payslip_disputes" as any)
-        .select("status")
+        .select("status, employee_id")
         .eq("id", disputeId)
         .single();
       if ((check as any)?.status !== "pending_manager") {
         throw new Error("This dispute has already been reviewed or is no longer pending manager review");
+      }
+      // Self-review guard: manager cannot review their own dispute
+      if ((check as any)?.employee_id === user.id) {
+        throw new Error("You cannot review your own payslip dispute.");
       }
 
       const update: any = {
@@ -225,7 +233,8 @@ export function useManagerReviewDispute() {
       const { error } = await supabase
         .from("payslip_disputes" as any)
         .update(update)
-        .eq("id", disputeId);
+        .eq("id", disputeId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
       return { disputeId, action, notes };
     },
@@ -259,6 +268,10 @@ export function useHRReviewDispute() {
   return useMutation({
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "forward" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const update: any = {
         hr_reviewed_at: new Date().toISOString(),
         hr_reviewed_by: user.id,
@@ -275,7 +288,8 @@ export function useHRReviewDispute() {
       const { error } = await supabase
         .from("payslip_disputes" as any)
         .update(update)
-        .eq("id", disputeId);
+        .eq("id", disputeId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -294,6 +308,10 @@ export function useFinanceReviewDispute() {
   return useMutation({
     mutationFn: async ({ disputeId, action, notes }: { disputeId: string; action: "approve" | "reject"; notes?: string }) => {
       if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const update: any = {
         finance_reviewed_at: new Date().toISOString(),
         finance_reviewed_by: user.id,
@@ -312,7 +330,8 @@ export function useFinanceReviewDispute() {
       const { error } = await supabase
         .from("payslip_disputes" as any)
         .update(update)
-        .eq("id", disputeId);
+        .eq("id", disputeId)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
       // On approval, mark the old payroll record as superseded to enable revision

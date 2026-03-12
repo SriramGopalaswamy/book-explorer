@@ -163,10 +163,15 @@ export function useUpdateGoal() {
         throw new Error("Goal title cannot be empty.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .update(updates)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -195,6 +200,10 @@ export function useUpdateGoalProgress() {
       const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
       const status = clampedProgress >= 100 ? "completed" : undefined;
       
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("goals")
         .update({ 
@@ -202,6 +211,7 @@ export function useUpdateGoalProgress() {
           ...(status && { status }),
         })
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -237,10 +247,15 @@ export function useDeleteGoal() {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("goals")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
 
       if (error) throw error;
     },

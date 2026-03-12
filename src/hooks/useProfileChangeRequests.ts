@@ -137,14 +137,22 @@ export function useReviewChangeRequest() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Double-review guard
       const { data: current } = await supabase
         .from("profile_change_requests" as any)
-        .select("status")
+        .select("status, user_id")
         .eq("id", id)
         .single();
       if ((current as any)?.status !== "pending") {
         throw new Error("This change request has already been reviewed");
+      }
+      // Self-review guard
+      if ((current as any)?.user_id === user.id) {
+        throw new Error("You cannot review your own profile change request.");
       }
 
       const { error } = await supabase
@@ -156,7 +164,8 @@ export function useReviewChangeRequest() {
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {

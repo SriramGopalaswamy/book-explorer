@@ -289,9 +289,11 @@ export function useCreateMemo() {
 
 export function useUpdateMemo() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
       // Enforce state machine on status transitions
       if (updates.status) {
         const { data: current, error: fetchErr } = await supabase
@@ -313,6 +315,10 @@ export function useUpdateMemo() {
         ? updates.content.substring(0, 150) + (updates.content.length > 150 ? "..." : "")
         : undefined;
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("memos")
         .update({
@@ -321,6 +327,7 @@ export function useUpdateMemo() {
           ...(updates.status === "published" && { published_at: new Date().toISOString() }),
         } as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -390,10 +397,15 @@ export function useApproveMemo() {
       if (updatedSubject) updates.subject = updatedSubject;
       if (updatedRecipients) updates.recipients = updatedRecipients;
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("memos")
         .update(updates as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
@@ -439,6 +451,10 @@ export function useRejectMemo() {
         throw new Error("Only pending memos can be rejected.");
       }
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("memos")
         .update({
@@ -446,7 +462,8 @@ export function useRejectMemo() {
           reviewed_by: user?.id,
           reviewer_notes: reviewerNotes,
         } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
 
       if (error) throw error;
       return { id } as unknown as Memo;
@@ -541,9 +558,11 @@ export function useIncrementMemoViews() {
 
 export function useDeleteMemo() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       // Block deletion of published memos (permanent record)
       const { data: memo, error: fetchErr } = await supabase
         .from("memos")
@@ -555,7 +574,11 @@ export function useDeleteMemo() {
         throw new Error("Published memos cannot be deleted. They are part of the official record.");
       }
 
-      const { error } = await supabase.from("memos").delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user?.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("memos").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
