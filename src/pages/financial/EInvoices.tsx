@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,21 @@ export default function EInvoices() {
     buyer_address: "", buyer_location: "", buyer_pincode: "", buyer_state_code: "", buyer_pos: "",
   });
   const [items, setItems] = useState<EInvoiceItem[]>([{ ...defaultItem }]);
+
+  useEffect(() => {
+    if (!showCreate) {
+      setForm({
+        doc_type: "INV", doc_number: "", doc_date: new Date().toISOString().split("T")[0],
+        supply_type: "B2B",
+        seller_gstin: "", seller_legal_name: "", seller_trade_name: "",
+        seller_address: "", seller_location: "", seller_pincode: "", seller_state_code: "",
+        buyer_gstin: "", buyer_legal_name: "", buyer_trade_name: "",
+        buyer_address: "", buyer_location: "", buyer_pincode: "", buyer_state_code: "", buyer_pos: "",
+      });
+      setItems([{ ...defaultItem }]);
+      setWizardStep(0);
+    }
+  }, [showCreate]);
 
   const isInterState = form.seller_state_code && form.buyer_state_code && form.seller_state_code !== form.buyer_state_code;
 
@@ -457,6 +472,14 @@ export default function EInvoices() {
                       {statusIcon(inv.status)}
                       <span className="text-sm capitalize">{inv.status}</span>
                     </div>
+                    {inv.status === "cancelled" && inv.cancel_reason && (
+                      <div className="mt-1">
+                        <p className="text-xs text-muted-foreground">Reason: {inv.cancel_reason}</p>
+                        {inv.cancel_remark && (
+                          <p className="text-xs text-muted-foreground">Remark: {inv.cancel_remark}</p>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {format(new Date(inv.created_at), "dd MMM yyyy")}
