@@ -257,11 +257,6 @@ export function useDeleteGoal() {
       if (goal?.status === "completed") {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
-
       const { error } = await supabase
         .from("goals")
         .delete()
