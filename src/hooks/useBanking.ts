@@ -118,9 +118,11 @@ export function useCreateBankAccount() {
 
 export function useDeleteBankAccount() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
       // Prevent deleting accounts with linked transactions
       const { data: txns, error: txErr } = await supabase
         .from("bank_transactions")
