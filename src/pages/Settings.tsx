@@ -857,16 +857,9 @@ function UserManagementSection() {
     setActionUser(null);
   };
 
-  // Check for direct reports before deactivating/deleting
-  const initiateDeactivateOrDelete = async (targetUser: UserWithRole, action: "deactivate" | "delete") => {
-    // Look up the target's profile_id from the users list (manager_id is a profile.id, not user_id)
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "get_direct_reports", profile_id: targetUser.manager_id },
-    });
-    // We need profile_id of the target, but we only have user_id.
-    // Use a simpler check: filter users whose manager_id matches target's manager_id would be wrong.
-    // Instead check users array for anyone whose manager_id is not null (manager_id references profiles.id)
-    // Since we don't have the target's profile.id in UserWithRole, we'll just open the dialog directly.
+  // Always show the confirm dialog before deactivating/deleting.
+  // The optional reassignment selector handles users with or without direct reports.
+  const initiateDeactivateOrDelete = (targetUser: UserWithRole, action: "deactivate" | "delete") => {
     setManagerDialogTarget(targetUser);
     setManagerDialogAction(action);
     setReplacementManagerId("");
@@ -921,14 +914,8 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to update manager");
     } else {
       toast.success("Manager updated successfully");
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.user_id === setManagerTarget.user_id
-            ? { ...u, pending_manager_email: null }
-            : u
-        )
-      );
       setAssignManagerDialogOpen(false);
+      await refreshUsers();
     }
     setUpdatingManager(false);
   };

@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(role)) {
         return new Response(JSON.stringify({ error: "Invalid role" }), {
           status: 400,
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       }
 
       const assignedRole = (role || "employee").toLowerCase();
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(assignedRole)) {
         return new Response(JSON.stringify({ error: "Invalid role" }), {
           status: 400,
@@ -233,6 +233,27 @@ Deno.serve(async (req) => {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // Attempt to resolve pending_manager_email → manager_id now that user is active
+      const { data: approvedProfile } = await supabase
+        .from("profiles")
+        .select("id, pending_manager_email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (approvedProfile?.pending_manager_email) {
+        const { data: managerProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", approvedProfile.pending_manager_email)
+          .maybeSingle();
+        if (managerProfile?.id) {
+          await supabase
+            .from("profiles")
+            .update({ manager_id: managerProfile.id, pending_manager_email: null })
+            .eq("user_id", user_id);
+        }
       }
 
       // Upsert role (replace any existing)
@@ -288,11 +309,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Resolve replacement_manager_id (user_id) → profiles.id FK before reassigning reports
+      let replacementProfileId: string | null = null;
+      if (replacement_manager_id) {
+        const { data: replacementProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", replacement_manager_id)
+          .eq("organization_id", requestingOrgId)
+          .maybeSingle();
+        replacementProfileId = replacementProfile?.id || null;
+      }
+
       // Reassign direct reports to replacement manager (or null if none provided)
       if (targetProfileDea?.id) {
         await supabase
           .from("profiles")
-          .update({ manager_id: replacement_manager_id || null })
+          .update({ manager_id: replacementProfileId })
           .eq("manager_id", targetProfileDea.id)
           .eq("organization_id", requestingOrgId);
       }
@@ -364,11 +397,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Resolve replacement_manager_id (user_id) → profiles.id FK before reassigning reports
+      let deleteReplacementProfileId: string | null = null;
+      if (replacement_manager_id) {
+        const { data: delReplacementProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", replacement_manager_id)
+          .eq("organization_id", requestingOrgId)
+          .maybeSingle();
+        deleteReplacementProfileId = delReplacementProfile?.id || null;
+      }
+
       // Reassign direct reports before removing manager reference
       if (targetProfile?.id) {
         await supabase
           .from("profiles")
-          .update({ manager_id: replacement_manager_id || null })
+          .update({ manager_id: deleteReplacementProfileId })
           .eq("manager_id", targetProfile.id)
           .eq("organization_id", requestingOrgId);
       }
@@ -406,11 +451,26 @@ Deno.serve(async (req) => {
     // get_direct_reports — list employees managed by a given profile
     // ─────────────────────────────────────────────
     if (action === "get_direct_reports") {
-      const { profile_id } = body;
+      const { user_id: drUserId } = body;
 
-      if (!profile_id) {
-        return new Response(JSON.stringify({ error: "profile_id required" }), {
+      if (!drUserId) {
+        return new Response(JSON.stringify({ error: "user_id required" }), {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Resolve user_id → profiles.id (profiles.manager_id is FK to profiles.id)
+      const { data: drProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", drUserId)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+
+      const profile_id = drProfile?.id;
+      if (!profile_id) {
+        return new Response(JSON.stringify({ direct_reports: [] }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -471,9 +531,10 @@ Deno.serve(async (req) => {
           .select("id")
           .eq("user_id", manager_user_id)
           .eq("organization_id", requestingOrgId)
+          .neq("status", "inactive")
           .maybeSingle();
         if (!managerProfile) {
-          return new Response(JSON.stringify({ error: "Manager not found in your organization" }), {
+          return new Response(JSON.stringify({ error: "Manager not found or is inactive" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -516,7 +577,7 @@ Deno.serve(async (req) => {
       }
 
       const assignedRole = (role || "employee").toLowerCase();
-      const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
       if (!validRoles.includes(assignedRole)) {
         return new Response(JSON.stringify({ error: `Invalid role: ${assignedRole}` }), {
           status: 400,
@@ -567,6 +628,7 @@ Deno.serve(async (req) => {
         join_date: join_date || null,
         status: status || "active",
         manager_id: manager_id || null,
+        organization_id: requestingOrgId,
       }, { onConflict: "user_id" });
 
       if (profileError) {
@@ -580,6 +642,12 @@ Deno.serve(async (req) => {
 
       // Assign role
       await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
+
+      // Ensure org membership (required for org-scoped security checks)
+      await supabase.from("organization_members").upsert(
+        { user_id: userId, organization_id: requestingOrgId },
+        { onConflict: "organization_id,user_id" }
+      );
 
       return new Response(JSON.stringify({ success: true, user_id: userId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -613,7 +681,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const validRoles = ["admin", "hr", "manager", "finance", "employee"];
+        const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
         if (!validRoles.includes(role)) {
           results.push({ email, success: false, error: `Invalid role: ${role}` });
           continue;
@@ -687,7 +755,14 @@ Deno.serve(async (req) => {
             department,
             job_title: jobTitle,
             status: "active",
+            organization_id: requestingOrgId,
           }, { onConflict: "user_id" });
+
+          // Ensure org membership (required for org-scoped security checks)
+          await supabase.from("organization_members").upsert(
+            { user_id: newUser.user.id, organization_id: requestingOrgId },
+            { onConflict: "organization_id,user_id" }
+          );
 
           // Assign role
           await supabase.from("user_roles").insert({

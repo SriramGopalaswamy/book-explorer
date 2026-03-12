@@ -45,7 +45,6 @@ async function syncProfileFromMS365(
     const profileData: Record<string, any> = {
       full_name: fullName,
       email: email.toLowerCase(),
-      status,
       organization_id: DEFAULT_ORG_ID,
     };
     if (jobTitle) profileData.job_title = jobTitle;
@@ -62,14 +61,16 @@ async function syncProfileFromMS365(
     }
 
     if (existingProfile) {
+      // Do not overwrite status on update — preserves on_leave and other admin-set states
       await supabase
         .from("profiles")
         .update(profileData)
         .eq("id", existingProfile.id);
     } else {
+      // Only set status on initial profile creation
       await supabase
         .from("profiles")
-        .insert({ ...profileData, user_id: userId });
+        .insert({ ...profileData, user_id: userId, status });
     }
 
     // Ensure org membership exists (idempotent upsert)
@@ -333,6 +334,23 @@ Deno.serve(async (req) => {
             const { data: fallbackUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
             const fbUser = fallbackUsers?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
             if (fbUser) {
+              const { data: fbProfile } = await supabase
+                .from("profiles")
+                .select("status")
+                .eq("user_id", fbUser.id)
+                .maybeSingle();
+              if (fbProfile?.status === "inactive") {
+                return new Response(
+                  JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }),
+                  { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              if (fbProfile?.status === "pending_approval") {
+                return new Response(
+                  JSON.stringify({ pending: true }),
+                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
               await syncProfileFromMS365(supabase, fbUser.id, fullName, jobTitle, department, phone, email, managerEmail);
             }
 
