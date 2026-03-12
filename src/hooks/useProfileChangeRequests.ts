@@ -59,13 +59,22 @@ export function useSubmitChangeRequest() {
         throw new Error("New value must differ from current value");
       }
 
-      // Check for existing pending request on same field
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Check for existing pending request on same field (org-scoped)
       const { data: existing } = await supabase
         .from("profile_change_requests" as any)
         .select("id")
         .eq("profile_id", input.profile_id)
         .eq("field_name", input.field_name)
         .eq("status", "pending")
+        .eq("organization_id", callerProfile.organization_id)
         .limit(1);
       if (existing && (existing as any[]).length > 0) {
         throw new Error("A pending change request already exists for this field");
@@ -76,6 +85,7 @@ export function useSubmitChangeRequest() {
         .insert({
           ...input,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         });
       if (error) throw error;
     },
