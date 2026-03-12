@@ -402,7 +402,7 @@ export function usePostFinishedGoods() {
       if (params.product_item_id) {
         let warehouseId = params.warehouse_id;
         if (!warehouseId) {
-          const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").limit(1);
+          const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").eq("organization_id", callerProfile.organization_id).limit(1);
           warehouseId = (defaultWh as any)?.[0]?.id ?? null;
         }
         if (warehouseId) {
