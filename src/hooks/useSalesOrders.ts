@@ -146,8 +146,8 @@ const SO_TRANSITIONS: Record<string, string[]> = {
   confirmed: ["processing", "cancelled"],
   processing: ["partially_shipped", "shipped", "cancelled"],
   partially_shipped: ["shipped", "delivered"],
-  shipped: ["delivered", "closed"],
-  delivered: ["closed"],
+  shipped: ["delivered", "invoiced"],
+  delivered: ["invoiced"],
 };
 
 export function useDeleteSalesOrder() {

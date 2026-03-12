@@ -166,6 +166,8 @@ export default function Quotes() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
       const customer = customers.find((c) => c.id === selectedCustomerId);
       if (!customer) throw new Error("Please select a customer.");
       if (!formMeta.dueDate) throw new Error("Valid Until date is required.");
@@ -183,6 +185,7 @@ export default function Quotes() {
         payment_terms: formMeta.paymentTerms || "Due on Receipt",
         customer_gstin: formMeta.customerGstin || null,
         subtotal, cgst_total: cgstTotal, sgst_total: sgstTotal, igst_total: 0, total_amount: total,
+        organization_id: profile.organization_id,
       }).select().single();
       if (error) throw error;
 
@@ -267,6 +270,8 @@ export default function Quotes() {
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
       if (!user) throw new Error("Not authenticated");
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
       const invoiceNum = `INV-${Date.now().toString().slice(-8)}`;
       const { data: inv, error } = await supabase.from("invoices").insert({
         user_id: user.id, invoice_number: invoiceNum, client_name: quote.client_name,
@@ -281,6 +286,7 @@ export default function Quotes() {
         igst_total: quote.igst_total || 0,
         total_amount: quote.total_amount || quote.amount,
         notes: quote.notes || null,
+        organization_id: profile.organization_id,
       }).select().single();
       if (error) throw error;
 
@@ -574,8 +580,8 @@ export default function Quotes() {
                               {q.status === "draft" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "sent" })}><Send className="h-4 w-4 mr-2" /> Mark as Sent</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "accepted" })}><CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Accepted</DropdownMenuItem>}
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "rejected" })}><XCircle className="h-4 w-4 mr-2" /> Mark as Rejected</DropdownMenuItem>}
-                              {q.status !== "converted" && <DropdownMenuItem onClick={() => convertToInvoice.mutate(q)}><ArrowRight className="h-4 w-4 mr-2" /> Convert to Invoice</DropdownMenuItem>}
-                              {q.status !== "converted" && <DropdownMenuItem onClick={() => convertToSO.mutate(q)}><ShoppingBag className="h-4 w-4 mr-2" /> Convert to Sales Order</DropdownMenuItem>}
+                              {(q.status === "accepted" || q.status === "sent") && <DropdownMenuItem onClick={() => convertToInvoice.mutate(q)}><ArrowRight className="h-4 w-4 mr-2" /> Convert to Invoice</DropdownMenuItem>}
+                              {(q.status === "accepted" || q.status === "sent") && <DropdownMenuItem onClick={() => convertToSO.mutate(q)}><ShoppingBag className="h-4 w-4 mr-2" /> Convert to Sales Order</DropdownMenuItem>}
                               <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(q.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
