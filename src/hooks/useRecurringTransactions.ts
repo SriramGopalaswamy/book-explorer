@@ -67,6 +67,10 @@ export function useCreateRecurringTransaction() {
       const VALID_FREQUENCIES = ["daily", "weekly", "monthly", "quarterly", "yearly"];
       if (!VALID_FREQUENCIES.includes(params.frequency)) throw new Error("Invalid frequency");
 
+      // Resolve caller org for tenant isolation
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("recurring_transactions" as any)
         .insert({
@@ -83,6 +87,7 @@ export function useCreateRecurringTransaction() {
           status: "active",
           notes: params.notes || null,
           created_by: user.id,
+          organization_id: profile.organization_id,
         } as any)
         .select()
         .single();
