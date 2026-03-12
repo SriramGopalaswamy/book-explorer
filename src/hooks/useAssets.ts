@@ -397,44 +397,48 @@ export function useRunDepreciation() {
         .eq("id", assetId);
       if (updateErr) throw updateErr;
 
-      // Post to GL
-      const { error: glErr } = await supabase
-        .from("financial_records")
-        .insert([
-          {
-            user_id: asset.user_id,
-            organization_id: asset.organization_id,
-            type: "expense",
-            category: "Depreciation Expense",
-            amount: monthlyDep,
-            debit: monthlyDep,
-            credit: 0,
-            reference_id: assetId,
-            reference_type: "depreciation",
-            record_date: periodStr,
-            posting_date: periodStr,
-            description: `Depreciation: ${asset.name} (${asset.asset_tag}) - ${periodStr}`,
-            is_posted: true,
-            posted_at: new Date().toISOString(),
-          },
-          {
-            user_id: asset.user_id,
-            organization_id: asset.organization_id,
-            type: "asset",
-            category: "Accumulated Depreciation",
-            amount: monthlyDep,
-            debit: 0,
-            credit: monthlyDep,
-            reference_id: assetId,
-            reference_type: "depreciation",
-            record_date: periodStr,
-            posting_date: periodStr,
-            description: `Accum. Depr.: ${asset.name} (${asset.asset_tag}) - ${periodStr}`,
-            is_posted: true,
-            posted_at: new Date().toISOString(),
-          },
-        ]);
-      if (glErr) throw glErr;
+      // Post to GL (non-critical — don't fail the depreciation if GL posting fails)
+      try {
+        const { error: glErr } = await supabase
+          .from("financial_records")
+          .insert([
+            {
+              user_id: asset.user_id,
+              organization_id: asset.organization_id,
+              type: "expense",
+              category: "Depreciation Expense",
+              amount: monthlyDep,
+              debit: monthlyDep,
+              credit: 0,
+              reference_id: assetId,
+              reference_type: "depreciation",
+              record_date: periodStr,
+              posting_date: periodStr,
+              description: `Depreciation: ${asset.name} (${asset.asset_tag}) - ${periodStr}`,
+              is_posted: true,
+              posted_at: new Date().toISOString(),
+            },
+            {
+              user_id: asset.user_id,
+              organization_id: asset.organization_id,
+              type: "asset",
+              category: "Accumulated Depreciation",
+              amount: monthlyDep,
+              debit: 0,
+              credit: monthlyDep,
+              reference_id: assetId,
+              reference_type: "depreciation",
+              record_date: periodStr,
+              posting_date: periodStr,
+              description: `Accum. Depr.: ${asset.name} (${asset.asset_tag}) - ${periodStr}`,
+              is_posted: true,
+              posted_at: new Date().toISOString(),
+            },
+          ]);
+        if (glErr) console.warn("GL posting for depreciation failed:", glErr.message);
+      } catch (glCatchErr) {
+        console.warn("GL posting for depreciation failed:", glCatchErr);
+      }
 
       return { monthlyDep, accumAfter, bvAfter };
     },

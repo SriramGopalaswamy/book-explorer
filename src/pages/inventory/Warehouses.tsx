@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useWarehouses, useCreateWarehouse, useDeleteWarehouse } from "@/hooks/useInventory";
+import { useWarehouses, useCreateWarehouse, useUpdateWarehouse, useDeleteWarehouse } from "@/hooks/useInventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Warehouse, Search, Trash2 } from "lucide-react";
+import { Plus, Warehouse, Search, Trash2, MoreHorizontal, Edit, Eye, ToggleLeft, ToggleRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const INDIAN_STATES = [
@@ -26,7 +27,11 @@ const INDIAN_STATES = [
 export default function Warehouses() {
   const { data: warehouses, isLoading } = useWarehouses();
   const createWH = useCreateWarehouse();
+  const updateWH = useUpdateWarehouse();
   const deleteWH = useDeleteWarehouse();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editWH, setEditWH] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", is_active: true });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
@@ -139,7 +144,27 @@ export default function Warehouses() {
                       <TableCell className="text-muted-foreground">{wh.contact_person || "—"}</TableCell>
                       <TableCell><Badge variant={wh.is_active ? "default" : "secondary"}>{wh.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => deleteWH.mutate(wh.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => {
+                              setEditWH(wh);
+                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", is_active: wh.is_active ?? true });
+                              setEditOpen(true);
+                            }}>
+                              <Edit className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateWH.mutate({ id: wh.id, is_active: !wh.is_active })}>
+                              {wh.is_active ? <ToggleLeft className="h-4 w-4 mr-2" /> : <ToggleRight className="h-4 w-4 mr-2" />}
+                              {wh.is_active ? "Mark Inactive" : "Mark Active"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => deleteWH.mutate(wh.id)} className="text-destructive">
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -148,6 +173,41 @@ export default function Warehouses() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Warehouse Dialog */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Warehouse</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Name *</Label><Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+                <div><Label>Code</Label><Input value={editForm.code} onChange={e => setEditForm({ ...editForm, code: e.target.value })} /></div>
+                <div><Label>City</Label><Input value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} /></div>
+                <div>
+                  <Label>State</Label>
+                  <Select value={editForm.state} onValueChange={v => setEditForm({ ...editForm, state: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Contact Person</Label><Input value={editForm.contact_person} onChange={e => setEditForm({ ...editForm, contact_person: e.target.value })} /></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="whActive" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />
+                <Label htmlFor="whActive">Active</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button onClick={() => {
+                if (!editWH) return;
+                updateWH.mutate({ id: editWH.id, ...editForm }, { onSuccess: () => { setEditOpen(false); setEditWH(null); } });
+              }} disabled={updateWH.isPending}>
+                {updateWH.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
