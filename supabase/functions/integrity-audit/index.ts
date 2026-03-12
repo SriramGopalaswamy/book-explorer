@@ -1050,15 +1050,21 @@ async function runTenantIsolationChecks(
     ];
 
     // Check pg_policies for INSERT or ALL policies that reference is_org_admin
-    const { data: policies } = await adminClient.rpc("execute_readonly_query", {
-      query_text: `
-        SELECT tablename, policyname, cmd, qual::text, with_check::text
-        FROM pg_policies
-        WHERE schemaname = 'public'
-          AND tablename = ANY(ARRAY[${insertProbeTables.map(t => `'${t}'`).join(",")}])
-          AND (cmd = 'INSERT' OR cmd = 'ALL')
-      `,
-    }).catch(() => ({ data: null }));
+    let policies: any = null;
+    try {
+      const rpcResult = await adminClient.rpc("execute_readonly_query", {
+        query_text: `
+          SELECT tablename, policyname, cmd, qual::text, with_check::text
+          FROM pg_policies
+          WHERE schemaname = 'public'
+            AND tablename = ANY(ARRAY[${insertProbeTables.map(t => `'${t}'`).join(",")}])
+            AND (cmd = 'INSERT' OR cmd = 'ALL')
+        `,
+      });
+      policies = rpcResult.data;
+    } catch {
+      // RPC not available — fall through to per-table fallback
+    }
 
     // Fallback: query pg_policies directly via admin client SQL
     let policyRows: any[] = [];
@@ -1083,13 +1089,18 @@ async function runTenantIsolationChecks(
     
     for (const table of insertProbeTables) {
       // Query pg_policies for this specific table
-      const { data: tablePolicies } = await adminClient
-        .from("pg_policies" as any)
-        .select("policyname, cmd, qual, with_check")
-        .eq("schemaname", "public")
-        .eq("tablename", table)
-        .in("cmd", ["INSERT", "ALL"])
-        .catch(() => ({ data: null })) as any;
+      let tablePolicies: any = null;
+      try {
+        const tableResult = await (adminClient
+          .from("pg_policies" as any)
+          .select("policyname, cmd, qual, with_check")
+          .eq("schemaname", "public")
+          .eq("tablename", table)
+          .in("cmd", ["INSERT", "ALL"]) as any);
+        tablePolicies = tableResult.data;
+      } catch {
+        // pg_policies not accessible via PostgREST — skip
+      }
 
       // If we can't query pg_policies directly, skip this refined check
       if (!tablePolicies) continue;
