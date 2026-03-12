@@ -260,7 +260,8 @@ export function useCreateVendorPayment() {
           await supabase
             .from("bills")
             .update({ status: newStatus })
-            .eq("id", p.bill_id);
+            .eq("id", p.bill_id)
+            .eq("organization_id", profile.organization_id);
 
           // Create bank transaction for every payment (partial or full)
           const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
