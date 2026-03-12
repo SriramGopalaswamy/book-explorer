@@ -144,7 +144,27 @@ export default function Warehouses() {
                       <TableCell className="text-muted-foreground">{wh.contact_person || "—"}</TableCell>
                       <TableCell><Badge variant={wh.is_active ? "default" : "secondary"}>{wh.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => deleteWH.mutate(wh.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => {
+                              setEditWH(wh);
+                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", is_active: wh.is_active ?? true });
+                              setEditOpen(true);
+                            }}>
+                              <Edit className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateWH.mutate({ id: wh.id, is_active: !wh.is_active })}>
+                              {wh.is_active ? <ToggleLeft className="h-4 w-4 mr-2" /> : <ToggleRight className="h-4 w-4 mr-2" />}
+                              {wh.is_active ? "Mark Inactive" : "Mark Active"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => deleteWH.mutate(wh.id)} className="text-destructive">
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
