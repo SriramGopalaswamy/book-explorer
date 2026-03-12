@@ -152,15 +152,21 @@ export function useDeletePurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: po } = await supabase.from("purchase_orders" as any).select("status, organization_id").eq("id", id).maybeSingle();
+      // Resolve caller's org — never trust record's own org_id
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", authUser.id).maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
+      const { data: po } = await supabase.from("purchase_orders" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      if (!po) throw new Error("Purchase order not found in your organization.");
       const status = (po as any)?.status;
       if (status && status !== "draft") {
         throw new Error(`Cannot delete a "${status}" purchase order. Only drafts can be deleted.`);
       }
-      const poOrgId = (po as any)?.organization_id;
-      // Delete items first, then header — org-scoped
       await supabase.from("purchase_order_items" as any).delete().eq("purchase_order_id", id);
-      const { error } = await supabase.from("purchase_orders" as any).delete().eq("id", id).eq("organization_id", poOrgId);
+      const { error } = await supabase.from("purchase_orders" as any).delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Purchase order deleted"); },
