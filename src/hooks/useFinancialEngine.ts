@@ -117,12 +117,17 @@ export function useVendorRiskProfiles() {
 export function useResolveAlert() {
   const queryClient = useQueryClient();
 
+  const { data: orgData } = useUserOrganization();
+
   return useMutation({
     mutationFn: async (alertId: string) => {
+      if (!orgData?.organizationId) throw new Error("Organization not found");
+
       const { error } = await supabase
         .from("ai_alerts")
         .update({ is_resolved: true, resolved_at: new Date().toISOString() })
-        .eq("id", alertId);
+        .eq("id", alertId)
+        .eq("organization_id", orgData.organizationId);
       if (error) throw error;
     },
     onSuccess: () => {

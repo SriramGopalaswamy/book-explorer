@@ -182,7 +182,11 @@ export function useDeleteScheduledPayment() {
         throw new Error("Completed payments cannot be deleted. They form part of the cash flow record.");
       }
 
-      const { error } = await supabase.from("scheduled_payments").delete().eq("id", id);
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { error } = await supabase.from("scheduled_payments").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
