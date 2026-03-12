@@ -1,9 +1,9 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ═══════════════════════════════════════════════════════════════
-// GRX10 Books — Biometric Attendance PDF Parser v5
+// GRX10 Books — Biometric Attendance PDF Parser v6
 // Secureye ONtime calendar-grid + generic format support
-// Uses Gemini Vision for reliable PDF parsing
+// Uses Gemini Vision with tool calling for reliable extraction
 // ═══════════════════════════════════════════════════════════════
 
 const corsHeaders = {
@@ -64,111 +64,167 @@ interface ParseResult {
 // 1️⃣  GEMINI VISION PDF PARSER — Primary for Secureye/biometric PDFs
 // ═══════════════════════════════════════════════════════════════
 
-async function parseWithGeminiVision(base64PdfData: string): Promise<ParseResult> {
+async function parseWithGeminiVision(base64PdfData: string, attempt = 1): Promise<ParseResult> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  console.log("[VISION] Sending PDF to Gemini Vision for structured extraction...");
+  // Check size — base64 is ~33% larger than binary, so 8MB base64 ≈ 6MB PDF
+  const base64SizeMB = base64PdfData.length / (1024 * 1024);
+  console.log(`[VISION] PDF base64 size: ${base64SizeMB.toFixed(2)} MB (attempt ${attempt})`);
 
-  const prompt = `You are an expert attendance data extraction engine. You are given a biometric attendance report PDF (typically from Secureye ONtime or similar systems).
+  if (base64SizeMB > 10) {
+    throw new Error(`PDF too large for vision processing (${base64SizeMB.toFixed(1)}MB base64). Max ~7.5MB PDF.`);
+  }
 
-CRITICAL: This PDF contains a calendar-grid layout where:
+  const prompt = `You are an attendance data extraction engine. Extract ALL employee attendance data from this biometric attendance report PDF.
+
+This PDF uses a calendar-grid layout:
 - Each employee section has: Emp Code, Emp Name, Department
-- Below that is a calendar grid: columns = days of month (1, 2, 3, ... 31), rows = fields (In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status)
-- You must convert this COLUMN-based layout into ROW-based daily records
+- Calendar grid: columns = days of month (1-31), rows = In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status
+- Convert COLUMN-based layout into ROW-based daily records
 
-Extract ALL employee attendance data and return ONLY valid JSON (no markdown, no explanation, no code fences) with this exact schema:
-
-{
-  "organization": "company name if visible",
-  "report_period": "month and year, e.g. February 2026",
-  "employees": [
-    {
-      "employee_code": "string (the Emp Code value)",
-      "employee_name": "string (the Emp Name value)",
-      "department": "string or null",
-      "records": [
-        {
-          "date": "YYYY-MM-DD (use the report month/year + day number)",
-          "in_time": "HH:mm:ss or null (24-hour format)",
-          "out_time": "HH:mm:ss or null (24-hour format)",
-          "late_minutes": number or null,
-          "early_departure": number or null,
-          "work_hours": "H:mm or null",
-          "status": "P|A|HD|MIS|WO|WFH|AB|null"
-        }
-      ]
-    }
-  ]
-}
+Call the extract_attendance function with the extracted data. Include ALL employees and ALL days with data.
 
 Rules:
-- Convert ALL employees visible in the PDF
-- For each day column, create one record with that day's In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status
-- Skip days where the employee clearly has no data (empty columns)
-- Normalize status codes: P/WO → P if they worked, WO-I → WO, MIS → MIS (Missing Punch), A → A (Absent)
-- Dates must use the report's month and year combined with the day number
-- Times must be in 24-hour HH:mm:ss format
-- If a time shows as "-" or "00:00" with Absent status, set it to null
-- Employee code is the numeric/alphanumeric identifier, NOT the serial number
-- Include ALL pages of the PDF`;
+- Dates: use report month/year + day number → YYYY-MM-DD
+- Times: 24-hour HH:mm:ss format
+- Skip empty day columns
+- Status codes: P, A, HD, MIS, WO, WFH, AB, CL, SL, EL, PL, OD, CO, LWP, NA
+- P/WO → P, WO-I → WO, "-" or "00:00" with Absent → null times
+- Include ALL pages`;
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64PdfData}`,
+  const toolDef = {
+    type: "function" as const,
+    function: {
+      name: "extract_attendance",
+      description: "Extract structured attendance data from a biometric PDF report",
+      parameters: {
+        type: "object",
+        properties: {
+          organization: { type: "string", description: "Company name if visible" },
+          report_period: { type: "string", description: "Month and year, e.g. February 2026" },
+          employees: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                employee_code: { type: "string" },
+                employee_name: { type: "string" },
+                department: { type: "string" },
+                records: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      date: { type: "string", description: "YYYY-MM-DD" },
+                      in_time: { type: "string", description: "HH:mm:ss or empty" },
+                      out_time: { type: "string", description: "HH:mm:ss or empty" },
+                      late_minutes: { type: "number" },
+                      early_departure: { type: "number" },
+                      work_hours: { type: "string", description: "H:mm format" },
+                      status: { type: "string", description: "P|A|HD|MIS|WO|WFH|AB|NA" },
+                    },
+                    required: ["date"],
+                  },
+                },
               },
+              required: ["employee_code", "employee_name", "records"],
             },
-          ],
+          },
         },
-      ],
-      max_tokens: 64000,
-      temperature: 0,
-    }),
-  });
+        required: ["employees"],
+      },
+    },
+  };
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error(`[VISION] Gemini API error: ${response.status} — ${errText}`);
-    throw new Error(`Gemini Vision returned ${response.status}: ${errText.substring(0, 200)}`);
-  }
+  // Use AbortController for timeout — edge functions have 60s max
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50s timeout
 
-  const result = await response.json();
-  const rawContent = result.choices?.[0]?.message?.content?.trim() || "";
-  console.log(`[VISION] Gemini returned ${rawContent.length} chars`);
-
-  // Strip markdown code fences if present
-  const cleanJson = rawContent
-    .replace(/^```(?:json)?\s*\n?/, "")
-    .replace(/\n?\s*```$/, "")
-    .trim();
-
-  let parsed: any;
   try {
-    parsed = JSON.parse(cleanJson);
-  } catch (e) {
-    console.error(`[VISION] JSON parse failed. Raw content (first 500 chars): ${rawContent.substring(0, 500)}`);
-    throw new Error("Could not parse Gemini Vision response as JSON");
-  }
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64PdfData}`,
+                },
+              },
+            ],
+          },
+        ],
+        tools: [toolDef],
+        tool_choice: { type: "function", function: { name: "extract_attendance" } },
+        max_tokens: 64000,
+        temperature: 0,
+      }),
+      signal: controller.signal,
+    });
 
-  if (!Array.isArray(parsed.employees) || parsed.employees.length === 0) {
-    throw new Error("Gemini Vision returned no employee data");
-  }
+    clearTimeout(timeoutId);
 
-  // Convert to our internal format
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[VISION] Gemini API error: ${response.status} — ${errText.substring(0, 300)}`);
+      if (response.status === 429) throw new Error("Rate limited — please try again in a minute");
+      if (response.status === 402) throw new Error("AI credits exhausted — please add funds");
+      throw new Error(`Gemini Vision returned ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    // Extract from tool call response
+    let parsed: any;
+    const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try {
+        parsed = typeof toolCall.function.arguments === "string"
+          ? JSON.parse(toolCall.function.arguments)
+          : toolCall.function.arguments;
+      } catch (e) {
+        console.error(`[VISION] Tool call JSON parse failed: ${String(e)}`);
+        throw new Error("Could not parse Gemini tool call response");
+      }
+    } else {
+      // Fallback: try to extract from content
+      const rawContent = result.choices?.[0]?.message?.content?.trim() || "";
+      console.log(`[VISION] No tool call found, trying content (${rawContent.length} chars)`);
+      const cleanJson = rawContent.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?\s*```$/, "").trim();
+      try {
+        parsed = JSON.parse(cleanJson);
+      } catch {
+        console.error(`[VISION] Content JSON parse failed. First 500: ${rawContent.substring(0, 500)}`);
+        throw new Error("Could not parse Gemini Vision response");
+      }
+    }
+
+    if (!Array.isArray(parsed.employees) || parsed.employees.length === 0) {
+      throw new Error("Gemini Vision returned no employee data");
+    }
+
+    return convertGeminiResult(parsed);
+
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error("Vision request timed out (50s). Try a smaller PDF or split into sections.");
+    }
+    throw err;
+  }
+}
+
+function convertGeminiResult(parsed: any): ParseResult {
   const employees: ParsedEmployee[] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -190,9 +246,8 @@ Rules:
       const outTime = rec.out_time ? normalizeTime(rec.out_time) : null;
       const status = rec.status ? normalizeStatus(rec.status) || rec.status?.toUpperCase() : undefined;
 
-      // Validation warnings
       if (inTime && outTime && inTime > outTime) {
-        warnings.push(`${code} on ${isoDate}: in_time (${inTime}) > out_time (${outTime}) — possible night shift`);
+        warnings.push(`${code} on ${isoDate}: in_time > out_time — possible night shift`);
       }
       if (rec.work_hours) {
         const whMatch = rec.work_hours.match?.(/(\d+):(\d+)/);
@@ -231,7 +286,6 @@ Rules:
 
   console.log(`[VISION] Extracted ${employees.length} employees with ${employees.reduce((s, e) => s + e.records.length, 0)} records`);
 
-  // Build punches
   const punches = buildPunches(employees);
 
   return {
@@ -253,8 +307,6 @@ Rules:
 // ═══════════════════════════════════════════════════════════════
 // 2️⃣  TEXT-BASED PARSERS — For CSV/TXT and simple PDFs
 // ═══════════════════════════════════════════════════════════════
-
-// --- Pure-JS PDF text extraction (kept for non-vision fallback) ---
 
 function lzwDecode(compressed: Uint8Array): Uint8Array {
   const CLEAR_CODE = 256, EOI_CODE = 257;
@@ -346,7 +398,6 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
     } catch { decodedStreams.push(stream); }
   }
 
-  // Extract text from BT...ET blocks with positional awareness
   interface TextToken { x: number; y: number; text: string; }
   const allTokens: TextToken[] = [];
 
@@ -466,14 +517,12 @@ function normalizeStatus(raw: string): string | null {
 function normalizeDate(dateStr: string): string | null {
   if (!dateStr?.trim()) return null;
   const s = dateStr.trim();
-  // YYYY-MM-DD
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) {
     const [, y, m, d] = iso;
     if (+y >= 2000 && +y <= 2100 && +m >= 1 && +m <= 12 && +d >= 1 && +d <= 31) return s;
     return null;
   }
-  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
   if (dmy) {
     const [, a, b, y] = dmy;
@@ -483,7 +532,6 @@ function normalizeDate(dateStr: string): string | null {
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
-  // YYYY/MM/DD
   const ymd = s.match(/^(\d{4})[\/](\d{2})[\/](\d{2})$/);
   if (ymd) {
     const [, y, m, d] = ymd;
@@ -495,7 +543,7 @@ function normalizeDate(dateStr: string): string | null {
 function normalizeTime(timeStr: string): string | null {
   if (!timeStr?.trim()) return null;
   const s = timeStr.trim();
-  // 12-hour: 9:30 AM
+  if (s === "-" || s === "--" || s === "00:00" || s === "00:00:00") return null;
   const tw = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)$/i);
   if (tw) {
     let h = parseInt(tw[1]);
@@ -506,7 +554,6 @@ function normalizeTime(timeStr: string): string | null {
     if (h > 23 || m > 59 || sec > 59) return null;
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   }
-  // 24-hour: HH:mm or HH:mm:ss
   const col = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (col) {
     const h = parseInt(col[1]), m = parseInt(col[2]), sec = parseInt(col[3] || "0");
@@ -600,7 +647,6 @@ function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors
     const statusMatch = line.match(/\b(PRESENT|ABSENT|P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|AB)\b/i);
     const status = statusMatch ? (normalizeStatus(statusMatch[1]) || statusMatch[1].toUpperCase()) : undefined;
 
-    // Extract employee code
     let empCode = "";
     const rowMatch = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)(?:\s+General|\s+Shift|\s+\d{1,2}:\d{2})/i);
     if (rowMatch) { empCode = rowMatch[2]; }
@@ -638,7 +684,7 @@ function detectFormat(text: string): "detailed" | "summary" | "unknown" {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 5️⃣  PUNCH BUILDER — Converts employees to flat punches
+// 5️⃣  PUNCH BUILDER
 // ═══════════════════════════════════════════════════════════════
 
 function buildPunches(employees: ParsedEmployee[]): ParsedPunch[] {
@@ -692,7 +738,6 @@ async function parseAttendanceText(text: string, extractionMethod: string): Prom
     const r = parseSummaryFormat(text);
     employees = r.employees; errors = r.errors;
   } else {
-    // Try both
     const d = parseDetailedFormat(text);
     const s = parseSummaryFormat(text);
     const dc = d.employees.reduce((sum, e) => sum + e.records.length, 0);
@@ -773,17 +818,29 @@ Deno.serve(async (req) => {
     let result: ParseResult;
 
     if (body.file_data) {
-      // PDF file — use Gemini Vision as primary parser
-      console.log(`[MAIN] PDF upload detected, using Gemini Vision primary parser`);
+      console.log(`[MAIN] PDF upload detected (${(body.file_data.length / 1024 / 1024).toFixed(2)} MB base64)`);
 
-      try {
-        result = await parseWithGeminiVision(body.file_data);
-        console.log(`[MAIN] Vision parsed: ${result.employees.length} employees, ${result.punches.length} punches`);
-      } catch (visionErr: any) {
-        console.error(`[MAIN] Vision failed: ${visionErr.message}`);
+      // Try Gemini Vision with retry
+      let visionError: string | null = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          result = await parseWithGeminiVision(body.file_data, attempt);
+          console.log(`[MAIN] Vision parsed (attempt ${attempt}): ${result.employees.length} employees, ${result.punches.length} punches`);
+          visionError = null;
+          break;
+        } catch (err: any) {
+          visionError = err.message;
+          console.error(`[MAIN] Vision attempt ${attempt} failed: ${visionError}`);
+          if (attempt < 2 && !visionError.includes("too large") && !visionError.includes("Rate limited") && !visionError.includes("credits")) {
+            // Wait 2s before retry
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+      }
 
-        // Fallback to text extraction + deterministic parsing
-        console.log(`[MAIN] Falling back to text extraction...`);
+      if (visionError) {
+        // Fallback to text extraction
+        console.log(`[MAIN] All vision attempts failed, falling back to text extraction...`);
         try {
           const pdfBytes = base64ToUint8Array(body.file_data);
           const { text: rawText } = await extractTextFromPDF(pdfBytes);
@@ -792,8 +849,14 @@ Deno.serve(async (req) => {
           if (normalized.length < 50) {
             return new Response(JSON.stringify({
               success: false,
-              error: `Vision parsing failed (${visionErr.message}) and text extraction yielded insufficient content (${normalized.length} chars). This PDF may be scanned/image-based.`,
-              parse_errors: [visionErr.message],
+              error: `Vision parsing failed (${visionError}) and text extraction yielded insufficient content (${normalized.length} chars). This PDF may be scanned/image-based. Try re-exporting from the biometric software or use a smaller file.`,
+              parse_errors: [visionError],
+              suggestions: [
+                "Re-export the report from your biometric software (Secureye ONtime)",
+                "If the PDF has many pages, split it into smaller files (10-15 pages each)",
+                "Try exporting as Excel/CSV instead of PDF",
+                "Ensure the PDF is not password-protected",
+              ],
               total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
             }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
@@ -802,14 +865,21 @@ Deno.serve(async (req) => {
         } catch (textErr: any) {
           return new Response(JSON.stringify({
             success: false,
-            error: `Both Vision and text parsing failed. Vision: ${visionErr.message}. Text: ${textErr.message}`,
-            parse_errors: [visionErr.message, textErr.message],
+            error: `Both Vision and text parsing failed. Vision: ${visionError}. Text: ${textErr.message}`,
+            parse_errors: [visionError, textErr.message],
             total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
           }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
       }
+
+      // @ts-ignore — result is assigned in the loop above
+      if (!result!) {
+        return new Response(JSON.stringify({
+          success: false, error: "Parse failed unexpectedly",
+          total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     } else if (body.text_content) {
-      // TXT/CSV — use text-based parsing
       result = await parseAttendanceText(body.text_content, "plain_text");
     } else {
       return new Response(JSON.stringify({ error: "No file content. Send file_data (PDF base64) or text_content (TXT/CSV)." }), {
@@ -819,10 +889,10 @@ Deno.serve(async (req) => {
 
     console.log(`[MAIN] Parse result: format=${result.format}, employees=${result.metadata.employees_detected}, punches=${result.punches.length}`);
 
-    // ─── PREVIEW MODE — return parsed data without inserting ──
+    // ─── PREVIEW MODE ────────────────────────────────────
     if (preview_only) {
       return new Response(JSON.stringify({
-        success: result.punches.length > 0,
+        success: result.punches.length > 0 || result.employees.length > 0,
         preview: true,
         employees: result.employees.map(e => ({
           employee_code: e.employee_code,
