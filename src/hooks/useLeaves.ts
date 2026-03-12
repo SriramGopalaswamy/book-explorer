@@ -263,18 +263,12 @@ export function useCreateLeaveRequest() {
         attachment_url = filePath;
       }
 
-      // Fetch the user's profile_id so the join works in the table
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user?.id)
-        .maybeSingle();
-
       const { data, error } = await supabase
         .from("leave_requests")
         .insert({
           user_id: user?.id,
-          profile_id: profile?.id ?? null,
+          profile_id: callerProfile.id ?? null,
+          organization_id: callerProfile.organization_id,
           leave_type: request.leave_type,
           from_date: request.from_date,
           to_date: request.to_date,
