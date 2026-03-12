@@ -792,9 +792,11 @@ export default function Invoicing() {
                               <DropdownMenuItem onClick={() => setViewingInvoice(invoice)}>
                                 <Eye className="mr-2 h-4 w-4" /> View Invoice
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
-                                <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
-                              </DropdownMenuItem>
+                              {invoice.status === "draft" && (
+                                <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
+                                  <Pencil className="mr-2 h-4 w-4" /> Edit Invoice
+                                </DropdownMenuItem>
+                              )}
                               {(invoice.status === "sent" || invoice.status === "overdue" || invoice.status === "paid") && (
                                 <DropdownMenuItem
                                   onClick={async () => {

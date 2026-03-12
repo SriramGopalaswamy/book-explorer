@@ -385,6 +385,7 @@ export function useUpdateInvoice() {
         .single();
       if (fetchErr) throw fetchErr;
 
+      const currentVersion = current?.version ?? 1;
       const { error: invoiceError } = await (supabase as any)
         .from("invoices")
         .update({
@@ -403,9 +404,10 @@ export function useUpdateInvoice() {
           total_amount: data.total_amount || data.amount,
           notes: data.notes || null,
           customer_gstin: data.customer_gstin || null,
+          version: currentVersion + 1,
         })
         .eq("id", data.id)
-        .eq("version", current?.version ?? 1);
+        .eq("version", currentVersion);
       if (invoiceError) throw invoiceError;
 
       // Delete old items and reinsert
