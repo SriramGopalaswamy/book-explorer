@@ -27,7 +27,7 @@ export interface ConnectorLog {
 }
 
 // ── Allowed providers whitelist ──
-const VALID_PROVIDERS = ["shopify", "zoho_books", "amazon", "woocommerce", "stripe", "razorpay"] as const;
+const VALID_PROVIDERS = ["shopify", "zoho_books", "amazon", "woocommerce", "stripe", "razorpay", "anthropic"] as const;
 type ValidProvider = (typeof VALID_PROVIDERS)[number];
 
 function isValidProvider(p: string): p is ValidProvider {

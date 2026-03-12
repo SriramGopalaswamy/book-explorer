@@ -11,9 +11,6 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -49,12 +46,43 @@ serve(async (req) => {
       .maybeSingle();
 
     const orgId = profile?.organization_id;
-    if (!orgId) throw new Error("No organization found for user");
+    if (!orgId) {
+      return new Response(JSON.stringify({ error: "Your account is not linked to an organization. Please contact support." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Resolve Anthropic API key: org's own key takes priority over shared env key
+    const { data: aiIntegration } = await supabase
+      .from("integrations")
+      .select("shop_domain, metadata")
+      .eq("organization_id", orgId)
+      .eq("provider", "anthropic")
+      .eq("status", "connected")
+      .maybeSingle();
+
+    const ANTHROPIC_API_KEY =
+      aiIntegration?.metadata?.apiKey ||
+      aiIntegration?.shop_domain ||
+      Deno.env.get("ANTHROPIC_API_KEY");
+
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ error: "AI service is not configured. Add your Anthropic API key in Connectors → AI Providers, or contact your administrator." }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const body = await req.json();
     const messages: { role: string; content: string }[] = body.messages ?? [];
 
-    if (!messages.length) throw new Error("No messages provided");
+    if (!messages.length) {
+      return new Response(JSON.stringify({ error: "No messages provided." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Gather live org data snapshot for context
     const snapshot = await gatherOrgSnapshot(supabase, orgId);
@@ -86,7 +114,22 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error(`AI service error: ${anthropicRes.status}`);
+      if (anthropicRes.status === 401) {
+        return new Response(JSON.stringify({ error: "AI service configuration error. Please contact support." }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (anthropicRes.status >= 500) {
+        return new Response(JSON.stringify({ error: "AI service is temporarily unavailable. Please try again later." }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: "AI service returned an unexpected error. Please try again." }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Proxy the SSE stream directly
@@ -249,14 +292,31 @@ async function gatherOrgSnapshot(supabase: any, orgId: string) {
 // ── System prompt ──────────────────────────────────────────────────────────
 
 function buildSystemPrompt(snapshot: Record<string, unknown>) {
-  return `You are the AI business advisor for GRX10 Books — an ERP covering Finance, HRMS, Inventory, Procurement, Manufacturing, and Performance.
+  return `You are the AI business advisor for GRX10 Books — an ERP covering Finance, HRMS, Inventory, Procurement, and Performance.
 
 CURRENT LIVE DATA SNAPSHOT (fetched this request):
 ${JSON.stringify(snapshot, null, 2)}
 
+AVAILABLE MODULES (data present in snapshot above):
+- Finance: revenue, expenses, profit/loss (this month & last month)
+- Receivables: invoices, overdue amounts, top clients
+- Payables: bills, overdue payables
+- HR: employee headcount, departments, leave requests
+- Payroll: monthly payroll burn, processed records
+- Inventory: stock levels, low-stock items
+- Procurement: purchase orders, open POs
+- Performance: goals, completion rates
+
+MODULES NOT AVAILABLE IN THIS ERP:
+- Warehousing / Warehouse management (not a supported module — redirect to Inventory data if relevant)
+- Manufacturing / Production (not supported)
+- CRM / Customer management (not supported)
+- Projects / Project management (not supported)
+When asked about any unsupported module, clearly state it is not part of this ERP and offer the closest available alternative.
+
 RULES:
 - Answer questions using ONLY the data above. Never invent numbers.
-- If asked about something not in the snapshot, say exactly what you do and don't have.
+- If a supported module has no data (empty arrays, zero counts), say the data hasn't been recorded yet and suggest where to add it.
 - Be direct and concise. Lead with numbers.
 - Use ₹ for Indian Rupee amounts. Format numbers with commas (e.g., ₹1,23,456).
 - For follow-up analysis questions, use the data provided to calculate ratios, comparisons, and trends.
