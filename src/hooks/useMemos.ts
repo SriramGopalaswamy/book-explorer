@@ -289,6 +289,7 @@ export function useCreateMemo() {
 
 export function useUpdateMemo() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
