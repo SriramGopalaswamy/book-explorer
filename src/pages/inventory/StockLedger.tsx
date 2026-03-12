@@ -17,7 +17,7 @@ export default function StockLedger() {
   const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
 
   const txnBadge = (type: string) => {
-    const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment"];
+    const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment", "in"];
     return inTypes.includes(type) ? "default" : "destructive";
   };
 
