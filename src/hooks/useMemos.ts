@@ -395,10 +395,15 @@ export function useApproveMemo() {
       if (updatedSubject) updates.subject = updatedSubject;
       if (updatedRecipients) updates.recipients = updatedRecipients;
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("memos")
         .update(updates as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
