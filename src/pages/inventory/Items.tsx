@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useItems, useCreateItem, useDeleteItem } from "@/hooks/useInventory";
+import { useItems, useCreateItem, useUpdateItem, useDeleteItem } from "@/hooks/useInventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes } from "lucide-react";
+import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes, MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEM_TYPES = [
@@ -20,17 +22,28 @@ const ITEM_TYPES = [
   { value: "consumable", label: "Consumable" },
 ];
 
+const emptyForm = {
+  name: "", sku: "", category: "general", item_type: "product",
+  purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "",
+  opening_stock: "", description: "", barcode: "",
+};
+
 export default function Items() {
   const { data: items, isLoading } = useItems();
   const createItem = useCreateItem();
+  const updateItem = useUpdateItem();
   const deleteItem = useDeleteItem();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({
-    name: "", sku: "", category: "general", item_type: "product",
-    purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "",
-    opening_stock: "", description: "", barcode: "",
-  });
+  const [form, setForm] = useState({ ...emptyForm });
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ ...emptyForm });
+
+  // Delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const filtered = (items || []).filter((i: any) =>
     i.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -58,7 +71,47 @@ export default function Items() {
     }, {
       onSuccess: () => {
         setOpen(false);
-        setForm({ name: "", sku: "", category: "general", item_type: "product", purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "", opening_stock: "", description: "", barcode: "" });
+        setForm({ ...emptyForm });
+      },
+    });
+  };
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setEditForm({
+      name: item.name || "",
+      sku: item.sku || "",
+      category: item.category || "general",
+      item_type: item.item_type || "product",
+      purchase_price: String(item.purchase_price ?? ""),
+      selling_price: String(item.selling_price ?? ""),
+      hsn_code: item.hsn_code || "",
+      reorder_level: String(item.reorder_level ?? ""),
+      opening_stock: String(item.opening_stock ?? ""),
+      description: item.description || "",
+      barcode: item.barcode || "",
+    });
+    setEditOpen(true);
+  };
+
+  const handleEdit = () => {
+    if (!editItem) return;
+    updateItem.mutate({
+      id: editItem.id,
+      name: editForm.name,
+      sku: editForm.sku,
+      category: editForm.category,
+      item_type: editForm.item_type,
+      purchase_price: Number(editForm.purchase_price) || 0,
+      selling_price: Number(editForm.selling_price) || 0,
+      hsn_code: editForm.hsn_code || null,
+      reorder_level: Number(editForm.reorder_level) || 0,
+      description: editForm.description || null,
+      barcode: editForm.barcode || null,
+    }, {
+      onSuccess: () => {
+        setEditOpen(false);
+        setEditItem(null);
       },
     });
   };
@@ -179,7 +232,27 @@ export default function Items() {
                       </TableCell>
                       <TableCell><Badge variant={item.is_active ? "default" : "secondary"}>{item.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => deleteItem.mutate(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(item)}>
+                              <Pencil className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateItem.mutate({ id: item.id, is_active: !item.is_active })}>
+                              {item.is_active
+                                ? <><PowerOff className="h-4 w-4 mr-2" /> Mark as Inactive</>
+                                : <><Power className="h-4 w-4 mr-2" /> Mark as Active</>}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteConfirmId(item.id)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -189,6 +262,62 @@ export default function Items() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Item</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Name *</Label><Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></div>
+              <div><Label>SKU *</Label><Input value={editForm.sku} onChange={e => setEditForm(f => ({ ...f, sku: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Type</Label>
+                <Select value={editForm.item_type} onValueChange={v => setEditForm(f => ({ ...f, item_type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ITEM_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Category</Label><Input value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Purchase Price</Label><Input type="number" value={editForm.purchase_price} onChange={e => setEditForm(f => ({ ...f, purchase_price: e.target.value }))} /></div>
+              <div><Label>Selling Price</Label><Input type="number" value={editForm.selling_price} onChange={e => setEditForm(f => ({ ...f, selling_price: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>HSN Code</Label><Input value={editForm.hsn_code} onChange={e => setEditForm(f => ({ ...f, hsn_code: e.target.value }))} /></div>
+              <div><Label>Barcode</Label><Input value={editForm.barcode} onChange={e => setEditForm(f => ({ ...f, barcode: e.target.value }))} /></div>
+            </div>
+            <div><Label>Reorder Level</Label><Input type="number" value={editForm.reorder_level} onChange={e => setEditForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
+            <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <Button onClick={handleEdit} disabled={!editForm.name || !editForm.sku || updateItem.isPending}>
+              {updateItem.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Items with existing stock movements cannot be deleted — deactivate them instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteConfirmId) { deleteItem.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
