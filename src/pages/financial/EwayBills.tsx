@@ -12,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info } from "lucide-react";
-import { useEwayBills, EwayBillInsert } from "@/hooks/useEwayBills";
+import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info, MoreHorizontal, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useEwayBills, EwayBill, EwayBillInsert } from "@/hooks/useEwayBills";
 import { format, isPast, differenceInHours } from "date-fns";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,13 +81,17 @@ function validateForm(form: EwayBillInsert): string[] {
 }
 
 export default function EwayBills() {
-  const { ewayBills, isLoading, create, update, cancel, isCreating } = useEwayBills();
+  const { ewayBills, isLoading, create, update, cancel, remove, isCreating } = useEwayBills();
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showCancel, setShowCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [form, setForm] = useState<EwayBillInsert>(INITIAL_FORM);
   const [activeTab, setActiveTab] = useState("partA");
+  const [editingBill, setEditingBill] = useState<EwayBill | null>(null);
+  const [editForm, setEditForm] = useState<EwayBillInsert>(INITIAL_FORM);
+  const [editTab, setEditTab] = useState("partA");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const filtered = ewayBills.filter(
     (b) =>
@@ -124,7 +130,15 @@ export default function EwayBills() {
     }
   };
 
+  const handleUpdate = async () => {
+    if (!editingBill) return;
+    await update({ id: editingBill.id, ...editForm });
+    setEditingBill(null);
+    setEditForm(INITIAL_FORM);
+  };
+
   const setField = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setEditField = (key: string, value: any) => setEditForm((prev) => ({ ...prev, [key]: value }));
 
   return (
     <MainLayout title="GST E-Way Bills" subtitle="Generate, manage and track e-way bills for goods movement as per GST Rule 138">
@@ -212,31 +226,48 @@ export default function EwayBills() {
                             <Badge className={STATUS_COLORS[bill.status] ?? ""}>{bill.status}</Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              {bill.status !== "cancelled" && (
-                                <Button size="sm" variant="ghost" onClick={() => setShowCancel(bill.id)}>
-                                  <XCircle className="h-3.5 w-3.5" />
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                              )}
-                              {bill.status === "active" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() =>
-                                    update({
-                                      id: bill.id,
-                                      status: "extended",
-                                      extended_count: (bill.extended_count || 0) + 1,
-                                      valid_until: new Date(
-                                        new Date(bill.valid_until!).getTime() + 24 * 60 * 60 * 1000
-                                      ).toISOString(),
-                                    })
-                                  }
-                                >
-                                  <RefreshCw className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {bill.status === "draft" && (
+                                  <DropdownMenuItem onClick={() => { setEditingBill(bill); setEditForm(bill); setEditTab("partA"); }}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                )}
+                                {bill.status === "draft" && (
+                                  <DropdownMenuItem onClick={() => update({ id: bill.id, status: "generated" })}>
+                                    <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Generated
+                                  </DropdownMenuItem>
+                                )}
+                                {bill.status === "generated" && (
+                                  <DropdownMenuItem onClick={() => update({ id: bill.id, status: "active" })}>
+                                    <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Active
+                                  </DropdownMenuItem>
+                                )}
+                                {bill.status === "active" && (
+                                  <DropdownMenuItem onClick={() => update({ id: bill.id, status: "extended", extended_count: (bill.extended_count || 0) + 1, valid_until: new Date(new Date(bill.valid_until!).getTime() + 24 * 60 * 60 * 1000).toISOString() })}>
+                                    <RefreshCw className="h-4 w-4 mr-2" /> Extend Validity (+1 day)
+                                  </DropdownMenuItem>
+                                )}
+                                {bill.status !== "cancelled" && bill.status !== "expired" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setShowCancel(bill.id)} className="text-destructive">
+                                      <XCircle className="h-4 w-4 mr-2" /> Cancel Bill
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {(bill.status === "draft" || bill.status === "cancelled") && (
+                                  <DropdownMenuItem onClick={() => setDeleteTarget(bill.id)} className="text-destructive">
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -534,6 +565,240 @@ export default function EwayBills() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Dialog */}
+        <Dialog open={!!editingBill} onOpenChange={(open) => { if (!open) { setEditingBill(null); setEditForm(INITIAL_FORM); } }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit E-Way Bill</DialogTitle>
+            </DialogHeader>
+
+            <Tabs value={editTab} onValueChange={setEditTab}>
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="partA">Part A – Supply</TabsTrigger>
+                <TabsTrigger value="goods">Goods Details</TabsTrigger>
+                <TabsTrigger value="partB">Part B – Transport</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="partA" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Supply Type</Label>
+                    <Select value={editForm.supply_type} onValueChange={(v) => setEditField("supply_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="outward">Outward</SelectItem>
+                        <SelectItem value="inward">Inward</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Document Type</Label>
+                    <Select value={editForm.document_type ?? "invoice"} onValueChange={(v) => setEditField("document_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="invoice">Tax Invoice</SelectItem>
+                        <SelectItem value="bill_of_supply">Bill of Supply</SelectItem>
+                        <SelectItem value="delivery_challan">Delivery Challan</SelectItem>
+                        <SelectItem value="credit_note">Credit Note</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Document Number</Label>
+                    <Input value={editForm.document_number ?? ""} onChange={(e) => setEditField("document_number", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Document Date</Label>
+                    <Input type="date" value={editForm.document_date ?? ""} onChange={(e) => setEditField("document_date", e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-3 p-3 rounded-lg border border-border/50">
+                    <p className="text-sm font-medium text-muted-foreground">FROM (Consignor)</p>
+                    <Input placeholder="GSTIN" value={editForm.from_gstin ?? ""} onChange={(e) => setEditField("from_gstin", e.target.value.toUpperCase())} maxLength={15} />
+                    <Input placeholder="Name" value={editForm.from_name ?? ""} onChange={(e) => setEditField("from_name", e.target.value)} />
+                    <Input placeholder="Place" value={editForm.from_place ?? ""} onChange={(e) => setEditField("from_place", e.target.value)} />
+                    <Input placeholder="Pincode (6 digits)" value={editForm.from_pincode ?? ""} onChange={(e) => setEditField("from_pincode", e.target.value.replace(/\D/g, ""))} maxLength={6} />
+                    <div>
+                      <Label className="text-xs text-muted-foreground">State</Label>
+                      <Select value={editForm.from_state_code ?? ""} onValueChange={(v) => setEditField("from_state_code", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                        <SelectContent>
+                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-3 p-3 rounded-lg border border-border/50">
+                    <p className="text-sm font-medium text-muted-foreground">TO (Consignee)</p>
+                    <Input placeholder="GSTIN" value={editForm.to_gstin ?? ""} onChange={(e) => setEditField("to_gstin", e.target.value.toUpperCase())} maxLength={15} />
+                    <Input placeholder="Name" value={editForm.to_name ?? ""} onChange={(e) => setEditField("to_name", e.target.value)} />
+                    <Input placeholder="Place" value={editForm.to_place ?? ""} onChange={(e) => setEditField("to_place", e.target.value)} />
+                    <Input placeholder="Pincode (6 digits)" value={editForm.to_pincode ?? ""} onChange={(e) => setEditField("to_pincode", e.target.value.replace(/\D/g, ""))} maxLength={6} />
+                    <div>
+                      <Label className="text-xs text-muted-foreground">State</Label>
+                      <Select value={editForm.to_state_code ?? ""} onValueChange={(v) => setEditField("to_state_code", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                        <SelectContent>
+                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                            <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="goods" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Product Name</Label>
+                    <Input value={editForm.product_name ?? ""} onChange={(e) => setEditField("product_name", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>HSN Code (4/6/8 digits)</Label>
+                    <Input value={editForm.hsn_code ?? ""} onChange={(e) => setEditField("hsn_code", e.target.value.replace(/\D/g, ""))} maxLength={8} placeholder="e.g. 84713010" />
+                  </div>
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input type="number" value={editForm.quantity ?? 0} onChange={(e) => setEditField("quantity", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Unit</Label>
+                    <Select value={editForm.unit ?? "NOS"} onValueChange={(v) => setEditField("unit", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NOS">NOS – Numbers</SelectItem>
+                        <SelectItem value="KGS">KGS – Kilograms</SelectItem>
+                        <SelectItem value="MTR">MTR – Meters</SelectItem>
+                        <SelectItem value="LTR">LTR – Litres</SelectItem>
+                        <SelectItem value="PCS">PCS – Pieces</SelectItem>
+                        <SelectItem value="BOX">BOX – Boxes</SelectItem>
+                        <SelectItem value="QTL">QTL – Quintals</SelectItem>
+                        <SelectItem value="TON">TON – Tonnes</SelectItem>
+                        <SelectItem value="SQF">SQF – Sq. Feet</SelectItem>
+                        <SelectItem value="SQM">SQM – Sq. Meters</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Taxable Value (₹)</Label>
+                    <Input type="number" value={editForm.taxable_value} onChange={(e) => setEditField("taxable_value", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Total Value (₹)</Label>
+                    <Input type="number" value={editForm.total_value} onChange={(e) => setEditField("total_value", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>CGST Rate (%)</Label>
+                    <Input type="number" value={editForm.cgst_rate ?? 0} onChange={(e) => setEditField("cgst_rate", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>SGST Rate (%)</Label>
+                    <Input type="number" value={editForm.sgst_rate ?? 0} onChange={(e) => setEditField("sgst_rate", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>IGST Rate (%)</Label>
+                    <Input type="number" value={editForm.igst_rate ?? 0} onChange={(e) => setEditField("igst_rate", +e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Cess Rate (%)</Label>
+                    <Input type="number" value={editForm.cess_rate ?? 0} onChange={(e) => setEditField("cess_rate", +e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Product Description</Label>
+                  <Textarea value={editForm.product_description ?? ""} onChange={(e) => setEditField("product_description", e.target.value)} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="partB" className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Transport Mode</Label>
+                    <Select value={editForm.transport_mode ?? "road"} onValueChange={(v) => setEditField("transport_mode", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="road">Road</SelectItem>
+                        <SelectItem value="rail">Rail</SelectItem>
+                        <SelectItem value="air">Air</SelectItem>
+                        <SelectItem value="ship">Ship/Inland Waterways</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Vehicle Type</Label>
+                    <Select value={editForm.vehicle_type ?? "regular"} onValueChange={(v) => setEditField("vehicle_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="regular">Regular</SelectItem>
+                        <SelectItem value="over_dimensional">Over Dimensional Cargo (ODC)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Vehicle Number</Label>
+                    <Input placeholder="e.g. KA01AB1234" value={editForm.vehicle_number ?? ""} onChange={(e) => setEditField("vehicle_number", e.target.value.toUpperCase().replace(/\s/g, ""))} />
+                  </div>
+                  <div>
+                    <Label>Transporter Name</Label>
+                    <Input value={editForm.transporter_name ?? ""} onChange={(e) => setEditField("transporter_name", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Transporter ID (GSTIN)</Label>
+                    <Input placeholder="Transporter GSTIN" value={editForm.transporter_id ?? ""} onChange={(e) => setEditField("transporter_id", e.target.value.toUpperCase())} maxLength={15} />
+                  </div>
+                  <div>
+                    <Label>Transport Doc #</Label>
+                    <Input value={editForm.transport_doc_number ?? ""} onChange={(e) => setEditField("transport_doc_number", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Transport Doc Date</Label>
+                    <Input type="date" value={editForm.transport_doc_date ?? ""} onChange={(e) => setEditField("transport_doc_date", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Approx. Distance (km)</Label>
+                    <Input type="number" value={editForm.distance_km ?? 0} onChange={(e) => setEditField("distance_km", +e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Textarea value={editForm.notes ?? ""} onChange={(e) => setEditField("notes", e.target.value)} />
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <DialogFooter className="pt-4">
+              <Button variant="outline" onClick={() => { setEditingBill(null); setEditForm(INITIAL_FORM); }}>Cancel</Button>
+              <Button onClick={handleUpdate}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete E-Way Bill</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to permanently delete this E-Way Bill? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (deleteTarget) { remove(deleteTarget); setDeleteTarget(null); } }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Cancel Dialog */}
         <Dialog open={!!showCancel} onOpenChange={() => setShowCancel(null)}>

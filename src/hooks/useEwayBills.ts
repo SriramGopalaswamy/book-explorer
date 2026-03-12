@@ -236,12 +236,32 @@ export function useEwayBills() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const { error } = await (supabase as any)
+        .from("eway_bills")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["eway_bills"] });
+      toast.success("E-Way Bill deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return {
     ewayBills: query.data ?? [],
     isLoading: query.isLoading,
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     cancel: cancelMutation.mutateAsync,
+    remove: deleteMutation.mutateAsync,
     isCreating: createMutation.isPending,
     getValidityDays: getEwayValidityDays,
   };
