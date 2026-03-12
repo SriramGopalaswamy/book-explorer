@@ -111,7 +111,7 @@ function BiometricUploadDialog({
     ws.eachRow((row) => {
       const cells: string[] = [];
       for (let i = 1; i <= colCount; i++) {
-        let val: ExcelJS.CellValue = row.getCell(i).value;
+        let val: any = row.getCell(i).value;
         if (val instanceof Date) {
           const y = val.getFullYear();
           const m = String(val.getMonth() + 1).padStart(2, "0");
