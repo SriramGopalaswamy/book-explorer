@@ -293,6 +293,7 @@ export function useUpdateMemo() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
+      if (!user) throw new Error("Not authenticated");
       // Enforce state machine on status transitions
       if (updates.status) {
         const { data: current, error: fetchErr } = await supabase
