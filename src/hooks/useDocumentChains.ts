@@ -330,15 +330,20 @@ export function useCreateDeliveryNote() {
 // ─── DN Status Updates (with SO auto-update) ────────────────────
 export function useUpdateDNStatus() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: current } = await supabase.from("delivery_notes" as any).select("status, sales_order_id").eq("id", id).maybeSingle();
       const currentStatus = (current as any)?.status;
       const allowed = DN_TRANSITIONS[currentStatus];
       if (!allowed || !allowed.includes(status)) {
         throw new Error(`Cannot transition DN from "${currentStatus}" to "${status}"`);
       }
-      const { error } = await supabase.from("delivery_notes" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id);
+      const { error } = await supabase.from("delivery_notes" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
       // ── Auto stock-out when DN is delivered ──
