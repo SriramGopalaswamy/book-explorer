@@ -367,14 +367,18 @@ export function useApproveInventoryCount() {
       const variantLines = (lines as any[]).filter((l) => l.item_id && Number(l.variance || 0) !== 0);
       for (const line of variantLines) {
         const qty = Math.abs(Number(line.variance));
-        const entryType = Number(line.variance) > 0 ? "in" : "out";
+        const txnType = Number(line.variance) > 0 ? "adjustment" : "adjustment";
+        const signedQty = Number(line.variance) > 0 ? qty : -qty;
         await supabase.from("stock_ledger" as any).insert({
           item_id: line.item_id,
           warehouse_id: (count as any).warehouse_id,
-          quantity: qty,
-          entry_type: entryType,
+          quantity: signedQty,
+          transaction_type: txnType,
           reference_type: "inventory_adjustment",
           reference_id: countId,
+          rate: 0,
+          value: 0,
+          balance_qty: 0,
           notes: `Inventory count adjustment: ${line.item_name} (variance ${line.variance > 0 ? "+" : ""}${line.variance})`,
           posted_at: new Date().toISOString(),
         } as any);

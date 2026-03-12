@@ -330,9 +330,10 @@ export function useCreateDeliveryNote() {
       if (soItems && (soItems as any[]).length > 0) {
         const dnItems = (soItems as any[]).map((i: any) => ({
           delivery_note_id: (dn as any).id,
+          sales_order_item_id: i.id || null,
           item_id: i.item_id || null,
           description: i.description,
-          quantity: i.quantity,
+          ordered_quantity: i.quantity,
           shipped_quantity: i.quantity,
         }));
         const { error: itemErr } = await supabase.from("delivery_note_items" as any).insert(dnItems as any);
