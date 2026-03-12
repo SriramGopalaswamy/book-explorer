@@ -5260,6 +5260,50 @@ export type Database = {
           },
         ]
       }
+      inventory_count_lines: {
+        Row: {
+          actual_qty: number | null
+          count_id: string
+          created_at: string
+          expected_qty: number
+          id: string
+          item_id: string | null
+          item_name: string
+          notes: string | null
+          variance: number | null
+        }
+        Insert: {
+          actual_qty?: number | null
+          count_id: string
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          item_id?: string | null
+          item_name: string
+          notes?: string | null
+          variance?: number | null
+        }
+        Update: {
+          actual_qty?: number | null
+          count_id?: string
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          notes?: string | null
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_count_lines_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_counts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_counts: {
         Row: {
           approved_at: string | null
@@ -8213,6 +8257,77 @@ export type Database = {
           },
           {
             foreignKeyName: "quotes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          credit_account_id: string | null
+          currency: string
+          debit_account_id: string | null
+          description: string | null
+          end_date: string | null
+          frequency: string
+          id: string
+          last_run_date: string | null
+          name: string
+          next_run_date: string | null
+          notes: string | null
+          organization_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          created_by: string
+          credit_account_id?: string | null
+          currency?: string
+          debit_account_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          last_run_date?: string | null
+          name: string
+          next_run_date?: string | null
+          notes?: string | null
+          organization_id: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          credit_account_id?: string | null
+          currency?: string
+          debit_account_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          last_run_date?: string | null
+          name?: string
+          next_run_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

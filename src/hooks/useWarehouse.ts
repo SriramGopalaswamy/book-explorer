@@ -367,16 +367,21 @@ export function useApproveInventoryCount() {
       const variantLines = (lines as any[]).filter((l) => l.item_id && Number(l.variance || 0) !== 0);
       for (const line of variantLines) {
         const qty = Math.abs(Number(line.variance));
-        const entryType = Number(line.variance) > 0 ? "in" : "out";
+        const signedQty = Number(line.variance);
         await supabase.from("stock_ledger" as any).insert({
+          organization_id: callerOrgId,
           item_id: line.item_id,
           warehouse_id: (count as any).warehouse_id,
-          quantity: qty,
-          entry_type: entryType,
+          quantity: signedQty,
+          transaction_type: "adjustment",
           reference_type: "inventory_adjustment",
           reference_id: countId,
+          rate: 0,
+          value: 0,
+          balance_qty: 0,
           notes: `Inventory count adjustment: ${line.item_name} (variance ${line.variance > 0 ? "+" : ""}${line.variance})`,
           posted_at: new Date().toISOString(),
+          posted_by: user.id,
         } as any);
       }
 
@@ -440,20 +445,20 @@ export function useGeneratePickingList() {
       const pickNumber = `PICK-${Date.now().toString(36).toUpperCase()}`;
       const { data: pickData, error: pickErr } = await supabase
         .from("picking_lists" as any)
-        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "draft", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
+        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "pending", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (pickErr) throw pickErr;
 
       const lines = params.items.map((item) => ({
-        pick_list_id: (pickData as any).id,
+        picking_list_id: (pickData as any).id,
         item_id: item.item_id || null,
         item_name: item.item_name,
-        quantity_required: item.quantity,
-        quantity_picked: 0,
-        bin_location: item.bin_location || null,
+        required_quantity: item.quantity,
+        picked_quantity: 0,
+        bin_id: null,
         status: "pending",
       }));
-      const { error: linesErr } = await supabase.from("pick_list_lines" as any).insert(lines as any);
+      const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
       if (linesErr) {
         await supabase.from("picking_lists" as any).delete().eq("id", (pickData as any).id);
         throw linesErr;
@@ -469,10 +474,10 @@ export function useUpdatePickingListStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const VALID = ["draft", "in_progress", "completed", "cancelled"] as const;
+      const VALID = ["pending", "in_progress", "completed", "cancelled"] as const;
       if (!VALID.includes(status as any)) throw new Error(`Invalid picking list status: ${status}`);
       const TRANSITIONS: Record<string, string[]> = {
-        draft: ["in_progress", "cancelled"],
+        pending: ["in_progress", "cancelled"],
         in_progress: ["completed", "cancelled"],
         completed: [],
         cancelled: [],
