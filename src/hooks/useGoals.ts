@@ -243,10 +243,15 @@ export function useDeleteGoal() {
       if (!user) throw new Error("Not authenticated");
 
       // Prevent deleting completed goals — they should be archived
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: goal, error: fetchErr } = await supabase
         .from("goals")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
       if (goal?.status === "completed") {
