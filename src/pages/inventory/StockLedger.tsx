@@ -14,7 +14,7 @@ export default function StockLedger() {
   const [whFilter, setWhFilter] = useState<string>("");
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
-  const { data: entries, isLoading } = useStockLedger(itemFilter || undefined, whFilter || undefined);
+  const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
 
   const txnBadge = (type: string) => {
     const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment"];
@@ -63,6 +63,14 @@ export default function StockLedger() {
           </Select>
         </div>
 
+        {isError && (
+          <Card className="border-destructive">
+            <CardContent className="pt-6 text-center text-destructive">
+              Failed to load stock ledger: {(error as any)?.message || "Unknown error"}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
@@ -87,7 +95,7 @@ export default function StockLedger() {
                     <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No stock movements recorded yet.</TableCell></TableRow>
                   ) : (entries || []).map((e: any) => (
                     <TableRow key={e.id}>
-                      <TableCell className="text-muted-foreground">{format(new Date(e.posted_at), "dd MMM yyyy")}</TableCell>
+                      <TableCell className="text-muted-foreground">{(() => { try { return format(new Date(e.posted_at), "dd MMM yyyy"); } catch { return e.posted_at ?? "—"; } })()}</TableCell>
                       <TableCell className="font-medium text-foreground">{itemName(e.item_id)}</TableCell>
                       <TableCell className="text-muted-foreground">{whName(e.warehouse_id)}</TableCell>
                       <TableCell><Badge variant={txnBadge(e.transaction_type) as any}>{e.transaction_type?.replace("_", " ")}</Badge></TableCell>
