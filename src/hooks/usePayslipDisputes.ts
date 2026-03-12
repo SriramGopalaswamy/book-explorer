@@ -351,7 +351,8 @@ export function useFinanceReviewDispute() {
               status: "superseded",
               updated_at: new Date().toISOString(),
             } as any)
-            .eq("id", disputeData.payroll_record_id);
+            .eq("id", disputeData.payroll_record_id)
+            .eq("organization_id", callerProfile.organization_id);
         }
       }
     },
