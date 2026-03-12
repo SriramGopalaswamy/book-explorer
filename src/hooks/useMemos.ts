@@ -534,16 +534,24 @@ export function useIncrementMemoViews() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data: current } = await supabase
         .from("memos")
         .select("views")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
 
       const { data, error } = await supabase
         .from("memos")
         .update({ views: (current?.views || 0) + 1 } as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
