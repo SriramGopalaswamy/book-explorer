@@ -313,6 +313,10 @@ export function useUpdateMemo() {
         ? updates.content.substring(0, 150) + (updates.content.length > 150 ? "..." : "")
         : undefined;
 
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("memos")
         .update({
@@ -321,6 +325,7 @@ export function useUpdateMemo() {
           ...(updates.status === "published" && { published_at: new Date().toISOString() }),
         } as any)
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
 
