@@ -131,11 +131,16 @@ export function useApproveRequest() {
     mutationFn: async ({ id }: { id: string }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Double-review guard: verify request is still pending
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Double-review guard: verify request is still pending (org-scoped)
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
         .select("status, document_type, document_id, requested_by")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
@@ -152,7 +157,7 @@ export function useApproveRequest() {
         approved_by: user.id,
         approved_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      } as any).eq("id", id);
+      } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
       // ── Auto-execute: propagate approval back to source document ──
