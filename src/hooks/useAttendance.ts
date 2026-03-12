@@ -461,10 +461,15 @@ export function useCheckIn() {
 
   return useMutation({
     mutationFn: async (profileId: string) => {
+      if (!user) throw new Error("Not authenticated");
       const today = new Date().toISOString().split("T")[0];
       const now = new Date().toISOString();
       const hour = new Date().getHours();
       const status = hour >= 10 ? "late" : "present";
+
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("attendance_records")
@@ -474,6 +479,7 @@ export function useCheckIn() {
           date: today,
           check_in: now,
           status,
+          organization_id: callerProfile.organization_id,
         }, {
           onConflict: "profile_id,date",
         })
