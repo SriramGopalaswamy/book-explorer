@@ -306,14 +306,22 @@ export function useDeleteEmployee() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Get the user_id from the profile first
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Get the user_id from the profile (org-scoped)
       const { data: profile, error: profileErr } = await supabase
         .from("profiles")
         .select("user_id")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
 
       if (profileErr) throw profileErr;
+      if (!profile) throw new Error("Employee not found in your organization.");
 
       // Delete via edge function (handles auth + roles + profile)
       const { data: result, error } = await supabase.functions.invoke("manage-roles", {
@@ -322,7 +330,7 @@ export function useDeleteEmployee() {
 
       if (error || result?.error) {
         // Fallback: just delete the profile row if edge fn fails (e.g. no auth account)
-        const { error: delErr } = await supabase.from("profiles").delete().eq("id", id);
+        const { error: delErr } = await supabase.from("profiles").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
         if (delErr) throw delErr;
       }
     },

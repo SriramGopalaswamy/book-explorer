@@ -564,11 +564,16 @@ export function useCreateAttendance() {
         throw new Error("Invalid attendance status");
       }
 
+      // Resolve org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       const { data, error } = await supabase
         .from("attendance_records")
         .upsert({
           ...record,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         }, {
           onConflict: "profile_id,date",
         })
