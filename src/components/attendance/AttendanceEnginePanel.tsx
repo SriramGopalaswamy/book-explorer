@@ -100,6 +100,14 @@ function BiometricUploadDialog({
     setFile(f);
   }, []);
 
+  // Mark IV: convert XLSX/XLS to CSV text using the xlsx library
+  const xlsxToText = async (buffer: ArrayBuffer): Promise<string> => {
+    const XLSX = (await import("xlsx")).default || (await import("xlsx"));
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_csv(firstSheet);
+  };
+
   const handleUpload = async () => {
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
@@ -111,6 +119,12 @@ function BiometricUploadDialog({
       const base64 = await fileToBase64(file);
       const data = await upload.mutateAsync({ fileData: base64, fileName: file.name });
       setResult(data);
+    } else if (ext === "xlsx" || ext === "xls") {
+      // Mark IV: XLSX direct upload — convert to CSV text client-side
+      const buffer = await file.arrayBuffer();
+      const csvText = await xlsxToText(buffer);
+      const data = await upload.mutateAsync({ textContent: csvText, fileName: file.name });
+      setResult(data);
     } else {
       // TXT/CSV: send as plain text
       const text = await file.text();
@@ -119,24 +133,54 @@ function BiometricUploadDialog({
     }
   };
 
+  // Mark IV: collect files from a JSZip object, with 1-level nested ZIP support
+  const collectZipFiles = async (
+    zip: any,
+    zipName: string,
+    depth = 0
+  ): Promise<{ name: string; file: any; parentZip: string }[]> => {
+    if (depth > 1) return []; // max 1 level deep
+    const SUPPORTED = ["pdf", "txt", "csv", "xlsx", "xls", "zip"];
+    const collected: { name: string; file: any; parentZip: string }[] = [];
+    const nestedZips: { name: string; file: any }[] = [];
+
+    zip.forEach((relativePath: string, zipEntry: any) => {
+      if (zipEntry.dir) return;
+      const fileExt = relativePath.split(".").pop()?.toLowerCase() || "";
+      if (fileExt === "zip") {
+        nestedZips.push({ name: relativePath, file: zipEntry });
+      } else if (SUPPORTED.includes(fileExt)) {
+        collected.push({ name: relativePath, file: zipEntry, parentZip: zipName });
+      }
+    });
+
+    // Recursively expand nested ZIPs (max 1 level)
+    if (depth < 1) {
+      const JSZip = (await import("jszip")).default;
+      for (const nested of nestedZips) {
+        try {
+          const nestedBytes = await nested.file.async("uint8array");
+          const nestedZip = await JSZip.loadAsync(nestedBytes);
+          const nestedFiles = await collectZipFiles(nestedZip, `${zipName}/${nested.name}`, depth + 1);
+          collected.push(...nestedFiles);
+        } catch {
+          // Skip corrupt nested ZIP
+        }
+      }
+    }
+    return collected;
+  };
+
   const handleZipUpload = async (zipFile: File) => {
     const JSZip = (await import("jszip")).default;
     const zip = await JSZip.loadAsync(zipFile);
 
-    // Collect supported files from the ZIP
-    const supportedFiles: { name: string; file: any }[] = [];
-    zip.forEach((relativePath, zipEntry) => {
-      if (zipEntry.dir) return;
-      const fileExt = relativePath.split(".").pop()?.toLowerCase();
-      if (["pdf", "txt", "csv"].includes(fileExt || "")) {
-        supportedFiles.push({ name: relativePath, file: zipEntry });
-      }
-    });
+    const supportedFiles = await collectZipFiles(zip, zipFile.name);
 
     if (supportedFiles.length === 0) {
       setResult({
         success: false,
-        error: "No supported files (PDF/TXT/CSV) found in ZIP archive",
+        error: "No supported files (PDF/TXT/CSV/XLSX) found in ZIP archive",
         parse_errors: ["ZIP contained no parseable attendance files"],
         total_parsed: 0,
         inserted: 0,
@@ -147,66 +191,69 @@ function BiometricUploadDialog({
       return;
     }
 
-    // Process each file and aggregate results
+    // Mark IV: aggregate with Set-based matched_employee_codes de-duplication
     const agg: UploadParseResult = {
-      success: true,
-      total_parsed: 0,
-      inserted: 0,
-      duplicates_skipped: 0,
-      matched_employees: 0,
-      unmatched_codes: [],
-      parse_errors: [],
+      success: true, total_parsed: 0, inserted: 0, duplicates_skipped: 0,
+      matched_employees: 0, unmatched_codes: [], parse_errors: [],
     } as any;
+    const allUnmatched = new Set<string>();
+    const allMatchedCodes = new Set<string>();
 
-    let allUnmatched = new Set<string>();
+    // Mark IV: parallel processing with concurrency limit of 3
+    const CONCURRENCY = 3;
+    let current = 0;
 
-    for (let i = 0; i < supportedFiles.length; i++) {
-      const entry = supportedFiles[i];
-      setZipProgress({ current: i + 1, total: supportedFiles.length, fileName: entry.name.split("/").pop() || entry.name });
-
+    const processEntry = async (entry: { name: string; file: any; parentZip: string }, idx: number) => {
+      setZipProgress({ current: idx + 1, total: supportedFiles.length, fileName: entry.name.split("/").pop() || entry.name });
       try {
         const entryExt = entry.name.split(".").pop()?.toLowerCase();
+        let data: UploadParseResult;
+
         if (entryExt === "pdf") {
-          // PDF in ZIP: extract as binary, send as base64
           const pdfBytes = await entry.file.async("uint8array");
           const base64 = uint8ArrayToBase64(pdfBytes);
-          const data = await upload.mutateAsync({
-            fileData: base64,
-            fileName: `${zipFile.name}/${entry.name}`,
-          });
-
-          if (data.success) {
-            agg.total_parsed += data.total_parsed || 0;
-            agg.inserted += data.inserted || 0;
-            agg.duplicates_skipped += data.duplicates_skipped || 0;
-            agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
-            data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
-          } else {
-            agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
-          }
+          data = await upload.mutateAsync({ fileData: base64, fileName: `${entry.parentZip}/${entry.name}` });
+        } else if (entryExt === "xlsx" || entryExt === "xls") {
+          const buffer = await entry.file.async("arraybuffer");
+          const csvText = await xlsxToText(buffer);
+          data = await upload.mutateAsync({ textContent: csvText, fileName: `${entry.parentZip}/${entry.name}` });
         } else {
-          // TXT/CSV in ZIP: extract as text
           const text = await entry.file.async("string");
-          const data = await upload.mutateAsync({
-            textContent: text,
-            fileName: `${zipFile.name}/${entry.name}`,
-          });
+          data = await upload.mutateAsync({ textContent: text, fileName: `${entry.parentZip}/${entry.name}` });
+        }
 
-          if (data.success) {
-            agg.total_parsed += data.total_parsed || 0;
-            agg.inserted += data.inserted || 0;
-            agg.duplicates_skipped += data.duplicates_skipped || 0;
-            agg.matched_employees = Math.max(agg.matched_employees, data.matched_employees || 0);
-            data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+        if (data.success) {
+          agg.total_parsed += data.total_parsed || 0;
+          agg.inserted += data.inserted || 0;
+          agg.duplicates_skipped += data.duplicates_skipped || 0;
+          // Mark IV: use matched_employee_codes for accurate de-duplication
+          if (data.matched_employee_codes?.length) {
+            data.matched_employee_codes.forEach((c: string) => allMatchedCodes.add(c));
           } else {
-            agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
+            // Fallback: sum counts (better than Math.max)
+            agg.matched_employees += data.matched_employees || 0;
           }
+          data.unmatched_codes?.forEach((c: string) => allUnmatched.add(c));
+        } else {
+          agg.parse_errors.push(`${entry.name}: ${data.error || "Parse failed"}`);
         }
       } catch (err: any) {
         agg.parse_errors.push(`${entry.name}: ${err.message}`);
       }
+    };
+
+    // Process files in batches of CONCURRENCY
+    for (let i = 0; i < supportedFiles.length; i += CONCURRENCY) {
+      const batch = supportedFiles.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(batch.map((entry, batchIdx) => processEntry(entry, i + batchIdx)));
+      current = Math.min(i + CONCURRENCY, supportedFiles.length);
     }
 
+    // Finalize matched_employees count
+    if (allMatchedCodes.size > 0) {
+      agg.matched_employees = allMatchedCodes.size;
+      agg.matched_employee_codes = Array.from(allMatchedCodes);
+    }
     agg.unmatched_codes = Array.from(allUnmatched);
     agg.success = agg.inserted > 0 || agg.total_parsed > 0;
     setZipProgress(null);
@@ -241,7 +288,7 @@ function BiometricUploadDialog({
             Upload Biometric Attendance
           </DialogTitle>
           <DialogDescription>
-            Upload a biometric attendance file (PDF/TXT/CSV) or a ZIP containing multiple files. Punches will be parsed and stored.
+            Upload a biometric attendance file (PDF/TXT/CSV/XLSX) or a ZIP containing multiple files. Supports nested ZIPs. Punches will be parsed and stored.
           </DialogDescription>
         </DialogHeader>
 
@@ -331,7 +378,7 @@ function BiometricUploadDialog({
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf,.txt,.csv,.zip"
+                accept=".pdf,.txt,.csv,.zip,.xlsx,.xls"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) processFile(f);
@@ -760,7 +807,7 @@ function DiagnosticDialog({
         {!report ? (
           <div className="space-y-4 py-2">
             <div className="rounded-lg border-2 border-dashed border-border p-6 text-center">
-              <input ref={fileRef} type="file" accept=".pdf,.txt,.csv,.zip" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
+              <input ref={fileRef} type="file" accept=".pdf,.txt,.csv,.zip,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
               <Search className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-sm font-medium mb-1">Select file to diagnose</p>
               <p className="text-xs text-muted-foreground mb-3">PDF, TXT, CSV, or ZIP — no data will be inserted</p>
