@@ -301,13 +301,20 @@ export function useRunDepreciation() {
 
   return useMutation({
     mutationFn: async (assetId: string) => {
-      // Fetch the asset
+      // Resolve caller org for tenant isolation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Fetch the asset (org-scoped)
       const { data: asset, error: fetchErr } = await supabase
         .from("assets")
         .select("*")
         .eq("id", assetId)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
-      if (fetchErr || !asset) throw fetchErr || new Error("Asset not found");
+      if (fetchErr || !asset) throw fetchErr || new Error("Asset not found in your organization");
 
       const purchasePrice = Number(asset.purchase_price);
       const salvageValue = Number(asset.salvage_value);

@@ -203,11 +203,16 @@ export function useRejectRequest() {
       if (!user) throw new Error("Not authenticated");
       if (!reason?.trim()) throw new Error("A rejection reason is required.");
 
-      // Double-review guard
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Double-review guard (org-scoped)
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
         .select("status, requested_by")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
       if ((current as any)?.status !== "pending") {
@@ -225,7 +230,7 @@ export function useRejectRequest() {
         rejected_at: new Date().toISOString(),
         rejection_reason: reason.trim(),
         updated_at: new Date().toISOString(),
-      } as any).eq("id", id);
+      } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["approval-requests"] }); toast.success("Request rejected"); },
