@@ -786,7 +786,7 @@ function UserManagementSection() {
   const [replacementManagerId, setReplacementManagerId] = useState<string>("");
 
   // Set manager dialog state
-  const [setManagerDialogOpen, setSetManagerDialogOpen] = useState(false);
+  const [assignManagerDialogOpen, setAssignManagerDialogOpen] = useState(false);
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
   const [newManagerUserId, setNewManagerUserId] = useState<string>("");
   const [updatingManager, setUpdatingManager] = useState(false);
@@ -914,7 +914,7 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to update manager");
     } else {
       toast.success("Manager updated successfully");
-      setSetManagerDialogOpen(false);
+      setAssignManagerDialogOpen(false);
       await refreshUsers();
     }
     setUpdatingManager(false);
@@ -984,7 +984,7 @@ function UserManagementSection() {
       </Dialog>
 
       {/* Set Manager Dialog */}
-      <Dialog open={setManagerDialogOpen} onOpenChange={setSetManagerDialogOpen}>
+      <Dialog open={assignManagerDialogOpen} onOpenChange={setAssignManagerDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Set Manager for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
@@ -1016,7 +1016,7 @@ function UserManagementSection() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSetManagerDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setAssignManagerDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleSetManager} disabled={updatingManager}>
@@ -1159,7 +1159,7 @@ function UserManagementSection() {
                           onClick={() => {
                             setSetManagerTarget(u);
                             setNewManagerUserId("");
-                            setSetManagerDialogOpen(true);
+                            setAssignManagerDialogOpen(true);
                           }}
                         >
                           <UserCog className="h-4 w-4" />
