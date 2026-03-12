@@ -2138,17 +2138,22 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const adminClient = createClient(supabaseUrl, supabaseKey);
 
-    // Verify JWT via getUser
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Verify JWT — use service-role client so no second client is needed
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
-    if (authError || !user) {
+    let user: { id: string } | null = null;
+    try {
+      const { data, error: authError } = await adminClient.auth.getUser(token);
+      if (authError || !data?.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      user = data.user;
+    } catch {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
