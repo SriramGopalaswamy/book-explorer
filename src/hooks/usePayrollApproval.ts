@@ -91,7 +91,8 @@ export function useApprovePayroll() {
       const { error } = await supabase
         .from("payroll_runs")
         .update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() } as any)
-        .eq("id", runId);
+        .eq("id", runId)
+        .eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => {
