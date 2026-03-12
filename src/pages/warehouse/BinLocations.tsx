@@ -73,7 +73,7 @@ export default function BinLocations() {
     { key: "zone", header: "Zone", render: (r) => r.zone || <span className="text-muted-foreground">—</span> },
     { key: "aisle", header: "Aisle", render: (r) => r.aisle || <span className="text-muted-foreground">—</span> },
     { key: "rack", header: "Rack/Level", render: (r) => [r.rack, r.level].filter(Boolean).join("-") || <span className="text-muted-foreground">—</span> },
-    { key: "current_units", header: "Current", render: (r) => <span className="font-semibold text-foreground">{Number(r.current_units).toLocaleString()}</span> },
+    { key: "current_units", header: "Current Units", render: (r) => <span className="font-semibold text-foreground" title="Updated automatically when stock is assigned to this bin">{Number(r.current_units).toLocaleString()}</span> },
     { key: "capacity_units", header: "Capacity", render: (r) => r.capacity_units ? Number(r.capacity_units).toLocaleString() : <span className="text-muted-foreground">∞</span> },
     { key: "is_active", header: "Status", render: (r) => <Badge className={r.is_active ? "bg-green-500/20 text-green-400" : "bg-destructive/20 text-destructive"}>{r.is_active ? "Active" : "Inactive"}</Badge> },
     {

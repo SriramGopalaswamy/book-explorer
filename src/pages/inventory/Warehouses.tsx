@@ -173,6 +173,41 @@ export default function Warehouses() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Warehouse Dialog */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Warehouse</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Name *</Label><Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+                <div><Label>Code</Label><Input value={editForm.code} onChange={e => setEditForm({ ...editForm, code: e.target.value })} /></div>
+                <div><Label>City</Label><Input value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} /></div>
+                <div>
+                  <Label>State</Label>
+                  <Select value={editForm.state} onValueChange={v => setEditForm({ ...editForm, state: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Contact Person</Label><Input value={editForm.contact_person} onChange={e => setEditForm({ ...editForm, contact_person: e.target.value })} /></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="whActive" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />
+                <Label htmlFor="whActive">Active</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button onClick={() => {
+                if (!editWH) return;
+                updateWH.mutate({ id: editWH.id, ...editForm }, { onSuccess: () => { setEditOpen(false); setEditWH(null); } });
+              }} disabled={updateWH.isPending}>
+                {updateWH.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
