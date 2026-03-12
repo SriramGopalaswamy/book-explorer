@@ -156,6 +156,11 @@ export function useEInvoices() {
 
   const generateIRN = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated");
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Simulate IRN generation (in production, this would call the NIC API via edge function)
       const irn = `IRN${Date.now()}${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
       const ackNo = `1${Date.now()}`;
@@ -172,7 +177,7 @@ export function useEInvoices() {
           signed_qr_code: btoa(qrData),
         })
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", callerProfile.organization_id)
         .select()
         .single();
       if (error) throw error;
