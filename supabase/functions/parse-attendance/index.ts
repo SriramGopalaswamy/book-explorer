@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import pako from "npm:pako@2.1.0";
 
 // ═══════════════════════════════════════════════════════════════
 // GRX10 Books — Biometric Attendance PDF Parser v7
