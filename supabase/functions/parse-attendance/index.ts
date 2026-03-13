@@ -571,35 +571,57 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
 
   const decodedStreams: string[] = [];
 
+  const decodeBytes = (input: Uint8Array) => new TextDecoder("latin1").decode(input);
+
   const inflate = async (bytes: Uint8Array): Promise<string | null> => {
+    // Primary: pako (most reliable for PDF Flate streams)
     try {
-      const ds = new DecompressionStream("deflate");
-      const writer = ds.writable.getWriter();
-      const reader = ds.readable.getReader();
-      writer.write(bytes).catch(() => {});
-      writer.close().catch(() => {});
-
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) chunks.push(value);
-      }
-
-      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-      if (totalLen === 0) return null;
-
-      const merged = new Uint8Array(totalLen);
-      let off = 0;
-      for (const chunk of chunks) {
-        merged.set(chunk, off);
-        off += chunk.length;
-      }
-
-      return new TextDecoder("latin1").decode(merged);
+      const inflated = pako.inflate(bytes);
+      if (inflated?.length) return decodeBytes(inflated);
     } catch {
-      return null;
+      // ignore and try next strategy
     }
+
+    try {
+      const inflatedRaw = pako.inflateRaw(bytes);
+      if (inflatedRaw?.length) return decodeBytes(inflatedRaw);
+    } catch {
+      // ignore and try next strategy
+    }
+
+    // Secondary: native DecompressionStream fallback
+    for (const format of ["deflate", "deflate-raw"] as const) {
+      try {
+        const ds = new DecompressionStream(format);
+        const writer = ds.writable.getWriter();
+        const reader = ds.readable.getReader();
+        writer.write(bytes).catch(() => {});
+        writer.close().catch(() => {});
+
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+
+        const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+        if (totalLen === 0) continue;
+
+        const merged = new Uint8Array(totalLen);
+        let off = 0;
+        for (const chunk of chunks) {
+          merged.set(chunk, off);
+          off += chunk.length;
+        }
+
+        return decodeBytes(merged);
+      } catch {
+        // try next format
+      }
+    }
+
+    return null;
   };
 
   for (const entry of streamEntries) {
