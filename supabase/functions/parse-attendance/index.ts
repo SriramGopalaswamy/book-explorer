@@ -784,8 +784,8 @@ Deno.serve(async (req) => {
 
     // ─── PARSE STRATEGY ──────────────────────────────────
     // 1. Extract text from PDF
-    // 2. If text found (>200 chars), send TEXT to Gemini (small payload)
-    // 3. If no text (scanned PDF), send PDF to Gemini Vision (large payload)
+    // 2. If text found (>80 chars), parse via text-first path (Gemini + regex)
+    // 3. If text still unusable, send PDF to Gemini Vision fallback
     let result!: ParseResult;
 
     if (body.file_data) {
