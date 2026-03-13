@@ -913,6 +913,20 @@ Deno.serve(async (req) => {
         console.error(`[MAIN] Text extraction failed: ${e.message}`);
       }
 
+      // Step 1b: If local extraction is weak, run vision OCR-to-text first
+      if (extractedText.length <= 80) {
+        console.log(`[MAIN] Local extraction too low (${extractedText.length} chars). Trying vision OCR text...`);
+        try {
+          const visionText = await extractTextWithGeminiVision(body.file_data);
+          if (visionText.length > extractedText.length) {
+            extractedText = visionText;
+          }
+          console.log(`[MAIN] Vision OCR text extracted: ${visionText.length} chars`);
+        } catch (ocrErr: any) {
+          console.error(`[MAIN] Vision OCR text failed: ${ocrErr.message}`);
+        }
+      }
+
       // Step 2: If we have meaningful text, use Gemini TEXT mode (much smaller payload)
       if (extractedText.length > 80) {
         console.log(`[MAIN] Using Gemini TEXT mode (${extractedText.length} chars)`);
