@@ -193,7 +193,7 @@ async function parseWithGeminiVision(base64PdfData: string): Promise<ParseResult
     throw new Error(`PDF too large for vision (${base64SizeMB.toFixed(1)}MB). Split into smaller files.`);
   }
 
-  const prompt = `Extract ALL employee attendance data from this biometric PDF report. 
+  const prompt = `Extract ALL employee attendance data from this biometric PDF report.
 Calendar-grid layout: columns = days, rows = In/Out/Late/Early/WorkHrs/Status.
 Convert columns into daily rows. Dates: YYYY-MM-DD. Times: HH:mm:ss.
 Status codes: P, A, HD, MIS, WO, WFH, AB, CL, SL, EL, PL, OD, CO, LWP, NA.
@@ -275,19 +275,106 @@ Call extract_attendance with the data.`;
     if (!response.ok) {
       const errText = await response.text();
       console.error(`[VISION] API error: ${response.status} — ${errText.substring(0, 300)}`);
+      if (response.status === 429) throw new Error("Rate limited — please try again in a minute");
+      if (response.status === 402) throw new Error("AI credits exhausted — please add funds");
       throw new Error(`Vision API returned ${response.status}`);
     }
 
     const result = await response.json();
     const parsed = extractToolCallResult(result);
-    if (!parsed || !Array.isArray(parsed.employees) || parsed.employees.length === 0) {
-      throw new Error("Vision returned no employee data");
+    if (parsed && Array.isArray(parsed.employees) && parsed.employees.length > 0) {
+      return convertGeminiResult(parsed, "gemini_vision");
     }
 
-    return convertGeminiResult(parsed, "gemini_vision");
+    // Fallback: if model returned plain text instead of tool call, re-run through text parser.
+    const assistantText = extractAssistantText(result);
+    if (assistantText.length > 80) {
+      console.log(`[VISION] Tool call missing; retrying via text parser (${assistantText.length} chars)`);
+      try {
+        return await parseWithGeminiText(assistantText);
+      } catch (e: any) {
+        console.error(`[VISION] Text-parser fallback failed: ${e.message}`);
+      }
+    }
+
+    throw new Error("Vision returned no employee data");
   } catch (err: any) {
     clearTimeout(timeoutId);
     if (err.name === "AbortError") throw new Error("Vision timed out (50s). Try a smaller PDF.");
+    throw err;
+  }
+}
+
+function extractAssistantText(result: any): string {
+  const content = result?.choices?.[0]?.message?.content;
+  if (!content) return "";
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (typeof part === "string") return part;
+        if (part?.type === "text" && typeof part?.text === "string") return part.text;
+        return "";
+      })
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
+async function extractTextWithGeminiVision(base64PdfData: string): Promise<string> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 50000);
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `OCR this attendance PDF and return ONLY extracted text in plain lines.
+Keep employee headers and attendance rows exactly as visible (Emp Code, Emp Name, Department, In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status).
+Do not summarize. Do not explain.`,
+            },
+            { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64PdfData}` } },
+          ],
+        }],
+        temperature: 0,
+        max_tokens: 32000,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[VISION-OCR] API error: ${response.status} — ${errText.substring(0, 300)}`);
+      if (response.status === 429) throw new Error("Rate limited — please try again in a minute");
+      if (response.status === 402) throw new Error("AI credits exhausted — please add funds");
+      throw new Error(`Vision OCR API returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    const text = extractAssistantText(result).replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (text.length < 80) {
+      throw new Error("Vision OCR returned insufficient text");
+    }
+    return text;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") throw new Error("Vision OCR timed out (50s)");
     throw err;
   }
 }
