@@ -1,9 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ═══════════════════════════════════════════════════════════════
-// GRX10 Books — Biometric Attendance PDF Parser v6
-// Secureye ONtime calendar-grid + generic format support
-// Uses Gemini Vision with tool calling for reliable extraction
+// GRX10 Books — Biometric Attendance PDF Parser v7
+// Strategy: Extract text first → Gemini text structuring → Vision fallback
 // ═══════════════════════════════════════════════════════════════
 
 const corsHeaders = {
@@ -28,9 +27,6 @@ interface ParsedEmployee {
   employee_name: string;
   department?: string;
   card_no?: string;
-  shift_name?: string | null;
-  shift_start?: string | null;
-  shift_end?: string | null;
   records: EmployeeRecord[];
 }
 
@@ -61,48 +57,47 @@ interface ParseResult {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 1️⃣  GEMINI VISION PDF PARSER — Primary for Secureye/biometric PDFs
+// 1️⃣  GEMINI TEXT-BASED STRUCTURING (lightweight, no vision)
 // ═══════════════════════════════════════════════════════════════
 
-async function parseWithGeminiVision(base64PdfData: string, attempt = 1): Promise<ParseResult> {
+async function parseWithGeminiText(rawText: string): Promise<ParseResult> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  // Check size — base64 is ~33% larger than binary, so 8MB base64 ≈ 6MB PDF
-  const base64SizeMB = base64PdfData.length / (1024 * 1024);
-  console.log(`[VISION] PDF base64 size: ${base64SizeMB.toFixed(2)} MB (attempt ${attempt})`);
+  // Truncate to ~60k chars to stay within token limits
+  const text = rawText.length > 60000 ? rawText.substring(0, 60000) : rawText;
+  console.log(`[GEMINI-TEXT] Sending ${text.length} chars for structuring`);
 
-  if (base64SizeMB > 10) {
-    throw new Error(`PDF too large for vision processing (${base64SizeMB.toFixed(1)}MB base64). Max ~7.5MB PDF.`);
-  }
+  const prompt = `You are an attendance data extraction engine. Parse the following raw text extracted from a biometric attendance report (Secureye ONtime or similar).
 
-  const prompt = `You are an attendance data extraction engine. Extract ALL employee attendance data from this biometric attendance report PDF.
-
-This PDF uses a calendar-grid layout:
+The text contains employee attendance data in a calendar-grid layout:
 - Each employee section has: Emp Code, Emp Name, Department
-- Calendar grid: columns = days of month (1-31), rows = In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status
-- Convert COLUMN-based layout into ROW-based daily records
+- Calendar grid: columns = days of month, rows = In Time, Out Time, Late Mins, Early Dep, Work Hrs, Status
+- OR it may be a tabular daily format with dates and times
 
-Call the extract_attendance function with the extracted data. Include ALL employees and ALL days with data.
+Extract ALL employee attendance records. Call the extract_attendance function with the data.
 
 Rules:
-- Dates: use report month/year + day number → YYYY-MM-DD
-- Times: 24-hour HH:mm:ss format
-- Skip empty day columns
+- Dates must be YYYY-MM-DD format
+- Times must be 24-hour HH:mm:ss format  
 - Status codes: P, A, HD, MIS, WO, WFH, AB, CL, SL, EL, PL, OD, CO, LWP, NA
-- P/WO → P, WO-I → WO, "-" or "00:00" with Absent → null times
-- Include ALL pages`;
+- P/WO → P, WO-I → WO
+- Skip empty/no-data days
+- Include ALL employees found
+
+RAW TEXT:
+${text}`;
 
   const toolDef = {
     type: "function" as const,
     function: {
       name: "extract_attendance",
-      description: "Extract structured attendance data from a biometric PDF report",
+      description: "Extract structured attendance data from text",
       parameters: {
         type: "object",
         properties: {
-          organization: { type: "string", description: "Company name if visible" },
-          report_period: { type: "string", description: "Month and year, e.g. February 2026" },
+          organization: { type: "string" },
+          report_period: { type: "string" },
           employees: {
             type: "array",
             items: {
@@ -116,13 +111,13 @@ Rules:
                   items: {
                     type: "object",
                     properties: {
-                      date: { type: "string", description: "YYYY-MM-DD" },
-                      in_time: { type: "string", description: "HH:mm:ss or empty" },
-                      out_time: { type: "string", description: "HH:mm:ss or empty" },
+                      date: { type: "string" },
+                      in_time: { type: "string" },
+                      out_time: { type: "string" },
                       late_minutes: { type: "number" },
                       early_departure: { type: "number" },
-                      work_hours: { type: "string", description: "H:mm format" },
-                      status: { type: "string", description: "P|A|HD|MIS|WO|WFH|AB|NA" },
+                      work_hours: { type: "string" },
+                      status: { type: "string" },
                     },
                     required: ["date"],
                   },
@@ -137,33 +132,19 @@ Rules:
     },
   };
 
-  // Use AbortController for timeout — edge functions have 60s max
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 50000);
 
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:application/pdf;base64,${base64PdfData}`,
-                },
-              },
-            ],
-          },
-        ],
+        messages: [{ role: "user", content: prompt }],
         tools: [toolDef],
         tool_choice: { type: "function", function: { name: "extract_attendance" } },
         max_tokens: 64000,
@@ -176,55 +157,165 @@ Rules:
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[VISION] Gemini API error: ${response.status} — ${errText.substring(0, 300)}`);
+      console.error(`[GEMINI-TEXT] API error: ${response.status} — ${errText.substring(0, 300)}`);
       if (response.status === 429) throw new Error("Rate limited — please try again in a minute");
       if (response.status === 402) throw new Error("AI credits exhausted — please add funds");
-      throw new Error(`Gemini Vision returned ${response.status}`);
+      throw new Error(`Gemini returned ${response.status}`);
     }
 
     const result = await response.json();
-
-    // Extract from tool call response
-    let parsed: any;
-    const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-    if (toolCall?.function?.arguments) {
-      try {
-        parsed = typeof toolCall.function.arguments === "string"
-          ? JSON.parse(toolCall.function.arguments)
-          : toolCall.function.arguments;
-      } catch (e) {
-        console.error(`[VISION] Tool call JSON parse failed: ${String(e)}`);
-        throw new Error("Could not parse Gemini tool call response");
-      }
-    } else {
-      // Fallback: try to extract from content
-      const rawContent = result.choices?.[0]?.message?.content?.trim() || "";
-      console.log(`[VISION] No tool call found, trying content (${rawContent.length} chars)`);
-      const cleanJson = rawContent.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?\s*```$/, "").trim();
-      try {
-        parsed = JSON.parse(cleanJson);
-      } catch {
-        console.error(`[VISION] Content JSON parse failed. First 500: ${rawContent.substring(0, 500)}`);
-        throw new Error("Could not parse Gemini Vision response");
-      }
+    const parsed = extractToolCallResult(result);
+    if (!parsed || !Array.isArray(parsed.employees) || parsed.employees.length === 0) {
+      throw new Error("Gemini returned no employee data from text");
     }
 
-    if (!Array.isArray(parsed.employees) || parsed.employees.length === 0) {
-      throw new Error("Gemini Vision returned no employee data");
-    }
-
-    return convertGeminiResult(parsed);
-
+    return convertGeminiResult(parsed, "gemini_text");
   } catch (err: any) {
     clearTimeout(timeoutId);
-    if (err.name === "AbortError") {
-      throw new Error("Vision request timed out (50s). Try a smaller PDF or split into sections.");
-    }
+    if (err.name === "AbortError") throw new Error("Text structuring timed out (50s)");
     throw err;
   }
 }
 
-function convertGeminiResult(parsed: any): ParseResult {
+// ═══════════════════════════════════════════════════════════════
+// 2️⃣  GEMINI VISION (fallback for image-based/scanned PDFs)
+// ═══════════════════════════════════════════════════════════════
+
+async function parseWithGeminiVision(base64PdfData: string): Promise<ParseResult> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+
+  const base64SizeMB = base64PdfData.length / (1024 * 1024);
+  console.log(`[VISION] PDF base64 size: ${base64SizeMB.toFixed(2)} MB`);
+
+  if (base64SizeMB > 10) {
+    throw new Error(`PDF too large for vision (${base64SizeMB.toFixed(1)}MB). Split into smaller files.`);
+  }
+
+  const prompt = `Extract ALL employee attendance data from this biometric PDF report. 
+Calendar-grid layout: columns = days, rows = In/Out/Late/Early/WorkHrs/Status.
+Convert columns into daily rows. Dates: YYYY-MM-DD. Times: HH:mm:ss.
+Status codes: P, A, HD, MIS, WO, WFH, AB, CL, SL, EL, PL, OD, CO, LWP, NA.
+Call extract_attendance with the data.`;
+
+  const toolDef = {
+    type: "function" as const,
+    function: {
+      name: "extract_attendance",
+      description: "Extract structured attendance data from PDF",
+      parameters: {
+        type: "object",
+        properties: {
+          organization: { type: "string" },
+          report_period: { type: "string" },
+          employees: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                employee_code: { type: "string" },
+                employee_name: { type: "string" },
+                department: { type: "string" },
+                records: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      date: { type: "string" },
+                      in_time: { type: "string" },
+                      out_time: { type: "string" },
+                      late_minutes: { type: "number" },
+                      early_departure: { type: "number" },
+                      work_hours: { type: "string" },
+                      status: { type: "string" },
+                    },
+                    required: ["date"],
+                  },
+                },
+              },
+              required: ["employee_code", "employee_name", "records"],
+            },
+          },
+        },
+        required: ["employees"],
+      },
+    },
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 50000);
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64PdfData}` } },
+          ],
+        }],
+        tools: [toolDef],
+        tool_choice: { type: "function", function: { name: "extract_attendance" } },
+        max_tokens: 64000,
+        temperature: 0,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[VISION] API error: ${response.status} — ${errText.substring(0, 300)}`);
+      throw new Error(`Vision API returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    const parsed = extractToolCallResult(result);
+    if (!parsed || !Array.isArray(parsed.employees) || parsed.employees.length === 0) {
+      throw new Error("Vision returned no employee data");
+    }
+
+    return convertGeminiResult(parsed, "gemini_vision");
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") throw new Error("Vision timed out (50s). Try a smaller PDF.");
+    throw err;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3️⃣  SHARED HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function extractToolCallResult(result: any): any | null {
+  const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    try {
+      return typeof toolCall.function.arguments === "string"
+        ? JSON.parse(toolCall.function.arguments)
+        : toolCall.function.arguments;
+    } catch (e) {
+      console.error(`[PARSE] Tool call JSON parse failed: ${e}`);
+    }
+  }
+  // Fallback: try content
+  const rawContent = result.choices?.[0]?.message?.content?.trim() || "";
+  if (rawContent.length > 10) {
+    const clean = rawContent.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?\s*```$/, "").trim();
+    try { return JSON.parse(clean); } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function convertGeminiResult(parsed: any, method: string): ParseResult {
   const employees: ParsedEmployee[] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -237,36 +328,29 @@ function convertGeminiResult(parsed: any): ParseResult {
     for (const rec of (emp.records || [])) {
       if (!rec.date) continue;
       const isoDate = normalizeDate(rec.date);
-      if (!isoDate) {
-        errors.push(`Invalid date "${rec.date}" for employee ${code}`);
-        continue;
-      }
+      if (!isoDate) { errors.push(`Invalid date "${rec.date}" for ${code}`); continue; }
 
       const inTime = rec.in_time ? normalizeTime(rec.in_time) : null;
       const outTime = rec.out_time ? normalizeTime(rec.out_time) : null;
       const status = rec.status ? normalizeStatus(rec.status) || rec.status?.toUpperCase() : undefined;
 
       if (inTime && outTime && inTime > outTime) {
-        warnings.push(`${code} on ${isoDate}: in_time > out_time — possible night shift`);
+        warnings.push(`${code} on ${isoDate}: in > out (possible night shift)`);
       }
       if (rec.work_hours) {
         const whMatch = rec.work_hours.match?.(/(\d+):(\d+)/);
         if (whMatch && parseInt(whMatch[1]) > 16) {
-          warnings.push(`${code} on ${isoDate}: work_hours ${rec.work_hours} exceeds 16 hours`);
+          warnings.push(`${code} on ${isoDate}: work_hours ${rec.work_hours} > 16h`);
         }
       }
       if (rec.late_minutes && rec.late_minutes > 240) {
-        warnings.push(`${code} on ${isoDate}: late_minutes ${rec.late_minutes} is extremely high`);
+        warnings.push(`${code} on ${isoDate}: late ${rec.late_minutes}min extremely high`);
       }
-      if (status === "MIS") {
-        warnings.push(`${code} on ${isoDate}: Missing punch detected`);
-      }
+      if (status === "MIS") warnings.push(`${code} on ${isoDate}: Missing punch`);
 
       records.push({
-        date: isoDate,
-        status,
-        in_time: inTime,
-        out_time: outTime,
+        date: isoDate, status,
+        in_time: inTime, out_time: outTime,
         late_minutes: rec.late_minutes ?? null,
         early_departure: rec.early_departure ?? null,
         work_hours: rec.work_hours ?? null,
@@ -284,20 +368,16 @@ function convertGeminiResult(parsed: any): ParseResult {
     }
   }
 
-  console.log(`[VISION] Extracted ${employees.length} employees with ${employees.reduce((s, e) => s + e.records.length, 0)} records`);
-
-  const punches = buildPunches(employees);
+  console.log(`[${method}] Extracted ${employees.length} employees, ${employees.reduce((s, e) => s + e.records.length, 0)} records`);
 
   return {
-    punches,
-    employees,
-    errors,
-    warnings,
+    punches: buildPunches(employees),
+    employees, errors, warnings,
     format: "secureye_calendar",
     metadata: {
       organization: parsed.organization || undefined,
       report_period: parsed.report_period || undefined,
-      extraction_method: "gemini_vision",
+      extraction_method: method,
       employees_detected: employees.length,
       validation_passed: employees.length > 0,
     },
@@ -305,7 +385,7 @@ function convertGeminiResult(parsed: any): ParseResult {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 2️⃣  TEXT-BASED PARSERS — For CSV/TXT and simple PDFs
+// 4️⃣  PDF TEXT EXTRACTION (no external deps)
 // ═══════════════════════════════════════════════════════════════
 
 function lzwDecode(compressed: Uint8Array): Uint8Array {
@@ -487,7 +567,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 3️⃣  NORMALIZATION HELPERS
+// 5️⃣  NORMALIZATION HELPERS
 // ═══════════════════════════════════════════════════════════════
 
 const STATUS_MAP: Record<string, string> = {
@@ -564,138 +644,16 @@ function normalizeTime(timeStr: string): string | null {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 4️⃣  TEXT-BASED PARSERS (CSV/TXT fallback)
-// ═══════════════════════════════════════════════════════════════
-
-function parseDetailedFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
-  const errors: string[] = [];
-  const empBlockAnchor = /(?=(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID)|Staff\s*(?:Code|ID)|Badge\s*No)\s*:)/i;
-  const empBlockTest = /(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID)|Staff\s*(?:Code|ID)|Badge\s*No)\s*:/i;
-  const blocks = text.split(empBlockAnchor).filter(b => empBlockTest.test(b));
-  if (blocks.length === 0) return { employees: [], errors: ["No employee blocks found"] };
-
-  const empMap = new Map<string, ParsedEmployee>();
-
-  for (const block of blocks) {
-    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
-    let empCode = "", empName = "", cardNo = "";
-
-    for (const line of lines) {
-      const cm = line.match(/(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID))\s*:\s*(\S+)/i);
-      if (cm) empCode = cm[1].trim();
-      const nm = line.match(/Name\s*:\s*(.+?)(?:\s+Card|\s+Emp|\s*$)/i);
-      if (nm) empName = nm[1].trim();
-      if (!empName) { const nm2 = line.match(/Name\s*:\s*(.+)/i); if (nm2) empName = nm2[1].replace(/Card\s*No\s*:\s*\S+/i, "").trim(); }
-      const cm2 = line.match(/Card\s*No\s*:\s*(\S+)/i);
-      if (cm2) cardNo = cm2[1].trim();
-    }
-    if (!empCode) continue;
-
-    const records: EmployeeRecord[] = [];
-    for (const line of lines) {
-      const dateMatch = line.match(/^(\d{4}[\/\-]\d{2}[\/\-]\d{2})/) || line.match(/^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/);
-      if (!dateMatch) continue;
-      const isoDate = normalizeDate(dateMatch[1]);
-      if (!isoDate) continue;
-      const timeMatches = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?(?:\s*[AaPp][Mm])?/g) || [];
-      const normalizedTimes = timeMatches.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
-      const statusMatch = line.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP|AB|PRESENT|ABSENT)\b/i);
-      const status = statusMatch ? (normalizeStatus(statusMatch[1]) || statusMatch[1].toUpperCase()) : undefined;
-      records.push({
-        date: isoDate, status,
-        in_time: normalizedTimes[0] || null,
-        out_time: normalizedTimes.length > 1 ? normalizedTimes[normalizedTimes.length - 1] : null,
-        punches: normalizedTimes,
-      });
-    }
-
-    if (empMap.has(empCode)) {
-      const existing = empMap.get(empCode)!;
-      const existingDates = new Set(existing.records.map(r => r.date));
-      for (const rec of records) if (!existingDates.has(rec.date)) existing.records.push(rec);
-    } else {
-      empMap.set(empCode, { employee_code: empCode, employee_name: empName, card_no: cardNo || undefined, records });
-    }
-  }
-  return { employees: Array.from(empMap.values()), errors };
-}
-
-function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
-  const errors: string[] = [];
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  const empMap = new Map<string, ParsedEmployee>();
-
-  let globalDate: string | null = null;
-  for (const line of lines) {
-    const dm = line.match(/(?:On\s*Dated?|Date)\s*:\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/i);
-    if (dm) { globalDate = normalizeDate(dm[1]); break; }
-  }
-
-  for (const line of lines) {
-    if (/Company\s*Name|Location\s*:|Attendance\s*Report|S\s*No\s+EMP/i.test(line)) continue;
-    if (/EMP\s*Code.*In\s*Time|Employee.*Code.*Clock/i.test(line)) continue;
-
-    const inlineDateMatch = line.match(/(\d{4}[\/\-]\d{2}[\/\-]\d{2})/) || line.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/);
-    let rowDate: string | null = null;
-    if (inlineDateMatch) rowDate = normalizeDate(inlineDateMatch[1]);
-    const effectiveDate = rowDate || globalDate;
-    if (!effectiveDate) continue;
-
-    const timeTokens = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?(?:\s*[AaPp][Mm])?/g) || [];
-    const validTimes = timeTokens.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
-
-    const statusMatch = line.match(/\b(PRESENT|ABSENT|P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|AB)\b/i);
-    const status = statusMatch ? (normalizeStatus(statusMatch[1]) || statusMatch[1].toUpperCase()) : undefined;
-
-    let empCode = "";
-    const rowMatch = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)(?:\s+General|\s+Shift|\s+\d{1,2}:\d{2})/i);
-    if (rowMatch) { empCode = rowMatch[2]; }
-    if (!empCode) {
-      const em = line.match(/(?:^\d+\s+)?(\d{1,10})\s+(?:\d{2}\/\d{2}\/\d{4}|[A-Z][a-z])/);
-      if (em) empCode = em[1];
-    }
-    if (!empCode) continue;
-
-    if (!empMap.has(empCode)) empMap.set(empCode, { employee_code: empCode, employee_name: "", records: [] });
-    const emp = empMap.get(empCode)!;
-    if (!emp.records.some(r => r.date === effectiveDate)) {
-      emp.records.push({
-        date: effectiveDate, status,
-        in_time: validTimes[0] || null,
-        out_time: validTimes.length > 1 ? validTimes[1] : null,
-        punches: validTimes,
-      });
-    }
-  }
-  return { employees: Array.from(empMap.values()), errors };
-}
-
-function detectFormat(text: string): "detailed" | "summary" | "unknown" {
-  const hasEmpCodeHeader = /Employee\s*(?:Code|ID|No)\s*:/i.test(text) || /Emp\.?\s*(?:Code|ID)\s*:/i.test(text);
-  const empCodeOccurrences = (text.match(/(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID))\s*:/gi) || []).length;
-  const hasInTimeCol = /In\s*Time|Clock\s*In|Entry\s*Time/i.test(text);
-  const hasOutTimeCol = /Out\s*Time|Clock\s*Out|Exit\s*Time/i.test(text);
-  const hasEmpCodeCol = /EMP\s*Code|Employee\s*(?:Code|ID)/i.test(text);
-
-  if (hasEmpCodeHeader && empCodeOccurrences >= 2) return "detailed";
-  if (hasEmpCodeCol && hasInTimeCol && hasOutTimeCol) return "summary";
-  if (hasEmpCodeHeader) return "detailed";
-  return "unknown";
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 5️⃣  PUNCH BUILDER
+// 6️⃣  PUNCH BUILDER
 // ═══════════════════════════════════════════════════════════════
 
 function buildPunches(employees: ParsedEmployee[]): ParsedPunch[] {
   const nextDay = (d: string) => new Date(Date.parse(d) + 86400_000).toISOString().split("T")[0];
   const punches: ParsedPunch[] = [];
-
   for (const emp of employees) {
     for (const rec of emp.records) {
       const absentStatuses = ["A", "NA", "AB", "WO", "CO"];
       if (rec.status && absentStatuses.includes(rec.status)) continue;
-
       if (rec.in_time && rec.in_time !== "00:00:00") {
         punches.push({
           employee_code: emp.employee_code,
@@ -721,47 +679,6 @@ function buildPunches(employees: ParsedEmployee[]): ParsedPunch[] {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 6️⃣  MAIN PARSE ORCHESTRATOR
-// ═══════════════════════════════════════════════════════════════
-
-async function parseAttendanceText(text: string, extractionMethod: string): Promise<ParseResult> {
-  const format = detectFormat(text);
-  console.log(`[PARSE] Detected format: ${format}`);
-
-  let employees: ParsedEmployee[] = [];
-  let errors: string[] = [];
-
-  if (format === "detailed") {
-    const r = parseDetailedFormat(text);
-    employees = r.employees; errors = r.errors;
-  } else if (format === "summary") {
-    const r = parseSummaryFormat(text);
-    employees = r.employees; errors = r.errors;
-  } else {
-    const d = parseDetailedFormat(text);
-    const s = parseSummaryFormat(text);
-    const dc = d.employees.reduce((sum, e) => sum + e.records.length, 0);
-    const sc = s.employees.reduce((sum, e) => sum + e.records.length, 0);
-    if (dc > sc && d.employees.length > 0) { employees = d.employees; errors = d.errors; }
-    else if (s.employees.length > 0) { employees = s.employees; errors = s.errors; }
-  }
-
-  if (employees.length === 0) {
-    return {
-      punches: [], employees: [], errors: ["No attendance records could be parsed from text content"], warnings: [],
-      format, metadata: { extraction_method: extractionMethod, employees_detected: 0, validation_passed: false },
-    };
-  }
-
-  const punches = buildPunches(employees);
-  return {
-    punches, employees, errors, warnings: [],
-    format,
-    metadata: { extraction_method: extractionMethod, employees_detected: employees.length, validation_passed: true },
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════
 // 7️⃣  HTTP HANDLER
 // ═══════════════════════════════════════════════════════════════
 
@@ -783,20 +700,13 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, supabaseKey);
 
     const token = authHeader.replace("Bearer ", "");
-    let user: { id: string } | null = null;
-    try {
-      const { data, error: authError } = await adminClient.auth.getUser(token);
-      if (authError || !data?.user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      user = data.user;
-    } catch {
+    const { data: authData, error: authError } = await adminClient.auth.getUser(token);
+    if (authError || !authData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const user = authData.user;
 
     const body = await req.json();
     const { organization_id, file_name, preview_only } = body;
@@ -807,105 +717,106 @@ Deno.serve(async (req) => {
       });
     }
 
-    const contentSize = (body.text_content?.length || 0) + (body.file_data?.length || 0);
-    if (contentSize > 15_000_000) {
-      return new Response(JSON.stringify({ error: "File too large (max 10MB)" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ─── PARSE ───────────────────────────────────────────
-    let result: ParseResult;
+    // ─── PARSE STRATEGY ──────────────────────────────────
+    // 1. Extract text from PDF
+    // 2. If text found (>200 chars), send TEXT to Gemini (small payload)
+    // 3. If no text (scanned PDF), send PDF to Gemini Vision (large payload)
+    let result!: ParseResult;
 
     if (body.file_data) {
-      console.log(`[MAIN] PDF upload detected (${(body.file_data.length / 1024 / 1024).toFixed(2)} MB base64)`);
+      const base64Size = body.file_data.length;
+      console.log(`[MAIN] PDF upload: ${(base64Size / 1024 / 1024).toFixed(2)} MB base64, file: ${file_name}`);
 
-      // Try Gemini Vision with retry
-      let visionError: string | null = null;
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      // Step 1: Extract text from PDF
+      let extractedText = "";
+      try {
+        const pdfBytes = base64ToUint8Array(body.file_data);
+        const { text } = await extractTextFromPDF(pdfBytes);
+        extractedText = text.replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+        console.log(`[MAIN] Text extracted: ${extractedText.length} chars`);
+      } catch (e: any) {
+        console.error(`[MAIN] Text extraction failed: ${e.message}`);
+      }
+
+      // Step 2: If we have meaningful text, use Gemini TEXT mode (much smaller payload)
+      if (extractedText.length > 200) {
+        console.log(`[MAIN] Using Gemini TEXT mode (${extractedText.length} chars)`);
         try {
-          result = await parseWithGeminiVision(body.file_data, attempt);
-          console.log(`[MAIN] Vision parsed (attempt ${attempt}): ${result.employees.length} employees, ${result.punches.length} punches`);
-          visionError = null;
-          break;
-        } catch (err: any) {
-          visionError = err.message;
-          console.error(`[MAIN] Vision attempt ${attempt} failed: ${visionError}`);
-          if (attempt < 2 && !visionError.includes("too large") && !visionError.includes("Rate limited") && !visionError.includes("credits")) {
-            // Wait 2s before retry
-            await new Promise(r => setTimeout(r, 2000));
-          }
+          result = await parseWithGeminiText(extractedText);
+          console.log(`[MAIN] Gemini text parsed: ${result.employees.length} employees`);
+        } catch (textErr: any) {
+          console.error(`[MAIN] Gemini text failed: ${textErr.message}`);
+          // Fall through to vision
         }
       }
 
-      if (visionError) {
-        // Fallback to text extraction
-        console.log(`[MAIN] All vision attempts failed, falling back to text extraction...`);
+      // Step 3: If text mode failed or no text, try Vision
+      if (!result || result.employees.length === 0) {
+        console.log(`[MAIN] Falling back to Gemini Vision...`);
         try {
-          const pdfBytes = base64ToUint8Array(body.file_data);
-          const { text: rawText } = await extractTextFromPDF(pdfBytes);
-          const normalized = rawText.replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+          result = await parseWithGeminiVision(body.file_data);
+          console.log(`[MAIN] Vision parsed: ${result.employees.length} employees`);
+        } catch (visionErr: any) {
+          console.error(`[MAIN] Vision also failed: ${visionErr.message}`);
 
-          if (normalized.length < 50) {
-            return new Response(JSON.stringify({
-              success: false,
-              error: `Vision parsing failed (${visionError}) and text extraction yielded insufficient content (${normalized.length} chars). This PDF may be scanned/image-based. Try re-exporting from the biometric software or use a smaller file.`,
-              parse_errors: [visionError],
-              suggestions: [
-                "Re-export the report from your biometric software (Secureye ONtime)",
-                "If the PDF has many pages, split it into smaller files (10-15 pages each)",
-                "Try exporting as Excel/CSV instead of PDF",
-                "Ensure the PDF is not password-protected",
-              ],
-              total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
-            }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-          }
-
-          result = await parseAttendanceText(normalized, "text_fallback");
-        } catch (textErr: any) {
+          // Both failed
           return new Response(JSON.stringify({
             success: false,
-            error: `Both Vision and text parsing failed. Vision: ${visionError}. Text: ${textErr.message}`,
-            parse_errors: [visionError, textErr.message],
+            error: `Could not parse this PDF. ${visionErr.message}`,
+            parse_errors: [visionErr.message],
+            suggestions: [
+              "Try exporting as Excel/CSV from the biometric software",
+              "Split large PDFs into smaller files (10-15 pages)",
+              "Ensure the PDF is not password-protected",
+              "Re-export from Secureye ONtime software",
+            ],
             total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
           }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
       }
 
-      // @ts-ignore — result is assigned in the loop above
-      if (!result!) {
-        return new Response(JSON.stringify({
-          success: false, error: "Parse failed unexpectedly",
-          total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
-        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
     } else if (body.text_content) {
-      result = await parseAttendanceText(body.text_content, "plain_text");
+      // Direct text/CSV input
+      try {
+        result = await parseWithGeminiText(body.text_content);
+      } catch {
+        // Fallback to regex parsers
+        const format = detectFormat(body.text_content);
+        let employees: ParsedEmployee[] = [];
+        let errors: string[] = [];
+        if (format === "detailed") {
+          const r = parseDetailedFormat(body.text_content);
+          employees = r.employees; errors = r.errors;
+        } else {
+          const r = parseSummaryFormat(body.text_content);
+          employees = r.employees; errors = r.errors;
+        }
+        result = {
+          punches: buildPunches(employees), employees, errors, warnings: [],
+          format, metadata: { extraction_method: "regex", employees_detected: employees.length, validation_passed: employees.length > 0 },
+        };
+      }
     } else {
-      return new Response(JSON.stringify({ error: "No file content. Send file_data (PDF base64) or text_content (TXT/CSV)." }), {
+      return new Response(JSON.stringify({ error: "No file content. Send file_data (PDF base64) or text_content." }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log(`[MAIN] Parse result: format=${result.format}, employees=${result.metadata.employees_detected}, punches=${result.punches.length}`);
+    console.log(`[MAIN] Final: ${result.employees.length} employees, ${result.punches.length} punches, method=${result.metadata.extraction_method}`);
 
     // ─── PREVIEW MODE ────────────────────────────────────
     if (preview_only) {
       return new Response(JSON.stringify({
-        success: result.punches.length > 0 || result.employees.length > 0,
+        success: result.employees.length > 0,
         preview: true,
         employees: result.employees.map(e => ({
           employee_code: e.employee_code,
           employee_name: e.employee_name,
           department: e.department,
           records: e.records.map(r => ({
-            date: r.date,
-            in_time: r.in_time,
-            out_time: r.out_time,
-            late_minutes: r.late_minutes,
-            early_departure: r.early_departure,
-            work_hours: r.work_hours,
-            status: r.status,
+            date: r.date, in_time: r.in_time, out_time: r.out_time,
+            late_minutes: r.late_minutes, early_departure: r.early_departure,
+            work_hours: r.work_hours, status: r.status,
           })),
         })),
         total_records: result.employees.reduce((s, e) => s + e.records.length, 0),
@@ -922,10 +833,8 @@ Deno.serve(async (req) => {
     if (result.punches.length === 0) {
       return new Response(JSON.stringify({
         success: false,
-        error: result.errors.length > 0 ? result.errors[0] : "No attendance records could be parsed from the file",
+        error: result.errors[0] || "No attendance records could be parsed",
         parse_errors: result.errors,
-        format: result.format,
-        extraction_method: result.metadata.extraction_method,
         total_parsed: 0, inserted: 0, duplicates_skipped: 0, matched_employees: 0, unmatched_codes: [],
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -950,7 +859,6 @@ Deno.serve(async (req) => {
     for (const code of uniqueCodes) {
       const match = empDetails?.find((e: any) => e.employee_id_number === code);
       if (match) { codeToProfileId.set(code, match.profile_id); continue; }
-
       const punchName = result.punches.find(p => p.employee_code === code)?.employee_name;
       if (punchName) {
         const profileMatch = profiles?.find((p: any) => p.full_name?.toLowerCase() === punchName.toLowerCase());
@@ -977,7 +885,6 @@ Deno.serve(async (req) => {
     let insertedCount = 0;
     let duplicateCount = 0;
 
-    // Batch insert with duplicate detection
     for (const row of insertRows) {
       const { data: existing } = await adminClient
         .from("attendance_punches")
@@ -997,7 +904,7 @@ Deno.serve(async (req) => {
     // ─── LOG THE UPLOAD ──────────────────────────────────
     await adminClient.from("attendance_upload_logs").insert({
       organization_id,
-      uploaded_by: user!.id,
+      uploaded_by: user.id,
       file_name: file_name || "unknown",
       file_type: file_name?.split(".").pop()?.toLowerCase() || "pdf",
       total_punches: insertedCount,
@@ -1054,3 +961,96 @@ Deno.serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
+
+// ─── Legacy regex parsers (fallback for text_content) ────────
+
+function parseDetailedFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
+  const errors: string[] = [];
+  const empBlockAnchor = /(?=(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID)|Staff\s*(?:Code|ID)|Badge\s*No)\s*:)/i;
+  const empBlockTest = /(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID)|Staff\s*(?:Code|ID)|Badge\s*No)\s*:/i;
+  const blocks = text.split(empBlockAnchor).filter(b => empBlockTest.test(b));
+  if (blocks.length === 0) return { employees: [], errors: ["No employee blocks found"] };
+
+  const empMap = new Map<string, ParsedEmployee>();
+  for (const block of blocks) {
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+    let empCode = "", empName = "";
+    for (const line of lines) {
+      const cm = line.match(/(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID))\s*:\s*(\S+)/i);
+      if (cm) empCode = cm[1].trim();
+      const nm = line.match(/Name\s*:\s*(.+?)(?:\s+Card|\s+Emp|\s*$)/i);
+      if (nm) empName = nm[1].trim();
+    }
+    if (!empCode) continue;
+    const records: EmployeeRecord[] = [];
+    for (const line of lines) {
+      const dateMatch = line.match(/^(\d{4}[\/\-]\d{2}[\/\-]\d{2})/) || line.match(/^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/);
+      if (!dateMatch) continue;
+      const isoDate = normalizeDate(dateMatch[1]);
+      if (!isoDate) continue;
+      const timeMatches = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?(?:\s*[AaPp][Mm])?/g) || [];
+      const normalizedTimes = timeMatches.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
+      const statusMatch = line.match(/\b(P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|PL|OD|CO|LWP|AB|PRESENT|ABSENT)\b/i);
+      const status = statusMatch ? (normalizeStatus(statusMatch[1]) || statusMatch[1].toUpperCase()) : undefined;
+      records.push({
+        date: isoDate, status,
+        in_time: normalizedTimes[0] || null,
+        out_time: normalizedTimes.length > 1 ? normalizedTimes[normalizedTimes.length - 1] : null,
+        punches: normalizedTimes,
+      });
+    }
+    if (!empMap.has(empCode)) empMap.set(empCode, { employee_code: empCode, employee_name: empName, records });
+    else {
+      const existing = empMap.get(empCode)!;
+      const existingDates = new Set(existing.records.map(r => r.date));
+      for (const rec of records) if (!existingDates.has(rec.date)) existing.records.push(rec);
+    }
+  }
+  return { employees: Array.from(empMap.values()), errors };
+}
+
+function parseSummaryFormat(text: string): { employees: ParsedEmployee[]; errors: string[] } {
+  const errors: string[] = [];
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const empMap = new Map<string, ParsedEmployee>();
+  let globalDate: string | null = null;
+  for (const line of lines) {
+    const dm = line.match(/(?:On\s*Dated?|Date)\s*:\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}|\d{4}[\/\-]\d{2}[\/\-]\d{2})/i);
+    if (dm) { globalDate = normalizeDate(dm[1]); break; }
+  }
+  for (const line of lines) {
+    if (/Company\s*Name|Location\s*:|Attendance\s*Report|S\s*No\s+EMP/i.test(line)) continue;
+    const inlineDateMatch = line.match(/(\d{4}[\/\-]\d{2}[\/\-]\d{2})/) || line.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/);
+    let rowDate: string | null = null;
+    if (inlineDateMatch) rowDate = normalizeDate(inlineDateMatch[1]);
+    const effectiveDate = rowDate || globalDate;
+    if (!effectiveDate) continue;
+    const timeTokens = line.match(/\d{1,2}:\d{2}(?:[:.]\d{2})?(?:\s*[AaPp][Mm])?/g) || [];
+    const validTimes = timeTokens.map(t => normalizeTime(t)).filter((t): t is string => t !== null);
+    const statusMatch = line.match(/\b(PRESENT|ABSENT|P|A|HD|MIS|NA|WO|WFH|CL|SL|EL|AB)\b/i);
+    const status = statusMatch ? (normalizeStatus(statusMatch[1]) || statusMatch[1].toUpperCase()) : undefined;
+    let empCode = "";
+    const rowMatch = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)(?:\s+General|\s+Shift|\s+\d{1,2}:\d{2})/i);
+    if (rowMatch) empCode = rowMatch[2];
+    if (!empCode) { const em = line.match(/(?:^\d+\s+)?(\d{1,10})\s+(?:\d{2}\/\d{2}\/\d{4}|[A-Z][a-z])/); if (em) empCode = em[1]; }
+    if (!empCode) continue;
+    if (!empMap.has(empCode)) empMap.set(empCode, { employee_code: empCode, employee_name: "", records: [] });
+    const emp = empMap.get(empCode)!;
+    if (!emp.records.some(r => r.date === effectiveDate)) {
+      emp.records.push({ date: effectiveDate, status, in_time: validTimes[0] || null, out_time: validTimes[1] || null, punches: validTimes });
+    }
+  }
+  return { employees: Array.from(empMap.values()), errors };
+}
+
+function detectFormat(text: string): string {
+  const hasEmpCodeHeader = /Employee\s*(?:Code|ID|No)\s*:/i.test(text) || /Emp\.?\s*(?:Code|ID)\s*:/i.test(text);
+  const empCodeOccurrences = (text.match(/(?:Employee\s*(?:Code|ID|No)|Emp\.?\s*(?:Code|ID))\s*:/gi) || []).length;
+  const hasInTimeCol = /In\s*Time|Clock\s*In|Entry\s*Time/i.test(text);
+  const hasOutTimeCol = /Out\s*Time|Clock\s*Out|Exit\s*Time/i.test(text);
+  const hasEmpCodeCol = /EMP\s*Code|Employee\s*(?:Code|ID)/i.test(text);
+  if (hasEmpCodeHeader && empCodeOccurrences >= 2) return "detailed";
+  if (hasEmpCodeCol && hasInTimeCol && hasOutTimeCol) return "summary";
+  if (hasEmpCodeHeader) return "detailed";
+  return "unknown";
+}
