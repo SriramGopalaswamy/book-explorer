@@ -804,18 +804,46 @@ Deno.serve(async (req) => {
       }
 
       // Step 2: If we have meaningful text, use Gemini TEXT mode (much smaller payload)
-      if (extractedText.length > 200) {
+      if (extractedText.length > 80) {
         console.log(`[MAIN] Using Gemini TEXT mode (${extractedText.length} chars)`);
         try {
           result = await parseWithGeminiText(extractedText);
           console.log(`[MAIN] Gemini text parsed: ${result.employees.length} employees`);
         } catch (textErr: any) {
           console.error(`[MAIN] Gemini text failed: ${textErr.message}`);
-          // Fall through to vision
+          // Fall through to local regex and then vision
         }
       }
 
-      // Step 3: If text mode failed or no text, try Vision
+      // Step 2b: Local regex fallback when we have some text but Gemini text failed
+      if ((!result || result.employees.length === 0) && extractedText.length > 0) {
+        try {
+          const format = detectFormat(extractedText);
+          const parsed = format === "detailed"
+            ? parseDetailedFormat(extractedText)
+            : parseSummaryFormat(extractedText);
+
+          if (parsed.employees.length > 0) {
+            result = {
+              punches: buildPunches(parsed.employees),
+              employees: parsed.employees,
+              errors: parsed.errors,
+              warnings: [],
+              format,
+              metadata: {
+                extraction_method: "regex_fallback",
+                employees_detected: parsed.employees.length,
+                validation_passed: true,
+              },
+            };
+            console.log(`[MAIN] Regex fallback parsed: ${result.employees.length} employees`);
+          }
+        } catch (regexErr: any) {
+          console.error(`[MAIN] Regex fallback failed: ${regexErr.message}`);
+        }
+      }
+
+      // Step 3: If text mode + regex failed or no text, try Vision
       if (!result || result.employees.length === 0) {
         console.log(`[MAIN] Falling back to Gemini Vision...`);
         try {
