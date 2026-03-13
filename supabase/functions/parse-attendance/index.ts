@@ -441,41 +441,106 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
   const pageMatches = raw.match(/\/Type\s*\/Page(?!\s*s)/g);
   const pages = pageMatches ? pageMatches.length : 0;
 
-  const streams: string[] = [];
-  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let match: RegExpExecArray | null;
-  while ((match = streamRegex.exec(raw)) !== null) streams.push(match[1]);
+  interface PdfStreamEntry {
+    dict: string;
+    bytes: Uint8Array;
+  }
+
+  const streamEntries: PdfStreamEntry[] = [];
+
+  // Primary strategy: length-based extraction (robust against binary "endstream" bytes inside payload)
+  const streamObjRegex = /(<<[\s\S]*?>>)\s*stream\r?\n/g;
+  let streamObjMatch: RegExpExecArray | null;
+  while ((streamObjMatch = streamObjRegex.exec(raw)) !== null) {
+    const dict = streamObjMatch[1];
+    const lengthMatch = dict.match(/\/Length\s+(\d+)/i);
+    if (!lengthMatch) continue;
+
+    const length = Number(lengthMatch[1]);
+    if (!Number.isFinite(length) || length <= 0) continue;
+
+    const streamStart = streamObjRegex.lastIndex;
+    const streamEnd = streamStart + length;
+    if (streamEnd > raw.length) continue;
+
+    const rawSlice = raw.slice(streamStart, streamEnd);
+    const bytes = Uint8Array.from(rawSlice, (c) => c.charCodeAt(0) & 0xff);
+    streamEntries.push({ dict, bytes });
+
+    // Skip to end of this stream payload to avoid nested/duplicate captures
+    streamObjRegex.lastIndex = streamEnd;
+  }
+
+  // Fallback strategy: delimiter-based extraction
+  if (streamEntries.length === 0) {
+    const fallbackRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let fallbackMatch: RegExpExecArray | null;
+    while ((fallbackMatch = fallbackRegex.exec(raw)) !== null) {
+      const bytes = Uint8Array.from(fallbackMatch[1], (c) => c.charCodeAt(0) & 0xff);
+      streamEntries.push({ dict: "", bytes });
+    }
+  }
 
   const decodedStreams: string[] = [];
-  for (const stream of streams) {
+
+  const inflate = async (bytes: Uint8Array): Promise<string | null> => {
     try {
-      const rawBytes = Uint8Array.from(stream, (c) => c.charCodeAt(0));
+      const ds = new DecompressionStream("deflate");
+      const writer = ds.writable.getWriter();
+      const reader = ds.readable.getReader();
+      writer.write(bytes).catch(() => {});
+      writer.close().catch(() => {});
+
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+
+      const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+      if (totalLen === 0) return null;
+
+      const merged = new Uint8Array(totalLen);
+      let off = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, off);
+        off += chunk.length;
+      }
+
+      return new TextDecoder("latin1").decode(merged);
+    } catch {
+      return null;
+    }
+  };
+
+  for (const entry of streamEntries) {
+    const { dict, bytes } = entry;
+    const hasFlate = /\/FlateDecode/i.test(dict);
+    const hasLzw = /\/LZWDecode/i.test(dict);
+
+    let decoded: string | null = null;
+
+    if (hasFlate || !dict) {
+      decoded = await inflate(bytes);
+    }
+
+    if (!decoded && hasLzw) {
       try {
-        const ds = new DecompressionStream("deflate");
-        const writer = ds.writable.getWriter();
-        const reader = ds.readable.getReader();
-        writer.write(rawBytes).catch(() => {});
-        writer.close().catch(() => {});
-        const chunks: Uint8Array[] = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) chunks.push(value);
-        }
-        const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-        const merged = new Uint8Array(totalLen);
-        let off = 0;
-        for (const chunk of chunks) { merged.set(chunk, off); off += chunk.length; }
-        const decoded = new TextDecoder("latin1").decode(merged);
-        if (decoded.length > 10) { decodedStreams.push(decoded); continue; }
-      } catch { /* fall through */ }
-      try {
-        const lzwDecoded2 = lzwDecode(rawBytes);
-        const decoded = new TextDecoder("latin1").decode(lzwDecoded2);
-        if (decoded.length > 10 && /BT|Tj|TJ/.test(decoded)) { decodedStreams.push(decoded); continue; }
-      } catch { /* fall through */ }
-      decodedStreams.push(stream);
-    } catch { decodedStreams.push(stream); }
+        const lzwDecoded = lzwDecode(bytes);
+        decoded = new TextDecoder("latin1").decode(lzwDecoded);
+      } catch {
+        decoded = null;
+      }
+    }
+
+    if (!decoded) {
+      decoded = new TextDecoder("latin1").decode(bytes);
+    }
+
+    if (decoded.length > 10) {
+      decodedStreams.push(decoded);
+    }
   }
 
   interface TextToken { x: number; y: number; text: string; }
