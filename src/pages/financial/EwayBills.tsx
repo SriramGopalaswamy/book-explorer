@@ -92,6 +92,7 @@ export default function EwayBills() {
   const [editForm, setEditForm] = useState<EwayBillInsert>(INITIAL_FORM);
   const [editTab, setEditTab] = useState("partA");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [viewingBill, setViewingBill] = useState<EwayBill | null>(null);
 
   const filtered = ewayBills.filter(
     (b) =>
