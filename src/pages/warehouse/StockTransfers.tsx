@@ -56,6 +56,29 @@ export default function StockTransfers() {
     });
   };
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
+  const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
+
+  const openEdit = (t: StockTransfer) => {
+    setEditingTransfer(t);
+    setEditForm({ from_warehouse_id: t.from_warehouse_id || "", to_warehouse_id: t.to_warehouse_id || "", transfer_date: t.transfer_date, notes: t.notes || "" });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTransfer) return;
+    try {
+      const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id);
+      if (error) throw error;
+      toast.success("Transfer updated");
+      setEditDialogOpen(false);
+      setEditingTransfer(null);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const columns: Column<StockTransfer>[] = [
     { key: "transfer_number", header: "Transfer #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.transfer_number}</span> },
     { key: "transfer_date", header: "Date", render: (r) => format(new Date(r.transfer_date), "dd MMM yyyy") },
@@ -71,6 +94,14 @@ export default function StockTransfers() {
       ),
     },
     { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
+    {
+      key: "actions" as any, header: "Actions",
+      render: (r) => r.status === "draft" ? (
+        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
+          <Pencil className="h-4 w-4 mr-1" /> Edit
+        </Button>
+      ) : null,
+    },
   ];
 
   return (
