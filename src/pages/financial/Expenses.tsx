@@ -225,7 +225,7 @@ export default function Expenses() {
     setReceiptFile(null);
   };
 
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const totalExpenses = expenses.filter(e => e.status === "approved" || e.status === "paid").reduce((s, e) => s + e.amount, 0);
   const pendingAmount = expenses.filter(e => e.status === "pending").reduce((s, e) => s + e.amount, 0);
   const approvedAmount = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
   const paidAmount = expenses.filter(e => e.status === "paid").reduce((s, e) => s + e.amount, 0);
