@@ -93,13 +93,17 @@ export default function EwayBills() {
   const [editTab, setEditTab] = useState("partA");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [viewingBill, setViewingBill] = useState<EwayBill | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const filtered = ewayBills.filter(
-    (b) =>
-      (b.eway_bill_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.document_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.to_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.vehicle_number ?? "").toLowerCase().includes(search.toLowerCase())
+    (b) => {
+      const matchesSearch = (b.eway_bill_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.document_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.to_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.vehicle_number ?? "").toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || b.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    }
   );
 
   const counts = {
