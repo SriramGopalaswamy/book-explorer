@@ -73,7 +73,7 @@ export default function EInvoices() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("1");
   const [cancelRemark, setCancelRemark] = useState("");
-
+  const [viewingEInvoice, setViewingEInvoice] = useState<any>(null);
   // Create form state
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState({
