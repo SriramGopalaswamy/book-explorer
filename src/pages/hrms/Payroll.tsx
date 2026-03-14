@@ -998,6 +998,11 @@ export default function Payroll() {
                       </div>
                     </div>
                   )}
+
+                  {/* Bulk Upload History inside register tab */}
+                  <div className="mt-6">
+                    <BulkUploadHistory module="payroll" />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
