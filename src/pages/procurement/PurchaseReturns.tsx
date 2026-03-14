@@ -48,7 +48,7 @@ export default function PurchaseReturnsPage() {
   });
 
   const filtered = returns.filter(r => {
-    const matchSearch = !search || r.return_number.toLowerCase().includes(search.toLowerCase()) || r.vendor_name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || r.return_number.toLowerCase().includes(search.toLowerCase()) || r.vendor_name.toLowerCase().includes(search.toLowerCase()) || (r.reason && r.reason.toLowerCase().includes(search.toLowerCase()));
     const matchStatus = statusFilter === "all" || r.status === statusFilter;
     const matchDateFrom = !dateFrom || !isBefore(new Date(r.return_date), new Date(dateFrom));
     const matchDateTo = !dateTo || !isAfter(new Date(r.return_date), new Date(dateTo));
