@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2 } from "lucide-react";
+import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
 import { useWarehouses, useItems } from "@/hooks/useInventory";
 import { format } from "date-fns";
@@ -56,6 +58,29 @@ export default function StockTransfers() {
     });
   };
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
+  const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
+
+  const openEdit = (t: StockTransfer) => {
+    setEditingTransfer(t);
+    setEditForm({ from_warehouse_id: t.from_warehouse_id || "", to_warehouse_id: t.to_warehouse_id || "", transfer_date: t.transfer_date, notes: t.notes || "" });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTransfer) return;
+    try {
+      const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id);
+      if (error) throw error;
+      toast.success("Transfer updated");
+      setEditDialogOpen(false);
+      setEditingTransfer(null);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const columns: Column<StockTransfer>[] = [
     { key: "transfer_number", header: "Transfer #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.transfer_number}</span> },
     { key: "transfer_date", header: "Date", render: (r) => format(new Date(r.transfer_date), "dd MMM yyyy") },
@@ -71,6 +96,14 @@ export default function StockTransfers() {
       ),
     },
     { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
+    {
+      key: "actions" as any, header: "Actions",
+      render: (r) => r.status === "draft" ? (
+        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
+          <Pencil className="h-4 w-4 mr-1" /> Edit
+        </Button>
+      ) : null,
+    },
   ];
 
   return (
@@ -138,6 +171,21 @@ export default function StockTransfers() {
 
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No transfers yet" />
+
+        {/* Edit Draft Transfer */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Edit Stock Transfer</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div><Label>Transfer Date</Label><Input type="date" value={editForm.transfer_date} onChange={(e) => setEditForm({ ...editForm, transfer_date: e.target.value })} /></div>
+              <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveEdit}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

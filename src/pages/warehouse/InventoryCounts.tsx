@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,12 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil } from "lucide-react";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
   InventoryCount,
 } from "@/hooks/useWarehouse";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useWarehouses } from "@/hooks/useInventory";
 import { useItems } from "@/hooks/useInventory";
 import { format } from "date-fns";
@@ -103,11 +107,26 @@ export default function InventoryCounts() {
   const { data: items = [] } = useItems();
   const createCount = useCreateInventoryCount();
 
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingCount, setEditingCount] = useState<InventoryCount | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+
+  const approve = useApproveInventoryCount();
+  const deleteCountMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
+      if (error) console.warn("Lines delete:", error);
+      const { error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id);
+      if (e2) throw e2;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inventory-counts"] }); toast.success("Count deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteCount = (id: string) => deleteCountMutation.mutate(id);
   const [countItems, setCountItems] = useState<CountItemRow[]>([{ item_name: "", expected_qty: 0 }]);
 
   const stats = {
@@ -188,21 +207,66 @@ export default function InventoryCounts() {
           ) : counts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No inventory counts yet. Create your first count above.</div>
           ) : (
-            counts.map((count) => (
-              <div key={count.id} className="border-b last:border-b-0">
-                <div className="grid grid-cols-5 gap-4 px-4 py-3 items-center hover:bg-muted/30">
-                  <button className="flex items-center gap-1 font-mono font-semibold text-foreground hover:text-primary col-span-1 text-left" onClick={() => toggleExpand(count.id)}>
-                    {expanded.has(count.id) ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                    {count.count_number}
-                  </button>
-                  <span className="text-sm">{format(new Date(count.count_date), "dd MMM yyyy")}</span>
-                  <span className="text-sm text-muted-foreground">{(warehouses.find((w: any) => w.id === count.warehouse_id) as any)?.name || count.warehouse_id}</span>
-                  <Badge className={statusColors[count.status] || ""}>{count.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
-                  <span className="text-sm text-muted-foreground truncate">{count.notes || "—"}</span>
-                </div>
-                {expanded.has(count.id) && <CountLinesPanel countId={count.id} countStatus={count.status} />}
-              </div>
-            ))
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Count #</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Date</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Warehouse</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Notes</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {counts.map((count) => (
+                      <React.Fragment key={count.id}>
+                        <tr className="border-b last:border-b-0 hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <button className="flex items-center gap-1 font-mono font-semibold text-foreground hover:text-primary text-left" onClick={() => toggleExpand(count.id)}>
+                              {expanded.has(count.id) ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                              {count.count_number}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">{format(new Date(count.count_date), "dd MMM yyyy")}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{(warehouses.find((w: any) => w.id === count.warehouse_id) as any)?.name || count.warehouse_id}</td>
+                          <td className="px-4 py-3"><Badge className={statusColors[count.status] || ""}>{count.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></td>
+                          <td className="px-4 py-3 text-muted-foreground truncate max-w-[160px]">{count.notes || "—"}</td>
+                          <td className="px-4 py-3">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Details
+                                </DropdownMenuItem>
+                                {count.status === "draft" && (
+                                  <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                )}
+                                {count.status !== "approved" && (
+                                  <DropdownMenuItem onClick={() => approve.mutate(count.id)}>
+                                    <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
+                                  </DropdownMenuItem>
+                                )}
+                                {count.status === "draft" && (
+                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                        {expanded.has(count.id) && (
+                          <tr><td colSpan={6}><CountLinesPanel countId={count.id} countStatus={count.status} /></td></tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
           )}
         </div>
 

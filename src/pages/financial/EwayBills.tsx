@@ -93,13 +93,17 @@ export default function EwayBills() {
   const [editTab, setEditTab] = useState("partA");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [viewingBill, setViewingBill] = useState<EwayBill | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const filtered = ewayBills.filter(
-    (b) =>
-      (b.eway_bill_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.document_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.to_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.vehicle_number ?? "").toLowerCase().includes(search.toLowerCase())
+    (b) => {
+      const matchesSearch = (b.eway_bill_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.document_number ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.to_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (b.vehicle_number ?? "").toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || b.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    }
   );
 
   const counts = {
@@ -185,6 +189,17 @@ export default function EwayBills() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input placeholder="Search bills..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
                 </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="generated">Generated</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -265,7 +280,11 @@ export default function EwayBills() {
                                   </DropdownMenuItem>
                                 )}
                                 {bill.status === "active" && (
-                                  <DropdownMenuItem onClick={() => update({ id: bill.id, status: "extended", extended_count: (bill.extended_count || 0) + 1, valid_until: new Date(new Date(bill.valid_until!).getTime() + 24 * 60 * 60 * 1000).toISOString() })}>
+                                  <DropdownMenuItem onClick={() => {
+                                    const baseDate = bill.valid_until ? new Date(bill.valid_until) : new Date();
+                                    const newValid = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+                                    update({ id: bill.id, status: "extended", extended_count: (bill.extended_count || 0) + 1, valid_until: newValid });
+                                  }}>
                                     <RefreshCw className="h-4 w-4 mr-2" /> Extend Validity (+1 day)
                                   </DropdownMenuItem>
                                 )}

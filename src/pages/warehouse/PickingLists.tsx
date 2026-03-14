@@ -23,6 +23,7 @@ const statusColors: Record<string, string> = {
 };
 
 const TRANSITIONS: Record<string, string[]> = {
+  pending: ["in_progress", "cancelled"],
   draft: ["in_progress", "cancelled"],
   in_progress: ["completed", "cancelled"],
   completed: [],

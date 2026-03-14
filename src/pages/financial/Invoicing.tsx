@@ -312,6 +312,8 @@ export default function Invoicing() {
   const handleEditInvoice = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     setEditSelectedCustomerId(invoice.customer_id || "");
+    // Ensure customer_id is set before opening dialog so Select pre-populates
+    setTimeout(() => setEditSelectedCustomerId(invoice.customer_id || ""), 0);
     const items = invoice.invoice_items || [];
     setEditLineItems(
       items.length > 0
@@ -653,13 +655,17 @@ export default function Invoicing() {
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label>Customer *</Label>
-                      <Select value={editSelectedCustomerId} onValueChange={(val) => {
-                        setEditSelectedCustomerId(val);
-                        const cust = customers.find(c => c.id === val);
-                        if (cust?.tax_number) {
-                          setEditFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
-                        }
-                      }}>
+                      <Select
+                        key={editSelectedCustomerId}
+                        value={editSelectedCustomerId}
+                        onValueChange={(val) => {
+                          setEditSelectedCustomerId(val);
+                          const cust = customers.find(c => c.id === val);
+                          if (cust?.tax_number) {
+                            setEditFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
+                          }
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                         <SelectContent>
                           {customers.map((c) => (

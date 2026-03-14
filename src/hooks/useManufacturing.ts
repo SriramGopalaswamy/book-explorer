@@ -420,13 +420,13 @@ export function usePostFinishedGoods() {
         .insert({
           work_order_id: params.work_order_id,
           product_name: params.product_name,
-          product_item_id: params.product_item_id ?? null,
+          item_id: params.product_item_id ?? null,
           quantity: params.quantity,
           rejected_quantity: params.rejected_quantity ?? 0,
           cost_per_unit: params.cost_per_unit ?? null,
           total_cost: totalCost,
           posted_at: new Date().toISOString(),
-          posted_by: user.id,
+          warehouse_id: params.warehouse_id ?? null,
           notes: params.notes ?? null,
           organization_id: callerProfile.organization_id,
         } as any)
