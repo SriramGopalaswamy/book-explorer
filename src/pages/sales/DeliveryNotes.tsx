@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DataTable, Column } from "@/components/ui/data-table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Truck, PackageCheck, RotateCcw, ClipboardList, ExternalLink, MapPin } from "lucide-react";
+import { Truck, PackageCheck, RotateCcw, ClipboardList, ExternalLink, MapPin, MoreHorizontal, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -30,6 +32,11 @@ interface DeliveryNote {
   weight_kg: number | null;
   packages_count: number;
   created_at: string;
+  sales_order_id: string | null;
+  customer_id: string | null;
+  // joined fields
+  so_number?: string;
+  customer_name?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -58,9 +65,16 @@ export default function DeliveryNotes() {
   const { data: notes = [], isLoading } = useQuery({
     queryKey: ["delivery-notes"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("delivery_notes" as any).select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("delivery_notes" as any)
+        .select("*, sales_orders:sales_order_id(so_number, customer_name)")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as DeliveryNote[];
+      return ((data || []) as any[]).map((d: any) => ({
+        ...d,
+        so_number: d.sales_orders?.so_number || null,
+        customer_name: d.sales_orders?.customer_name || null,
+      })) as DeliveryNote[];
     },
   });
 
@@ -75,6 +89,8 @@ export default function DeliveryNotes() {
   });
 
   const [editDN, setEditDN] = useState<DeliveryNote | null>(null);
+  const [viewDN, setViewDN] = useState<DeliveryNote | null>(null);
+  const [viewItems, setViewItems] = useState<any[]>([]);
   const [shipForm, setShipForm] = useState({ carrier_name: "", tracking_number: "", tracking_url: "", shipping_method: "standard", estimated_delivery: "", shipping_cost: "", weight_kg: "", packages_count: "1" });
 
   const openShippingDialog = (dn: DeliveryNote) => {
@@ -89,6 +105,12 @@ export default function DeliveryNotes() {
       weight_kg: dn.weight_kg ? String(dn.weight_kg) : "",
       packages_count: String(dn.packages_count || 1),
     });
+  };
+
+  const openViewDialog = async (dn: DeliveryNote) => {
+    setViewDN(dn);
+    const { data } = await supabase.from("delivery_note_items" as any).select("*").eq("delivery_note_id", dn.id);
+    setViewItems((data as any[]) || []);
   };
 
   const handleSaveShipping = () => {
@@ -116,6 +138,8 @@ export default function DeliveryNotes() {
 
   const columns: Column<DeliveryNote>[] = [
     { key: "dn_number", header: "DN #", render: r => <span className="font-mono font-semibold text-foreground">{r.dn_number}</span> },
+    { key: "customer_name" as any, header: "Customer", render: r => <span className="text-foreground">{r.customer_name || "—"}</span> },
+    { key: "so_number" as any, header: "SO #", render: r => r.so_number ? <span className="font-mono text-xs text-foreground">{r.so_number}</span> : <span className="text-muted-foreground">—</span> },
     { key: "delivery_date", header: "Date", render: r => format(new Date(r.delivery_date), "dd MMM yyyy") },
     { key: "carrier_name", header: "Carrier", render: r => r.carrier_name ? <span className="text-foreground capitalize">{r.carrier_name.replace("_", " ")}</span> : <span className="text-muted-foreground">—</span> },
     { key: "tracking_number", header: "Tracking", render: r => r.tracking_number ? (
@@ -124,9 +148,16 @@ export default function DeliveryNotes() {
         {r.tracking_url && <a href={r.tracking_url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3 w-3 text-primary" /></a>}
       </div>
     ) : <span className="text-muted-foreground">—</span> },
-    { key: "estimated_delivery", header: "ETA", render: r => r.estimated_delivery ? format(new Date(r.estimated_delivery), "dd MMM") : <span className="text-muted-foreground">—</span> },
     { key: "status", header: "Status", render: r => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</Badge> },
-    { key: "id" as any, header: "Actions", render: r => <Button variant="outline" size="sm" onClick={() => openShippingDialog(r)}><MapPin className="h-3 w-3 mr-1" />Shipping</Button> },
+    { key: "id" as any, header: "Actions", render: r => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => openViewDialog(r)}><Eye className="h-4 w-4 mr-2" /> View Details</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => openShippingDialog(r)}><MapPin className="h-4 w-4 mr-2" /> Shipping</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) },
   ];
 
   return (
@@ -144,6 +175,52 @@ export default function DeliveryNotes() {
         </div>
 
         <DataTable columns={columns} data={notes} isLoading={isLoading} emptyMessage="No delivery notes yet. Create one from a Sales Order." />
+
+        {/* View Details Dialog */}
+        <Dialog open={!!viewDN} onOpenChange={v => { if (!v) setViewDN(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Delivery Note — {viewDN?.dn_number}</DialogTitle></DialogHeader>
+            {viewDN && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Customer</p><p className="font-medium text-foreground">{viewDN.customer_name || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">SO #</p><p className="font-medium font-mono text-foreground">{viewDN.so_number || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Delivery Date</p><p className="font-medium text-foreground">{format(new Date(viewDN.delivery_date), "dd MMM yyyy")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewDN.status] || ""}>{viewDN.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</Badge></div>
+                  {viewDN.carrier_name && <div><p className="text-xs text-muted-foreground">Carrier</p><p className="font-medium text-foreground capitalize">{viewDN.carrier_name.replace("_", " ")}</p></div>}
+                  {viewDN.tracking_number && <div><p className="text-xs text-muted-foreground">Tracking #</p><p className="font-mono text-sm text-foreground">{viewDN.tracking_number}</p></div>}
+                  {viewDN.shipping_cost > 0 && <div><p className="text-xs text-muted-foreground">Shipping Cost</p><p className="font-medium text-foreground">₹{Number(viewDN.shipping_cost).toLocaleString()}</p></div>}
+                  {viewDN.packages_count > 0 && <div><p className="text-xs text-muted-foreground">Packages</p><p className="font-medium text-foreground">{viewDN.packages_count}</p></div>}
+                </div>
+                {viewDN.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm text-foreground">{viewDN.notes}</p></div>}
+                {viewItems.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">Items</p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Description</TableHead>
+                          <TableHead className="text-xs text-right">Ordered</TableHead>
+                          <TableHead className="text-xs text-right">Shipped</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {viewItems.map((it: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-sm">{it.description}</TableCell>
+                            <TableCell className="text-sm text-right">{it.ordered_quantity}</TableCell>
+                            <TableCell className="text-sm text-right">{it.shipped_quantity}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setViewDN(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Shipping Details Dialog */}
         <Dialog open={!!editDN} onOpenChange={v => { if (!v) setEditDN(null); }}>

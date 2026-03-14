@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, ArrowRight, PackageCheck } from "lucide-react";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -50,6 +50,17 @@ export default function SalesOrders() {
       return data || [];
     },
   });
+
+  // Fetch existing delivery notes to know which SOs already have one
+  const { data: existingDNs = [] } = useQuery({
+    queryKey: ["delivery-notes-so-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("delivery_notes" as any).select("sales_order_id");
+      if (error) throw error;
+      return (data || []).map((d: any) => d.sales_order_id).filter(Boolean) as string[];
+    },
+  });
+
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
 
   const filtered = orders.filter((o) => {
@@ -85,6 +96,8 @@ export default function SalesOrders() {
     });
   };
 
+  const hasDN = (soId: string) => existingDNs.includes(soId);
+
   const columns: Column<SalesOrder>[] = [
     { key: "so_number", header: "SO #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.so_number}</span> },
     { key: "customer_name", header: "Customer" },
@@ -101,9 +114,14 @@ export default function SalesOrders() {
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
-            {["confirmed", "processing"].includes(r.status) && (
+            {["confirmed", "processing"].includes(r.status) && !hasDN(r.id) && (
               <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
                 <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
+              </DropdownMenuItem>
+            )}
+            {["confirmed", "processing"].includes(r.status) && hasDN(r.id) && (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                <PackageCheck className="h-4 w-4 mr-2" /> DN Already Created
               </DropdownMenuItem>
             )}
             {["delivered", "shipped"].includes(r.status) && (
