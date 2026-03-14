@@ -220,6 +220,7 @@ export default function WorkOrders() {
         </div>
       ),
     },
+    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[120px] block">{r.notes || "—"}</span> },
     { key: "planned_start", header: "Start", render: (r) => r.planned_start ? format(new Date(r.planned_start), "dd MMM") : <span className="text-muted-foreground">—</span> },
   ];
 
