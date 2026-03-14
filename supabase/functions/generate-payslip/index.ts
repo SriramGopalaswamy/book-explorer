@@ -6,24 +6,40 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Number to Indian English words
+function numberToWords(num: number): string {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  function twoDigits(n: number): string { return n < 20 ? ones[n] : tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : ''); }
+  function threeDigits(n: number): string { if (n === 0) return ''; if (n < 100) return twoDigits(n); return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + twoDigits(n % 100) : ''); }
+  if (num === 0) return 'Zero';
+  const n = Math.abs(Math.round(num));
+  const crore = Math.floor(n / 10000000);
+  const lakh = Math.floor((n % 10000000) / 100000);
+  const thousand = Math.floor((n % 100000) / 1000);
+  const rest = n % 1000;
+  let result = '';
+  if (crore) result += threeDigits(crore) + ' Crore ';
+  if (lakh) result += twoDigits(lakh) + ' Lakh ';
+  if (thousand) result += twoDigits(thousand) + ' Thousand ';
+  if (rest) result += threeDigits(rest);
+  return 'Rupees ' + result.trim() + ' Only';
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Auth guard — require Bearer token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
 
-    // Verify caller identity
     const supabaseAuth = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -33,295 +49,212 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsErr } = await supabaseAuth.auth.getClaims(token);
     if (claimsErr || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const userId = claimsData.claims.sub;
 
-    // Verify caller has admin, hr, or finance role
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: callerRoles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-
+    const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     const allowedRoles = ["admin", "hr", "finance"];
     const hasRole = (callerRoles ?? []).some((r: any) => allowedRoles.includes(r.role));
     if (!hasRole) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: insufficient role" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Forbidden: insufficient role" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { payroll_run_id, entry_ids } = await req.json();
 
     if (!payroll_run_id) {
-      return new Response(
-        JSON.stringify({ error: "payroll_run_id required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "payroll_run_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Verify run is locked
-    const { data: run, error: runErr } = await supabase
-      .from("payroll_runs")
-      .select("*")
-      .eq("id", payroll_run_id)
-      .single();
-
+    const { data: run, error: runErr } = await supabase.from("payroll_runs").select("*").eq("id", payroll_run_id).single();
     if (runErr || !run) {
-      return new Response(
-        JSON.stringify({ error: "Payroll run not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Payroll run not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
     if (run.status !== "locked") {
-      return new Response(
-        JSON.stringify({ error: "Payslips can only be generated for locked payroll runs" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Payslips can only be generated for locked payroll runs" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get org details
-    const { data: org } = await supabase
-      .from("organizations")
-      .select("name, address")
-      .eq("id", run.organization_id)
-      .single();
+    const { data: org } = await supabase.from("organizations").select("name, address").eq("id", run.organization_id).single();
 
-    // Fetch entries (optionally filter by entry_ids)
     let query = supabase
       .from("payroll_entries")
-      .select("*, profiles!profile_id(full_name, email, department, job_title)")
+      .select("*, profiles!profile_id(full_name, email, department, job_title, date_of_joining)")
       .eq("payroll_run_id", payroll_run_id);
 
-    if (entry_ids && entry_ids.length > 0) {
-      query = query.in("id", entry_ids);
-    }
-
-    // Only generate for entries that don't already have a payslip
+    if (entry_ids && entry_ids.length > 0) query = query.in("id", entry_ids);
     query = query.is("payslip_generated_at", null);
 
     const { data: entries, error: entErr } = await query;
-
     if (entErr) {
-      return new Response(
-        JSON.stringify({ error: entErr.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: entErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
     if (!entries || entries.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "All payslips already generated", generated: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ message: "All payslips already generated", generated: 0 }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Fetch employee details for PAN/UAN/Bank
     const profileIds = entries.map((e: any) => e.profile_id);
     const { data: empDetails } = await supabase
       .from("employee_details")
-      .select("profile_id, pan_number, uan_number, bank_account_number, bank_name, bank_ifsc, employee_id_number")
+      .select("profile_id, pan_number, uan_number, bank_account_number, bank_name, bank_ifsc, employee_id_number, date_of_joining")
       .in("profile_id", profileIds);
 
-    const detailsMap = new Map(
-      (empDetails ?? []).map((d: any) => [d.profile_id, d])
-    );
+    const detailsMap = new Map((empDetails ?? []).map((d: any) => [d.profile_id, d]));
 
     const [year, month] = run.pay_period.split("-");
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December",
-    ];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const periodLabel = `${months[parseInt(month) - 1]} ${year}`;
 
     let generatedCount = 0;
 
     for (const entry of entries) {
-      const details = detailsMap.get(entry.profile_id) || {};
-      const earnings = (entry.earnings_breakdown as any[]) || [];
-      const deductions = (entry.deductions_breakdown as any[]) || [];
-      const profile = entry.profiles || {};
+      const details: any = detailsMap.get(entry.profile_id) || {};
+      const profile: any = entry.profiles || {};
 
-      // Build payslip HTML
       const html = buildPayslipHTML({
-        companyName: org?.name || "Company",
-        companyAddress: org?.address || "",
+        companyName: org?.name || "GRX10 Solutions Pvt Ltd",
+        companyAddress: org?.address || "Bengaluru, Karnataka",
         periodLabel,
         employeeName: profile.full_name || "Employee",
         employeeId: details.employee_id_number || "—",
-        department: profile.department || "—",
         designation: profile.job_title || "—",
+        dateOfJoining: details.date_of_joining || profile.date_of_joining || "—",
         pan: details.pan_number || "—",
         uan: details.uan_number || "—",
+        bankName: details.bank_name || "—",
         bankAccount: details.bank_account_number || "—",
-        earnings,
-        deductions,
+        bankIfsc: details.bank_ifsc || "—",
+        earnings: (entry.earnings_breakdown as any[]) || [],
+        deductions: (entry.deductions_breakdown as any[]) || [],
         grossEarnings: entry.gross_earnings,
         totalDeductions: entry.total_deductions,
         netPay: entry.net_pay,
         workingDays: entry.working_days,
+        paidDays: entry.paid_days || 0,
         lwpDays: entry.lwp_days,
-        pfEmployee: entry.pf_employee || 0,
-        pfEmployer: entry.pf_employer || 0,
-        tdsAmount: entry.tds_amount || 0,
-        annualCTC: entry.annual_ctc,
       });
 
-      // Store as HTML payslip reference (in production this would be PDF via puppeteer)
-      // Mark as generated
       const payslipUrl = `payslip://${run.pay_period}/${entry.profile_id}`;
-      
-      await supabase
-        .from("payroll_entries")
-        .update({
-          payslip_url: payslipUrl,
-          payslip_generated_at: new Date().toISOString(),
-        })
-        .eq("id", entry.id);
-
+      await supabase.from("payroll_entries").update({ payslip_url: payslipUrl, payslip_generated_at: new Date().toISOString() }).eq("id", entry.id);
       generatedCount++;
     }
 
-    // Audit log
     await supabase.from("audit_logs").insert({
       actor_id: run.generated_by,
       action: "payslips_generated",
       entity_type: "payroll_run",
       entity_id: payroll_run_id,
       organization_id: run.organization_id,
-      metadata: {
-        pay_period: run.pay_period,
-        generated_count: generatedCount,
-      },
+      metadata: { pay_period: run.pay_period, generated_count: generatedCount },
     });
 
-    return new Response(
-      JSON.stringify({ success: true, generated: generatedCount }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ success: true, generated: generatedCount }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
 
 function buildPayslipHTML(data: {
-  companyName: string;
-  companyAddress: string;
-  periodLabel: string;
-  employeeName: string;
-  employeeId: string;
-  department: string;
-  designation: string;
-  pan: string;
-  uan: string;
-  bankAccount: string;
-  earnings: any[];
-  deductions: any[];
-  grossEarnings: number;
-  totalDeductions: number;
-  netPay: number;
-  workingDays: number;
-  lwpDays: number;
-  pfEmployee: number;
-  pfEmployer: number;
-  tdsAmount: number;
-  annualCTC: number;
+  companyName: string; companyAddress: string; periodLabel: string;
+  employeeName: string; employeeId: string; designation: string; dateOfJoining: string;
+  pan: string; uan: string; bankName: string; bankAccount: string; bankIfsc: string;
+  earnings: any[]; deductions: any[];
+  grossEarnings: number; totalDeductions: number; netPay: number;
+  workingDays: number; paidDays: number; lwpDays: number;
 }): string {
-  const fmt = (v: number) =>
-    `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const earningsRows = data.earnings
-    .map((e: any) => `<tr><td>${e.name}</td><td class="r">${fmt(e.monthly)}</td></tr>`)
-    .join("");
+  const maxRows = Math.max(data.earnings.length, data.deductions.length);
+  const padE = [...data.earnings, ...Array(Math.max(0, maxRows - data.earnings.length)).fill(null)];
+  const padD = [...data.deductions, ...Array(Math.max(0, maxRows - data.deductions.length)).fill(null)];
 
-  const deductionsRows = data.deductions
-    .map((d: any) => `<tr><td>${d.name}</td><td class="r">${fmt(d.monthly)}</td></tr>`)
-    .join("");
-
-  // Add statutory deductions
-  const statutoryRows = [
-    data.pfEmployee > 0 ? `<tr><td>PF (Employee)</td><td class="r">${fmt(data.pfEmployee)}</td></tr>` : "",
-    data.tdsAmount > 0 ? `<tr><td>TDS</td><td class="r">${fmt(data.tdsAmount)}</td></tr>` : "",
-  ].join("");
+  const rows = padE.map((e: any, i: number) => {
+    const d = padD[i];
+    return `<tr>
+      <td class="cell">${e ? e.name : ''}</td>
+      <td class="cell r">${e && (e.monthly || 0) > 0 ? fmt(e.monthly) : e ? '--' : ''}</td>
+      <td class="cell">${d ? d.name : ''}</td>
+      <td class="cell r">${d && (d.monthly || 0) > 0 ? fmt(d.monthly) : d ? '--' : ''}</td>
+    </tr>`;
+  }).join("");
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Payslip - ${data.employeeName} - ${data.periodLabel}</title>
+<html><head><meta charset="utf-8"><title>Pay Slip — ${data.employeeName} — ${data.periodLabel}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', sans-serif; color: #111; padding: 40px; max-width: 800px; margin: 0 auto; }
-  .header { border-bottom: 3px solid #e11d74; padding-bottom: 16px; margin-bottom: 20px; }
-  .header h1 { font-size: 20px; color: #e11d74; }
-  .header .period { font-size: 14px; color: #666; }
-  .emp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin-bottom: 20px; padding: 16px; background: #f9f9f9; border-radius: 8px; }
-  .emp-grid label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-  .emp-grid span { font-size: 13px; font-weight: 500; }
-  .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-  .section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #666; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 6px 0; font-size: 12px; }
-  .r { text-align: right; font-weight: 500; }
-  .total td { border-top: 2px solid #ccc; font-weight: 700; padding-top: 8px; }
-  .net-box { background: linear-gradient(135deg, #fdf2f8, #fce7f3); border: 1px solid #f9a8d4; border-radius: 10px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .net-box .label { font-size: 16px; font-weight: 600; }
-  .net-box .value { font-size: 24px; font-weight: 800; color: #e11d74; }
-  .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #eee; }
-  .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; color: #666; }
-  .watermark { text-align: center; margin-top: 16px; font-size: 10px; color: #ccc; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a1a; background: #fff; width: 700px; max-width: 700px; margin: 0 auto; padding: 30px 36px; }
+  .company-header { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
+  .company-name { font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .company-address { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.5; }
+  .payslip-title { text-align: center; font-size: 22px; font-weight: 600; font-style: italic; margin: 8px 0 16px; }
+  .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
+  .emp-header { background: #e11d74; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .emp-name { font-size: 15px; font-weight: 700; color: #e11d74; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+  .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .emp-grid .eg-label { font-size: 11px; font-weight: 600; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
+  .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
+  .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
+  .ed-table .ed-header th { background: #e11d74; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; text-align: left; border: 1px solid #c9176a; }
+  .ed-table .ed-header th.r { text-align: right; }
+  .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
+  .cell.r { text-align: right; font-weight: 500; }
+  .total-row td { border-top: 2px solid #999; font-weight: 700; font-size: 12px; padding: 7px 12px; }
+  .netpay-row td { font-weight: 700; font-size: 12px; padding: 7px 12px; border-top: 1px solid #ccc; }
+  .net-box { border: 2px solid #333; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .net-box .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
+  .net-box .sub { font-size: 11px; color: #888; font-style: italic; }
+  .net-box .amount { font-size: 24px; font-weight: 800; color: #e11d74; }
+  .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; }
+  .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
+  .footer .sig span { display: block; width: 140px; border-top: 1px solid #bbb; padding-top: 4px; margin-top: 30px; text-align: right; }
 </style></head><body>
-  <div class="header">
-    <h1>${data.companyName}</h1>
-    <div class="period">Payslip for ${data.periodLabel}</div>
-    ${data.companyAddress ? `<div style="font-size:11px;color:#888;">${data.companyAddress}</div>` : ""}
-  </div>
-  <div class="emp-grid">
-    <div><label>Employee Name</label><br><span>${data.employeeName}</span></div>
-    <div><label>Employee ID</label><br><span>${data.employeeId}</span></div>
-    <div><label>Department</label><br><span>${data.department}</span></div>
-    <div><label>Designation</label><br><span>${data.designation}</span></div>
-    <div><label>PAN</label><br><span>${data.pan}</span></div>
-    <div><label>UAN</label><br><span>${data.uan}</span></div>
-    <div><label>Bank Account</label><br><span>${data.bankAccount}</span></div>
-    <div><label>Annual CTC</label><br><span>${fmt(data.annualCTC)}</span></div>
-  </div>
-  <div class="tables">
-    <div class="section">
-      <h3>Earnings</h3>
-      <table><tbody>${earningsRows}
-      <tr class="total"><td>Gross Earnings</td><td class="r" style="color:green">${fmt(data.grossEarnings)}</td></tr>
-      </tbody></table>
-    </div>
-    <div class="section">
-      <h3>Deductions</h3>
-      <table><tbody>${deductionsRows}${statutoryRows}
-      <tr class="total"><td>Total Deductions</td><td class="r" style="color:red">${fmt(data.totalDeductions)}</td></tr>
-      </tbody></table>
+  <div class="company-header">
+    <div>
+      <div class="company-name">${data.companyName}</div>
+      <div class="company-address">${data.companyAddress}</div>
     </div>
   </div>
+  <div class="payslip-title">Pay Slip</div>
+
+  <div class="emp-section">
+    <div class="emp-header">Employee Summary</div>
+    <div class="emp-name">${data.employeeName}</div>
+    <div class="emp-grid">
+      <div class="eg-label">Employee ID</div><div class="eg-value">${data.employeeId}</div>
+      <div class="eg-label">PAN No</div><div class="eg-value">${data.pan}</div>
+      <div class="eg-label">Designation</div><div class="eg-value">${data.designation}</div>
+      <div class="eg-label">Bank Name</div><div class="eg-value">${data.bankName}</div>
+      <div class="eg-label">Date of Joining</div><div class="eg-value">${data.dateOfJoining}</div>
+      <div class="eg-label">Bank A/C No</div><div class="eg-value">${data.bankAccount}</div>
+      <div class="eg-label">Pay Period</div><div class="eg-value">${data.periodLabel}</div>
+      <div class="eg-label">IFSC Code</div><div class="eg-value">${data.bankIfsc}</div>
+      <div class="eg-label">Working Days</div><div class="eg-value">${data.workingDays}</div>
+      <div class="eg-label">UAN No</div><div class="eg-value">${data.uan}</div>
+      <div class="eg-label">Paid Days</div><div class="eg-value">${data.paidDays}</div>
+      <div class="eg-label">LOP</div><div class="eg-value">${data.lwpDays}</div>
+    </div>
+  </div>
+
+  <table class="ed-table">
+    <tr class="ed-header"><th>Earning</th><th class="r">Amount</th><th>Deduction</th><th class="r">Amount</th></tr>
+    ${rows}
+    <tr class="total-row">
+      <td>Total Earnings</td><td class="r" style="color:#16a34a">${fmt(data.grossEarnings)}</td>
+      <td>Total Deductions</td><td class="r" style="color:#dc2626">${fmt(data.totalDeductions)}</td>
+    </tr>
+    <tr class="netpay-row"><td colspan="2"></td><td><strong>Net Pay</strong></td><td class="r">${fmt(data.netPay)}</td></tr>
+  </table>
+
   <div class="net-box">
-    <div><div class="label">Net Pay</div><div style="font-size:11px;color:#888;">Gross - Deductions</div></div>
-    <div class="value">${fmt(data.netPay)}</div>
+    <div><div class="title">Total Net Payable</div><div class="sub">Gross Earnings - Total Deduction</div></div>
+    <div class="amount">Rs : ${Math.round(data.netPay).toLocaleString("en-IN")}/-</div>
   </div>
+  <div class="words-row">Amount in Words : ${numberToWords(data.netPay)}</div>
+
   <div class="footer">
-    <div class="footer-grid">
-      <div>Working Days: <strong>${data.workingDays}</strong></div>
-      <div>LOP Days: <strong>${data.lwpDays}</strong></div>
-      <div>Employer PF Contribution: <strong>${fmt(data.pfEmployer)}</strong></div>
-      <div>Generated: <strong>${new Date().toLocaleDateString("en-IN")}</strong></div>
-    </div>
+    <div>Generated: ${new Date().toLocaleDateString("en-IN")}</div>
+    <div class="sig"><span>Authorised Signatory</span></div>
   </div>
-  <div class="watermark">System Generated Payslip — No signature required if digitally authorised</div>
 </body></html>`;
 }
