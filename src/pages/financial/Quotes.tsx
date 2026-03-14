@@ -102,9 +102,17 @@ const getStatusConfig = (status: string) => {
 async function downloadQuotePdf(quoteId: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
-  const response = await supabase.functions.invoke("generate-quote-pdf", { body: { quoteId } });
-  if (response.error) throw new Error(response.error.message || "Failed to generate PDF");
-  const blob = response.data;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const resp = await fetch(`${supabaseUrl}/functions/v1/generate-quote-pdf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ quoteId }),
+  });
+  if (!resp.ok) throw new Error(`PDF generation failed: ${resp.statusText}`);
+  const blob = await resp.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -280,7 +280,11 @@ export default function EwayBills() {
                                   </DropdownMenuItem>
                                 )}
                                 {bill.status === "active" && (
-                                  <DropdownMenuItem onClick={() => update({ id: bill.id, status: "extended", extended_count: (bill.extended_count || 0) + 1, valid_until: new Date(new Date(bill.valid_until!).getTime() + 24 * 60 * 60 * 1000).toISOString() })}>
+                                  <DropdownMenuItem onClick={() => {
+                                    const baseDate = bill.valid_until ? new Date(bill.valid_until) : new Date();
+                                    const newValid = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+                                    update({ id: bill.id, status: "extended", extended_count: (bill.extended_count || 0) + 1, valid_until: newValid });
+                                  }}>
                                     <RefreshCw className="h-4 w-4 mr-2" /> Extend Validity (+1 day)
                                   </DropdownMenuItem>
                                 )}

@@ -171,6 +171,21 @@ export default function StockTransfers() {
 
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No transfers yet" />
+
+        {/* Edit Draft Transfer */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Edit Stock Transfer</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div><Label>Transfer Date</Label><Input type="date" value={editForm.transfer_date} onChange={(e) => setEditForm({ ...editForm, transfer_date: e.target.value })} /></div>
+              <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveEdit}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

@@ -510,9 +510,15 @@ export default function Employees() {
                     <div className="mt-3 flex items-center justify-between border-t pt-3">
                       <Badge
                         variant="outline"
-                        className={cn("text-xs capitalize", statusStyles[employee.status])}
+                        className={cn("text-xs capitalize", statusStyles[
+                          (onLeaveIds.profileIds.has(employee.id) || onLeaveIds.userIds.has(employee.user_id))
+                            ? "on_leave"
+                            : employee.status
+                        ])}
                       >
-                        {employee.status?.replace("_", " ") || "active"}
+                        {(onLeaveIds.profileIds.has(employee.id) || onLeaveIds.userIds.has(employee.user_id))
+                          ? "On Leave"
+                          : (employee.status?.replace("_", " ") || "active")}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {employee.join_date

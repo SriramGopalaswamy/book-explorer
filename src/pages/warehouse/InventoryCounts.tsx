@@ -107,11 +107,25 @@ export default function InventoryCounts() {
   const { data: items = [] } = useItems();
   const createCount = useCreateInventoryCount();
 
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingCount, setEditingCount] = useState<InventoryCount | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+
+  const deleteCountMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
+      if (error) console.warn("Lines delete:", error);
+      const { error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id);
+      if (e2) throw e2;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inventory-counts"] }); toast.success("Count deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteCount = (id: string) => deleteCountMutation.mutate(id);
   const [countItems, setCountItems] = useState<CountItemRow[]>([{ item_name: "", expected_qty: 0 }]);
 
   const stats = {
