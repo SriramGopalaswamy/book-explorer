@@ -37,6 +37,16 @@ export default function SalesOrders() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
+
+  // Fetch customers for dropdown
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers-so-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("customers").select("id, name").eq("status", "active").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
 
   const filtered = orders.filter((o) =>
