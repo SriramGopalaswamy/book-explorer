@@ -364,7 +364,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
                 })}
                 <tr className="border-t-2 border-foreground/30 font-bold">
                   <td className="px-3 py-2">Total Earnings</td>
-                  <td className="px-3 py-2 text-right text-green-600">{fmt(totalEarnings)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{fmt(totalEarnings)}</td>
                   <td className="px-3 py-2">Total Deductions</td>
                   <td className="px-3 py-2 text-right text-destructive">{fmt(totalDeductions)}</td>
                 </tr>
