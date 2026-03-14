@@ -894,14 +894,16 @@ export default function Bills() {
                               <DropdownMenuItem onClick={() => openPreview(b)}>
                                 <Eye className="h-4 w-4 mr-2 text-muted-foreground" /> View Bill
                               </DropdownMenuItem>
-                              {b.status === "draft" && (
+                              {(b.status === "draft" || b.status === "received") && (
                                 <>
                                   <DropdownMenuItem onClick={() => openEditDialog(b)}>
                                     <Pencil className="h-4 w-4 mr-2 text-muted-foreground" /> Edit Bill
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
-                                    <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
-                                  </DropdownMenuItem>
+                                  {b.status === "draft" && (
+                                    <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ id: b.id, status: "received" })}>
+                                      <Receipt className="h-4 w-4 mr-2 text-primary" /> Mark Received
+                                    </DropdownMenuItem>
+                                  )}
                                 </>
                               )}
                               {(b.status === "received" || b.effectiveStatus === "overdue") && (
