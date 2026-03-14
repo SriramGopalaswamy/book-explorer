@@ -94,7 +94,11 @@ export default function BillOfMaterials() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewBom, setViewBom] = useState<BOM | null>(null);
   const [form, setForm] = useState({ product_name: "", notes: "" });
-  const [lines, setLines] = useState([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0 }]);
+  const [lines, setLines] = useState([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingBom, setEditingBom] = useState<BOM | null>(null);
+  const [editForm, setEditForm] = useState({ product_name: "", notes: "" });
+  const [editLines, setEditLines] = useState([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
 
   const filtered = boms.filter((b) =>
     b.bom_code.toLowerCase().includes(search.toLowerCase()) ||
