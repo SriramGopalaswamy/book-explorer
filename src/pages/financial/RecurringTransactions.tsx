@@ -88,11 +88,24 @@ export default function RecurringTransactionsPage() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><RefreshCw className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.monthly}</p><p className="text-xs text-muted-foreground">Monthly Active</p></div></div></CardContent></Card>
         </div>
 
+        <div className="flex items-center gap-2 mb-4">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="All Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : transactions.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No recurring transactions. Create one to automate repeating entries.</div>
+          ) : transactions.filter(t => statusFilter === "all" || t.status === statusFilter).length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No recurring transactions match the filter.</div>
           ) : (
             <Table>
               <TableHeader>
