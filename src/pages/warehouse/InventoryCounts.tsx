@@ -115,6 +115,7 @@ export default function InventoryCounts() {
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
 
+  const approve = useApproveInventoryCount();
   const deleteCountMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
