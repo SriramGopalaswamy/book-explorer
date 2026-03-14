@@ -103,7 +103,7 @@ export default function StockAdjustments() {
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-accent/20"><ClipboardList className="h-6 w-6 text-accent-foreground" /></div>
-            <div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "draft").length}</p></div>
+            <div><p className="text-sm text-muted-foreground">Pending Approval</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "approved").length}</p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-secondary/50"><ClipboardList className="h-6 w-6 text-secondary-foreground" /></div>

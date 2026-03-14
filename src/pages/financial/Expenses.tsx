@@ -352,7 +352,7 @@ export default function Expenses() {
       <div className="space-y-6">
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} />
+          <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} change={totalExpenses > 0 ? { value: "Approved + Paid", type: "neutral" as any } : undefined} />
           <StatCard title="Pending Approval" value={formatCurrency(pendingAmount)} icon={<Clock className="h-4 w-4" />} />
           <StatCard title={isFinanceOrAdmin ? "Approved (Unpaid)" : "Approved"} value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
           <StatCard title="Paid" value={formatCurrency(paidAmount)} icon={<CircleDollarSign className="h-4 w-4" />} />

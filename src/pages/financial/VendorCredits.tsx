@@ -348,7 +348,7 @@ export default function VendorCredits() {
                               Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
                             </DropdownMenuItem>
                           ))}
-                          {(vc.status === "draft" || vc.status === "void") && (
+                          {(vc.status === "draft" || vc.status === "void" || vc.status === "issued" || vc.status === "applied") && (
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(vc)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
