@@ -31,7 +31,7 @@ export default function Warehouses() {
   const deleteWH = useDeleteWarehouse();
   const [editOpen, setEditOpen] = useState(false);
   const [editWH, setEditWH] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", is_active: true });
+  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", contact_phone: "", is_active: true });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
