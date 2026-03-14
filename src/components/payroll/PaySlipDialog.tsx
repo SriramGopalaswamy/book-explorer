@@ -56,9 +56,17 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const slip = normalizePayslip(record);
   const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, workingDays, paidDays } = slip;
 
+  const r = record as any; // engine entries may carry extra employee detail fields
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const department = DOMPurify.sanitize(record.profiles?.department || "—");
   const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
+  const employeeId = r.employee_id || "—";
+  const panNumber = r.pan_number || "—";
+  const bankName = r.bank_name || "—";
+  const bankAccountNumber = r.bank_account_number || "—";
+  const bankIfsc = r.bank_ifsc || "—";
+  const uanNumber = r.uan_number || "—";
+  const dateOfJoining = r.date_of_joining || "—";
   const period = periodLabel(record.pay_period);
   const processedDate = record.processed_at
     ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
