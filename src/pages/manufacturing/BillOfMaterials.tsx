@@ -112,7 +112,7 @@ export default function BillOfMaterials() {
     archived: boms.filter((b) => b.status === "archived").length,
   };
 
-  const addLine = () => setLines([...lines, { material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0 }]);
+  const addLine = () => setLines([...lines, { material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
   const removeLine = (i: number) => setLines(lines.filter((_, idx) => idx !== i));
   const updateLine = (i: number, field: string, value: any) => {
     const updated = [...lines];
