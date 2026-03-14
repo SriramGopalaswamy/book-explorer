@@ -312,6 +312,8 @@ export default function Invoicing() {
   const handleEditInvoice = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     setEditSelectedCustomerId(invoice.customer_id || "");
+    // Ensure customer_id is set before opening dialog so Select pre-populates
+    setTimeout(() => setEditSelectedCustomerId(invoice.customer_id || ""), 0);
     const items = invoice.invoice_items || [];
     setEditLineItems(
       items.length > 0
