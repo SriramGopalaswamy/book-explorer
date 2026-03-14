@@ -43,6 +43,8 @@ export default function GoodsReceipts() {
   const [selectedPO, setSelectedPO] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: receipts = [], isLoading } = useQuery({
     queryKey: ["goods-receipts"],
@@ -60,10 +62,21 @@ export default function GoodsReceipts() {
   const updateGRStatus = useUpdateGRStatus();
   const createBillFromGR = useCreateBillFromGR();
 
+  const deleteGR = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("goods_receipts" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goods-receipts"] });
+      toast.success("Goods receipt deleted");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const handleCreate = async () => {
     if (!selectedPO) { toast.error("Select a Purchase Order"); return; }
 
-    // Get PO items to pre-fill
     const { data: poItems } = await supabase
       .from("purchase_order_items" as any)
       .select("item_id, description, quantity, received_quantity")
