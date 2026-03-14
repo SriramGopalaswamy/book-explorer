@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
-import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight } from "lucide-react";
+import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -41,6 +41,8 @@ export default function GoodsReceipts() {
   const [selectedPO, setSelectedPO] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: receipts = [], isLoading } = useQuery({
     queryKey: ["goods-receipts"],
@@ -52,16 +54,27 @@ export default function GoodsReceipts() {
   });
 
   const { data: purchaseOrders = [] } = usePurchaseOrders();
-  const approvedPOs = purchaseOrders.filter(po => ["draft", "approved", "confirmed", "partially_received"].includes(po.status));
+  const approvedPOs = purchaseOrders.filter(po => ["approved", "confirmed", "partially_received"].includes(po.status));
 
   const createGR = useCreateGoodsReceipt();
   const updateGRStatus = useUpdateGRStatus();
   const createBillFromGR = useCreateBillFromGR();
 
+  const deleteGR = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("goods_receipts" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goods-receipts"] });
+      toast.success("Goods receipt deleted");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const handleCreate = async () => {
     if (!selectedPO) { toast.error("Select a Purchase Order"); return; }
 
-    // Get PO items to pre-fill
     const { data: poItems } = await supabase
       .from("purchase_order_items" as any)
       .select("item_id, description, quantity, received_quantity")
@@ -97,6 +110,9 @@ export default function GoodsReceipts() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setViewingGR(r)}>
+              <Eye className="h-4 w-4 mr-2" /> View Receipt
+            </DropdownMenuItem>
             {r.status === "draft" && (
               <>
                 <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "inspecting" })}>
@@ -120,6 +136,11 @@ export default function GoodsReceipts() {
             {r.status === "accepted" && r.purchase_order_id && (
               <DropdownMenuItem onClick={() => createBillFromGR.mutate({ goods_receipt_id: r.id, purchase_order_id: r.purchase_order_id! })}>
                 <FileText className="h-4 w-4 mr-2" /> Create Bill
+              </DropdownMenuItem>
+            )}
+            {(r.status === "draft" || r.status === "rejected") && (
+              <DropdownMenuItem onClick={() => deleteGR.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -182,6 +203,23 @@ export default function GoodsReceipts() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* View GR Dialog */}
+        {viewingGR && (
+          <Dialog open={!!viewingGR} onOpenChange={(v) => { if (!v) setViewingGR(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader><DialogTitle>Goods Receipt — {viewingGR.grn_number}</DialogTitle></DialogHeader>
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">GRN #</p><p className="font-mono font-medium">{viewingGR.grn_number}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Date</p><p>{format(new Date(viewingGR.receipt_date), "dd MMM yyyy")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingGR.status] || ""}>{viewingGR.status}</Badge></div>
+                </div>
+                {viewingGR.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p>{viewingGR.notes}</p></div>}
+              </div>
+              <DialogFooter><Button variant="outline" onClick={() => setViewingGR(null)}>Close</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </MainLayout>
   );

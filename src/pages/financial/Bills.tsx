@@ -1255,6 +1255,19 @@ export default function Bills() {
 
               <Separator />
 
+              {/* Additional fields: AP Category, TDS, GST */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {previewBill.tds_section && (
+                  <div><p className="text-xs text-muted-foreground">TDS Section</p><p className="font-medium">{previewBill.tds_section} {previewBill.tds_rate ? `(${previewBill.tds_rate}%)` : ""}</p></div>
+                )}
+                {previewBill.vendor_id && (
+                  <div><p className="text-xs text-muted-foreground">Vendor ID</p><p className="font-mono text-xs">{previewBill.vendor_id.slice(0, 8)}...</p></div>
+                )}
+                {previewBill.currency_code && previewBill.currency_code !== "INR" && (
+                  <div><p className="text-xs text-muted-foreground">Currency</p><p className="font-medium">{previewBill.currency_code}</p></div>
+                )}
+              </div>
+
               {/* Amount breakdown */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">

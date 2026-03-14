@@ -15,7 +15,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban } from "lucide-react";
+import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban, MoreHorizontal, Eye } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEInvoices, EInvoiceItem } from "@/hooks/useEInvoices";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -72,7 +73,7 @@ export default function EInvoices() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("1");
   const [cancelRemark, setCancelRemark] = useState("");
-
+  const [viewingEInvoice, setViewingEInvoice] = useState<any>(null);
   // Create form state
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState({
@@ -438,69 +439,80 @@ export default function EInvoices() {
                 <TableHead>IRN</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-invoices found</TableCell></TableRow>
-              ) : filtered.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium">{inv.doc_number}</TableCell>
-                  <TableCell><Badge variant="outline">{inv.doc_type}</Badge></TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="text-sm">{inv.buyer_legal_name}</p>
-                      {inv.buyer_gstin && <p className="text-xs text-muted-foreground">{inv.buyer_gstin}</p>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">₹{Number(inv.total_invoice_value).toLocaleString("en-IN")}</TableCell>
-                  <TableCell>
-                    {inv.irn ? (
-                      <div className="max-w-[150px]">
-                        <p className="text-xs font-mono truncate" title={inv.irn}>{inv.irn}</p>
-                        {inv.ack_number && <p className="text-xs text-muted-foreground">Ack: {inv.ack_number}</p>}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      {statusIcon(inv.status)}
-                      <span className="text-sm capitalize">{inv.status}</span>
-                    </div>
-                    {inv.status === "cancelled" && inv.cancel_reason && (
-                      <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">Reason: {inv.cancel_reason}</p>
-                        {inv.cancel_remark && (
-                          <p className="text-xs text-muted-foreground">Remark: {inv.cancel_remark}</p>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(inv.created_at), "dd MMM yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {inv.status === "pending" && (
-                        <Button size="sm" variant="outline" onClick={() => generateIRN(inv.id)} disabled={isGenerating}>
-                          <QrCode className="h-3.5 w-3.5 mr-1" /> Generate IRN
-                        </Button>
-                      )}
-                      {(inv.status === "pending" || inv.status === "generated") && (
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelId(inv.id)}>
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
+                  <TableHead>Actions</TableHead>
+               </TableRow>
+             </TableHeader>
+             <TableBody>
+               {isLoading ? (
+                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+               ) : filtered.length === 0 ? (
+                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-invoices found</TableCell></TableRow>
+               ) : filtered.map((inv) => (
+                 <TableRow key={inv.id}>
+                   <TableCell className="font-medium">{inv.doc_number}</TableCell>
+                   <TableCell><Badge variant="outline">{inv.doc_type}</Badge></TableCell>
+                   <TableCell>
+                     <div>
+                       <p className="text-sm">{inv.buyer_legal_name}</p>
+                       {inv.buyer_gstin && <p className="text-xs text-muted-foreground">{inv.buyer_gstin}</p>}
+                     </div>
+                   </TableCell>
+                   <TableCell className="text-right font-medium">₹{Number(inv.total_invoice_value).toLocaleString("en-IN")}</TableCell>
+                   <TableCell>
+                     {inv.irn ? (
+                       <div className="max-w-[150px]">
+                         <p className="text-xs font-mono truncate" title={inv.irn}>{inv.irn}</p>
+                         {inv.ack_number && <p className="text-xs text-muted-foreground">Ack: {inv.ack_number}</p>}
+                       </div>
+                     ) : (
+                       <span className="text-xs text-muted-foreground">—</span>
+                     )}
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex items-center gap-1.5">
+                       {statusIcon(inv.status)}
+                       <span className="text-sm capitalize">{inv.status}</span>
+                     </div>
+                     {inv.status === "cancelled" && inv.cancel_reason && (
+                       <div className="mt-1">
+                         <p className="text-xs text-muted-foreground">Reason: {inv.cancel_reason}</p>
+                         {inv.cancel_remark && (
+                           <p className="text-xs text-muted-foreground">Remark: {inv.cancel_remark}</p>
+                         )}
+                       </div>
+                     )}
+                   </TableCell>
+                   <TableCell className="text-sm text-muted-foreground">
+                     {format(new Date(inv.created_at), "dd MMM yyyy")}
+                   </TableCell>
+                   <TableCell>
+                     <DropdownMenu>
+                       <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                       </DropdownMenuTrigger>
+                       <DropdownMenuContent align="end">
+                         <DropdownMenuItem onClick={() => {
+                           // View invoice details inline
+                           setViewingEInvoice(inv);
+                         }}>
+                           <Eye className="h-4 w-4 mr-2" /> View Invoice
+                         </DropdownMenuItem>
+                         {inv.status === "pending" && (
+                           <DropdownMenuItem onClick={() => generateIRN(inv.id)} disabled={isGenerating}>
+                             <QrCode className="h-4 w-4 mr-2" /> Generate IRN
+                           </DropdownMenuItem>
+                         )}
+                         {(inv.status === "pending" || inv.status === "generated") && (
+                           <DropdownMenuItem onClick={() => setCancelId(inv.id)} className="text-destructive">
+                             <XCircle className="h-4 w-4 mr-2" /> Cancel
+                           </DropdownMenuItem>
+                         )}
+                       </DropdownMenuContent>
+                     </DropdownMenu>
+                   </TableCell>
+                 </TableRow>
+               ))}
+             </TableBody>
           </Table>
         </CardContent>
       </Card>
@@ -533,6 +545,61 @@ export default function EInvoices() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View E-Invoice Dialog */}
+      {viewingEInvoice && (
+        <Dialog open={!!viewingEInvoice} onOpenChange={(v) => { if (!v) setViewingEInvoice(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>E-Invoice — {viewingEInvoice.doc_number}</DialogTitle>
+              <DialogDescription>
+                <div className="flex items-center gap-2 mt-1">
+                  {statusIcon(viewingEInvoice.status)}
+                  <span className="capitalize">{viewingEInvoice.status}</span>
+                  <Badge variant="outline">{viewingEInvoice.doc_type}</Badge>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><p className="text-xs text-muted-foreground">Document #</p><p className="font-medium">{viewingEInvoice.doc_number}</p></div>
+                <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{viewingEInvoice.doc_date || format(new Date(viewingEInvoice.created_at), "dd MMM yyyy")}</p></div>
+                <div><p className="text-xs text-muted-foreground">Supply Type</p><p className="font-medium">{viewingEInvoice.supply_type}</p></div>
+                {viewingEInvoice.irn && <div><p className="text-xs text-muted-foreground">IRN</p><p className="font-mono text-xs break-all">{viewingEInvoice.irn}</p></div>}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-1">Seller</p>
+                  <p className="font-medium">{viewingEInvoice.seller_legal_name}</p>
+                  {viewingEInvoice.seller_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.seller_gstin}</p>}
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-1">Buyer</p>
+                  <p className="font-medium">{viewingEInvoice.buyer_legal_name}</p>
+                  {viewingEInvoice.buyer_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.buyer_gstin}</p>}
+                </div>
+              </div>
+              <div className="rounded-lg bg-secondary/50 p-4 space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Assessable Value</span><span>₹{Number(viewingEInvoice.total_assessable_value || 0).toLocaleString("en-IN")}</span></div>
+                {Number(viewingEInvoice.total_cgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewingEInvoice.total_cgst).toLocaleString("en-IN")}</span></div>}
+                {Number(viewingEInvoice.total_sgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewingEInvoice.total_sgst).toLocaleString("en-IN")}</span></div>}
+                {Number(viewingEInvoice.total_igst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewingEInvoice.total_igst).toLocaleString("en-IN")}</span></div>}
+                <div className="flex justify-between font-semibold border-t pt-1.5"><span>Total</span><span>₹{Number(viewingEInvoice.total_invoice_value).toLocaleString("en-IN")}</span></div>
+              </div>
+              {viewingEInvoice.status === "cancelled" && viewingEInvoice.cancel_reason && (
+                <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                  <p className="text-xs text-muted-foreground">Cancellation Reason</p>
+                  <p className="text-sm">{viewingEInvoice.cancel_reason}</p>
+                  {viewingEInvoice.cancel_remark && <p className="text-xs text-muted-foreground mt-1">{viewingEInvoice.cancel_remark}</p>}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingEInvoice(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </MainLayout>
   );
 }

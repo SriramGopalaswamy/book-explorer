@@ -31,7 +31,7 @@ export default function Warehouses() {
   const deleteWH = useDeleteWarehouse();
   const [editOpen, setEditOpen] = useState(false);
   const [editWH, setEditWH] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", is_active: true });
+  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", contact_phone: "", is_active: true });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
@@ -105,7 +105,7 @@ export default function Warehouses() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} /></div>
-                  <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
+                  <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, "").slice(0, 15); setForm(f => ({ ...f, contact_phone: v })); }} placeholder="e.g. +91 98765 43210" maxLength={15} /></div>
                 </div>
                 <Button onClick={handleCreate} disabled={!form.name || !form.code || createWH.isPending}>
                   {createWH.isPending ? "Creating..." : "Create Warehouse"}
@@ -151,7 +151,7 @@ export default function Warehouses() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => {
                               setEditWH(wh);
-                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", is_active: wh.is_active ?? true });
+                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", contact_phone: wh.contact_phone || "", is_active: wh.is_active ?? true });
                               setEditOpen(true);
                             }}>
                               <Edit className="h-4 w-4 mr-2" /> Edit
@@ -191,6 +191,7 @@ export default function Warehouses() {
                   </Select>
                 </div>
                 <div><Label>Contact Person</Label><Input value={editForm.contact_person} onChange={e => setEditForm({ ...editForm, contact_person: e.target.value })} /></div>
+                <div><Label>Contact Phone</Label><Input value={editForm.contact_phone} onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, "").slice(0, 15); setEditForm({ ...editForm, contact_phone: v }); }} placeholder="e.g. +91 98765 43210" maxLength={15} /></div>
               </div>
               <div className="flex items-center gap-3">
                 <input type="checkbox" id="whActive" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />

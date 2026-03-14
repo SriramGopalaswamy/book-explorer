@@ -91,6 +91,14 @@ export default function WorkOrders() {
     planned_start: "", planned_end: "", notes: "", bom_id: "",
   });
 
+  // Reset form when dialog closes
+  const handleDialogChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setForm({ product_name: "", planned_quantity: 1, priority: "normal", planned_start: "", planned_end: "", notes: "", bom_id: "" });
+    }
+  };
+
   const [prodDialogOpen, setProdDialogOpen] = useState(false);
   const [prodWO, setProdWO] = useState<WorkOrder | null>(null);
   const [prodForm, setProdForm] = useState({ completed_quantity: 0, rejected_quantity: 0, actual_end: "", notes: "" });
@@ -212,6 +220,7 @@ export default function WorkOrders() {
         </div>
       ),
     },
+    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[120px] block">{r.notes || "—"}</span> },
     { key: "planned_start", header: "Start", render: (r) => r.planned_start ? format(new Date(r.planned_start), "dd MMM") : <span className="text-muted-foreground">—</span> },
   ];
 
@@ -219,7 +228,7 @@ export default function WorkOrders() {
     <MainLayout title="Work Orders" subtitle="Manage production scheduling and tracking">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New Work Order</Button>
             </DialogTrigger>
