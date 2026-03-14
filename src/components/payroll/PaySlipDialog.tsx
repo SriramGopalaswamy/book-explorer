@@ -149,29 +149,29 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     <div class="emp-name">${employeeName}</div>
     <div class="emp-grid">
       <div class="eg-label">Employee ID</div>
-      <div class="eg-value">${record.employee_id || '—'}</div>
+      <div class="eg-value">${employeeId}</div>
       <div class="eg-label">PAN No</div>
-      <div class="eg-value">${record.pan_number || '—'}</div>
+      <div class="eg-value">${panNumber}</div>
 
       <div class="eg-label">Designation</div>
       <div class="eg-value">${jobTitle}</div>
       <div class="eg-label">Bank Name</div>
-      <div class="eg-value">${record.bank_name || '—'}</div>
+      <div class="eg-value">${bankName}</div>
 
       <div class="eg-label">Date of Joining</div>
-      <div class="eg-value">${record.date_of_joining || '—'}</div>
+      <div class="eg-value">${dateOfJoining}</div>
       <div class="eg-label">Bank A/C No</div>
-      <div class="eg-value">${record.bank_account_number || '—'}</div>
+      <div class="eg-value">${bankAccountNumber}</div>
 
       <div class="eg-label">Pay Period</div>
       <div class="eg-value">${period}</div>
       <div class="eg-label">IFSC Code</div>
-      <div class="eg-value">${record.bank_ifsc || '—'}</div>
+      <div class="eg-value">${bankIfsc}</div>
 
       <div class="eg-label">Working Days</div>
       <div class="eg-value">${workingDays || '—'}</div>
       <div class="eg-label">UAN No</div>
-      <div class="eg-value">${record.uan_number || '—'}</div>
+      <div class="eg-value">${uanNumber}</div>
 
       <div class="eg-label">Paid Days</div>
       <div class="eg-value">${paidDays || '—'}</div>
