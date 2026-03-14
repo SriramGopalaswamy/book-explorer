@@ -191,6 +191,7 @@ export default function Warehouses() {
                   </Select>
                 </div>
                 <div><Label>Contact Person</Label><Input value={editForm.contact_person} onChange={e => setEditForm({ ...editForm, contact_person: e.target.value })} /></div>
+                <div><Label>Contact Phone</Label><Input value={editForm.contact_phone} onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, "").slice(0, 15); setEditForm({ ...editForm, contact_phone: v }); }} placeholder="e.g. +91 98765 43210" maxLength={15} /></div>
               </div>
               <div className="flex items-center gap-3">
                 <input type="checkbox" id="whActive" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />
