@@ -112,6 +112,9 @@ export default function GoodsReceipts() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setViewingGR(r)}>
+              <Eye className="h-4 w-4 mr-2" /> View Receipt
+            </DropdownMenuItem>
             {r.status === "draft" && (
               <>
                 <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "inspecting" })}>
@@ -135,6 +138,11 @@ export default function GoodsReceipts() {
             {r.status === "accepted" && r.purchase_order_id && (
               <DropdownMenuItem onClick={() => createBillFromGR.mutate({ goods_receipt_id: r.id, purchase_order_id: r.purchase_order_id! })}>
                 <FileText className="h-4 w-4 mr-2" /> Create Bill
+              </DropdownMenuItem>
+            )}
+            {(r.status === "draft" || r.status === "rejected") && (
+              <DropdownMenuItem onClick={() => deleteGR.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
