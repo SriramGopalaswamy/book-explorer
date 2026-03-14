@@ -151,7 +151,7 @@ export default function Warehouses() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => {
                               setEditWH(wh);
-                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", is_active: wh.is_active ?? true });
+                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", contact_phone: wh.contact_phone || "", is_active: wh.is_active ?? true });
                               setEditOpen(true);
                             }}>
                               <Edit className="h-4 w-4 mr-2" /> Edit
