@@ -149,6 +149,16 @@ export default function BillOfMaterials() {
               <Eye className="h-4 w-4 mr-2" /> View Details
             </DropdownMenuItem>
             {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => {
+                setEditingBom(r);
+                setEditForm({ product_name: r.product_name, notes: r.notes || "" });
+                setEditLines([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
+                setEditDialogOpen(true);
+              }}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "active" })}>
                 <CheckCircle className="h-4 w-4 mr-2" /> Mark Active
               </DropdownMenuItem>
