@@ -236,6 +236,13 @@ export default function InventoryCounts() {
                   <Label>Items to Count *</Label>
                   <Button size="sm" variant="outline" onClick={addItemRow}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
                 </div>
+                <p className="text-xs text-muted-foreground mb-2">Select an item from your inventory, or type a custom item name. Enter the expected stock quantity for verification.</p>
+                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center mb-1 px-1">
+                  <span className="text-xs font-medium text-muted-foreground">Select Item</span>
+                  <span className="text-xs font-medium text-muted-foreground">Or Type Name</span>
+                  <span className="text-xs font-medium text-muted-foreground w-28">Expected Qty</span>
+                  <span className="w-9"></span>
+                </div>
                 <div className="space-y-2">
                   {countItems.map((row, i) => (
                     <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">

@@ -136,9 +136,14 @@ export function useEwayBills() {
       // Auto-calculate validity based on distance
       const validityDays = getEwayValidityDays(bill.distance_km || 0);
 
+      // Auto-generate bill number and valid_until
+      const autoNumber = bill.eway_bill_number || `EWB-${Date.now().toString(36).toUpperCase()}`;
+      const billDate = bill.eway_bill_date ? new Date(bill.eway_bill_date) : new Date();
+      const autoValidUntil = bill.valid_until || new Date(billDate.getTime() + validityDays * 24 * 60 * 60 * 1000).toISOString();
+
       const { data, error } = await (supabase as any)
         .from("eway_bills")
-        .insert({ ...bill, user_id: user!.id, organization_id: orgId })
+        .insert({ ...bill, user_id: user!.id, organization_id: orgId, eway_bill_number: autoNumber, valid_until: autoValidUntil })
         .select()
         .single();
       if (error) throw error;

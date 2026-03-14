@@ -85,14 +85,25 @@ export default function PurchaseOrders() {
     { key: "total_amount", header: "Total", render: (r) => <span className="font-semibold">₹{Number(r.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> },
     {
       key: "status", header: "Status",
-      render: (r) => (
-        <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-          <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.keys(statusColors).map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      ),
+      render: (r) => {
+        const transitions: Record<string, string[]> = {
+          draft: ["submitted", "cancelled"],
+          submitted: ["approved", "cancelled"],
+          approved: ["partially_received", "received", "cancelled"],
+          partially_received: ["received", "closed"],
+          received: ["closed"],
+        };
+        const nextStatuses = transitions[r.status] || [];
+        return (
+          <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
+            <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={r.status}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
+              {nextStatuses.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      },
     },
   ];
 

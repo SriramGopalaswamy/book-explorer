@@ -455,13 +455,14 @@ export function useGeneratePickingList() {
         item_name: item.item_name,
         required_quantity: item.quantity,
         picked_quantity: 0,
-        bin_id: null,
         status: "pending",
+        organization_id: profile.organization_id,
       }));
       const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
       if (linesErr) {
+        console.error("Picking list items insert error:", linesErr);
         await supabase.from("picking_lists" as any).delete().eq("id", (pickData as any).id);
-        throw linesErr;
+        throw new Error(`Failed to create picking list items: ${linesErr.message}. Please check that the warehouse module is fully set up.`);
       }
       return pickData;
     },
