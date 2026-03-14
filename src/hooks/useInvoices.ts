@@ -89,21 +89,31 @@ export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
 
-  const response = await supabase.functions.invoke("generate-invoice-pdf", {
-    body: { invoiceId },
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-invoice-pdf`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+      "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify({ invoiceId }),
   });
 
-  if (response.error) throw new Error(response.error.message || "Failed to generate PDF");
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(errText || `Failed to generate PDF (${response.status})`);
+  }
 
-  const blob = response.data;
-  const url = URL.createObjectURL(blob);
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
+  a.href = blobUrl;
   a.download = `invoice-${invoiceId}.pdf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(blobUrl);
 }
 
 export function useInvoices() {

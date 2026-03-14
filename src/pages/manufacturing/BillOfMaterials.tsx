@@ -199,11 +199,12 @@ export default function BillOfMaterials() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between"><Label className="text-base font-semibold">Materials</Label><Button variant="outline" size="sm" onClick={addLine}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {lines.map((line, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_80px_80px_32px] gap-2 items-end">
+                    <div key={i} className="grid grid-cols-[1fr_80px_80px_80px_80px_32px] gap-2 items-end">
                       <div><Label className="text-xs">Material</Label><Input value={line.material_name} onChange={(e) => updateLine(i, "material_name", e.target.value)} /></div>
                       <div><Label className="text-xs">Qty</Label><Input type="number" value={line.quantity} onChange={(e) => updateLine(i, "quantity", Number(e.target.value))} /></div>
                       <div><Label className="text-xs">UOM</Label><Input value={line.uom} onChange={(e) => updateLine(i, "uom", e.target.value)} /></div>
                       <div><Label className="text-xs">Waste %</Label><Input type="number" value={line.wastage_pct} onChange={(e) => updateLine(i, "wastage_pct", Number(e.target.value))} /></div>
+                      <div><Label className="text-xs">Est. Cost</Label><Input type="number" value={line.est_cost} onChange={(e) => updateLine(i, "est_cost", Number(e.target.value))} placeholder="₹" /></div>
                       <Button variant="ghost" size="icon" onClick={() => removeLine(i)} disabled={lines.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>
                   ))}
