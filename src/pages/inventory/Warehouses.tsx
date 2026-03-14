@@ -105,7 +105,7 @@ export default function Warehouses() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Contact Person</Label><Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} /></div>
-                  <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
+                  <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={e => { const v = e.target.value.replace(/[^0-9+\-\s]/g, "").slice(0, 15); setForm(f => ({ ...f, contact_phone: v })); }} placeholder="e.g. +91 98765 43210" maxLength={15} /></div>
                 </div>
                 <Button onClick={handleCreate} disabled={!form.name || !form.code || createWH.isPending}>
                   {createWH.isPending ? "Creating..." : "Create Warehouse"}
