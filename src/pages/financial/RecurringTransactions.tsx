@@ -30,6 +30,7 @@ export default function RecurringTransactionsPage() {
   const createTx = useCreateRecurringTransaction();
   const updateStatus = useUpdateRecurringTransactionStatus();
 
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
