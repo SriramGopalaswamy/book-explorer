@@ -206,12 +206,23 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
     enabled: !!user,
     queryFn: async () => {
       if (!orgId) return [];
-      let q = supabase.from("stock_ledger" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
-      if (itemId) q = q.eq("item_id", itemId);
-      if (warehouseId) q = q.eq("warehouse_id", warehouseId);
-      const { data, error } = await q.limit(500);
-      if (error) throw error;
-      return data as any[];
+      try {
+        let q = supabase.from("stock_ledger" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
+        if (itemId) q = q.eq("item_id", itemId);
+        if (warehouseId) q = q.eq("warehouse_id", warehouseId);
+        const { data, error } = await q.limit(500);
+        if (error) {
+          if (error.message?.includes("relation") && error.message?.includes("does not exist")) {
+            console.warn("Stock ledger table not found - returning empty array");
+            return [];
+          }
+          throw error;
+        }
+        return data as any[];
+      } catch (err: any) {
+        console.error("Stock ledger query error:", err);
+        throw new Error(err.message || "Failed to load stock ledger. The table may not be set up yet.");
+      }
     },
   });
 }

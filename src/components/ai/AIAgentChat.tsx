@@ -183,7 +183,7 @@ export function AIAgentChat() {
         setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Sorry, I encountered an error processing your request. Please try again.",
+          content: "I'm sorry, I couldn't complete that request. The AI service may be temporarily unavailable. Please try again in a moment. If this persists, contact your administrator.",
           timestamp: new Date(),
         }]);
       }

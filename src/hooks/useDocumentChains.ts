@@ -328,18 +328,24 @@ export function useCreateDeliveryNote() {
         .select("*")
         .eq("sales_order_id", params.sales_order_id);
       if (soItems && (soItems as any[]).length > 0) {
-        const dnItems = (soItems as any[]).map((i: any) => ({
-          delivery_note_id: (dn as any).id,
-          sales_order_item_id: i.id || null,
-          item_id: i.item_id || null,
-          description: i.description,
-          ordered_quantity: i.quantity,
-          shipped_quantity: i.quantity,
-        }));
+        const dnItems = (soItems as any[]).map((i: any) => {
+          const item: Record<string, any> = {
+            delivery_note_id: (dn as any).id,
+            item_id: i.item_id || null,
+            description: i.description,
+            ordered_quantity: i.quantity,
+            shipped_quantity: i.quantity,
+            organization_id: callerOrgId,
+          };
+          // Only include sales_order_item_id if column exists in schema
+          if (i.id) item.sales_order_item_id = i.id;
+          return item;
+        });
         const { error: itemErr } = await supabase.from("delivery_note_items" as any).insert(dnItems as any);
         if (itemErr) {
+          console.error("Delivery note items insert error:", itemErr);
           await supabase.from("delivery_notes" as any).delete().eq("id", (dn as any).id);
-          throw itemErr;
+          throw new Error(`Failed to create delivery note items: ${itemErr.message}`);
         }
       }
 

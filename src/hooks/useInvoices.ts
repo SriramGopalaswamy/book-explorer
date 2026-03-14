@@ -377,11 +377,12 @@ export function useUpdateInvoice() {
       if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
       if (!data.client_name?.trim()) throw new Error("Client name is required.");
 
-      // Fetch current version for optimistic locking
+      // Fetch current version for optimistic locking (scope by org to satisfy RLS)
       const { data: current, error: fetchErr } = await (supabase as any)
         .from("invoices")
         .select("version")
         .eq("id", data.id)
+        .eq("organization_id", callerOrgId)
         .single();
       if (fetchErr) throw fetchErr;
 

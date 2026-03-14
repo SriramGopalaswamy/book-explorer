@@ -225,9 +225,14 @@ export default function EwayBills() {
                           <TableCell>
                             <div className="space-y-1">
                               <Badge className={STATUS_COLORS[bill.status] ?? ""}>{bill.status}</Badge>
-                              {bill.status === "cancelled" && (bill as any).cancel_reason && (
-                                <p className="text-xs text-destructive max-w-[160px] truncate" title={(bill as any).cancel_reason}>
-                                  Reason: {(bill as any).cancel_reason}
+                              {bill.status === "cancelled" && ((bill as any).cancellation_reason || (bill as any).cancel_reason) && (
+                                <p className="text-xs text-destructive max-w-[160px] truncate" title={(bill as any).cancellation_reason || (bill as any).cancel_reason}>
+                                  Reason: {(bill as any).cancellation_reason || (bill as any).cancel_reason}
+                                </p>
+                              )}
+                              {bill.status === "cancelled" && (bill as any).cancelled_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  {(() => { try { return format(new Date((bill as any).cancelled_at), "dd MMM yyyy"); } catch { return ""; } })()}
                                 </p>
                               )}
                             </div>
