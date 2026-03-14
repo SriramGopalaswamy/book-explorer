@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, ArrowRight, PackageCheck } from "lucide-react";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -37,6 +37,7 @@ export default function SalesOrders() {
   const convertToInvoice = useConvertSOToInvoice();
   const createDN = useCreateDeliveryNote();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
 
@@ -49,12 +50,25 @@ export default function SalesOrders() {
       return data || [];
     },
   });
+
+  // Fetch existing delivery notes to know which SOs already have one
+  const { data: existingDNs = [] } = useQuery({
+    queryKey: ["delivery-notes-so-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("delivery_notes" as any).select("sales_order_id");
+      if (error) throw error;
+      return (data || []).map((d: any) => d.sales_order_id).filter(Boolean) as string[];
+    },
+  });
+
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
 
-  const filtered = orders.filter((o) =>
-    o.so_number.toLowerCase().includes(search.toLowerCase()) ||
-    o.customer_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders.filter((o) => {
+    const matchSearch = o.so_number.toLowerCase().includes(search.toLowerCase()) ||
+      o.customer_name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const stats = {
     total: orders.length,
@@ -82,6 +96,8 @@ export default function SalesOrders() {
     });
   };
 
+  const hasDN = (soId: string) => existingDNs.includes(soId);
+
   const columns: Column<SalesOrder>[] = [
     { key: "so_number", header: "SO #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.so_number}</span> },
     { key: "customer_name", header: "Customer" },
@@ -98,9 +114,14 @@ export default function SalesOrders() {
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
-            {["confirmed", "processing"].includes(r.status) && (
+            {["confirmed", "processing"].includes(r.status) && !hasDN(r.id) && (
               <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
                 <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
+              </DropdownMenuItem>
+            )}
+            {["confirmed", "processing"].includes(r.status) && hasDN(r.id) && (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                <PackageCheck className="h-4 w-4 mr-2" /> DN Already Created
               </DropdownMenuItem>
             )}
             {["delivered", "shipped"].includes(r.status) && (
@@ -175,7 +196,22 @@ export default function SalesOrders() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.delivered}</p><p className="text-xs text-muted-foreground">Delivered</p></div></div></CardContent></Card>
         </div>
 
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search SOs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search SOs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="processing">Processing</SelectItem>
+              <SelectItem value="shipped">Shipped</SelectItem>
+              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="invoiced">Invoiced</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No sales orders yet" />
       </div>

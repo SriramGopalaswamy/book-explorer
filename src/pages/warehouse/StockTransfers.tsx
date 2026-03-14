@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2, Pencil } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2, Pencil, MoreHorizontal, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
@@ -33,6 +35,15 @@ export default function StockTransfers() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
   const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number }[]>([{ item_name: "", quantity: 1 }]);
+
+  // View detail state
+  const [viewTransfer, setViewTransfer] = useState<StockTransfer | null>(null);
+  const [viewItems, setViewItems] = useState<any[]>([]);
+
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
+  const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
 
   const filtered = transfers.filter((t) => t.transfer_number.toLowerCase().includes(search.toLowerCase()));
 
@@ -58,9 +69,16 @@ export default function StockTransfers() {
     });
   };
 
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
-  const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
+  const warehouseName = (id: string) => {
+    const w = warehouses.find((wh: any) => wh.id === id);
+    return (w as any)?.name || id;
+  };
+
+  const openView = async (t: StockTransfer) => {
+    setViewTransfer(t);
+    const { data } = await supabase.from("stock_transfer_items" as any).select("*").eq("transfer_id", t.id);
+    setViewItems((data as any[]) || []);
+  };
 
   const openEdit = (t: StockTransfer) => {
     setEditingTransfer(t);
@@ -85,24 +103,27 @@ export default function StockTransfers() {
     { key: "transfer_number", header: "Transfer #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.transfer_number}</span> },
     { key: "transfer_date", header: "Date", render: (r) => format(new Date(r.transfer_date), "dd MMM yyyy") },
     {
+      key: "from_warehouse_id" as any, header: "From → To",
+      render: (r) => <span className="text-foreground text-sm">{warehouseName(r.from_warehouse_id)} → {warehouseName(r.to_warehouse_id)}</span>,
+    },
+    {
       key: "status", header: "Status",
-      render: (r) => (
-        <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-          <SelectTrigger className="w-[140px] h-8"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.keys(statusColors).map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      ),
+      render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>,
     },
     { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
     {
       key: "actions" as any, header: "Actions",
-      render: (r) => r.status === "draft" ? (
-        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
-          <Pencil className="h-4 w-4 mr-1" /> Edit
-        </Button>
-      ) : null,
+      render: (r) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openView(r)}><Eye className="h-4 w-4 mr-2" /> View Details</DropdownMenuItem>
+            {r.status === "draft" && <DropdownMenuItem onClick={() => openEdit(r)}><Pencil className="h-4 w-4 mr-2" /> Edit</DropdownMenuItem>}
+            {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "in_transit" })}><Truck className="h-4 w-4 mr-2" /> Mark In Transit</DropdownMenuItem>}
+            {r.status === "in_transit" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "received" })}><CheckCircle className="h-4 w-4 mr-2" /> Mark Received</DropdownMenuItem>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     },
   ];
 
@@ -171,6 +192,46 @@ export default function StockTransfers() {
 
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No transfers yet" />
+
+        {/* View Transfer Detail Dialog */}
+        <Dialog open={!!viewTransfer} onOpenChange={(v) => { if (!v) setViewTransfer(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Stock Transfer — {viewTransfer?.transfer_number}</DialogTitle></DialogHeader>
+            {viewTransfer && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">From Warehouse</p><p className="font-medium text-foreground">{warehouseName(viewTransfer.from_warehouse_id)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">To Warehouse</p><p className="font-medium text-foreground">{warehouseName(viewTransfer.to_warehouse_id)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Transfer Date</p><p className="font-medium text-foreground">{format(new Date(viewTransfer.transfer_date), "dd MMM yyyy")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewTransfer.status] || ""}>{viewTransfer.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></div>
+                </div>
+                {viewTransfer.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm text-foreground">{viewTransfer.notes}</p></div>}
+                {viewItems.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">Transfer Items</p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Item</TableHead>
+                          <TableHead className="text-xs text-right">Quantity</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {viewItems.map((it: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-sm text-foreground">{it.item_name}</TableCell>
+                            <TableCell className="text-sm text-right text-foreground">{it.quantity}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setViewTransfer(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Draft Transfer */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
