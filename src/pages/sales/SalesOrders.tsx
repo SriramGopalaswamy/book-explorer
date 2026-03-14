@@ -136,7 +136,15 @@ export default function SalesOrders() {
               <DialogHeader><DialogTitle>Create Sales Order</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Customer Name *</Label><Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} /></div>
+                  <div>
+                    <Label>Customer *</Label>
+                    <Select value={form.customer_name} onValueChange={(v) => setForm({ ...form, customer_name: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>Order Date</Label><Input type="date" value={form.order_date} onChange={(e) => setForm({ ...form, order_date: e.target.value })} /></div>
                   <div><Label>Expected Delivery</Label><Input type="date" value={form.expected_delivery} onChange={(e) => setForm({ ...form, expected_delivery: e.target.value })} /></div>
                 </div>
