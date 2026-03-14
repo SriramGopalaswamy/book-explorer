@@ -438,69 +438,80 @@ export default function EInvoices() {
                 <TableHead>IRN</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-invoices found</TableCell></TableRow>
-              ) : filtered.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium">{inv.doc_number}</TableCell>
-                  <TableCell><Badge variant="outline">{inv.doc_type}</Badge></TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="text-sm">{inv.buyer_legal_name}</p>
-                      {inv.buyer_gstin && <p className="text-xs text-muted-foreground">{inv.buyer_gstin}</p>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">₹{Number(inv.total_invoice_value).toLocaleString("en-IN")}</TableCell>
-                  <TableCell>
-                    {inv.irn ? (
-                      <div className="max-w-[150px]">
-                        <p className="text-xs font-mono truncate" title={inv.irn}>{inv.irn}</p>
-                        {inv.ack_number && <p className="text-xs text-muted-foreground">Ack: {inv.ack_number}</p>}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      {statusIcon(inv.status)}
-                      <span className="text-sm capitalize">{inv.status}</span>
-                    </div>
-                    {inv.status === "cancelled" && inv.cancel_reason && (
-                      <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">Reason: {inv.cancel_reason}</p>
-                        {inv.cancel_remark && (
-                          <p className="text-xs text-muted-foreground">Remark: {inv.cancel_remark}</p>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(inv.created_at), "dd MMM yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {inv.status === "pending" && (
-                        <Button size="sm" variant="outline" onClick={() => generateIRN(inv.id)} disabled={isGenerating}>
-                          <QrCode className="h-3.5 w-3.5 mr-1" /> Generate IRN
-                        </Button>
-                      )}
-                      {(inv.status === "pending" || inv.status === "generated") && (
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelId(inv.id)}>
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
+                  <TableHead>Actions</TableHead>
+               </TableRow>
+             </TableHeader>
+             <TableBody>
+               {isLoading ? (
+                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+               ) : filtered.length === 0 ? (
+                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-invoices found</TableCell></TableRow>
+               ) : filtered.map((inv) => (
+                 <TableRow key={inv.id}>
+                   <TableCell className="font-medium">{inv.doc_number}</TableCell>
+                   <TableCell><Badge variant="outline">{inv.doc_type}</Badge></TableCell>
+                   <TableCell>
+                     <div>
+                       <p className="text-sm">{inv.buyer_legal_name}</p>
+                       {inv.buyer_gstin && <p className="text-xs text-muted-foreground">{inv.buyer_gstin}</p>}
+                     </div>
+                   </TableCell>
+                   <TableCell className="text-right font-medium">₹{Number(inv.total_invoice_value).toLocaleString("en-IN")}</TableCell>
+                   <TableCell>
+                     {inv.irn ? (
+                       <div className="max-w-[150px]">
+                         <p className="text-xs font-mono truncate" title={inv.irn}>{inv.irn}</p>
+                         {inv.ack_number && <p className="text-xs text-muted-foreground">Ack: {inv.ack_number}</p>}
+                       </div>
+                     ) : (
+                       <span className="text-xs text-muted-foreground">—</span>
+                     )}
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex items-center gap-1.5">
+                       {statusIcon(inv.status)}
+                       <span className="text-sm capitalize">{inv.status}</span>
+                     </div>
+                     {inv.status === "cancelled" && inv.cancel_reason && (
+                       <div className="mt-1">
+                         <p className="text-xs text-muted-foreground">Reason: {inv.cancel_reason}</p>
+                         {inv.cancel_remark && (
+                           <p className="text-xs text-muted-foreground">Remark: {inv.cancel_remark}</p>
+                         )}
+                       </div>
+                     )}
+                   </TableCell>
+                   <TableCell className="text-sm text-muted-foreground">
+                     {format(new Date(inv.created_at), "dd MMM yyyy")}
+                   </TableCell>
+                   <TableCell>
+                     <DropdownMenu>
+                       <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                       </DropdownMenuTrigger>
+                       <DropdownMenuContent align="end">
+                         <DropdownMenuItem onClick={() => {
+                           // View invoice details inline
+                           setViewingEInvoice(inv);
+                         }}>
+                           <Eye className="h-4 w-4 mr-2" /> View Invoice
+                         </DropdownMenuItem>
+                         {inv.status === "pending" && (
+                           <DropdownMenuItem onClick={() => generateIRN(inv.id)} disabled={isGenerating}>
+                             <QrCode className="h-4 w-4 mr-2" /> Generate IRN
+                           </DropdownMenuItem>
+                         )}
+                         {(inv.status === "pending" || inv.status === "generated") && (
+                           <DropdownMenuItem onClick={() => setCancelId(inv.id)} className="text-destructive">
+                             <XCircle className="h-4 w-4 mr-2" /> Cancel
+                           </DropdownMenuItem>
+                         )}
+                       </DropdownMenuContent>
+                     </DropdownMenu>
+                   </TableCell>
+                 </TableRow>
+               ))}
+             </TableBody>
           </Table>
         </CardContent>
       </Card>
