@@ -126,7 +126,7 @@ export default function StockAdjustments() {
                   <Select value={form.warehouse_id} onValueChange={v => setForm(f => ({ ...f, warehouse_id: v }))}>
                     <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
                     <SelectContent>
-                      {(warehouses || []).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {(warehouses || []).filter((w: any) => w.is_active !== false).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
