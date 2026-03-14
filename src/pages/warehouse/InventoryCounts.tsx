@@ -188,21 +188,66 @@ export default function InventoryCounts() {
           ) : counts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No inventory counts yet. Create your first count above.</div>
           ) : (
-            counts.map((count) => (
-              <div key={count.id} className="border-b last:border-b-0">
-                <div className="grid grid-cols-5 gap-4 px-4 py-3 items-center hover:bg-muted/30">
-                  <button className="flex items-center gap-1 font-mono font-semibold text-foreground hover:text-primary col-span-1 text-left" onClick={() => toggleExpand(count.id)}>
-                    {expanded.has(count.id) ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                    {count.count_number}
-                  </button>
-                  <span className="text-sm">{format(new Date(count.count_date), "dd MMM yyyy")}</span>
-                  <span className="text-sm text-muted-foreground">{(warehouses.find((w: any) => w.id === count.warehouse_id) as any)?.name || count.warehouse_id}</span>
-                  <Badge className={statusColors[count.status] || ""}>{count.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
-                  <span className="text-sm text-muted-foreground truncate">{count.notes || "—"}</span>
-                </div>
-                {expanded.has(count.id) && <CountLinesPanel countId={count.id} countStatus={count.status} />}
-              </div>
-            ))
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Count #</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Date</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Warehouse</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Notes</th>
+                      <th className="px-4 py-3 font-medium text-muted-foreground">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {counts.map((count) => (
+                      <React.Fragment key={count.id}>
+                        <tr className="border-b last:border-b-0 hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <button className="flex items-center gap-1 font-mono font-semibold text-foreground hover:text-primary text-left" onClick={() => toggleExpand(count.id)}>
+                              {expanded.has(count.id) ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                              {count.count_number}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">{format(new Date(count.count_date), "dd MMM yyyy")}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{(warehouses.find((w: any) => w.id === count.warehouse_id) as any)?.name || count.warehouse_id}</td>
+                          <td className="px-4 py-3"><Badge className={statusColors[count.status] || ""}>{count.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></td>
+                          <td className="px-4 py-3 text-muted-foreground truncate max-w-[160px]">{count.notes || "—"}</td>
+                          <td className="px-4 py-3">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Details
+                                </DropdownMenuItem>
+                                {count.status === "draft" && (
+                                  <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                )}
+                                {count.status !== "approved" && (
+                                  <DropdownMenuItem onClick={() => approve.mutate(count.id)}>
+                                    <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
+                                  </DropdownMenuItem>
+                                )}
+                                {count.status === "draft" && (
+                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                        {expanded.has(count.id) && (
+                          <tr><td colSpan={6}><CountLinesPanel countId={count.id} countStatus={count.status} /></td></tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
           )}
         </div>
 
