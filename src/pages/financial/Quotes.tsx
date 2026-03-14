@@ -561,9 +561,21 @@ export default function Quotes() {
                         <TableCell className="font-semibold">{formatCurrency(Number(q.total_amount || q.amount))}</TableCell>
                         <TableCell className="text-sm">{new Date(q.due_date).toLocaleDateString("en-IN")}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={sc.className}>
-                            <StatusIcon className="mr-1 h-3 w-3" />{sc.label}
-                          </Badge>
+                          <div>
+                            <Badge variant="outline" className={sc.className}>
+                              <StatusIcon className="mr-1 h-3 w-3" />{sc.label}
+                            </Badge>
+                            {q.status === "converted" && q.converted_invoice_id && (
+                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => window.location.href = "/financial/invoicing"}>
+                                → Converted to Invoice
+                              </p>
+                            )}
+                            {q.status === "converted" && !q.converted_invoice_id && (
+                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => window.location.href = "/sales/orders"}>
+                                → Converted to Sales Order
+                              </p>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

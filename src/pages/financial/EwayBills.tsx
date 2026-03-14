@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info, MoreHorizontal, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info, MoreHorizontal, Pencil, Trash2, CheckCircle2, Eye } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useEwayBills, EwayBill, EwayBillInsert } from "@/hooks/useEwayBills";
@@ -92,6 +92,7 @@ export default function EwayBills() {
   const [editForm, setEditForm] = useState<EwayBillInsert>(INITIAL_FORM);
   const [editTab, setEditTab] = useState("partA");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [viewingBill, setViewingBill] = useState<EwayBill | null>(null);
 
   const filtered = ewayBills.filter(
     (b) =>
@@ -245,6 +246,9 @@ export default function EwayBills() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setViewingBill(bill)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Bill
+                                </DropdownMenuItem>
                                 {bill.status === "draft" && (
                                   <DropdownMenuItem onClick={() => { setEditingBill(bill); setEditForm(bill); setEditTab("partA"); }}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
@@ -835,6 +839,62 @@ export default function EwayBills() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCancel(null)}>Close</Button>
               <Button variant="destructive" onClick={handleCancel} disabled={!cancelReason}>Confirm Cancel</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Bill Dialog */}
+        <Dialog open={!!viewingBill} onOpenChange={(open) => { if (!open) setViewingBill(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>E-Way Bill Details</DialogTitle>
+            </DialogHeader>
+            {viewingBill && (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">E-Way Bill #</p><p className="font-mono font-medium">{viewingBill.eway_bill_number || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={STATUS_COLORS[viewingBill.status] ?? ""}>{viewingBill.status}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">Document #</p><p className="font-medium">{viewingBill.document_number || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Document Date</p><p>{viewingBill.document_date || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Valid Until</p><p>{viewingBill.valid_until ? format(new Date(viewingBill.valid_until), "dd MMM yyyy HH:mm") : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Distance</p><p>{viewingBill.distance_km} km</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-border/50">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">FROM</p>
+                    <p className="font-medium text-sm">{viewingBill.from_name || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.from_gstin || ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.from_place || ""} {viewingBill.from_pincode || ""}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">TO</p>
+                    <p className="font-medium text-sm">{viewingBill.to_name || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.to_gstin || ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.to_place || ""} {viewingBill.to_pincode || ""}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Product</p><p className="text-sm">{viewingBill.product_name || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">HSN Code</p><p className="font-mono text-sm">{viewingBill.hsn_code || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Taxable Value</p><p className="font-semibold">₹{viewingBill.taxable_value.toLocaleString("en-IN")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Total Value</p><p className="font-semibold">₹{viewingBill.total_value.toLocaleString("en-IN")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Vehicle</p><p className="font-mono">{viewingBill.vehicle_number || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Transport Mode</p><p className="capitalize">{viewingBill.transport_mode || "—"}</p></div>
+                </div>
+                {viewingBill.status === "cancelled" && viewingBill.cancellation_reason && (
+                  <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                    <p className="text-xs text-muted-foreground">Cancellation Reason</p>
+                    <p className="text-sm text-destructive font-medium">{viewingBill.cancellation_reason}</p>
+                    {viewingBill.cancelled_at && <p className="text-xs text-muted-foreground mt-1">{format(new Date(viewingBill.cancelled_at), "dd MMM yyyy HH:mm")}</p>}
+                  </div>
+                )}
+                {viewingBill.notes && (
+                  <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{viewingBill.notes}</p></div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingBill(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

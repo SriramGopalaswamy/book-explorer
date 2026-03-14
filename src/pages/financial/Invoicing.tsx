@@ -822,9 +822,11 @@ export default function Invoicing() {
                                   <CheckCircle2 className="mr-2 h-4 w-4" /> Mark as Paid
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(invoice.id)}>
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                              </DropdownMenuItem>
+                              {invoice.status === "draft" && (
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(invoice.id)}>
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

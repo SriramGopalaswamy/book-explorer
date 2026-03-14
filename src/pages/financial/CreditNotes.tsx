@@ -354,7 +354,7 @@ export default function CreditNotes() {
                               Mark as {s.charAt(0).toUpperCase() + s.slice(1)}
                             </DropdownMenuItem>
                           ))}
-                          {(cn.status === "draft" || cn.status === "void") && (
+                          {(cn.status === "draft" || cn.status === "void" || cn.status === "issued" || cn.status === "applied") && (
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(cn)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                           )}
                         </DropdownMenuContent>

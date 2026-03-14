@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, Filter, X } from "lucide-react";
 import { usePaymentReceipts, useCreatePaymentReceipt } from "@/hooks/usePayments";
-import { format } from "date-fns";
+import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from "date-fns";
+
+const METHODS = ["bank_transfer", "cash", "cheque", "upi", "card"];
 
 export default function PaymentReceipts() {
   const { data: receipts = [], isLoading } = usePaymentReceipts();
@@ -18,17 +20,54 @@ export default function PaymentReceipts() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" });
 
+  // Filters
+  const [methodFilter, setMethodFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   const handleCreate = () => {
     if (!form.customer_name || !form.amount) return;
     createReceipt.mutate({ ...form, amount: Number(form.amount) }, { onSuccess: () => { setOpen(false); setForm({ customer_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" }); } });
   };
+
+  const filtered = receipts.filter(r => {
+    if (methodFilter !== "all" && r.payment_method !== methodFilter) return false;
+    if (dateFrom && isBefore(parseISO(r.payment_date), startOfDay(parseISO(dateFrom)))) return false;
+    if (dateTo && isAfter(parseISO(r.payment_date), endOfDay(parseISO(dateTo)))) return false;
+    return true;
+  });
+
+  const hasActiveFilters = methodFilter !== "all" || dateFrom || dateTo;
+  const clearFilters = () => { setMethodFilter("all"); setDateFrom(""); setDateTo(""); };
 
   if (isLoading) return <MainLayout title="Payment Receipts"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
 
   return (
     <MainLayout title="Payment Receipts">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-[160px] h-9 text-sm">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="All Methods" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Methods</SelectItem>
+                {METHODS.map(m => <SelectItem key={m} value={m}>{m.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[150px] h-9 text-sm" placeholder="From" />
+              <span className="text-muted-foreground text-xs">to</span>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[150px] h-9 text-sm" placeholder="To" />
+            </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={clearFilters}>
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+            )}
+          </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Record Payment</Button></DialogTrigger>
             <DialogContent>
@@ -60,7 +99,7 @@ export default function PaymentReceipts() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>All Receipts</CardTitle></CardHeader>
+          <CardHeader><CardTitle>All Receipts {hasActiveFilters && <span className="text-sm font-normal text-muted-foreground ml-2">({filtered.length} of {receipts.length})</span>}</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -74,7 +113,7 @@ export default function PaymentReceipts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {receipts.map(r => (
+                {filtered.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.receipt_number}</TableCell>
                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
@@ -84,7 +123,7 @@ export default function PaymentReceipts() {
                     <TableCell><Badge variant={r.status === "received" ? "default" : "secondary"}>{r.status}</Badge></TableCell>
                   </TableRow>
                 ))}
-                {receipts.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No payment receipts yet</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No receipts match filters" : "No payment receipts yet"}</TableCell></TableRow>}
               </TableBody>
             </Table>
           </CardContent>
