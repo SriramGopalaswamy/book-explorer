@@ -322,11 +322,11 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
             </div>
             <div className="grid grid-cols-4 text-xs">
               {[
-                ["Employee ID", record.employee_id || "—", "PAN No", record.pan_number || "—"],
-                ["Designation", jobTitle, "Bank Name", record.bank_name || "—"],
-                ["Date of Joining", record.date_of_joining || "—", "Bank A/C No", record.bank_account_number || "—"],
-                ["Pay Period", period, "IFSC Code", record.bank_ifsc || "—"],
-                ["Working Days", String(workingDays || "—"), "UAN No", record.uan_number || "—"],
+                ["Employee ID", employeeId, "PAN No", panNumber],
+                ["Designation", jobTitle, "Bank Name", bankName],
+                ["Date of Joining", dateOfJoining, "Bank A/C No", bankAccountNumber],
+                ["Pay Period", period, "IFSC Code", bankIfsc],
+                ["Working Days", String(workingDays || "—"), "UAN No", uanNumber],
                 ["Paid Days", String(paidDays || "—"), "LOP", String(lopDays || "0")],
               ].map((row, i) => (
                 <React.Fragment key={i}>
