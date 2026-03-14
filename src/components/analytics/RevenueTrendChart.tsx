@@ -71,6 +71,7 @@ export function ProfitBarChart() {
                 labelStyle={{ color: "hsl(var(--popover-foreground))" }}
                 itemStyle={{ color: "hsl(var(--popover-foreground))" }}
               />
+              <Legend />
               <Bar dataKey="revenue" name="Revenue" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} opacity={0.8} />
               <Bar dataKey="expenses" name="Expenses" fill="hsl(346, 87%, 43%)" radius={[4, 4, 0, 0]} opacity={0.8} />
             </BarChart>

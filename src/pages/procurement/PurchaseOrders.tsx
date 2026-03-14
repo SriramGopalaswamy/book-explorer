@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil, Eye } from "lucide-react";
 import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePOStatus, PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -165,6 +165,15 @@ export default function PurchaseOrders() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const [viewingPO, setViewingPO] = useState<PurchaseOrder | null>(null);
+  const [viewPOItems, setViewPOItems] = useState<any[]>([]);
+
+  const openViewDialog = async (po: PurchaseOrder) => {
+    setViewingPO(po);
+    const { data: poItems } = await supabase.from("purchase_order_items" as any).select("*").eq("purchase_order_id", po.id);
+    setViewPOItems((poItems as any[]) || []);
+  };
+
   const columns: Column<PurchaseOrder>[] = [
     { key: "po_number", header: "PO #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.po_number}</span> },
     { key: "vendor_name", header: "Vendor" },
@@ -186,12 +195,22 @@ export default function PurchaseOrders() {
       },
     },
     {
-      key: "id", header: "",
-      render: (r) => r.status === "draft" ? (
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(r)}>
-          <Pencil className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      ) : null,
+      key: "id", header: "Actions",
+      render: (r) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openViewDialog(r)}>
+              <Eye className="h-4 w-4 mr-2" /> View PO
+            </DropdownMenuItem>
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => openEditDialog(r)}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     },
   ];
 
@@ -289,6 +308,47 @@ export default function PurchaseOrders() {
                 {editMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View PO Dialog */}
+        <Dialog open={!!viewingPO} onOpenChange={(open) => { if (!open) setViewingPO(null); }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Purchase Order — {viewingPO?.po_number}</DialogTitle></DialogHeader>
+            {viewingPO && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Vendor</p><p className="font-medium">{viewingPO.vendor_name}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingPO.status] || ""}>{viewingPO.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">Order Date</p><p className="font-medium">{format(new Date(viewingPO.order_date), "dd MMM yyyy")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Expected Delivery</p><p className="font-medium">{viewingPO.expected_delivery ? format(new Date(viewingPO.expected_delivery), "dd MMM yyyy") : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Total Amount</p><p className="font-semibold">₹{Number(viewingPO.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p></div>
+                </div>
+                {viewingPO.notes && (
+                  <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{viewingPO.notes}</p></div>
+                )}
+                {viewPOItems.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">Line Items</p>
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b bg-muted/30"><th className="px-3 py-2 text-left text-xs">Description</th><th className="px-3 py-2 text-right text-xs">Qty</th><th className="px-3 py-2 text-right text-xs">Unit Price</th><th className="px-3 py-2 text-right text-xs">Tax %</th><th className="px-3 py-2 text-right text-xs">Amount</th></tr></thead>
+                        <tbody>{viewPOItems.map((item: any, idx: number) => (
+                          <tr key={idx} className="border-b last:border-0">
+                            <td className="px-3 py-2">{item.description}</td>
+                            <td className="px-3 py-2 text-right">{item.quantity}</td>
+                            <td className="px-3 py-2 text-right">₹{Number(item.unit_price).toLocaleString("en-IN")}</td>
+                            <td className="px-3 py-2 text-right">{item.tax_rate || 0}%</td>
+                            <td className="px-3 py-2 text-right font-medium">₹{Number(item.amount || item.quantity * item.unit_price).toLocaleString("en-IN")}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => setViewingPO(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

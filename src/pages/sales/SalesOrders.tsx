@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,16 @@ export default function SalesOrders() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
+
+  // Fetch customers for dropdown
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers-so-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("customers").select("id, name").eq("status", "active").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
 
   const filtered = orders.filter((o) =>
@@ -124,7 +136,15 @@ export default function SalesOrders() {
               <DialogHeader><DialogTitle>Create Sales Order</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Customer Name *</Label><Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} /></div>
+                  <div>
+                    <Label>Customer *</Label>
+                    <Select value={form.customer_name} onValueChange={(v) => setForm({ ...form, customer_name: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>Order Date</Label><Input type="date" value={form.order_date} onChange={(e) => setForm({ ...form, order_date: e.target.value })} /></div>
                   <div><Label>Expected Delivery</Label><Input type="date" value={form.expected_delivery} onChange={(e) => setForm({ ...form, expected_delivery: e.target.value })} /></div>
                 </div>
