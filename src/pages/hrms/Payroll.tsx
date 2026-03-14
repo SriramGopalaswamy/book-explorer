@@ -1094,8 +1094,7 @@ export default function Payroll() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bulk Upload History */}
-      <BulkUploadHistory module="payroll" />
+      {/* Bulk Upload History - only shown in register tab handled above */}
     </MainLayout>
   );
 }

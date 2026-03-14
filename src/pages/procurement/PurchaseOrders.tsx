@@ -165,6 +165,15 @@ export default function PurchaseOrders() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const [viewingPO, setViewingPO] = useState<PurchaseOrder | null>(null);
+  const [viewPOItems, setViewPOItems] = useState<any[]>([]);
+
+  const openViewDialog = async (po: PurchaseOrder) => {
+    setViewingPO(po);
+    const { data: poItems } = await supabase.from("purchase_order_items" as any).select("*").eq("purchase_order_id", po.id);
+    setViewPOItems((poItems as any[]) || []);
+  };
+
   const columns: Column<PurchaseOrder>[] = [
     { key: "po_number", header: "PO #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.po_number}</span> },
     { key: "vendor_name", header: "Vendor" },
@@ -186,12 +195,22 @@ export default function PurchaseOrders() {
       },
     },
     {
-      key: "id", header: "",
-      render: (r) => r.status === "draft" ? (
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(r)}>
-          <Pencil className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      ) : null,
+      key: "id", header: "Actions",
+      render: (r) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openViewDialog(r)}>
+              <Eye className="h-4 w-4 mr-2" /> View PO
+            </DropdownMenuItem>
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => openEditDialog(r)}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     },
   ];
 
