@@ -246,6 +246,9 @@ export default function EwayBills() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setViewingBill(bill)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Bill
+                                </DropdownMenuItem>
                                 {bill.status === "draft" && (
                                   <DropdownMenuItem onClick={() => { setEditingBill(bill); setEditForm(bill); setEditTab("partA"); }}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
