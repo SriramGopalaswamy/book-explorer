@@ -655,13 +655,17 @@ export default function Invoicing() {
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label>Customer *</Label>
-                      <Select value={editSelectedCustomerId} onValueChange={(val) => {
-                        setEditSelectedCustomerId(val);
-                        const cust = customers.find(c => c.id === val);
-                        if (cust?.tax_number) {
-                          setEditFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
-                        }
-                      }}>
+                      <Select
+                        key={editSelectedCustomerId}
+                        value={editSelectedCustomerId}
+                        onValueChange={(val) => {
+                          setEditSelectedCustomerId(val);
+                          const cust = customers.find(c => c.id === val);
+                          if (cust?.tax_number) {
+                            setEditFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
+                          }
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                         <SelectContent>
                           {customers.map((c) => (
