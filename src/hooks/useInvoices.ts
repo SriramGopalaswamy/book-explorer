@@ -378,10 +378,6 @@ export function useUpdateInvoice() {
       if (!data.client_name?.trim()) throw new Error("Client name is required.");
 
       // Fetch current version for optimistic locking (scope by org to satisfy RLS)
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user!.id).maybeSingle();
-      const callerOrgId = callerProfile?.organization_id;
-      if (!callerOrgId) throw new Error("Organization not found. Please complete onboarding.");
-
       const { data: current, error: fetchErr } = await (supabase as any)
         .from("invoices")
         .select("version")
