@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info, MoreHorizontal, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Search, FileText, Truck, XCircle, Clock, RefreshCw, AlertTriangle, Info, MoreHorizontal, Pencil, Trash2, CheckCircle2, Eye } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useEwayBills, EwayBill, EwayBillInsert } from "@/hooks/useEwayBills";
