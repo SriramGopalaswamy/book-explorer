@@ -545,6 +545,61 @@ export default function EInvoices() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View E-Invoice Dialog */}
+      {viewingEInvoice && (
+        <Dialog open={!!viewingEInvoice} onOpenChange={(v) => { if (!v) setViewingEInvoice(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>E-Invoice — {viewingEInvoice.doc_number}</DialogTitle>
+              <DialogDescription>
+                <div className="flex items-center gap-2 mt-1">
+                  {statusIcon(viewingEInvoice.status)}
+                  <span className="capitalize">{viewingEInvoice.status}</span>
+                  <Badge variant="outline">{viewingEInvoice.doc_type}</Badge>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><p className="text-xs text-muted-foreground">Document #</p><p className="font-medium">{viewingEInvoice.doc_number}</p></div>
+                <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{viewingEInvoice.doc_date || format(new Date(viewingEInvoice.created_at), "dd MMM yyyy")}</p></div>
+                <div><p className="text-xs text-muted-foreground">Supply Type</p><p className="font-medium">{viewingEInvoice.supply_type}</p></div>
+                {viewingEInvoice.irn && <div><p className="text-xs text-muted-foreground">IRN</p><p className="font-mono text-xs break-all">{viewingEInvoice.irn}</p></div>}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-1">Seller</p>
+                  <p className="font-medium">{viewingEInvoice.seller_legal_name}</p>
+                  {viewingEInvoice.seller_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.seller_gstin}</p>}
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-1">Buyer</p>
+                  <p className="font-medium">{viewingEInvoice.buyer_legal_name}</p>
+                  {viewingEInvoice.buyer_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.buyer_gstin}</p>}
+                </div>
+              </div>
+              <div className="rounded-lg bg-secondary/50 p-4 space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Assessable Value</span><span>₹{Number(viewingEInvoice.total_assessable_value || 0).toLocaleString("en-IN")}</span></div>
+                {Number(viewingEInvoice.total_cgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewingEInvoice.total_cgst).toLocaleString("en-IN")}</span></div>}
+                {Number(viewingEInvoice.total_sgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewingEInvoice.total_sgst).toLocaleString("en-IN")}</span></div>}
+                {Number(viewingEInvoice.total_igst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewingEInvoice.total_igst).toLocaleString("en-IN")}</span></div>}
+                <div className="flex justify-between font-semibold border-t pt-1.5"><span>Total</span><span>₹{Number(viewingEInvoice.total_invoice_value).toLocaleString("en-IN")}</span></div>
+              </div>
+              {viewingEInvoice.status === "cancelled" && viewingEInvoice.cancel_reason && (
+                <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                  <p className="text-xs text-muted-foreground">Cancellation Reason</p>
+                  <p className="text-sm">{viewingEInvoice.cancel_reason}</p>
+                  {viewingEInvoice.cancel_remark && <p className="text-xs text-muted-foreground mt-1">{viewingEInvoice.cancel_remark}</p>}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingEInvoice(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </MainLayout>
   );
 }

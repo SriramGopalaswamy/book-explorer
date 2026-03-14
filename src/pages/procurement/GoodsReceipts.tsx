@@ -205,6 +205,23 @@ export default function GoodsReceipts() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* View GR Dialog */}
+        {viewingGR && (
+          <Dialog open={!!viewingGR} onOpenChange={(v) => { if (!v) setViewingGR(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader><DialogTitle>Goods Receipt — {viewingGR.grn_number}</DialogTitle></DialogHeader>
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">GRN #</p><p className="font-mono font-medium">{viewingGR.grn_number}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Date</p><p>{format(new Date(viewingGR.receipt_date), "dd MMM yyyy")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingGR.status] || ""}>{viewingGR.status}</Badge></div>
+                </div>
+                {viewingGR.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p>{viewingGR.notes}</p></div>}
+              </div>
+              <DialogFooter><Button variant="outline" onClick={() => setViewingGR(null)}>Close</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </MainLayout>
   );
