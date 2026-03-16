@@ -183,7 +183,7 @@ export function useCreateBOM() {
       if (bomErr) throw bomErr;
 
       if (bom.lines.length > 0) {
-        const lines = bom.lines.map((l, i) => ({ bom_id: (bomData as any).id, material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, item_id: l.item_id || null, sort_order: i }));
+        const lines = bom.lines.map((l, i) => ({ bom_id: (bomData as any).id, material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, est_cost: (l as any).est_cost || 0, item_id: l.item_id || null, sort_order: i }));
         const { error } = await supabase.from("bom_lines" as any).insert(lines as any);
         if (error) throw error;
       }
