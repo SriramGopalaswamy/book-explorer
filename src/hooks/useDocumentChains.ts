@@ -15,7 +15,8 @@ async function resolveCallerOrg(userId: string) {
 const GR_TRANSITIONS: Record<string, string[]> = {
   draft: ["inspecting", "accepted", "cancelled"],
   inspecting: ["accepted", "rejected"],
-  accepted: [],   // terminal
+  accepted: ["bill_created"],   // can transition to bill_created
+  bill_created: [],  // terminal
   rejected: [],   // terminal
   cancelled: [],  // terminal
 };
