@@ -13,6 +13,7 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2, Pencil, MoreHorizontal, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
 import { useWarehouses, useItems } from "@/hooks/useInventory";
@@ -86,12 +87,14 @@ export default function StockTransfers() {
     setEditDialogOpen(true);
   };
 
+  const qc = useQueryClient();
   const handleSaveEdit = async () => {
     if (!editingTransfer) return;
     try {
       const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id);
       if (error) throw error;
       toast.success("Transfer updated");
+      qc.invalidateQueries({ queryKey: ["stock-transfers"] });
       setEditDialogOpen(false);
       setEditingTransfer(null);
     } catch (e: any) {

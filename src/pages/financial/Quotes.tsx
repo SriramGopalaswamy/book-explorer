@@ -548,7 +548,7 @@ export default function Quotes() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Quote #</TableHead><TableHead>Client</TableHead><TableHead>Amount</TableHead>
-                    <TableHead>Valid Until</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Valid Until</TableHead><TableHead>Notes</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -569,6 +569,7 @@ export default function Quotes() {
                         </TableCell>
                         <TableCell className="font-semibold">{formatCurrency(Number(q.total_amount || q.amount))}</TableCell>
                         <TableCell className="text-sm">{new Date(q.due_date).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{q.notes || "—"}</TableCell>
                         <TableCell>
                           <div>
                             <Badge variant="outline" className={sc.className}>
@@ -706,12 +707,10 @@ export default function Quotes() {
                   </div>
                 </div>
 
-                {viewingQuote.notes && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Notes</p>
-                    <p className="text-sm">{viewingQuote.notes}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs text-muted-foreground">Notes</p>
+                  <p className="text-sm">{viewingQuote.notes || "No notes added"}</p>
+                </div>
 
                 {(viewingQuote.status === "sent" || viewingQuote.status === "accepted") && (
                   <Button

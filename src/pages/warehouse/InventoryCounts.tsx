@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil } from "lucide-react";
+import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2 } from "lucide-react";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
   InventoryCount,
@@ -101,6 +101,106 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
   );
 }
 
+// ─── Approve & Post Dialog ─────────────────────────
+function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { data: lines = [], isLoading } = useCountLines(open ? countId : undefined);
+  const updateLine = useUpdateCountLine();
+  const approve = useApproveInventoryCount();
+  const [actualQtys, setActualQtys] = useState<Record<string, string>>({});
+
+  // Initialize actual qtys from existing data when lines load
+  React.useEffect(() => {
+    if (lines.length > 0) {
+      const initial: Record<string, string> = {};
+      lines.forEach((line) => {
+        if (line.actual_qty !== null && line.actual_qty !== undefined) {
+          initial[line.id] = String(line.actual_qty);
+        }
+      });
+      setActualQtys(initial);
+    }
+  }, [lines]);
+
+  const handleConfirm = async () => {
+    // First save all actual quantities
+    const updates = lines.map((line) => {
+      const val = parseFloat(actualQtys[line.id] ?? "");
+      if (isNaN(val)) return null;
+      return updateLine.mutateAsync({ id: line.id, actual_qty: val });
+    }).filter(Boolean);
+
+    try {
+      await Promise.all(updates);
+      // Small delay to ensure DB has updated before approval checks
+      await new Promise((r) => setTimeout(r, 300));
+      await approve.mutateAsync(countId);
+      onOpenChange(false);
+    } catch (e: any) {
+      // Error already shown by mutation
+    }
+  };
+
+  const allFilled = lines.every((line) => {
+    const val = actualQtys[line.id];
+    return val !== undefined && val !== "" && !isNaN(parseFloat(val));
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Approve & Post — Enter Actual Quantities</DialogTitle></DialogHeader>
+        {isLoading ? (
+          <div className="py-6 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Loading items…</div>
+        ) : lines.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground">No items in this count.</div>
+        ) : (
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+            {lines.map((line) => {
+              const val = actualQtys[line.id] ?? "";
+              const variance = val !== "" && !isNaN(parseFloat(val)) ? parseFloat(val) - line.expected_qty : null;
+              return (
+                <div key={line.id} className="rounded-lg border p-3 space-y-1">
+                  <p className="text-sm font-medium text-foreground">{line.item_name}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Expected</Label>
+                      <p className="text-sm font-semibold">{line.expected_qty}</p>
+                    </div>
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Actual Qty *</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Enter qty"
+                        value={val}
+                        onChange={(e) => setActualQtys((prev) => ({ ...prev, [line.id]: e.target.value }))}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Variance</Label>
+                      <p className={`text-sm font-semibold ${variance !== null ? (variance < 0 ? "text-red-400" : variance > 0 ? "text-green-400" : "text-muted-foreground") : "text-muted-foreground"}`}>
+                        {variance !== null ? (variance > 0 ? `+${variance}` : String(variance)) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleConfirm} disabled={!allFilled || approve.isPending || updateLine.isPending}>
+            <CheckCircle className="h-4 w-4 mr-1" />
+            {approve.isPending ? "Approving…" : "Confirm & Approve"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function InventoryCounts() {
   const { data: counts = [], isLoading } = useInventoryCounts();
   const { data: warehouses = [] } = useWarehouses();
@@ -114,6 +214,7 @@ export default function InventoryCounts() {
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [approveCountId, setApproveCountId] = useState<string | null>(null);
 
   const approve = useApproveInventoryCount();
   const deleteCountMutation = useMutation({
@@ -238,23 +339,29 @@ export default function InventoryCounts() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
-                                  <Eye className="h-4 w-4 mr-2" /> View Details
-                                </DropdownMenuItem>
-                                {count.status === "draft" && (
-                                  <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
-                                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                                {count.status === "approved" ? (
+                                  <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                    <Eye className="h-4 w-4 mr-2" /> View Details
                                   </DropdownMenuItem>
-                                )}
-                                {count.status !== "approved" && (
-                                  <DropdownMenuItem onClick={() => approve.mutate(count.id)}>
-                                    <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
-                                  </DropdownMenuItem>
-                                )}
-                                {count.status === "draft" && (
-                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
-                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                  </DropdownMenuItem>
+                                ) : (
+                                  <>
+                                    <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                      <Eye className="h-4 w-4 mr-2" /> View Details
+                                    </DropdownMenuItem>
+                                    {count.status === "draft" && (
+                                      <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
+                                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem onClick={() => setApproveCountId(count.id)}>
+                                      <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
+                                    </DropdownMenuItem>
+                                    {count.status === "draft" && (
+                                      <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
+                                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                      </DropdownMenuItem>
+                                    )}
+                                  </>
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -269,6 +376,11 @@ export default function InventoryCounts() {
                 </table>
           )}
         </div>
+
+        {/* Approve & Post Dialog */}
+        {approveCountId && (
+          <ApprovePostDialog countId={approveCountId} open={!!approveCountId} onOpenChange={(v) => { if (!v) setApproveCountId(null); }} />
+        )}
 
         {/* New Count Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

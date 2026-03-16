@@ -133,10 +133,9 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Verify JWT via getClaims (no DB call)
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) throw new Error("Unauthorized");
+    // Verify JWT and get user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) throw new Error("Unauthorized");
 
     const { invoiceId } = await req.json();
     if (!invoiceId) throw new Error("Invoice ID is required");

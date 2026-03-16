@@ -306,12 +306,12 @@ export default function Attendance() {
       </Card>
 
       {/* Attendance Engine */}
-      <div className="mt-6">
+      <div className="mb-6">
         <AttendanceEnginePanel />
       </div>
 
       {/* Bulk Upload History */}
-      <div className="mt-6">
+      <div className="mb-6">
         <BulkUploadHistory module="attendance" />
       </div>
     </MainLayout>
