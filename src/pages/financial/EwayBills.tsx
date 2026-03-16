@@ -380,6 +380,11 @@ export default function EwayBills() {
                     <Label>Document Date</Label>
                     <Input type="date" value={form.document_date ?? ""} onChange={(e) => setField("document_date", e.target.value)} />
                   </div>
+                  <div>
+                    <Label>E-Way Bill Date</Label>
+                    <Input type="date" value={form.eway_bill_date ?? new Date().toISOString().split("T")[0]} onChange={(e) => setField("eway_bill_date", e.target.value)} />
+                    <p className="text-xs text-muted-foreground mt-1">Validity auto-calculated from this date + distance</p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="space-y-3 p-3 rounded-lg border border-border/50">

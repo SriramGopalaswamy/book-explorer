@@ -15,7 +15,8 @@ async function resolveCallerOrg(userId: string) {
 const GR_TRANSITIONS: Record<string, string[]> = {
   draft: ["inspecting", "accepted", "cancelled"],
   inspecting: ["accepted", "rejected"],
-  accepted: [],   // terminal
+  accepted: ["bill_created"],   // can transition to bill_created
+  bill_created: [],  // terminal
   rejected: [],   // terminal
   cancelled: [],  // terminal
 };
@@ -273,6 +274,12 @@ export function useCreateBillFromGR() {
         }));
         await supabase.from("bill_items").insert(billItems);
       }
+
+      // Update GR status to "bill_created"
+      await supabase.from("goods_receipts" as any)
+        .update({ status: "bill_created" } as any)
+        .eq("id", params.goods_receipt_id)
+        .eq("organization_id", callerOrgId);
 
       return bill;
     },

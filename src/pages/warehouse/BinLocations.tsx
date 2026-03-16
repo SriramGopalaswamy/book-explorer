@@ -134,7 +134,9 @@ export default function BinLocations() {
                 <div><Label>Rack</Label><Input value={form.rack} onChange={(e) => setForm({ ...form, rack: e.target.value })} /></div>
                 <div><Label>Level</Label><Input value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} /></div>
                 <div><Label>Capacity</Label><Input type="number" value={form.capacity_units} onChange={(e) => setForm({ ...form, capacity_units: Number(e.target.value) })} /></div>
+                <div><Label>Current Units</Label><Input type="number" value={(form as any).current_units || 0} onChange={(e) => setForm({ ...form, current_units: Number(e.target.value) } as any)} placeholder="0" /></div>
               </div>
+              <div><Label>Notes</Label><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes about this bin location" /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>

@@ -194,7 +194,10 @@ export function useUpdatePOStatus() {
         throw new Error(`Cannot transition PO from '${currentStatus}' to '${status}'`);
       }
 
-      const { error } = await supabase.from("purchase_orders" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { data: updateResult, error } = await supabase.from("purchase_orders" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId).select();
+      if (!error && (!updateResult || (updateResult as any[]).length === 0)) {
+        throw new Error("Failed to update status. You may not have permission to modify this purchase order.");
+      }
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Status updated"); },

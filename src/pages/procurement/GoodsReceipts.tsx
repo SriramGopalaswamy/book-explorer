@@ -32,6 +32,7 @@ const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   inspecting: "bg-yellow-500/20 text-yellow-400",
   accepted: "bg-green-500/20 text-green-400",
+  bill_created: "bg-purple-500/20 text-purple-400",
   rejected: "bg-destructive/20 text-destructive",
   cancelled: "bg-muted text-muted-foreground",
 };
@@ -136,6 +137,11 @@ export default function GoodsReceipts() {
             {r.status === "accepted" && r.purchase_order_id && (
               <DropdownMenuItem onClick={() => createBillFromGR.mutate({ goods_receipt_id: r.id, purchase_order_id: r.purchase_order_id! })}>
                 <FileText className="h-4 w-4 mr-2" /> Create Bill
+              </DropdownMenuItem>
+            )}
+            {r.status === "bill_created" && (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                <FileText className="h-4 w-4 mr-2" /> Bill Already Created
               </DropdownMenuItem>
             )}
             {(r.status === "draft" || r.status === "rejected") && (
