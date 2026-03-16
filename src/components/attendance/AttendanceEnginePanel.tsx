@@ -557,7 +557,7 @@ function UploadHistory() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Biometric Upload History</CardTitle>
+        <CardTitle className="text-base">Biometric Upload History</CardTitle>
         <CardDescription className="text-xs">
           Recent file uploads and parse results
         </CardDescription>

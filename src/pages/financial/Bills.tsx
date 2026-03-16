@@ -449,6 +449,8 @@ export default function Bills() {
         ai_extracted: aiExtracted,
         tds_section: form.tds_section || null,
         tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
+        ap_category: form.ap_category || null,
+        vendor_tax_number: form.vendor_tax_number || null,
       };
 
       let billId: string;
@@ -1257,8 +1259,14 @@ export default function Bills() {
 
               {/* Additional fields: AP Category, TDS, GST */}
               <div className="grid grid-cols-2 gap-3 text-sm">
+                {previewBill.ap_category && (
+                  <div><p className="text-xs text-muted-foreground">AP Category</p><p className="font-medium">{previewBill.ap_category}</p></div>
+                )}
                 {previewBill.tds_section && (
                   <div><p className="text-xs text-muted-foreground">TDS Section</p><p className="font-medium">{previewBill.tds_section} {previewBill.tds_rate ? `(${previewBill.tds_rate}%)` : ""}</p></div>
+                )}
+                {previewBill.vendor_tax_number && (
+                  <div><p className="text-xs text-muted-foreground">GST Number</p><p className="font-medium font-mono text-xs">{previewBill.vendor_tax_number}</p></div>
                 )}
                 {previewBill.vendor_id && (
                   <div><p className="text-xs text-muted-foreground">Vendor ID</p><p className="font-mono text-xs">{previewBill.vendor_id.slice(0, 8)}...</p></div>
