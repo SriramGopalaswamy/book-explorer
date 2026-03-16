@@ -451,6 +451,7 @@ export default function Bills() {
         tds_rate: form.tds_rate ? parseFloat(form.tds_rate) : null,
         ap_category: form.ap_category || null,
         vendor_tax_number: form.vendor_tax_number || null,
+        payment_terms: form.payment_terms || null,
       };
 
       let billId: string;
