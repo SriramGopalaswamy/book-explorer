@@ -71,6 +71,44 @@ export function useCreateRecurringTransaction() {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("Organization not found");
 
+      // Calculate next run date based on frequency and current date
+      const calcNextRunDate = (startDate: string, frequency: string): string => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+
+        // If start date is in the future, use it as next run date
+        if (start > today) return startDate;
+
+        // Otherwise calculate next run date from today
+        const addInterval = (date: Date, freq: string): Date => {
+          const d = new Date(date);
+          switch (freq) {
+            case "daily": d.setDate(d.getDate() + 1); break;
+            case "weekly": d.setDate(d.getDate() + 7); break;
+            case "monthly": d.setMonth(d.getMonth() + 1); break;
+            case "quarterly": d.setMonth(d.getMonth() + 3); break;
+            case "yearly": d.setFullYear(d.getFullYear() + 1); break;
+          }
+          return d;
+        };
+
+        // For daily, next run is today if start <= today
+        if (frequency === "daily") {
+          return today.toISOString().split("T")[0];
+        }
+
+        // For other frequencies, find the next occurrence from start date
+        let next = new Date(start);
+        while (next <= today) {
+          next = addInterval(next, frequency);
+        }
+        return next.toISOString().split("T")[0];
+      };
+
+      const nextRunDate = calcNextRunDate(params.start_date, params.frequency);
+
       const { data, error } = await supabase
         .from("recurring_transactions" as any)
         .insert({
@@ -83,7 +121,7 @@ export function useCreateRecurringTransaction() {
           credit_account_id: params.credit_account_id || null,
           start_date: params.start_date,
           end_date: params.end_date || null,
-          next_run_date: params.start_date,
+          next_run_date: nextRunDate,
           status: "active",
           notes: params.notes || null,
           created_by: user.id,

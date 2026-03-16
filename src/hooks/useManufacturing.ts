@@ -123,7 +123,8 @@ export function useBOMCostRollup(bomId?: string) {
       let totalMaterialCost = 0;
       let totalWithWastage = 0;
       const lineDetails = (lines as any[]).map((l: any) => {
-        const unitCost = l.item_id ? (itemPrices[l.item_id] || 0) : 0;
+        // Use item master price if available, otherwise use est_cost from BOM line
+        const unitCost = l.item_id ? (itemPrices[l.item_id] || Number(l.est_cost || 0)) : Number(l.est_cost || 0);
         const baseCost = l.quantity * unitCost;
         const effectiveCost = baseCost * (1 + (l.wastage_pct || 0) / 100);
         totalMaterialCost += baseCost;

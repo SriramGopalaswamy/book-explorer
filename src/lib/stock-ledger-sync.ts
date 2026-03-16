@@ -239,6 +239,25 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
     });
 
   await postStockEntries(entries);
+
+  // Also insert into material_consumption table for tracking
+  const consumptionRecords = (lines as any[]).map((l: any) => {
+    const plannedQty = l.quantity * Number(woData.completed_quantity);
+    const wastageQty = plannedQty * (l.wastage_pct || 0) / 100;
+    const actualQty = plannedQty + wastageQty;
+    return {
+      work_order_id: workOrderId,
+      material_name: l.material_name,
+      planned_quantity: Math.round(plannedQty * 100) / 100,
+      actual_quantity: Math.round(actualQty * 100) / 100,
+      wastage_quantity: Math.round(wastageQty * 100) / 100,
+      consumed_at: new Date().toISOString(),
+    };
+  });
+
+  if (consumptionRecords.length > 0) {
+    await supabase.from("material_consumption" as any).insert(consumptionRecords as any);
+  }
 }
 
 /**

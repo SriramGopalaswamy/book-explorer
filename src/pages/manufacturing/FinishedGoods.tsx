@@ -82,6 +82,7 @@ export default function FinishedGoods() {
     { key: "rejected_quantity", header: "Rejected", render: (r) => Number(r.rejected_quantity) > 0 ? <Badge variant="destructive">{Number(r.rejected_quantity)}</Badge> : <span className="text-muted-foreground">0</span> },
     { key: "total_cost", header: "Total Cost", render: (r) => r.total_cost ? `₹${Number(r.total_cost).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">—</span> },
     { key: "posted_at", header: "Date", render: (r) => format(new Date(r.posted_at), "dd MMM yyyy") },
+    { key: "notes" as any, header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
   ];
 
   return (

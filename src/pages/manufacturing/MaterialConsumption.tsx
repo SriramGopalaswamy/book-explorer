@@ -51,7 +51,7 @@ export default function MaterialConsumptionPage() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><AlertTriangle className="h-8 w-8 text-destructive" /><div><p className="text-2xl font-bold text-foreground">{totalWastage.toLocaleString()}</p><p className="text-xs text-muted-foreground">Total Wastage</p></div></div></CardContent></Card>
         </div>
 
-        <DataTable columns={columns} data={records} isLoading={isLoading} emptyMessage="No consumption records yet. Log material usage from Work Orders." />
+        <DataTable columns={columns} data={records} isLoading={isLoading} emptyMessage="No consumption records yet. Records are automatically created when a Work Order with a BOM is marked as completed." />
       </div>
     </MainLayout>
   );
