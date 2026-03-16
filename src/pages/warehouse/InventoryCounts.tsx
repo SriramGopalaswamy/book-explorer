@@ -133,7 +133,7 @@ export default function InventoryCounts() {
     total: counts.length,
     draft: counts.filter((c) => c.status === "draft").length,
     in_progress: counts.filter((c) => c.status === "in_progress").length,
-    completed: counts.filter((c) => ["completed", "approved"].includes(c.status)).length,
+    approved: counts.filter((c) => c.status === "approved").length,
   };
 
   const toggleExpand = (id: string) =>
