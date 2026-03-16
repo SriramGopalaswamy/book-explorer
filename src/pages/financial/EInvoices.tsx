@@ -549,7 +549,7 @@ export default function EInvoices() {
       {/* View E-Invoice Dialog */}
       {viewingEInvoice && (
         <Dialog open={!!viewingEInvoice} onOpenChange={(v) => { if (!v) setViewingEInvoice(null); }}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>E-Invoice — {viewingEInvoice.doc_number}</DialogTitle>
               <DialogDescription>
@@ -561,30 +561,104 @@ export default function EInvoices() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div><p className="text-xs text-muted-foreground">Document #</p><p className="font-medium">{viewingEInvoice.doc_number}</p></div>
                 <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{viewingEInvoice.doc_date || format(new Date(viewingEInvoice.created_at), "dd MMM yyyy")}</p></div>
                 <div><p className="text-xs text-muted-foreground">Supply Type</p><p className="font-medium">{viewingEInvoice.supply_type}</p></div>
-                {viewingEInvoice.irn && <div><p className="text-xs text-muted-foreground">IRN</p><p className="font-mono text-xs break-all">{viewingEInvoice.irn}</p></div>}
+                <div><p className="text-xs text-muted-foreground">Doc Type</p><p className="font-medium">{DOC_TYPES.find(d => d.value === viewingEInvoice.doc_type)?.label || viewingEInvoice.doc_type}</p></div>
+                {viewingEInvoice.irn && <div className="col-span-2 sm:col-span-4"><p className="text-xs text-muted-foreground">IRN</p><p className="font-mono text-xs break-all">{viewingEInvoice.irn}</p></div>}
+                {viewingEInvoice.ack_number && <div><p className="text-xs text-muted-foreground">Ack Number</p><p className="font-medium">{viewingEInvoice.ack_number}</p></div>}
+                {viewingEInvoice.ack_date && <div><p className="text-xs text-muted-foreground">Ack Date</p><p className="font-medium">{viewingEInvoice.ack_date}</p></div>}
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="p-3 rounded-lg border">
-                  <p className="text-xs text-muted-foreground mb-1">Seller</p>
+                  <p className="text-xs text-muted-foreground mb-1 font-semibold">Seller</p>
                   <p className="font-medium">{viewingEInvoice.seller_legal_name}</p>
+                  {viewingEInvoice.seller_trade_name && <p className="text-xs text-muted-foreground">Trade: {viewingEInvoice.seller_trade_name}</p>}
                   {viewingEInvoice.seller_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.seller_gstin}</p>}
+                  {viewingEInvoice.seller_address && <p className="text-xs text-muted-foreground mt-1">{viewingEInvoice.seller_address}</p>}
+                  {viewingEInvoice.seller_location && <p className="text-xs text-muted-foreground">{viewingEInvoice.seller_location}</p>}
+                  {(viewingEInvoice.seller_pincode || viewingEInvoice.seller_state_code) && (
+                    <p className="text-xs text-muted-foreground">
+                      {viewingEInvoice.seller_state_code && INDIAN_STATES[viewingEInvoice.seller_state_code]}
+                      {viewingEInvoice.seller_pincode && ` — ${viewingEInvoice.seller_pincode}`}
+                    </p>
+                  )}
                 </div>
                 <div className="p-3 rounded-lg border">
-                  <p className="text-xs text-muted-foreground mb-1">Buyer</p>
+                  <p className="text-xs text-muted-foreground mb-1 font-semibold">Buyer</p>
                   <p className="font-medium">{viewingEInvoice.buyer_legal_name}</p>
+                  {viewingEInvoice.buyer_trade_name && <p className="text-xs text-muted-foreground">Trade: {viewingEInvoice.buyer_trade_name}</p>}
                   {viewingEInvoice.buyer_gstin && <p className="text-xs text-muted-foreground font-mono">{viewingEInvoice.buyer_gstin}</p>}
+                  {viewingEInvoice.buyer_address && <p className="text-xs text-muted-foreground mt-1">{viewingEInvoice.buyer_address}</p>}
+                  {viewingEInvoice.buyer_location && <p className="text-xs text-muted-foreground">{viewingEInvoice.buyer_location}</p>}
+                  {(viewingEInvoice.buyer_pincode || viewingEInvoice.buyer_state_code) && (
+                    <p className="text-xs text-muted-foreground">
+                      {viewingEInvoice.buyer_state_code && INDIAN_STATES[viewingEInvoice.buyer_state_code]}
+                      {viewingEInvoice.buyer_pincode && ` — ${viewingEInvoice.buyer_pincode}`}
+                    </p>
+                  )}
+                  {viewingEInvoice.buyer_pos && viewingEInvoice.buyer_pos !== viewingEInvoice.buyer_state_code && (
+                    <p className="text-xs text-muted-foreground">POS: {INDIAN_STATES[viewingEInvoice.buyer_pos] || viewingEInvoice.buyer_pos}</p>
+                  )}
                 </div>
               </div>
+
+              {/* Line Items Table */}
+              {viewingEInvoice.items && viewingEInvoice.items.length > 0 && (
+                <div className="rounded-lg border">
+                  <div className="p-3 border-b bg-muted/30">
+                    <h4 className="font-medium text-sm">Line Items ({viewingEInvoice.items.length})</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40px]">#</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>HSN</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead className="text-right">Rate (₹)</TableHead>
+                          <TableHead className="text-right">Discount (₹)</TableHead>
+                          <TableHead className="text-right">Taxable (₹)</TableHead>
+                          <TableHead className="text-right">GST %</TableHead>
+                          <TableHead className="text-right">Tax (₹)</TableHead>
+                          <TableHead className="text-right">Total (₹)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {viewingEInvoice.items.map((item: EInvoiceItem, idx: number) => {
+                          const taxAmount = item.igst_amount > 0 ? item.igst_amount : (item.cgst_amount + item.sgst_amount);
+                          return (
+                            <TableRow key={idx}>
+                              <TableCell className="text-muted-foreground">{item.sl_no}</TableCell>
+                              <TableCell className="font-medium max-w-[150px] truncate" title={item.product_description}>{item.product_description}</TableCell>
+                              <TableCell className="font-mono text-xs">{item.hsn_code}</TableCell>
+                              <TableCell className="text-right">{item.quantity}</TableCell>
+                              <TableCell>{item.unit}</TableCell>
+                              <TableCell className="text-right">{Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{Number(item.discount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{Number(item.assessable_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">{item.gst_rate}%</TableCell>
+                              <TableCell className="text-right">{taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right font-medium">{Number(item.total_item_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-lg bg-secondary/50 p-4 space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Assessable Value</span><span>₹{Number(viewingEInvoice.total_assessable_value || 0).toLocaleString("en-IN")}</span></div>
                 {Number(viewingEInvoice.total_cgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewingEInvoice.total_cgst).toLocaleString("en-IN")}</span></div>}
                 {Number(viewingEInvoice.total_sgst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewingEInvoice.total_sgst).toLocaleString("en-IN")}</span></div>}
                 {Number(viewingEInvoice.total_igst || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewingEInvoice.total_igst).toLocaleString("en-IN")}</span></div>}
-                <div className="flex justify-between font-semibold border-t pt-1.5"><span>Total</span><span>₹{Number(viewingEInvoice.total_invoice_value).toLocaleString("en-IN")}</span></div>
+                {Number(viewingEInvoice.total_cess || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Cess</span><span>₹{Number(viewingEInvoice.total_cess).toLocaleString("en-IN")}</span></div>}
+                <div className="flex justify-between font-semibold border-t pt-1.5"><span>Total Invoice Value</span><span>₹{Number(viewingEInvoice.total_invoice_value).toLocaleString("en-IN")}</span></div>
               </div>
               {viewingEInvoice.status === "cancelled" && viewingEInvoice.cancel_reason && (
                 <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">

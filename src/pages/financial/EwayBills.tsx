@@ -875,36 +875,68 @@ export default function EwayBills() {
             </DialogHeader>
             {viewingBill && (
               <div className="space-y-4 py-2">
+                {/* Bill Identity & Status */}
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">E-Way Bill #</p><p className="font-mono font-medium">{viewingBill.eway_bill_number || "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Status</p><Badge className={STATUS_COLORS[viewingBill.status] ?? ""}>{viewingBill.status}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">Supply Type</p><p className="capitalize">{viewingBill.supply_type || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Document Type</p><p className="capitalize">{(viewingBill.document_type || "—").replace(/_/g, " ")}</p></div>
                   <div><p className="text-xs text-muted-foreground">Document #</p><p className="font-medium">{viewingBill.document_number || "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Document Date</p><p>{viewingBill.document_date || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">E-Way Bill Date</p><p>{viewingBill.eway_bill_date || "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Valid Until</p><p>{viewingBill.valid_until ? format(new Date(viewingBill.valid_until), "dd MMM yyyy HH:mm") : "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Distance</p><p>{viewingBill.distance_km} km</p></div>
+                  {viewingBill.extended_count ? (
+                    <div><p className="text-xs text-muted-foreground">Extended Count</p><p>{viewingBill.extended_count}</p></div>
+                  ) : null}
                 </div>
+
+                {/* From / To Parties */}
                 <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-border/50">
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">FROM</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">FROM (Consignor)</p>
                     <p className="font-medium text-sm">{viewingBill.from_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_place || ""} {viewingBill.from_pincode || ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.from_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.from_state_code)?.name ?? viewingBill.from_state_code) : ""}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">TO</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">TO (Consignee)</p>
                     <p className="font-medium text-sm">{viewingBill.to_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_place || ""} {viewingBill.to_pincode || ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.to_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.to_state_code)?.name ?? viewingBill.to_state_code) : ""}</p>
                   </div>
                 </div>
+
+                {/* Goods Details */}
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Product</p><p className="text-sm">{viewingBill.product_name || "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">HSN Code</p><p className="font-mono text-sm">{viewingBill.hsn_code || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Quantity</p><p className="text-sm">{viewingBill.quantity ?? "—"} {viewingBill.unit || ""}</p></div>
                   <div><p className="text-xs text-muted-foreground">Taxable Value</p><p className="font-semibold">₹{viewingBill.taxable_value.toLocaleString("en-IN")}</p></div>
                   <div><p className="text-xs text-muted-foreground">Total Value</p><p className="font-semibold">₹{viewingBill.total_value.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Vehicle</p><p className="font-mono">{viewingBill.vehicle_number || "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Transport Mode</p><p className="capitalize">{viewingBill.transport_mode || "—"}</p></div>
+                  {viewingBill.cgst_rate ? <div><p className="text-xs text-muted-foreground">CGST Rate</p><p className="text-sm">{viewingBill.cgst_rate}%</p></div> : null}
+                  {viewingBill.sgst_rate ? <div><p className="text-xs text-muted-foreground">SGST Rate</p><p className="text-sm">{viewingBill.sgst_rate}%</p></div> : null}
+                  {viewingBill.igst_rate ? <div><p className="text-xs text-muted-foreground">IGST Rate</p><p className="text-sm">{viewingBill.igst_rate}%</p></div> : null}
+                  {viewingBill.cess_rate ? <div><p className="text-xs text-muted-foreground">Cess Rate</p><p className="text-sm">{viewingBill.cess_rate}%</p></div> : null}
                 </div>
+                {viewingBill.product_description && (
+                  <div><p className="text-xs text-muted-foreground">Product Description</p><p className="text-sm">{viewingBill.product_description}</p></div>
+                )}
+
+                {/* Transport Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Transport Mode</p><p className="capitalize">{viewingBill.transport_mode || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Vehicle Type</p><p className="capitalize">{(viewingBill.vehicle_type || "—").replace(/_/g, " ")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Vehicle Number</p><p className="font-mono">{viewingBill.vehicle_number || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Distance</p><p>{viewingBill.distance_km} km</p></div>
+                  {viewingBill.transporter_name && <div><p className="text-xs text-muted-foreground">Transporter Name</p><p className="text-sm">{viewingBill.transporter_name}</p></div>}
+                  {viewingBill.transporter_id && <div><p className="text-xs text-muted-foreground">Transporter ID (GSTIN)</p><p className="font-mono text-sm">{viewingBill.transporter_id}</p></div>}
+                  {viewingBill.transport_doc_number && <div><p className="text-xs text-muted-foreground">Transport Doc #</p><p className="text-sm">{viewingBill.transport_doc_number}</p></div>}
+                  {viewingBill.transport_doc_date && <div><p className="text-xs text-muted-foreground">Transport Doc Date</p><p className="text-sm">{viewingBill.transport_doc_date}</p></div>}
+                </div>
+
+                {/* Cancellation Info */}
                 {viewingBill.status === "cancelled" && viewingBill.cancellation_reason && (
                   <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                     <p className="text-xs text-muted-foreground">Cancellation Reason</p>

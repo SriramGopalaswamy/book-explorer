@@ -898,7 +898,33 @@ export default function Invoicing() {
                       <p className="font-medium">{(viewingInvoice as any).place_of_supply}</p>
                     </div>
                   )}
+                  {(viewingInvoice as any).payment_terms && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Payment Terms</p>
+                      <p className="font-medium">{(viewingInvoice as any).payment_terms}</p>
+                    </div>
+                  )}
                 </div>
+
+                {((viewingInvoice as any).revenue_recognition || (viewingInvoice as any).performance_obligation) && (
+                  <div className="grid grid-cols-2 gap-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5">
+                    <div className="col-span-2">
+                      <p className="text-xs font-medium text-primary mb-1">Ind AS 115 — Revenue Recognition</p>
+                    </div>
+                    {(viewingInvoice as any).revenue_recognition && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Recognition Method</p>
+                        <p className="font-medium">{(viewingInvoice as any).revenue_recognition === "point_in_time" ? "Point in Time" : "Over Time"}</p>
+                      </div>
+                    )}
+                    {(viewingInvoice as any).performance_obligation && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Performance Obligation</p>
+                        <p className="font-medium">{(viewingInvoice as any).performance_obligation}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <p className="text-sm font-semibold">Line Items</p>
