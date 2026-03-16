@@ -275,6 +275,12 @@ export function useCreateBillFromGR() {
         await supabase.from("bill_items").insert(billItems);
       }
 
+      // Update GR status to "bill_created"
+      await supabase.from("goods_receipts" as any)
+        .update({ status: "bill_created" } as any)
+        .eq("id", params.goods_receipt_id)
+        .eq("organization_id", callerOrgId);
+
       return bill;
     },
     onSuccess: () => {

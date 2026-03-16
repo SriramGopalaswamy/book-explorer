@@ -396,30 +396,40 @@ export function useUpdateInvoice() {
         .single();
       if (fetchErr) throw fetchErr;
 
-      const currentVersion = current?.version ?? 1;
-      const { data: updateResult, error: invoiceError } = await (supabase as any)
+      const currentVersion = current?.version ?? null;
+      
+      // Build update payload
+      const updatePayload: Record<string, any> = {
+        client_name: data.client_name,
+        client_email: data.client_email,
+        customer_id: data.customer_id || null,
+        amount: data.amount,
+        invoice_date: data.invoice_date || undefined,
+        due_date: data.due_date,
+        place_of_supply: data.place_of_supply || null,
+        payment_terms: data.payment_terms || "Due on Receipt",
+        subtotal: data.subtotal || data.amount,
+        cgst_total: data.cgst_total || 0,
+        sgst_total: data.sgst_total || 0,
+        igst_total: data.igst_total || 0,
+        total_amount: data.total_amount || data.amount,
+        notes: data.notes || null,
+        customer_gstin: data.customer_gstin || null,
+        version: (currentVersion ?? 0) + 1,
+      };
+
+      let query = (supabase as any)
         .from("invoices")
-        .update({
-          client_name: data.client_name,
-          client_email: data.client_email,
-          customer_id: data.customer_id || null,
-          amount: data.amount,
-          invoice_date: data.invoice_date || undefined,
-          due_date: data.due_date,
-          place_of_supply: data.place_of_supply || null,
-          payment_terms: data.payment_terms || "Due on Receipt",
-          subtotal: data.subtotal || data.amount,
-          cgst_total: data.cgst_total || 0,
-          sgst_total: data.sgst_total || 0,
-          igst_total: data.igst_total || 0,
-          total_amount: data.total_amount || data.amount,
-          notes: data.notes || null,
-          customer_gstin: data.customer_gstin || null,
-          version: currentVersion + 1,
-        })
+        .update(updatePayload)
         .eq("id", data.id)
-        .eq("version", currentVersion)
-        .select();
+        .eq("organization_id", callerOrgId);
+
+      // Only apply version check if version column has a value
+      if (currentVersion !== null && currentVersion !== undefined) {
+        query = query.eq("version", currentVersion);
+      }
+
+      const { data: updateResult, error: invoiceError } = await query.select();
       if (invoiceError) throw invoiceError;
       if (!updateResult || updateResult.length === 0) {
         throw new Error("This invoice was modified by another user. Please refresh and try again.");

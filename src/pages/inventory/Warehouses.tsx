@@ -71,8 +71,8 @@ export default function Warehouses() {
             <div><p className="text-sm text-muted-foreground">Active</p><p className="text-2xl font-bold text-foreground">{(warehouses || []).filter((w: any) => w.is_active).length}</p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-secondary/50"><Warehouse className="h-6 w-6 text-secondary-foreground" /></div>
-            <div><p className="text-sm text-muted-foreground">Default</p><p className="text-2xl font-bold text-foreground">{(warehouses || []).filter((w: any) => w.is_default).length}</p></div>
+            <div className="p-3 rounded-xl bg-destructive/10"><Warehouse className="h-6 w-6 text-destructive" /></div>
+            <div><p className="text-sm text-muted-foreground">Inactive</p><p className="text-2xl font-bold text-foreground">{(warehouses || []).filter((w: any) => !w.is_active).length}</p></div>
           </CardContent></Card>
         </div>
 

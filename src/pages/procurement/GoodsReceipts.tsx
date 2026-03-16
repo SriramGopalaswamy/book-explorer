@@ -139,6 +139,11 @@ export default function GoodsReceipts() {
                 <FileText className="h-4 w-4 mr-2" /> Create Bill
               </DropdownMenuItem>
             )}
+            {r.status === "bill_created" && (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                <FileText className="h-4 w-4 mr-2" /> Bill Already Created
+              </DropdownMenuItem>
+            )}
             {(r.status === "draft" || r.status === "rejected") && (
               <DropdownMenuItem onClick={() => deleteGR.mutate(r.id)} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" /> Delete
