@@ -821,6 +821,7 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
                 <div className="grid grid-cols-2 gap-3">
                   <DetailRow label="Asset Tag" value={selectedAsset.asset_tag} />
                   <DetailRow label="Category" value={selectedAsset.category} />
+                  {selectedAsset.sub_category && <DetailRow label="Sub-Category" value={selectedAsset.sub_category} />}
                   <DetailRow label="Serial Number" value={selectedAsset.serial_number} />
                   <DetailRow label="Model" value={selectedAsset.model_number} />
                   <DetailRow label="Manufacturer" value={selectedAsset.manufacturer} />
@@ -831,6 +832,7 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
                   <DetailRow label="Status" value={selectedAsset.status.replace("_", " ")} />
                   <DetailRow label="Condition" value={selectedAsset.condition} />
                   <DetailRow label="Purchase Date" value={selectedAsset.purchase_date} />
+                  {selectedAsset.po_number && <DetailRow label="PO Number" value={selectedAsset.po_number} />}
                   <DetailRow label="Purchase Price" value={formatCurrency(Number(selectedAsset.purchase_price))} />
                   <DetailRow label="Salvage Value" value={formatCurrency(Number(selectedAsset.salvage_value))} />
                   <DetailRow label="Useful Life" value={`${selectedAsset.useful_life_months} months`} />
@@ -838,6 +840,8 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
                   <DetailRow label="Accumulated Depreciation" value={formatCurrency(Number(selectedAsset.accumulated_depreciation))} />
                   <DetailRow label="Current Book Value" value={formatCurrency(Number(selectedAsset.current_book_value))} highlight />
                   <DetailRow label="Warranty Expiry" value={selectedAsset.warranty_expiry} />
+                  {selectedAsset.warranty_provider && <DetailRow label="Warranty Provider" value={selectedAsset.warranty_provider} />}
+                  {selectedAsset.insurance_policy && <DetailRow label="Insurance Policy" value={selectedAsset.insurance_policy} />}
                   <DetailRow label="Insurance Expiry" value={selectedAsset.insurance_expiry} />
                   <DetailRow label="Last Tagged" value={selectedAsset.last_tagged_date} />
                   <DetailRow label="Tag Verified" value={selectedAsset.tag_verified ? "✓ Yes" : "✗ No"} />

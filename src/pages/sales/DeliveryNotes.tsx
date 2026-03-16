@@ -189,6 +189,10 @@ export default function DeliveryNotes() {
                   <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewDN.status] || ""}>{viewDN.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</Badge></div>
                   {viewDN.carrier_name && <div><p className="text-xs text-muted-foreground">Carrier</p><p className="font-medium text-foreground capitalize">{viewDN.carrier_name.replace("_", " ")}</p></div>}
                   {viewDN.tracking_number && <div><p className="text-xs text-muted-foreground">Tracking #</p><p className="font-mono text-sm text-foreground">{viewDN.tracking_number}</p></div>}
+                  {viewDN.shipping_method && <div><p className="text-xs text-muted-foreground">Shipping Method</p><p className="font-medium text-foreground capitalize">{viewDN.shipping_method}</p></div>}
+                  {viewDN.tracking_url && <div><p className="text-xs text-muted-foreground">Tracking URL</p><a href={viewDN.tracking_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">{viewDN.tracking_url}<ExternalLink className="h-3 w-3" /></a></div>}
+                  {viewDN.estimated_delivery && <div><p className="text-xs text-muted-foreground">Estimated Delivery Date</p><p className="font-medium text-foreground">{format(new Date(viewDN.estimated_delivery), "dd MMM yyyy")}</p></div>}
+                  {viewDN.weight_kg && <div><p className="text-xs text-muted-foreground">Weight / Dimensions</p><p className="font-medium text-foreground">{viewDN.weight_kg} kg</p></div>}
                   {viewDN.shipping_cost > 0 && <div><p className="text-xs text-muted-foreground">Shipping Cost</p><p className="font-medium text-foreground">₹{Number(viewDN.shipping_cost).toLocaleString()}</p></div>}
                   {viewDN.packages_count > 0 && <div><p className="text-xs text-muted-foreground">Packages</p><p className="font-medium text-foreground">{viewDN.packages_count}</p></div>}
                 </div>

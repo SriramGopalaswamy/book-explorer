@@ -231,6 +231,9 @@ export default function ReimbursementsFinance() {
 
       toast.success("Reimbursement approved and recorded as expense!");
       queryClient.invalidateQueries({ queryKey: ["finance-reimbursements"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-records"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
       setApproveDialog(null);
       setFinanceNotes("");
       setClassifyCategory("");

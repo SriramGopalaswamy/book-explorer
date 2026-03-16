@@ -122,7 +122,7 @@ export default function BillOfMaterials() {
 
   const handleCreate = () => {
     if (!form.product_name || lines.some((l) => !l.material_name)) return;
-    createBOM.mutate({ ...form, lines: lines.map(l => ({ material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct })) }, {
+    createBOM.mutate({ ...form, lines: lines.map(l => ({ material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, est_cost: l.est_cost || 0 })) }, {
       onSuccess: () => {
         setDialogOpen(false);
         setForm({ product_name: "", notes: "" });
