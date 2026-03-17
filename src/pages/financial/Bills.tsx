@@ -408,10 +408,10 @@ export default function Bills() {
   });
 
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors"],
+    queryKey: ["vendors-active"],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city").order("name");
-      return data ?? [];
+      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city,status").order("name");
+      return (data ?? []).filter((v: any) => v.status === "active");
     },
   });
 
