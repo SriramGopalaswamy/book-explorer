@@ -56,6 +56,7 @@ export default function SalesReturnsPage() {
     const matchDateTo = !dateTo || !isAfter(new Date(r.return_date), new Date(dateTo));
     return matchSearch && matchStatus && matchDateFrom && matchDateTo;
   });
+  const pagination = usePagination(filtered, 10);
 
   const addItem = () => setItems(p => [...p, { description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
