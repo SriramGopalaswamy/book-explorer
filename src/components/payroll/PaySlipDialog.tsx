@@ -70,7 +70,7 @@ interface PaySlipDialogProps {
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
   const logoDataUrl = useLogoDataUrl(grx10Logo);
   const { user } = useAuth();
-  const brandColor = useBrandColor(user?.id);
+  const { color: brandColor, signatoryName } = useBrandingInfo(user?.id);
   if (!record) return null;
 
   const slip = normalizePayslip(record);
