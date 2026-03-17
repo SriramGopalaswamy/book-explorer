@@ -115,6 +115,20 @@ export default function AttendanceImport() {
     enabled: !!org?.organizationId,
   });
 
+  // Fetch saved code mappings from previous uploads
+  const { data: savedMappings = [] } = useQuery({
+    queryKey: ["saved-code-mappings", org?.organizationId],
+    queryFn: async () => {
+      if (!org?.organizationId) return [];
+      const { data } = await supabase
+        .from("employee_code_mappings" as any)
+        .select("employee_code, profile_id, employee_name_hint")
+        .eq("organization_id", org.organizationId);
+      return (data ?? []) as { employee_code: string; profile_id: string; employee_name_hint: string | null }[];
+    },
+    enabled: !!org?.organizationId,
+  });
+
   const reset = () => {
     setStep("upload");
     setFile(null);
