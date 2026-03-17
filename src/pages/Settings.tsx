@@ -844,9 +844,7 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to approve user");
     } else {
       toast.success("User approved and activated");
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, status: "active", roles: [role] } : u))
-      );
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setActionUser(null);
   };
