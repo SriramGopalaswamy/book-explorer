@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useWarehouses, useCreateWarehouse, useUpdateWarehouse, useDeleteWarehouse } from "@/hooks/useInventory";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,6 +45,7 @@ export default function Warehouses() {
     w.name?.toLowerCase().includes(search.toLowerCase()) ||
     w.code?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagination = usePagination(filtered, 10);
 
   const handleCreate = () => {
     createWH.mutate({
@@ -133,9 +136,9 @@ export default function Warehouses() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 ? (
+                  {pagination.paginatedItems.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No warehouses found.</TableCell></TableRow>
-                  ) : filtered.map((wh: any) => (
+                  ) : pagination.paginatedItems.map((wh: any) => (
                     <TableRow key={wh.id}>
                       <TableCell className="font-medium text-foreground">{wh.name}{wh.is_default && <Badge variant="outline" className="ml-2">Default</Badge>}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{wh.code}</TableCell>
@@ -170,6 +173,18 @@ export default function Warehouses() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {!isLoading && filtered.length > 0 && (
+              <TablePagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                from={pagination.from}
+                to={pagination.to}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.setPage}
+                onPageSizeChange={pagination.setPageSize}
+              />
             )}
           </CardContent>
         </Card>
