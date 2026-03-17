@@ -172,7 +172,7 @@ export default function StockTransfers() {
                           setItems(u);
                         }}>
                           <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{itemMaster.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{itemMaster.filter((it: any) => it.is_active !== false).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                       <div><Label className="text-xs">Or custom name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} placeholder="Item name" /></div>
