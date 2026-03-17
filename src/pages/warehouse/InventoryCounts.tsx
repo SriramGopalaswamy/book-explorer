@@ -219,6 +219,12 @@ export default function InventoryCounts() {
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [approveCountId, setApproveCountId] = useState<string | null>(null);
+  const filteredCounts = counts.filter(c => {
+    const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const pagination = usePagination(filteredCounts, 10);
 
   const approve = useApproveInventoryCount();
   const deleteCountMutation = useMutation({
