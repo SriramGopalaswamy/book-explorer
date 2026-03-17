@@ -162,14 +162,14 @@ function BrandingSection() {
       const url = publicData.publicUrl + "?v=" + Date.now();
 
       const { error: dbError } = await supabase
-        .from("organization_settings" as any)
+        .from("organization_settings")
         .upsert(
           {
             organization_id: orgId,
             [type === "logo" ? "logo_url" : "favicon_url"]: url,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
-          } as any,
+          },
           { onConflict: "organization_id" }
         );
       if (dbError) throw dbError;
