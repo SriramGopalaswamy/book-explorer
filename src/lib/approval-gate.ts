@@ -86,6 +86,8 @@ export async function createApprovalRequest(params: {
     requested_by: params.requestedBy,
     status: "pending",
     notes: params.notes || null,
+    current_step: 1,
+    total_steps: params.totalSteps || 1,
   } as any);
   if (error) throw error;
 }
