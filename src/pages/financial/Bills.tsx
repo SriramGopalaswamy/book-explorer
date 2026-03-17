@@ -410,7 +410,7 @@ export default function Bills() {
   const { data: vendors = [] } = useQuery({
     queryKey: ["vendors"],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city").eq("is_active", true).order("name");
+      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city").eq("is_active", true as any).order("name");
       return data ?? [];
     },
   });
