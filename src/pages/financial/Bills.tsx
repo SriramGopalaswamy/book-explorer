@@ -773,13 +773,15 @@ export default function Bills() {
     effectiveStatus: isOverdue(b) ? "overdue" : b.status,
   }));
 
-  const filtered = enriched.filter((b: any) => {
+  const filtered = useMemo(() => enriched.filter((b: any) => {
     const matchSearch =
       b.vendor_name?.toLowerCase().includes(search.toLowerCase()) ||
       b.bill_number?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || b.effectiveStatus === statusFilter;
     return matchSearch && matchStatus;
-  });
+  }), [enriched, search, statusFilter]);
+
+  const pagination = usePagination(filtered, 10);
 
   const totalPending  = bills.filter((b: any) => b.status === "received").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalOverdue  = enriched.filter((b: any) => b.effectiveStatus === "overdue").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
