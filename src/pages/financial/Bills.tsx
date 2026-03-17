@@ -765,10 +765,14 @@ export default function Bills() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
-  const enriched = bills.map((b: any) => ({
-    ...b,
-    effectiveStatus: isOverdue(b) ? "overdue" : b.status,
-  }));
+  const enriched = bills.map((b: any) => {
+    const normalizedStatus = (b.status || "draft").toLowerCase();
+    return {
+      ...b,
+      status: normalizedStatus,
+      effectiveStatus: isOverdue({ ...b, status: normalizedStatus }) ? "overdue" : normalizedStatus,
+    };
+  });
 
   const filtered = useMemo(() => enriched.filter((b: any) => {
     const matchSearch =
