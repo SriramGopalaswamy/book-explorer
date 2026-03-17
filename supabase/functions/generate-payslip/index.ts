@@ -137,6 +137,7 @@ serve(async (req) => {
         workingDays: entry.working_days,
         paidDays: entry.paid_days || 0,
         lwpDays: entry.lwp_days,
+        brandColor,
       });
 
       const payslipUrl = `payslip://${run.pay_period}/${entry.profile_id}`;
