@@ -94,6 +94,7 @@ export default function BillOfMaterials() {
   const updateStatus = useUpdateBOMStatus();
   const deleteBOM = useDeleteBOM();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewBom, setViewBom] = useState<BOM | null>(null);
   const [form, setForm] = useState({ product_name: "", notes: "" });
