@@ -220,13 +220,14 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
       const fromStr = fromDate.toISOString().split("T")[0];
       const toStr = toDate.toISOString().split("T")[0];
 
-      // Fetch from both expenses table and financial_records — org-scoped
+      // Fetch from both expenses table (approved + paid only) and financial_records — org-scoped
       const [expensesRes, financialRes] = await Promise.all([
         supabase
           .from("expenses")
           .select("category, amount")
           .eq("is_deleted", false)
           .eq("organization_id", orgId)
+          .in("status", ["approved", "paid"])
           .gte("expense_date", fromStr)
           .lte("expense_date", toStr),
         supabase
