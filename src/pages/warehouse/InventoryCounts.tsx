@@ -329,11 +329,7 @@ export default function InventoryCounts() {
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : counts.filter(c => {
-            const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
-            const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-            return matchesSearch && matchesStatus;
-          }).length === 0 ? (
+          ) : filteredCounts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
                 <table className="w-full text-sm">
@@ -348,11 +344,7 @@ export default function InventoryCounts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {counts.filter(c => {
-                      const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
-                      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-                      return matchesSearch && matchesStatus;
-                    }).map((count) => (
+                    {pagination.paginatedItems.map((count) => (
                       <React.Fragment key={count.id}>
                         <tr className="border-b last:border-b-0 hover:bg-muted/30">
                           <td className="px-4 py-3">
@@ -408,6 +400,7 @@ export default function InventoryCounts() {
                 </table>
           )}
         </div>
+        <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
         {/* Approve & Post Dialog */}
         {approveCountId && (
