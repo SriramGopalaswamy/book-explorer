@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { useStockAdjustments, useCreateStockAdjustment, useWarehouses } from "@/hooks/useInventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
