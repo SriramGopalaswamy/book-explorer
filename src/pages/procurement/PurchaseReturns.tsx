@@ -11,7 +11,7 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Trash2, MoreHorizontal, Eye, Search } from "lucide-react";
+import { Plus, Trash2, MoreHorizontal, Eye, Search, X } from "lucide-react";
 import { usePurchaseReturns, useCreatePurchaseReturn, useUpdatePurchaseReturnStatus, useCreateVendorCreditFromReturn } from "@/hooks/useReturns";
 import { format, isAfter, isBefore } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
@@ -98,6 +98,11 @@ export default function PurchaseReturnsPage() {
             </Select>
             <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" placeholder="From" />
             <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" placeholder="To" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setDateFrom(""); setDateTo(""); }} title="Clear date filter">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Return</Button></DialogTrigger>
