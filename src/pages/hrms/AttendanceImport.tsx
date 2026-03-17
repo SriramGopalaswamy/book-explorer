@@ -333,9 +333,9 @@ export default function AttendanceImport() {
     if (!file) return;
     setStep("importing");
     try {
-      // Build manual mappings from match entries (manual + auto_name + saved overrides)
+      // Build manual mappings from match entries
       const manualMappings = matchEntries
-        .filter(e => e.profile_id && (e.match_type === "manual" || e.match_type === "auto_name" || e.match_type === "auto_code" || e.match_type === "saved"))
+        .filter(e => e.profile_id && (e.match_type === "manual" || e.match_type === "auto_name" || e.match_type === "auto_code" || e.match_type === "saved" || e.match_type === "fuzzy"))
         .map(e => ({ employee_code: e.employee_code, profile_id: e.profile_id! }));
 
       const result = await importMutation.mutateAsync({
