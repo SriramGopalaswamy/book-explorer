@@ -42,29 +42,75 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { FileText as FileTextIcon, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines";
+import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 const periodLabel = (p: string) => {
-  const [y, m] = p.split("-");
+  // Supports formats: "2026-03" (monthly), "2026-03-W1" (weekly), "2026-03-H1" (biweekly)
+  const parts = p.split("-");
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[parseInt(m) - 1]} ${y}`;
+  const monthLabel = `${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
+  if (parts.length === 3) {
+    if (parts[2].startsWith("H")) return `${monthLabel} (${parts[2] === "H1" ? "1st–15th" : "16th–End"})`;
+    if (parts[2].startsWith("W")) return `${monthLabel} Week ${parts[2].replace("W", "")}`;
+  }
+  return monthLabel;
 };
 
-const periods = () => {
+const FREQUENCY_LABELS: Record<string, string> = {
+  monthly: "Monthly",
+  biweekly: "Bi-weekly",
+  weekly: "Weekly",
+};
+
+/** Generate pay periods based on frequency */
+const generatePeriods = (frequency: string) => {
   const result: string[] = [];
   const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    result.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+
+  if (frequency === "weekly") {
+    // Last 12 weeks worth — 4 weeks × 3 months
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const yr = d.getFullYear();
+      const mn = String(d.getMonth() + 1).padStart(2, "0");
+      for (let w = 4; w >= 1; w--) {
+        result.push(`${yr}-${mn}-W${w}`);
+      }
+    }
+  } else if (frequency === "biweekly") {
+    // Last 12 half-months
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const yr = d.getFullYear();
+      const mn = String(d.getMonth() + 1).padStart(2, "0");
+      result.push(`${yr}-${mn}-H2`);
+      result.push(`${yr}-${mn}-H1`);
+    }
+  } else {
+    // Monthly (default)
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      result.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
   }
   return result;
 };
 
-const currentPeriod = () => {
+const currentPeriod = (frequency: string) => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const yr = d.getFullYear();
+  const mn = String(d.getMonth() + 1).padStart(2, "0");
+  if (frequency === "weekly") {
+    const week = Math.min(4, Math.ceil(d.getDate() / 7));
+    return `${yr}-${mn}-W${week}`;
+  }
+  if (frequency === "biweekly") {
+    return d.getDate() <= 15 ? `${yr}-${mn}-H1` : `${yr}-${mn}-H2`;
+  }
+  return `${yr}-${mn}`;
 };
 
 const statusConfig: Record<string, { label: string; class: string; icon: any }> = {
