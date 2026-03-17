@@ -340,7 +340,11 @@ export default function InventoryCounts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {counts.map((count) => (
+                    {counts.filter(c => {
+                      const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
+                      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+                      return matchesSearch && matchesStatus;
+                    }).map((count) => (
                       <React.Fragment key={count.id}>
                         <tr className="border-b last:border-b-0 hover:bg-muted/30">
                           <td className="px-4 py-3">

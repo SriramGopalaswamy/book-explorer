@@ -186,7 +186,11 @@ export default function PickingLists() {
                 </tr>
               </thead>
               <tbody>
-                {lists.map((list) => {
+                {lists.filter(l => {
+                  const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
+                  const matchesStatus = statusFilter === "all" || l.status === statusFilter;
+                  return matchesSearch && matchesStatus;
+                }).map((list) => {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (

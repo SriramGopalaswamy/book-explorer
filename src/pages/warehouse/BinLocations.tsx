@@ -113,7 +113,17 @@ export default function BinLocations() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><MapPin className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.zones}</p><p className="text-xs text-muted-foreground">Zones</p></div></div></CardContent></Card>
         </div>
 
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search bins..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search bins..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No bin locations yet" />
 
         {/* Create Dialog */}
