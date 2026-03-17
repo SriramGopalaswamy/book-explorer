@@ -274,8 +274,10 @@ export default function EInvoices() {
       const container = document.createElement("div");
       container.style.position = "fixed";
       container.style.left = "-9999px";
-      container.style.top = "0";
+      container.style.top = "-9999px";
       container.style.width = "210mm";
+      container.style.overflow = "hidden";
+      container.style.zIndex = "-1";
       container.style.pointerEvents = "none";
       container.innerHTML = html;
       document.body.appendChild(container);
@@ -283,7 +285,7 @@ export default function EInvoices() {
         .set({
           margin: [10, 10, 20, 10],
           filename: `E-Invoice-${inv.doc_number}.pdf`,
-          html2canvas: { scale: 2 },
+          html2canvas: { scale: 2, logging: false, useCORS: true, scrollY: 0, windowWidth: 794 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
         .from(container)
