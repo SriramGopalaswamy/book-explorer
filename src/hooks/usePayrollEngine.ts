@@ -609,10 +609,28 @@ export function useUpdateEntryLWP() {
   });
 }
 
-function getWorkingDays(year: number, month: number, holidayDates?: Set<string>): number {
+/**
+ * Calculate working days for a pay period.
+ * Supports: "2026-03" (full month), "2026-03-H1" / "H2" (biweekly), "2026-03-W1..W4" (weekly)
+ */
+function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string): number {
   const daysInMonth = new Date(year, month, 0).getDate();
+
+  let startDay = 1;
+  let endDay = daysInMonth;
+
+  if (periodSuffix === "H1") {
+    endDay = 15;
+  } else if (periodSuffix === "H2") {
+    startDay = 16;
+  } else if (periodSuffix?.startsWith("W")) {
+    const weekNum = parseInt(periodSuffix.replace("W", ""));
+    startDay = (weekNum - 1) * 7 + 1;
+    endDay = weekNum === 4 ? daysInMonth : Math.min(weekNum * 7, daysInMonth);
+  }
+
   let working = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = startDay; d <= endDay; d++) {
     const date = new Date(year, month - 1, d);
     const day = date.getDay();
     if (day === 0 || day === 6) continue; // skip weekends
