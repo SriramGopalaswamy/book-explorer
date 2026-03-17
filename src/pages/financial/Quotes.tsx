@@ -130,6 +130,7 @@ export default function Quotes() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
