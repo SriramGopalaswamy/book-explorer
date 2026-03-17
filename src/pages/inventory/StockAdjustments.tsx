@@ -163,7 +163,7 @@ export default function StockAdjustments() {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No stock adjustments found.</TableCell></TableRow>
-                  ) : filtered.map((adj: any) => (
+                  ) : pagination.paginatedItems.map((adj: any) => (
                     <TableRow key={adj.id}>
                       <TableCell className="font-mono font-medium text-foreground">{adj.adjustment_number}</TableCell>
                       <TableCell className="text-muted-foreground">{format(new Date(adj.adjustment_date), "dd MMM yyyy")}</TableCell>
