@@ -878,13 +878,10 @@ function UserManagementSection() {
     } else {
       if (managerDialogAction === "deactivate") {
         toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been deactivated`);
-        setUsers((prev) =>
-          prev.map((u) => (u.user_id === userId ? { ...u, status: "inactive" } : u))
-        );
       } else {
         toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been removed`);
-        setUsers((prev) => prev.filter((u) => u.user_id !== userId));
       }
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
 
     setActionUser(null);
