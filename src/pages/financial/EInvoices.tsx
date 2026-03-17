@@ -742,44 +742,29 @@ export default function EInvoices() {
                   <div className="p-3 border-b bg-muted/30">
                     <h4 className="font-medium text-sm">Line Items ({viewingEInvoice.items.length})</h4>
                   </div>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40px]">#</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>HSN</TableHead>
-                          <TableHead className="text-right">Qty</TableHead>
-                          <TableHead>Unit</TableHead>
-                          <TableHead className="text-right">Rate (₹)</TableHead>
-                          <TableHead className="text-right">Discount (₹)</TableHead>
-                          <TableHead className="text-right">Taxable (₹)</TableHead>
-                          <TableHead className="text-right">GST %</TableHead>
-                          <TableHead className="text-right">Tax (₹)</TableHead>
-                          <TableHead className="text-right">Total (₹)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {viewingEInvoice.items.map((item: EInvoiceItem, idx: number) => {
-                          const taxAmount = item.igst_amount > 0 ? item.igst_amount : (item.cgst_amount + item.sgst_amount);
-                          return (
-                            <TableRow key={idx}>
-                              <TableCell className="text-muted-foreground">{item.sl_no}</TableCell>
-                              <TableCell className="font-medium max-w-[150px] truncate" title={item.product_description}>{item.product_description}</TableCell>
-                              <TableCell className="font-mono text-xs">{item.hsn_code}</TableCell>
-                              <TableCell className="text-right">{item.quantity}</TableCell>
-                              <TableCell>{item.unit}</TableCell>
-                              <TableCell className="text-right">{Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right">{Number(item.discount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right">{Number(item.assessable_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right">{item.gst_rate}%</TableCell>
-                              <TableCell className="text-right">{taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right font-medium">{Number(item.total_item_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                  <div className="divide-y">
+                    {viewingEInvoice.items.map((item: EInvoiceItem, idx: number) => {
+                      const taxAmount = item.igst_amount > 0 ? item.igst_amount : (item.cgst_amount + item.sgst_amount);
+                      return (
+                        <div key={idx} className="p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm">{item.sl_no}. {item.product_description}</p>
+                              <p className="text-xs text-muted-foreground font-mono">HSN: {item.hsn_code}</p>
+                            </div>
+                            <p className="font-semibold text-sm whitespace-nowrap">₹{Number(item.total_item_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+                            <div><span className="text-muted-foreground">Qty:</span> {item.quantity} {item.unit}</div>
+                            <div><span className="text-muted-foreground">Rate:</span> ₹{Number(item.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                            <div><span className="text-muted-foreground">Discount:</span> ₹{Number(item.discount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                            <div><span className="text-muted-foreground">Taxable:</span> ₹{Number(item.assessable_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                            <div><span className="text-muted-foreground">GST:</span> {item.gst_rate}%</div>
+                            <div><span className="text-muted-foreground">Tax:</span> ₹{taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
