@@ -241,6 +241,46 @@ export default function SalesOrders() {
         </div>
 
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No sales orders yet" />
+
+        {/* Edit Draft SO Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={(v) => { if (!v) { setEditDialogOpen(false); setEditingSO(null); setEditItems([]); } }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Edit Sales Order — {editingSO?.so_number}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Customer *</Label>
+                  <Select value={editForm.customer_name} onValueChange={(v) => setEditForm({ ...editForm, customer_name: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                    <SelectContent>
+                      {customers.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Order Date</Label><Input type="date" value={editForm.order_date} onChange={(e) => setEditForm({ ...editForm, order_date: e.target.value })} /></div>
+                <div><Label>Expected Delivery</Label><Input type="date" value={editForm.expected_delivery} onChange={(e) => setEditForm({ ...editForm, expected_delivery: e.target.value })} /></div>
+              </div>
+              <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Line Items</Label>
+                  <Button variant="outline" size="sm" onClick={() => setEditItems([...editItems, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }])}><Plus className="h-3 w-3 mr-1" />Add</Button>
+                </div>
+                {editItems.map((item, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_32px] gap-2 items-end">
+                    <div><Label className="text-xs">Description</Label><Input value={item.description} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], description: e.target.value }; setEditItems(u); }} /></div>
+                    <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], quantity: Number(e.target.value) }; setEditItems(u); }} /></div>
+                    <div><Label className="text-xs">Unit Price</Label><Input type="number" value={item.unit_price} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], unit_price: Number(e.target.value) }; setEditItems(u); }} /></div>
+                    <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], tax_rate: Number(e.target.value) }; setEditItems(u); }} /></div>
+                    <Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))} disabled={editItems.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleEditSave} disabled={updateSO.isPending} className="w-full">{updateSO.isPending ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
