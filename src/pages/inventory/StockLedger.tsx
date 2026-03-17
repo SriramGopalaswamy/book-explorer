@@ -17,6 +17,7 @@ export default function StockLedger() {
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
   const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
+  const pagination = usePagination(entries || [], 15);
 
   const txnBadge = (type: string) => {
     const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment", "in"];
