@@ -203,7 +203,7 @@ function buildPayslipHTML(data: {
 <html><head><meta charset="utf-8"><title>Pay Slip — ${data.employeeName} — ${data.periodLabel}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a1a; background: #fff; width: 700px; max-width: 700px; margin: 0 auto; padding: 30px 36px; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a1a; background: #fff; width: 700px; max-width: 700px; margin: 0 auto; padding: 30px 36px 50px; }
   .company-header { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
   .company-name { font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
   .company-address { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.5; }
