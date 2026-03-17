@@ -60,6 +60,7 @@ export async function createApprovalRequest(params: {
   documentId: string;
   documentNumber: string | null;
   documentAmount: number | null;
+  totalSteps?: number;
   requestedBy: string;
   notes?: string;
 }): Promise<void> {
