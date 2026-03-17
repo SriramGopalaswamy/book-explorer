@@ -554,7 +554,27 @@ export function useEmployeeBulkUpload(): BulkUploadConfig {
         const s = row.status.trim().toLowerCase();
         if (["active", "inactive"].includes(s)) payload.status = s;
       }
-      if (row.manager_email?.trim()) payload.manager_email = row.manager_email.trim();
+      // Accept manager as name or email — detect by presence of '@'
+      const managerVal = (row.manager || row.manager_email || "").trim();
+      if (managerVal) {
+        if (managerVal.includes("@")) {
+          payload.manager_email = managerVal;
+        } else {
+          // Treat as manager name — resolve to email via profiles lookup
+          const { data: managerProfile } = await supabase
+            .from("profiles")
+            .select("email")
+            .ilike("full_name", managerVal)
+            .limit(1)
+            .maybeSingle();
+          if (managerProfile?.email) {
+            payload.manager_email = managerProfile.email;
+          } else {
+            errors.push(`${email}: Manager "${managerVal}" not found`);
+            continue;
+          }
+        }
+      }
 
       const { data, error } = await supabase.functions.invoke("manage-roles", {
         body: payload,
