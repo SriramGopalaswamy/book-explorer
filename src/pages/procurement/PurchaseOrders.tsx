@@ -99,8 +99,20 @@ export default function PurchaseOrders() {
   };
 
   const handleCreate = () => {
-    if (!form.vendor_name || items.some((i) => !i.description)) return;
-    createPO.mutate({ ...form, items }, {
+    if (!form.vendor_name) {
+      toast.error("Please select a vendor.");
+      return;
+    }
+    if (items.some((i) => !i.description)) {
+      toast.error("All line items must have a description.");
+      return;
+    }
+    if (items.some((i) => i.quantity <= 0)) {
+      toast.error("All quantities must be greater than zero.");
+      return;
+    }
+    const selectedVendor = vendors.find((v: any) => v.name === form.vendor_name);
+    createPO.mutate({ ...form, vendor_id: selectedVendor?.id, items }, {
       onSuccess: () => {
         setDialogOpen(false);
         setForm({ vendor_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
