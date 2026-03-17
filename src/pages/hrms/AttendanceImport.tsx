@@ -53,7 +53,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 // ─── Match types ──────────────────────────────────
-type MatchType = "auto_code" | "auto_name" | "manual" | "skipped" | "unmatched";
+type MatchType = "auto_code" | "auto_name" | "saved" | "manual" | "skipped" | "unmatched";
 
 interface MatchEntry {
   employee_code: string;
