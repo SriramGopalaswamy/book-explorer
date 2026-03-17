@@ -53,7 +53,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 // ─── Match types ──────────────────────────────────
-type MatchType = "auto_code" | "auto_name" | "manual" | "skipped" | "unmatched";
+type MatchType = "auto_code" | "auto_name" | "saved" | "manual" | "skipped" | "unmatched";
 
 interface MatchEntry {
   employee_code: string;
@@ -115,6 +115,24 @@ export default function AttendanceImport() {
     enabled: !!org?.organizationId,
   });
 
+  // Fetch saved code mappings from previous uploads
+  const { data: savedMappings = [] } = useQuery({
+    queryKey: ["saved-code-mappings", org?.organizationId],
+    queryFn: async () => {
+      if (!org?.organizationId) return [];
+      const { data, error } = await supabase
+        .from("employee_code_mappings")
+        .select("employee_code, profile_id, employee_name_hint")
+        .eq("organization_id", org.organizationId);
+      if (error) {
+        console.warn("Could not fetch saved mappings:", error.message);
+        return [];
+      }
+      return (data ?? []) as unknown as { employee_code: string; profile_id: string; employee_name_hint: string | null }[];
+    },
+    enabled: !!org?.organizationId,
+  });
+
   const reset = () => {
     setStep("upload");
     setFile(null);
@@ -162,6 +180,21 @@ export default function AttendanceImport() {
     if (!previewData?.employees) return;
     const entries: MatchEntry[] = [];
     for (const emp of previewData.employees) {
+      // Priority 1: saved mapping from previous upload
+      const savedMatch = savedMappings.find(m => m.employee_code === emp.employee_code);
+      if (savedMatch) {
+        const profile = orgProfiles.find(p => p.id === savedMatch.profile_id);
+        entries.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          department: emp.department,
+          match_type: "saved",
+          profile_id: savedMatch.profile_id,
+          profile_name: profile?.full_name || savedMatch.employee_name_hint || "Unknown",
+        });
+        continue;
+      }
+      // Priority 2: employee_details code match
       const codeMatch = empDetails.find(e => e.employee_id_number === emp.employee_code);
       if (codeMatch) {
         const profile = orgProfiles.find(p => p.id === codeMatch.profile_id);
@@ -175,6 +208,7 @@ export default function AttendanceImport() {
         });
         continue;
       }
+      // Priority 3: name match
       const nameMatch = orgProfiles.find(p => p.full_name?.toLowerCase() === emp.employee_name?.toLowerCase());
       if (nameMatch) {
         entries.push({
@@ -195,7 +229,7 @@ export default function AttendanceImport() {
       });
     }
     setMatchEntries(entries);
-  }, [previewData, empDetails, orgProfiles]);
+  }, [previewData, empDetails, orgProfiles, savedMappings]);
 
   const handleProceedToMatch = () => {
     buildMatchEntries();
@@ -230,9 +264,9 @@ export default function AttendanceImport() {
     if (!file) return;
     setStep("importing");
     try {
-      // Build manual mappings from match entries (manual + auto_name overrides)
+      // Build manual mappings from match entries (manual + auto_name + saved overrides)
       const manualMappings = matchEntries
-        .filter(e => e.profile_id && (e.match_type === "manual" || e.match_type === "auto_name" || e.match_type === "auto_code"))
+        .filter(e => e.profile_id && (e.match_type === "manual" || e.match_type === "auto_name" || e.match_type === "auto_code" || e.match_type === "saved"))
         .map(e => ({ employee_code: e.employee_code, profile_id: e.profile_id! }));
 
       const result = await importMutation.mutateAsync({
@@ -615,6 +649,11 @@ export default function AttendanceImport() {
                         <TableCell className="text-sm font-medium">{entry.employee_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{entry.department || "—"}</TableCell>
                         <TableCell>
+                          {entry.match_type === "saved" && (
+                            <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400 text-xs">
+                              Saved ✓
+                            </Badge>
+                          )}
                           {entry.match_type === "auto_code" && (
                             <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400 text-xs">
                               Auto (Code)
@@ -644,7 +683,7 @@ export default function AttendanceImport() {
                         <TableCell>
                           {entry.match_type === "skipped" ? (
                             <span className="text-sm text-muted-foreground italic">Skipped</span>
-                          ) : entry.match_type === "auto_code" ? (
+                          ) : (entry.match_type === "auto_code" || entry.match_type === "saved") ? (
                             <span className="text-sm text-foreground">{entry.profile_name}</span>
                           ) : (
                             <EmployeeCombobox
@@ -659,7 +698,7 @@ export default function AttendanceImport() {
                             <Button variant="ghost" size="sm" onClick={() => handleUnskip(entry.employee_code)}>
                               Undo
                             </Button>
-                          ) : entry.match_type !== "auto_code" && (
+                          ) : (entry.match_type !== "auto_code" && entry.match_type !== "saved") && (
                             <Button variant="ghost" size="sm" onClick={() => handleSkip(entry.employee_code)} title="Skip this employee">
                               <SkipForward className="h-4 w-4" />
                             </Button>

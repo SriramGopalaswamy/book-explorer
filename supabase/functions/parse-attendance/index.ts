@@ -1059,6 +1059,13 @@ Deno.serve(async (req) => {
     // ─── RESOLVE EMPLOYEE CODES → PROFILE IDs ────────────
     const uniqueCodes = [...new Set(result.punches.map(p => p.employee_code))];
 
+    // 1. Check saved mappings first
+    const { data: savedMappings } = await adminClient
+      .from("employee_code_mappings")
+      .select("employee_code, profile_id")
+      .eq("organization_id", organization_id)
+      .in("employee_code", uniqueCodes);
+
     const { data: empDetails } = await adminClient
       .from("employee_details")
       .select("profile_id, employee_id_number")
@@ -1074,6 +1081,9 @@ Deno.serve(async (req) => {
     const unmatchedCodes: string[] = [];
 
     for (const code of uniqueCodes) {
+      // Priority: saved mapping > employee_details code > name match
+      const saved = savedMappings?.find((m: any) => m.employee_code === code);
+      if (saved) { codeToProfileId.set(code, saved.profile_id); continue; }
       const match = empDetails?.find((e: any) => e.employee_id_number === code);
       if (match) { codeToProfileId.set(code, match.profile_id); continue; }
       const punchName = result.punches.find(p => p.employee_code === code)?.employee_name;
@@ -1082,6 +1092,10 @@ Deno.serve(async (req) => {
         if (profileMatch) { codeToProfileId.set(code, profileMatch.id); continue; }
       }
       unmatchedCodes.push(code);
+    }
+
+    if (savedMappings?.length) {
+      console.log(`[MAIN] ${savedMappings.length} saved mappings applied from employee_code_mappings`);
     }
 
     // ─── APPLY MANUAL MAPPINGS (from match step) ─────────
@@ -1094,6 +1108,29 @@ Deno.serve(async (req) => {
         }
       }
       console.log(`[MAIN] Applied ${body.manual_mappings.length} manual mappings`);
+
+      // Persist manual mappings for future uploads (upsert)
+      const upsertRows = body.manual_mappings
+        .filter((m: any) => m.employee_code && m.profile_id)
+        .map((m: any) => ({
+          organization_id,
+          employee_code: m.employee_code,
+          profile_id: m.profile_id,
+          source_device: 'biometric',
+          employee_name_hint: result.punches.find(p => p.employee_code === m.employee_code)?.employee_name || null,
+          updated_at: new Date().toISOString(),
+        }));
+
+      if (upsertRows.length > 0) {
+        const { error: upsertErr } = await adminClient
+          .from("employee_code_mappings")
+          .upsert(upsertRows, { onConflict: "organization_id,employee_code" });
+        if (upsertErr) {
+          console.error(`[MAIN] Failed to save mappings: ${upsertErr.message}`);
+        } else {
+          console.log(`[MAIN] Persisted ${upsertRows.length} code mappings for future use`);
+        }
+      }
     }
 
     // ─── INSERT PUNCHES ──────────────────────────────────

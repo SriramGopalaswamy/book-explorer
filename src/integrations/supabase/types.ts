@@ -3697,6 +3697,61 @@ export type Database = {
           },
         ]
       }
+      employee_code_mappings: {
+        Row: {
+          created_at: string
+          employee_code: string
+          employee_name_hint: string | null
+          id: string
+          organization_id: string
+          profile_id: string
+          source_device: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_code: string
+          employee_name_hint?: string | null
+          id?: string
+          organization_id: string
+          profile_id: string
+          source_device?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_code?: string
+          employee_name_hint?: string | null
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          source_device?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_code_mappings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_code_mappings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_code_mappings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_details: {
         Row: {
           aadhaar_last_four: string | null
