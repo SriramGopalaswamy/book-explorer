@@ -276,6 +276,20 @@ export default function AttendanceImport() {
         });
         continue;
       }
+      // Priority 4: fuzzy name match
+      const fuzzy = fuzzyNameMatch(emp.employee_name, orgProfiles);
+      if (fuzzy) {
+        entries.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          department: emp.department,
+          match_type: "fuzzy",
+          profile_id: fuzzy.profile.id,
+          profile_name: fuzzy.profile.full_name || "Unknown",
+          fuzzy_score: Math.round(fuzzy.score * 100),
+        });
+        continue;
+      }
       entries.push({
         employee_code: emp.employee_code,
         employee_name: emp.employee_name,
