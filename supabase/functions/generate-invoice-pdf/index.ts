@@ -68,16 +68,26 @@ interface InvoiceSettings {
   custom_footer_text?: string;
 }
 
-const BRAND_COLORS = {
-  primary: rgb(0.85, 0.15, 0.55),
-  dark: rgb(0.13, 0.12, 0.15),
-  text: rgb(0.15, 0.15, 0.18),
-  muted: rgb(0.45, 0.47, 0.5),
-  light: rgb(0.97, 0.97, 0.98),
-  white: rgb(1, 1, 1),
-  headerBg: rgb(0.96, 0.96, 0.97),
-  tableBorder: rgb(0.85, 0.85, 0.87),
-};
+function hexToRgb(hex: string) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16) / 255;
+  const g = parseInt(h.substring(2, 4), 16) / 255;
+  const b = parseInt(h.substring(4, 6), 16) / 255;
+  return rgb(r, g, b);
+}
+
+function buildBrandColors(brandHex: string) {
+  return {
+    primary: hexToRgb(brandHex),
+    dark: rgb(0.13, 0.12, 0.15),
+    text: rgb(0.15, 0.15, 0.18),
+    muted: rgb(0.45, 0.47, 0.5),
+    light: rgb(0.97, 0.97, 0.98),
+    white: rgb(1, 1, 1),
+    headerBg: rgb(0.96, 0.96, 0.97),
+    tableBorder: rgb(0.85, 0.85, 0.87),
+  };
+}
 
 // Use "Rs." instead of ₹ to avoid WinAnsi encoding issues with standard fonts
 const formatCurrency = (amount: number): string => {
@@ -165,6 +175,7 @@ serve(async (req) => {
       .maybeSingle();
 
     let authorizedSignatoryName = "";
+    let brandColor = "#d6336c"; // default magenta
     if (profile?.organization_id) {
       // Check organization_settings first, then fall back to organization_compliance
       const [settingsRes, complianceRes] = await Promise.all([
@@ -175,7 +186,7 @@ serve(async (req) => {
           .maybeSingle(),
         supabaseClient
           .from("organization_compliance")
-          .select("authorized_signatory_name")
+          .select("authorized_signatory_name, brand_color")
           .eq("organization_id", profile.organization_id)
           .maybeSingle(),
       ]);
@@ -183,7 +194,12 @@ serve(async (req) => {
         settingsRes.data?.authorized_signatory_name ||
         complianceRes.data?.authorized_signatory_name ||
         "";
+      if (complianceRes.data?.brand_color) {
+        brandColor = complianceRes.data.brand_color;
+      }
     }
+
+    const BRAND_COLORS = buildBrandColors(brandColor);
 
     const s: InvoiceSettings = settings || {};
 

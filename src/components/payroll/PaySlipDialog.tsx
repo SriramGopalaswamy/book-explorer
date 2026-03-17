@@ -7,6 +7,8 @@ import grx10Logo from "@/assets/grx10-logo.webp";
 import { useState, useEffect } from "react";
 import { normalizePayslip } from "@/lib/payslip-utils";
 import { numberToWords } from "@/lib/number-to-words";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 /** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
 function useLogoDataUrl(src: string) {
@@ -36,6 +38,21 @@ const fmtFull = (value: number) =>
 
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
+/** Fetch brand color from organization_compliance for current user */
+function useBrandColor(userId: string | undefined) {
+  const [color, setColor] = useState("#e11d74");
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
+      if (!profile?.organization_id) return;
+      const { data } = await supabase.from("organization_compliance" as any).select("brand_color").eq("organization_id", profile.organization_id).maybeSingle();
+      if ((data as any)?.brand_color) setColor((data as any).brand_color);
+    })();
+  }, [userId]);
+  return color;
+}
+
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -50,7 +67,8 @@ interface PaySlipDialogProps {
 
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
   const logoDataUrl = useLogoDataUrl(grx10Logo);
-
+  const { user } = useAuth();
+  const brandColor = useBrandColor(user?.id);
   if (!record) return null;
 
   const slip = normalizePayslip(record);
@@ -80,6 +98,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const paddedDeductions = [...deductions, ...Array(maxRows - deductions.length).fill(null)];
 
   const buildHTML = () => {
+    const bc = brandColor;
     const eRows = paddedEarnings.map((e, i) => {
       const d = paddedDeductions[i];
       return `<tr>
@@ -104,8 +123,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Employee Summary */
   .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
-  .emp-header { background: #e11d74; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .emp-name { font-size: 15px; font-weight: 700; color: #e11d74; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+  .emp-header { background: ${bc}; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .emp-name { font-size: 15px; font-weight: 700; color: ${bc}; padding: 8px 12px; border-bottom: 1px solid #ddd; }
   .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
   .emp-grid .eg-label { font-size: 11px; font-weight: 600; color: #333; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
   .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
@@ -114,7 +133,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Earnings & Deductions */
   .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
-  .ed-table .ed-header th { background: #e11d74; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border: 1px solid #c9176a; }
+  .ed-table .ed-header th { background: ${bc}; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border: 1px solid ${bc}; }
   .ed-table .ed-header th.r { text-align: right; }
   .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
   .cell.r { text-align: right; font-weight: 500; }
@@ -126,7 +145,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   .net-box .label-side { }
   .net-box .label-side .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
   .net-box .label-side .sub { font-size: 11px; color: #888; font-style: italic; }
-  .net-box .amount { font-size: 24px; font-weight: 800; color: #e11d74; }
+  .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
   .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; margin-bottom: 20px; }
 
   .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }

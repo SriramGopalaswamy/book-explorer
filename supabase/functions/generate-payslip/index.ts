@@ -78,6 +78,10 @@ serve(async (req) => {
 
     const { data: org } = await supabase.from("organizations").select("name, address").eq("id", run.organization_id).single();
 
+    // Fetch brand color from organization_compliance
+    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color").eq("organization_id", run.organization_id).maybeSingle();
+    const brandColor = compliance?.brand_color || "#e11d74";
+
     let query = supabase
       .from("payroll_entries")
       .select("*, profiles!profile_id(full_name, email, department, job_title, date_of_joining)")
@@ -133,6 +137,7 @@ serve(async (req) => {
         workingDays: entry.working_days,
         paidDays: entry.paid_days || 0,
         lwpDays: entry.lwp_days,
+        brandColor,
       });
 
       const payslipUrl = `payslip://${run.pay_period}/${entry.profile_id}`;
@@ -162,6 +167,7 @@ function buildPayslipHTML(data: {
   earnings: any[]; deductions: any[];
   grossEarnings: number; totalDeductions: number; netPay: number;
   workingDays: number; paidDays: number; lwpDays: number;
+  brandColor: string;
 }): string {
   const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -179,6 +185,17 @@ function buildPayslipHTML(data: {
     </tr>`;
   }).join("");
 
+  const bc = data.brandColor;
+  // Derive a slightly darker shade for borders
+  const darken = (hex: string): string => {
+    const h = hex.replace("#", "");
+    const r = Math.max(0, parseInt(h.substring(0, 2), 16) - 20);
+    const g = Math.max(0, parseInt(h.substring(2, 4), 16) - 20);
+    const b = Math.max(0, parseInt(h.substring(4, 6), 16) - 20);
+    return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+  };
+  const bcBorder = darken(bc);
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Pay Slip — ${data.employeeName} — ${data.periodLabel}</title>
 <style>
@@ -189,13 +206,13 @@ function buildPayslipHTML(data: {
   .company-address { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.5; }
   .payslip-title { text-align: center; font-size: 22px; font-weight: 600; font-style: italic; margin: 8px 0 16px; }
   .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
-  .emp-header { background: #e11d74; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .emp-name { font-size: 15px; font-weight: 700; color: #e11d74; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+  .emp-header { background: ${bc}; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .emp-name { font-size: 15px; font-weight: 700; color: ${bc}; padding: 8px 12px; border-bottom: 1px solid #ddd; }
   .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
   .emp-grid .eg-label { font-size: 11px; font-weight: 600; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
   .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
   .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
-  .ed-table .ed-header th { background: #e11d74; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; text-align: left; border: 1px solid #c9176a; }
+  .ed-table .ed-header th { background: ${bc}; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; text-align: left; border: 1px solid ${bcBorder}; }
   .ed-table .ed-header th.r { text-align: right; }
   .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
   .cell.r { text-align: right; font-weight: 500; }
@@ -204,7 +221,7 @@ function buildPayslipHTML(data: {
   .net-box { border: 2px solid #333; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .net-box .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
   .net-box .sub { font-size: 11px; color: #888; font-style: italic; }
-  .net-box .amount { font-size: 24px; font-weight: 800; color: #e11d74; }
+  .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
   .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; }
   .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
   .footer .sig span { display: block; width: 140px; border-top: 1px solid #bbb; padding-top: 4px; margin-top: 30px; text-align: right; }
