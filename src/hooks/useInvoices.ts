@@ -30,6 +30,13 @@ export interface Invoice {
   notes?: string | null;
   customer_gstin?: string | null;
   invoice_items?: InvoiceItem[];
+  // Aadhaar eSign fields
+  signing_status?: 'not_initiated' | 'pending_download' | 'pending_upload' | 'verifying' | 'verified' | 'failed' | null;
+  original_pdf_path?: string | null;
+  signed_pdf_path?: string | null;
+  signing_initiated_at?: string | null;
+  signing_completed_at?: string | null;
+  signing_failure_reason?: string | null;
 }
 
 export interface InvoiceItem {

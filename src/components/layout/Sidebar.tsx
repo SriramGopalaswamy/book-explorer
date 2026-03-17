@@ -181,6 +181,7 @@ const salesNav: NavItem[] = [
   { name: "Sales Orders", path: "/sales/orders", icon: ShoppingBag, module: "financial" },
   { name: "Deliveries", path: "/sales/deliveries", icon: Truck, module: "financial" },
   { name: "Sales Returns", path: "/sales/returns", icon: RotateCcw, module: "financial" },
+  { name: "Sales Invoices", path: "/financial/invoicing", icon: FileText, module: "financial" },
 ];
 
 const manufacturingNav: NavItem[] = [
