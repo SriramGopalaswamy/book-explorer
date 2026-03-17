@@ -830,9 +830,7 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to update role");
     } else {
       toast.success("Role updated successfully");
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, roles: [newRole] } : u))
-      );
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setUpdatingUser(null);
   };
