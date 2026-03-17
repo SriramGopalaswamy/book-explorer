@@ -51,6 +51,12 @@ export default function PickingLists() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [warehouseId, setWarehouseId] = useState("");
+  const filteredLists = lists.filter(l => {
+    const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || l.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const pagination = usePagination(filteredLists, 10);
   const [notes, setNotes] = useState("");
   const [pickItems, setPickItems] = useState<PickItemRow[]>([{ item_name: "", quantity: 1 }]);
   const [viewList, setViewList] = useState<PickingList | null>(null);
