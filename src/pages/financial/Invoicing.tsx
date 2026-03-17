@@ -283,8 +283,6 @@ export default function Invoicing() {
         total_amount: total,
         notes: formMeta.notes,
         customer_gstin: formMeta.customerGstin,
-        revenue_recognition: formMeta.revenueRecognition || null,
-        performance_obligation: formMeta.performanceObligation || null,
         items: computed.map(c => ({
           description: c.description || "Services",
           quantity: parseInt(c.quantity) || 1,
@@ -373,8 +371,6 @@ export default function Invoicing() {
         total_amount: total,
         notes: editFormMeta.notes,
         customer_gstin: editFormMeta.customerGstin,
-        revenue_recognition: editFormMeta.revenueRecognition || null,
-        performance_obligation: editFormMeta.performanceObligation || null,
         items: computed.map(c => ({
           description: c.description || "Services",
           quantity: parseInt(c.quantity) || 1,
