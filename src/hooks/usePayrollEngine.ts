@@ -286,6 +286,12 @@ export function useGeneratePayroll() {
         }
       });
 
+      // Determine the divisor based on frequency
+      // Monthly = 12, Biweekly = 24, Weekly = 52
+      const periodsPerYear = periodSuffix?.startsWith("W") ? 52
+        : periodSuffix?.startsWith("H") ? 24
+        : 12;
+
       // 4. Generate entries
       const entries = structures.map((s: any) => {
         const components = s.compensation_components || [];
@@ -301,7 +307,7 @@ export function useGeneratePayroll() {
         components
           .sort((a: any, b: any) => a.display_order - b.display_order)
           .forEach((c: any) => {
-            const monthlyAmount = Math.round((Number(c.annual_amount) / 12) * payRatio);
+            const periodAmount = Math.round((Number(c.annual_amount) / periodsPerYear) * payRatio);
             const item = {
               name: c.component_name,
               annual: Number(c.annual_amount),
