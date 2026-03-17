@@ -649,6 +649,11 @@ export default function AttendanceImport() {
                         <TableCell className="text-sm font-medium">{entry.employee_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{entry.department || "—"}</TableCell>
                         <TableCell>
+                          {entry.match_type === "saved" && (
+                            <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400 text-xs">
+                              Saved ✓
+                            </Badge>
+                          )}
                           {entry.match_type === "auto_code" && (
                             <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400 text-xs">
                               Auto (Code)
@@ -678,7 +683,7 @@ export default function AttendanceImport() {
                         <TableCell>
                           {entry.match_type === "skipped" ? (
                             <span className="text-sm text-muted-foreground italic">Skipped</span>
-                          ) : entry.match_type === "auto_code" ? (
+                          ) : (entry.match_type === "auto_code" || entry.match_type === "saved") ? (
                             <span className="text-sm text-foreground">{entry.profile_name}</span>
                           ) : (
                             <EmployeeCombobox
@@ -693,7 +698,7 @@ export default function AttendanceImport() {
                             <Button variant="ghost" size="sm" onClick={() => handleUnskip(entry.employee_code)}>
                               Undo
                             </Button>
-                          ) : entry.match_type !== "auto_code" && (
+                          ) : (entry.match_type !== "auto_code" && entry.match_type !== "saved") && (
                             <Button variant="ghost" size="sm" onClick={() => handleSkip(entry.employee_code)} title="Skip this employee">
                               <SkipForward className="h-4 w-4" />
                             </Button>
