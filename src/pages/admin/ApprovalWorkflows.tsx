@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,46 +10,116 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, CheckCircle, XCircle } from "lucide-react";
-import { useApprovalWorkflows, useCreateApprovalWorkflow, useToggleWorkflow, useApprovalRequests, useApproveRequest, useRejectRequest } from "@/hooks/useApprovalWorkflows";
+import { Plus, CheckCircle, XCircle, Trash2, ArrowRight, GripVertical } from "lucide-react";
+import { useApprovalWorkflows, useCreateApprovalWorkflow, useToggleWorkflow, useApprovalRequests, useApproveRequest, useRejectRequest, useApprovalWorkflowSteps } from "@/hooks/useApprovalWorkflows";
 import { format } from "date-fns";
+
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Admin" },
+  { value: "finance", label: "Finance" },
+  { value: "hr", label: "HR" },
+  { value: "manager", label: "Manager" },
+];
+
+const ROLE_COLORS: Record<string, string> = {
+  admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  finance: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  hr: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  manager: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+};
 
 export default function ApprovalWorkflowsPage() {
   const { data: workflows = [], isLoading: wfLoading } = useApprovalWorkflows();
   const { data: requests = [], isLoading: reqLoading } = useApprovalRequests();
+
+  const workflowIds = useMemo(() => workflows.map(w => w.id), [workflows]);
+  const { data: allSteps = [] } = useApprovalWorkflowSteps(workflowIds);
+
   const createWorkflow = useCreateApprovalWorkflow();
   const toggleWorkflow = useToggleWorkflow();
   const approveReq = useApproveRequest();
   const rejectReq = useRejectRequest();
+
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ workflow_type: "purchase_order", threshold_amount: "", required_role: "admin" });
+  const [form, setForm] = useState({ workflow_type: "purchase_order", threshold_amount: "" });
+  const [steps, setSteps] = useState<{ role: string }[]>([{ role: "manager" }]);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const handleCreate = () => {
-    if (!form.threshold_amount) return;
-    createWorkflow.mutate({ ...form, threshold_amount: Number(form.threshold_amount) }, { onSuccess: () => { setOpen(false); setForm({ workflow_type: "purchase_order", threshold_amount: "", required_role: "admin" }); } });
+  const addStep = () => {
+    if (steps.length >= 4) return;
+    setSteps([...steps, { role: "admin" }]);
   };
 
-  const isLoading = wfLoading || reqLoading;
-  if (isLoading) return <MainLayout title="Approval Workflows"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
+  const removeStep = (index: number) => {
+    if (steps.length <= 1) return;
+    setSteps(steps.filter((_, i) => i !== index));
+  };
 
-  const pendingRequests = requests.filter(r => r.status === "pending");
-  const processedRequests = requests.filter(r => r.status !== "pending");
+  const updateStepRole = (index: number, role: string) => {
+    setSteps(steps.map((s, i) => (i === index ? { role } : s)));
+  };
+
+  const handleCreate = () => {
+    if (!form.threshold_amount) return;
+    if (steps.length === 0) return;
+    createWorkflow.mutate(
+      { ...form, threshold_amount: Number(form.threshold_amount), steps },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setForm({ workflow_type: "purchase_order", threshold_amount: "" });
+          setSteps([{ role: "manager" }]);
+        },
+      }
+    );
+  };
+
+  const stepsMap = useMemo(() => {
+    const map: Record<string, typeof allSteps> = {};
+    for (const s of allSteps) {
+      if (!map[s.workflow_id]) map[s.workflow_id] = [];
+      map[s.workflow_id].push(s);
+    }
+    return map;
+  }, [allSteps]);
+
+  const isLoading = wfLoading || reqLoading;
+  if (isLoading)
+    return (
+      <MainLayout title="Approval Workflows">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </MainLayout>
+    );
+
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const processedRequests = requests.filter((r) => r.status !== "pending");
 
   return (
-    <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules">
+    <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules with chain approvals">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div />
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Workflow</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Create Approval Workflow</DialogTitle></DialogHeader>
-              <div className="space-y-4">
-                <div><Label>Document Type</Label>
-                  <Select value={form.workflow_type} onValueChange={v => setForm(p => ({ ...p, workflow_type: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Workflow
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Create Approval Workflow</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5">
+                <div>
+                  <Label>Document Type</Label>
+                  <Select value={form.workflow_type} onValueChange={(v) => setForm((p) => ({ ...p, workflow_type: v }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="purchase_order">Purchase Order</SelectItem>
                       <SelectItem value="sales_order">Sales Order</SelectItem>
@@ -61,19 +131,72 @@ export default function ApprovalWorkflowsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Threshold Amount (₹)</Label><Input type="number" value={form.threshold_amount} onChange={e => setForm(p => ({ ...p, threshold_amount: e.target.value }))} placeholder="Amounts above this require approval" /></div>
-                <div><Label>Required Role</Label>
-                  <Select value={form.required_role} onValueChange={v => setForm(p => ({ ...p, required_role: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="hr">HR</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <Label>Threshold Amount (₹)</Label>
+                  <Input
+                    type="number"
+                    value={form.threshold_amount}
+                    onChange={(e) => setForm((p) => ({ ...p, threshold_amount: e.target.value }))}
+                    placeholder="Amounts above this require approval"
+                  />
                 </div>
-                <Button onClick={handleCreate} disabled={createWorkflow.isPending} className="w-full">{createWorkflow.isPending ? "Creating..." : "Create Workflow"}</Button>
+
+                {/* Approval Chain Steps */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Approval Chain</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addStep} disabled={steps.length >= 4}>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Step
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Define the approval chain. Each step must be approved in order before the document is fully approved.
+                  </p>
+                  <div className="space-y-2">
+                    {steps.map((step, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
+                          {index + 1}
+                        </div>
+                        {index > 0 && <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 -ml-1 -mr-1" />}
+                        <Select value={step.role} onValueChange={(v) => updateStepRole(index, v)}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLE_OPTIONS.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {r.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {steps.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeStep(index)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {steps.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      {steps.map((s, i) => (
+                        <span key={i} className="flex items-center gap-1">
+                          <Badge variant="outline" className={ROLE_COLORS[s.role] || ""}>
+                            {ROLE_OPTIONS.find((r) => r.value === s.role)?.label || s.role}
+                          </Badge>
+                          {i < steps.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Button onClick={handleCreate} disabled={createWorkflow.isPending} className="w-full">
+                  {createWorkflow.isPending ? "Creating..." : "Create Workflow"}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -88,29 +211,59 @@ export default function ApprovalWorkflowsPage() {
 
           <TabsContent value="workflows">
             <Card>
-              <CardHeader><CardTitle>Configured Workflows</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Configured Workflows</CardTitle>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Document Type</TableHead>
                       <TableHead>Threshold Amount</TableHead>
-                      <TableHead>Required Role</TableHead>
+                      <TableHead>Approval Chain</TableHead>
                       <TableHead>Active</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {workflows.map(w => (
-                      <TableRow key={w.id}>
-                        <TableCell className="text-foreground capitalize">{w.workflow_type.replace("_", " ")}</TableCell>
-                        <TableCell className="text-foreground">₹{Number(w.threshold_amount).toLocaleString()}</TableCell>
-                        <TableCell className="text-foreground capitalize">{w.required_role}</TableCell>
-                        <TableCell>
-                          <Switch checked={w.is_active} onCheckedChange={(v) => toggleWorkflow.mutate({ id: w.id, is_active: v })} />
+                    {workflows.map((w) => {
+                      const wfSteps = stepsMap[w.id] || [];
+                      return (
+                        <TableRow key={w.id}>
+                          <TableCell className="text-foreground capitalize">{w.workflow_type.replace(/_/g, " ")}</TableCell>
+                          <TableCell className="text-foreground">₹{Number(w.threshold_amount).toLocaleString()}</TableCell>
+                          <TableCell>
+                            {wfSteps.length > 0 ? (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {wfSteps
+                                  .sort((a, b) => a.step_order - b.step_order)
+                                  .map((s, i) => (
+                                    <span key={s.id} className="flex items-center gap-1">
+                                      <Badge variant="outline" className={`text-xs ${ROLE_COLORS[s.required_role] || ""}`}>
+                                        {s.step_order}. {ROLE_OPTIONS.find((r) => r.value === s.required_role)?.label || s.required_role}
+                                      </Badge>
+                                      {i < wfSteps.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
+                                    </span>
+                                  ))}
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className={`text-xs ${ROLE_COLORS[w.required_role] || ""}`}>
+                                {ROLE_OPTIONS.find((r) => r.value === w.required_role)?.label || w.required_role}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Switch checked={w.is_active} onCheckedChange={(v) => toggleWorkflow.mutate({ id: w.id, is_active: v })} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {workflows.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          No workflows configured
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {workflows.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No workflows configured</TableCell></TableRow>}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -119,7 +272,9 @@ export default function ApprovalWorkflowsPage() {
 
           <TabsContent value="pending">
             <Card>
-              <CardHeader><CardTitle>Pending Approvals</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Pending Approvals</CardTitle>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -127,33 +282,79 @@ export default function ApprovalWorkflowsPage() {
                       <TableHead>Document</TableHead>
                       <TableHead>Document #</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Progress</TableHead>
                       <TableHead>Requested</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingRequests.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell className="text-foreground capitalize">{r.document_type.replace("_", " ")}</TableCell>
-                        <TableCell className="font-mono text-foreground">{r.document_number || "—"}</TableCell>
-                        <TableCell className="text-foreground">{r.document_amount ? `₹${Number(r.document_amount).toLocaleString()}` : "—"}</TableCell>
-                        <TableCell className="text-foreground">{format(new Date(r.requested_at), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="flex gap-2">
-                          <Button size="sm" variant="default" onClick={() => approveReq.mutate({ id: r.id })}><CheckCircle className="h-4 w-4 mr-1" />Approve</Button>
-                          <Dialog open={rejectId === r.id} onOpenChange={v => { if (!v) setRejectId(null); }}>
-                            <DialogTrigger asChild><Button size="sm" variant="destructive" onClick={() => setRejectId(r.id)}><XCircle className="h-4 w-4 mr-1" />Reject</Button></DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader><DialogTitle>Reject Request</DialogTitle></DialogHeader>
-                              <div className="space-y-4">
-                                <div><Label>Reason</Label><Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection" /></div>
-                                <Button variant="destructive" className="w-full" onClick={() => { rejectReq.mutate({ id: r.id, reason: rejectReason }); setRejectId(null); setRejectReason(""); }}>Confirm Rejection</Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                    {pendingRequests.map((r) => {
+                      const wfSteps = r.workflow_id ? stepsMap[r.workflow_id] || [] : [];
+                      const currentStepInfo = wfSteps.find((s) => s.step_order === r.current_step);
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell className="text-foreground capitalize">{r.document_type.replace(/_/g, " ")}</TableCell>
+                          <TableCell className="font-mono text-foreground">{r.document_number || "—"}</TableCell>
+                          <TableCell className="text-foreground">{r.document_amount ? `₹${Number(r.document_amount).toLocaleString()}` : "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                Step {r.current_step}/{r.total_steps}
+                              </Badge>
+                              {currentStepInfo && (
+                                <Badge variant="secondary" className={`text-xs ${ROLE_COLORS[currentStepInfo.required_role] || ""}`}>
+                                  {ROLE_OPTIONS.find((ro) => ro.value === currentStepInfo.required_role)?.label || currentStepInfo.required_role}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-foreground">{format(new Date(r.requested_at), "dd MMM yyyy")}</TableCell>
+                          <TableCell className="flex gap-2">
+                            <Button size="sm" variant="default" onClick={() => approveReq.mutate({ id: r.id })}>
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              {r.current_step < r.total_steps ? "Approve Step" : "Final Approve"}
+                            </Button>
+                            <Dialog open={rejectId === r.id} onOpenChange={(v) => { if (!v) setRejectId(null); }}>
+                              <DialogTrigger asChild>
+                                <Button size="sm" variant="destructive" onClick={() => setRejectId(r.id)}>
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Reject Request</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Reason</Label>
+                                    <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reason for rejection" />
+                                  </div>
+                                  <Button
+                                    variant="destructive"
+                                    className="w-full"
+                                    onClick={() => {
+                                      rejectReq.mutate({ id: r.id, reason: rejectReason });
+                                      setRejectId(null);
+                                      setRejectReason("");
+                                    }}
+                                  >
+                                    Confirm Rejection
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {pendingRequests.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No pending approvals
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {pendingRequests.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No pending approvals</TableCell></TableRow>}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -162,7 +363,9 @@ export default function ApprovalWorkflowsPage() {
 
           <TabsContent value="history">
             <Card>
-              <CardHeader><CardTitle>Approval History</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Approval History</CardTitle>
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -170,21 +373,35 @@ export default function ApprovalWorkflowsPage() {
                       <TableHead>Document</TableHead>
                       <TableHead>Document #</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Steps</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {processedRequests.map(r => (
+                    {processedRequests.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell className="text-foreground capitalize">{r.document_type.replace("_", " ")}</TableCell>
+                        <TableCell className="text-foreground capitalize">{r.document_type.replace(/_/g, " ")}</TableCell>
                         <TableCell className="font-mono text-foreground">{r.document_number || "—"}</TableCell>
                         <TableCell className="text-foreground">{r.document_amount ? `₹${Number(r.document_amount).toLocaleString()}` : "—"}</TableCell>
-                        <TableCell><Badge variant={r.status === "approved" ? "default" : "destructive"}>{r.status}</Badge></TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {r.total_steps > 1 ? `${r.total_steps}-step chain` : "Single"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={r.status === "approved" ? "default" : "destructive"}>{r.status}</Badge>
+                        </TableCell>
                         <TableCell className="text-foreground">{format(new Date(r.approved_at || r.rejected_at || r.created_at), "dd MMM yyyy")}</TableCell>
                       </TableRow>
                     ))}
-                    {processedRequests.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No history yet</TableCell></TableRow>}
+                    {processedRequests.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No history yet
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>

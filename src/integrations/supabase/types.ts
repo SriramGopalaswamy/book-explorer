@@ -363,6 +363,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          current_step: number
           document_amount: number | null
           document_id: string
           document_number: string | null
@@ -376,6 +377,7 @@ export type Database = {
           requested_at: string
           requested_by: string
           status: string
+          total_steps: number
           updated_at: string
           workflow_id: string | null
         }
@@ -383,6 +385,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          current_step?: number
           document_amount?: number | null
           document_id: string
           document_number?: string | null
@@ -396,6 +399,7 @@ export type Database = {
           requested_at?: string
           requested_by: string
           status?: string
+          total_steps?: number
           updated_at?: string
           workflow_id?: string | null
         }
@@ -403,6 +407,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          current_step?: number
           document_amount?: number | null
           document_id?: string
           document_number?: string | null
@@ -416,6 +421,7 @@ export type Database = {
           requested_at?: string
           requested_by?: string
           status?: string
+          total_steps?: number
           updated_at?: string
           workflow_id?: string | null
         }
@@ -429,6 +435,38 @@ export type Database = {
           },
           {
             foreignKeyName: "approval_requests_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "approval_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_workflow_steps: {
+        Row: {
+          created_at: string
+          id: string
+          required_role: string
+          step_order: number
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          required_role?: string
+          step_order?: number
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          required_role?: string
+          step_order?: number
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_workflow_steps_workflow_id_fkey"
             columns: ["workflow_id"]
             isOneToOne: false
             referencedRelation: "approval_workflows"

@@ -14,6 +14,7 @@ interface ApprovalGateResult {
   workflowId: string | null;
   requiredRole: string | null;
   thresholdAmount: number | null;
+  totalSteps: number;
 }
 
 export async function checkApprovalGate(
@@ -29,20 +30,28 @@ export async function checkApprovalGate(
     .limit(1);
 
   if (!workflows || workflows.length === 0) {
-    return { requiresApproval: false, workflowId: null, requiredRole: null, thresholdAmount: null };
+    return { requiresApproval: false, workflowId: null, requiredRole: null, thresholdAmount: null, totalSteps: 1 };
   }
 
   const wf = workflows[0];
   if (amount >= wf.threshold_amount) {
+    // Count chain steps
+    const { data: steps } = await supabase
+      .from("approval_workflow_steps" as any)
+      .select("id")
+      .eq("workflow_id", wf.id);
+    const totalSteps = steps && steps.length > 0 ? steps.length : 1;
+
     return {
       requiresApproval: true,
       workflowId: wf.id,
       requiredRole: wf.required_role,
       thresholdAmount: wf.threshold_amount,
+      totalSteps,
     };
   }
 
-  return { requiresApproval: false, workflowId: null, requiredRole: null, thresholdAmount: null };
+  return { requiresApproval: false, workflowId: null, requiredRole: null, thresholdAmount: null, totalSteps: 1 };
 }
 
 export async function createApprovalRequest(params: {
@@ -51,6 +60,7 @@ export async function createApprovalRequest(params: {
   documentId: string;
   documentNumber: string | null;
   documentAmount: number | null;
+  totalSteps?: number;
   requestedBy: string;
   notes?: string;
 }): Promise<void> {
@@ -76,6 +86,8 @@ export async function createApprovalRequest(params: {
     requested_by: params.requestedBy,
     status: "pending",
     notes: params.notes || null,
+    current_step: 1,
+    total_steps: params.totalSteps || 1,
   } as any);
   if (error) throw error;
 }
