@@ -85,6 +85,7 @@ export default function WorkOrders() {
   const postFinishedGoods = usePostFinishedGoods();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
     product_name: "", planned_quantity: 1, priority: "normal",
@@ -107,10 +108,12 @@ export default function WorkOrders() {
   const [fgWO, setFgWO] = useState<WorkOrder | null>(null);
   const [fgForm, setFgForm] = useState({ cost_per_unit: "", notes: "" });
 
-  const filtered = orders.filter((o) =>
-    o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
-    o.product_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders.filter((o) => {
+    const matchSearch = o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
+      o.product_name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const stats = {
     total: orders.length,
@@ -281,7 +284,21 @@ export default function WorkOrders() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.completed}</p><p className="text-xs text-muted-foreground">Completed</p></div></div></CardContent></Card>
         </div>
 
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search work orders…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search work orders…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="planned">Planned</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="on_hold">On Hold</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No work orders yet. Create your first production run." />
       </div>
