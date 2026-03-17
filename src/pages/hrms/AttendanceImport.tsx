@@ -53,7 +53,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 // ─── Match types ──────────────────────────────────
-type MatchType = "auto_code" | "auto_name" | "saved" | "manual" | "skipped" | "unmatched";
+type MatchType = "auto_code" | "auto_name" | "fuzzy" | "saved" | "manual" | "skipped" | "unmatched";
 
 interface MatchEntry {
   employee_code: string;
@@ -62,6 +62,61 @@ interface MatchEntry {
   match_type: MatchType;
   profile_id?: string;
   profile_name?: string;
+  fuzzy_score?: number; // 0-1, higher = better match
+}
+
+// ─── Levenshtein distance for fuzzy name matching ─
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function fuzzyNameMatch(
+  biometricName: string,
+  profiles: { id: string; full_name: string | null }[],
+  threshold = 0.6
+): { profile: typeof profiles[0]; score: number } | null {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+  const target = norm(biometricName);
+  if (!target) return null;
+
+  let best: { profile: typeof profiles[0]; score: number } | null = null;
+
+  for (const p of profiles) {
+    if (!p.full_name) continue;
+    const candidate = norm(p.full_name);
+    if (!candidate) continue;
+
+    // Levenshtein similarity
+    const maxLen = Math.max(target.length, candidate.length);
+    const dist = levenshtein(target, candidate);
+    const similarity = 1 - dist / maxLen;
+
+    // Also check token overlap (handles reordered names like "Kumar Manoj" vs "Manoj Kumar")
+    const targetTokens = new Set(target.split(" "));
+    const candidateTokens = new Set(candidate.split(" "));
+    const intersection = [...targetTokens].filter(t => candidateTokens.has(t));
+    const tokenScore = intersection.length / Math.max(targetTokens.size, candidateTokens.size);
+
+    const finalScore = Math.max(similarity, tokenScore);
+
+    if (finalScore >= threshold && (!best || finalScore > best.score)) {
+      best = { profile: p, score: finalScore };
+    }
+  }
+  return best;
 }
 
 // ═══════════════════════════════════════════════════
