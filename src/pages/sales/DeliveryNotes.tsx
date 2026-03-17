@@ -62,6 +62,8 @@ const CARRIERS = [
 
 export default function DeliveryNotes() {
   const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { data: notes = [], isLoading } = useQuery({
     queryKey: ["delivery-notes"],
     queryFn: async () => {
