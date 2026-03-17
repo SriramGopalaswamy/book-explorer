@@ -163,6 +163,135 @@ export default function EInvoices() {
     setCancelRemark("");
   }
 
+  function downloadEInvoicePDF(inv: any) {
+    const isInter = inv.seller_state_code && inv.buyer_state_code && inv.seller_state_code !== inv.buyer_state_code;
+    const lineItems = (inv.items || []) as EInvoiceItem[];
+    const html = `
+      <html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; padding: 24px; }
+        h1 { font-size: 18px; margin-bottom: 2px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 12px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+        .badge-generated { background: #dcfce7; color: #166534; }
+        .badge-pending { background: #fef9c3; color: #854d0e; }
+        .badge-cancelled { background: #fee2e2; color: #991b1b; }
+        .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .meta-grid .lbl { font-size: 9px; color: #666; text-transform: uppercase; }
+        .meta-grid .val { font-weight: 600; font-size: 11px; }
+        .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .party-box { border: 1px solid #ddd; border-radius: 6px; padding: 10px; }
+        .party-box h3 { font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+        .party-box .name { font-weight: 700; font-size: 12px; }
+        .party-box .gstin { font-family: monospace; font-size: 10px; color: #444; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10px; }
+        th { background: #f3f4f6; text-align: left; padding: 6px 8px; border: 1px solid #ddd; font-weight: 600; }
+        td { padding: 5px 8px; border: 1px solid #ddd; }
+        .text-right { text-align: right; }
+        .totals { margin-left: auto; width: 280px; }
+        .totals .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
+        .totals .row.grand { border-top: 2px solid #333; font-weight: 700; font-size: 13px; padding-top: 6px; margin-top: 4px; }
+        .irn-box { margin-top: 14px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #f9fafb; }
+        .irn-box .lbl { font-size: 9px; color: #666; }
+        .irn-box .val { font-family: monospace; font-size: 9px; word-break: break-all; }
+        .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #999; }
+      </style></head><body>
+        <div class="header">
+          <div>
+            <h1>E-Invoice</h1>
+            <span class="badge badge-${inv.status}">${inv.status}</span>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:700">${inv.doc_number}</div>
+            <div style="font-size:10px;color:#666">${DOC_TYPES.find(d => d.value === inv.doc_type)?.label || inv.doc_type}</div>
+          </div>
+        </div>
+        <div class="meta-grid">
+          <div><div class="lbl">Document Date</div><div class="val">${inv.doc_date || format(new Date(inv.created_at), "dd MMM yyyy")}</div></div>
+          <div><div class="lbl">Supply Type</div><div class="val">${inv.supply_type}</div></div>
+          <div><div class="lbl">Tax Type</div><div class="val">${isInter ? "IGST (Inter-State)" : "CGST + SGST (Intra-State)"}</div></div>
+          <div><div class="lbl">Items</div><div class="val">${lineItems.length}</div></div>
+        </div>
+        <div class="parties">
+          <div class="party-box">
+            <h3>Seller</h3>
+            <div class="name">${inv.seller_legal_name || "—"}</div>
+            ${inv.seller_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${inv.seller_trade_name}</div>` : ""}
+            ${inv.seller_gstin ? `<div class="gstin">${inv.seller_gstin}</div>` : ""}
+            ${inv.seller_address ? `<div style="font-size:10px;margin-top:4px">${inv.seller_address}</div>` : ""}
+            ${inv.seller_location ? `<div style="font-size:10px">${inv.seller_location}</div>` : ""}
+            ${inv.seller_state_code ? `<div style="font-size:10px">${INDIAN_STATES[inv.seller_state_code] || ""}${inv.seller_pincode ? ` — ${inv.seller_pincode}` : ""}</div>` : ""}
+          </div>
+          <div class="party-box">
+            <h3>Buyer</h3>
+            <div class="name">${inv.buyer_legal_name || "—"}</div>
+            ${inv.buyer_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${inv.buyer_trade_name}</div>` : ""}
+            ${inv.buyer_gstin ? `<div class="gstin">${inv.buyer_gstin}</div>` : ""}
+            ${inv.buyer_address ? `<div style="font-size:10px;margin-top:4px">${inv.buyer_address}</div>` : ""}
+            ${inv.buyer_location ? `<div style="font-size:10px">${inv.buyer_location}</div>` : ""}
+            ${inv.buyer_state_code ? `<div style="font-size:10px">${INDIAN_STATES[inv.buyer_state_code] || ""}${inv.buyer_pincode ? ` — ${inv.buyer_pincode}` : ""}</div>` : ""}
+          </div>
+        </div>
+        ${lineItems.length > 0 ? `
+        <table>
+          <thead><tr>
+            <th>#</th><th>Description</th><th>HSN</th><th class="text-right">Qty</th><th>Unit</th>
+            <th class="text-right">Rate (₹)</th><th class="text-right">Discount</th><th class="text-right">Taxable</th>
+            <th class="text-right">GST %</th><th class="text-right">Tax (₹)</th><th class="text-right">Total (₹)</th>
+          </tr></thead>
+          <tbody>${lineItems.map((it) => {
+            const tax = it.igst_amount > 0 ? it.igst_amount : (it.cgst_amount + it.sgst_amount);
+            return `<tr>
+              <td>${it.sl_no}</td><td>${it.product_description}</td><td style="font-family:monospace">${it.hsn_code}</td>
+              <td class="text-right">${it.quantity}</td><td>${it.unit}</td>
+              <td class="text-right">${Number(it.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+              <td class="text-right">${Number(it.discount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+              <td class="text-right">${Number(it.assessable_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+              <td class="text-right">${it.gst_rate}%</td>
+              <td class="text-right">${tax.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+              <td class="text-right" style="font-weight:600">${Number(it.total_item_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>` : ""}
+        <div class="totals">
+          <div class="row"><span>Assessable Value</span><span>₹${Number(inv.total_assessable_value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+          ${Number(inv.total_cgst || 0) > 0 ? `<div class="row"><span>CGST</span><span>₹${Number(inv.total_cgst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
+          ${Number(inv.total_sgst || 0) > 0 ? `<div class="row"><span>SGST</span><span>₹${Number(inv.total_sgst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
+          ${Number(inv.total_igst || 0) > 0 ? `<div class="row"><span>IGST</span><span>₹${Number(inv.total_igst).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
+          ${Number(inv.total_cess || 0) > 0 ? `<div class="row"><span>Cess</span><span>₹${Number(inv.total_cess).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
+          <div class="row grand"><span>Total Invoice Value</span><span>₹${Number(inv.total_invoice_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+        </div>
+        ${inv.irn ? `<div class="irn-box"><div class="lbl">Invoice Reference Number (IRN)</div><div class="val">${inv.irn}</div>${inv.ack_number ? `<div style="margin-top:4px"><span class="lbl">Ack #:</span> ${inv.ack_number}</div>` : ""}${inv.ack_date ? `<div><span class="lbl">Ack Date:</span> ${inv.ack_date}</div>` : ""}</div>` : ""}
+        ${inv.status === "cancelled" && inv.cancel_reason ? `<div style="margin-top:12px;padding:8px;border:1px solid #f87171;border-radius:6px;background:#fef2f2"><div style="font-size:10px;color:#991b1b;font-weight:600">CANCELLED</div><div style="font-size:10px">Reason: ${inv.cancel_reason}</div>${inv.cancel_remark ? `<div style="font-size:10px;color:#666">${inv.cancel_remark}</div>` : ""}</div>` : ""}
+        <div class="footer">Generated from GRX10 Business Suite · E-Invoice as per GST Rule 48(4)</div>
+      </body></html>
+    `;
+
+    import("html2pdf.js").then((html2pdfModule) => {
+      const html2pdf = html2pdfModule.default;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      document.body.appendChild(container);
+      html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename: `E-Invoice-${inv.doc_number}.pdf`,
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(container)
+        .save()
+        .then(() => {
+          document.body.removeChild(container);
+          toast.success("E-Invoice PDF downloaded");
+        })
+        .catch(() => {
+          document.body.removeChild(container);
+          toast.error("PDF generation failed");
+        });
+    });
+  }
+
   const filtered = eInvoices.filter((e) => {
     if (statusFilter !== "all" && e.status !== statusFilter) return false;
     if (search) {
