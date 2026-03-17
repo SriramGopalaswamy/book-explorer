@@ -157,6 +157,7 @@ export default function MyPayslips() {
                       <p className="mt-3 text-muted-foreground">No payslips found</p>
                     </div>
                   ) : (
+                    <>
                     <div className="overflow-x-auto">
                       <Table className="min-w-[600px]">
                           <TableHeader>
@@ -235,6 +236,7 @@ export default function MyPayslips() {
                       </Table>
                     </div>
                     <TablePagination page={payslipPagination.page} totalPages={payslipPagination.totalPages} totalItems={payslipPagination.totalItems} from={payslipPagination.from} to={payslipPagination.to} pageSize={payslipPagination.pageSize} onPageChange={payslipPagination.setPage} onPageSizeChange={payslipPagination.setPageSize} />
+                    </>
                   )}
               </Card>
             </motion.div>
