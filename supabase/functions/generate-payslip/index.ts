@@ -78,9 +78,10 @@ serve(async (req) => {
 
     const { data: org } = await supabase.from("organizations").select("name, address").eq("id", run.organization_id).single();
 
-    // Fetch brand color from organization_compliance
-    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color").eq("organization_id", run.organization_id).maybeSingle();
+    // Fetch brand color and signatory from organization_compliance
+    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name").eq("organization_id", run.organization_id).maybeSingle();
     const brandColor = compliance?.brand_color || "#e11d74";
+    const authorizedSignatoryName = compliance?.authorized_signatory_name || "";
 
     let query = supabase
       .from("payroll_entries")
