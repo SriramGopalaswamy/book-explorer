@@ -143,7 +143,7 @@ export default function VendorPaymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(p => (
+                {pagination.paginatedItems.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-foreground">{p.payment_number}</TableCell>
                     <TableCell className="text-foreground">{p.vendor_name}</TableCell>
@@ -157,6 +157,7 @@ export default function VendorPaymentsPage() {
                 {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No payments match filters" : "No vendor payments yet"}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </CardContent>
         </Card>
       </div>

@@ -116,7 +116,7 @@ export default function PaymentReceipts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(r => (
+                {pagination.paginatedItems.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.receipt_number}</TableCell>
                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
@@ -129,6 +129,7 @@ export default function PaymentReceipts() {
                 {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No receipts match filters" : "No payment receipts yet"}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </CardContent>
         </Card>
       </div>
