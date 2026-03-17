@@ -184,7 +184,8 @@ export function CrossModuleKPIs() {
                       formatter={(value: number) => [formatCurrency(value), "Total Cost"]}
                       contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
                     />
-                    <Bar dataKey="total" fill="hsl(262, 52%, 47%)" radius={[0, 4, 4, 0]} />
+                    <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="total" name="Total Cost" fill="hsl(262, 52%, 47%)" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
