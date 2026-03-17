@@ -53,6 +53,10 @@ interface ExpenseBreakdownChartProps {
 export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps) {
   const { data: expenseData, isLoading } = useExpenseBreakdown(dateRange);
 
+  const subtitleText = dateRange?.from && dateRange?.to
+    ? `Spending by category (${dateRange.from.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} – ${dateRange.to.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})`
+    : "This month's spending by category";
+
   if (isLoading) {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-card">
