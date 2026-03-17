@@ -866,7 +866,7 @@ export default function Bills() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((b: any) => (
+                  {pagination.paginatedItems.map((b: any) => (
                     <TableRow key={b.id} className="border-border/30 hover:bg-muted/20">
                       <TableCell>
                         <div className="flex items-center gap-1.5">
