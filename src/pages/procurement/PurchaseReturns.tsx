@@ -98,6 +98,11 @@ export default function PurchaseReturnsPage() {
             </Select>
             <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" placeholder="From" />
             <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" placeholder="To" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setDateFrom(""); setDateTo(""); }} title="Clear date filter">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Return</Button></DialogTrigger>
