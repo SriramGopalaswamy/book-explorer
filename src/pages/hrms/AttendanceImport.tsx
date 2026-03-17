@@ -180,6 +180,21 @@ export default function AttendanceImport() {
     if (!previewData?.employees) return;
     const entries: MatchEntry[] = [];
     for (const emp of previewData.employees) {
+      // Priority 1: saved mapping from previous upload
+      const savedMatch = savedMappings.find(m => m.employee_code === emp.employee_code);
+      if (savedMatch) {
+        const profile = orgProfiles.find(p => p.id === savedMatch.profile_id);
+        entries.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          department: emp.department,
+          match_type: "saved",
+          profile_id: savedMatch.profile_id,
+          profile_name: profile?.full_name || savedMatch.employee_name_hint || "Unknown",
+        });
+        continue;
+      }
+      // Priority 2: employee_details code match
       const codeMatch = empDetails.find(e => e.employee_id_number === emp.employee_code);
       if (codeMatch) {
         const profile = orgProfiles.find(p => p.id === codeMatch.profile_id);
@@ -193,6 +208,7 @@ export default function AttendanceImport() {
         });
         continue;
       }
+      // Priority 3: name match
       const nameMatch = orgProfiles.find(p => p.full_name?.toLowerCase() === emp.employee_name?.toLowerCase());
       if (nameMatch) {
         entries.push({
@@ -213,7 +229,7 @@ export default function AttendanceImport() {
       });
     }
     setMatchEntries(entries);
-  }, [previewData, empDetails, orgProfiles]);
+  }, [previewData, empDetails, orgProfiles, savedMappings]);
 
   const handleProceedToMatch = () => {
     buildMatchEntries();
