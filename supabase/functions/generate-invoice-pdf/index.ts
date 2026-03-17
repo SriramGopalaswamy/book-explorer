@@ -68,16 +68,26 @@ interface InvoiceSettings {
   custom_footer_text?: string;
 }
 
-const BRAND_COLORS = {
-  primary: rgb(0.85, 0.15, 0.55),
-  dark: rgb(0.13, 0.12, 0.15),
-  text: rgb(0.15, 0.15, 0.18),
-  muted: rgb(0.45, 0.47, 0.5),
-  light: rgb(0.97, 0.97, 0.98),
-  white: rgb(1, 1, 1),
-  headerBg: rgb(0.96, 0.96, 0.97),
-  tableBorder: rgb(0.85, 0.85, 0.87),
-};
+function hexToRgb(hex: string) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16) / 255;
+  const g = parseInt(h.substring(2, 4), 16) / 255;
+  const b = parseInt(h.substring(4, 6), 16) / 255;
+  return rgb(r, g, b);
+}
+
+function buildBrandColors(brandHex: string) {
+  return {
+    primary: hexToRgb(brandHex),
+    dark: rgb(0.13, 0.12, 0.15),
+    text: rgb(0.15, 0.15, 0.18),
+    muted: rgb(0.45, 0.47, 0.5),
+    light: rgb(0.97, 0.97, 0.98),
+    white: rgb(1, 1, 1),
+    headerBg: rgb(0.96, 0.96, 0.97),
+    tableBorder: rgb(0.85, 0.85, 0.87),
+  };
+}
 
 // Use "Rs." instead of ₹ to avoid WinAnsi encoding issues with standard fonts
 const formatCurrency = (amount: number): string => {
