@@ -4,5 +4,8 @@
     "jsxImportSource": "npm:react@18.3.1",
     "types": ["npm:@types/react@18.3.1"]
   },
-  "nodeModulesDir": "auto"
+  "nodeModulesDir": "auto",
+  "imports": {
+    "npm:@lovable.dev/email-js": "npm:@lovable.dev/email-js@latest"
+  }
 }
