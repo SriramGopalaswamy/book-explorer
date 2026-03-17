@@ -39,18 +39,20 @@ const fmtFull = (value: number) =>
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
 /** Fetch brand color from organization_compliance for current user */
-function useBrandColor(userId: string | undefined) {
+function useBrandingInfo(userId: string | undefined) {
   const [color, setColor] = useState("#e11d74");
+  const [signatoryName, setSignatoryName] = useState("");
   useEffect(() => {
     if (!userId) return;
     (async () => {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
       if (!profile?.organization_id) return;
-      const { data } = await supabase.from("organization_compliance" as any).select("brand_color").eq("organization_id", profile.organization_id).maybeSingle();
+      const { data } = await supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name").eq("organization_id", profile.organization_id).maybeSingle();
       if ((data as any)?.brand_color) setColor((data as any).brand_color);
+      if ((data as any)?.authorized_signatory_name) setSignatoryName((data as any).authorized_signatory_name);
     })();
   }, [userId]);
-  return color;
+  return { color, signatoryName };
 }
 
 const periodLabel = (p: string) => {
