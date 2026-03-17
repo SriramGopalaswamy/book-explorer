@@ -136,45 +136,26 @@ export default function Warehouses() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.currentItems.length === 0 ? (
+                  {pagination.paginatedItems.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No warehouses found.</TableCell></TableRow>
-                  ) : pagination.currentItems.map((wh: any) => (
-                    <TableRow key={wh.id}>
-                      <TableCell className="font-medium text-foreground">{wh.name}{wh.is_default && <Badge variant="outline" className="ml-2">Default</Badge>}</TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">{wh.code}</TableCell>
-                      <TableCell className="text-muted-foreground">{wh.city || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{wh.state || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{wh.contact_person || "—"}</TableCell>
-                      <TableCell><Badge variant={wh.is_active ? "default" : "secondary"}>{wh.is_active ? "Active" : "Inactive"}</Badge></TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => {
-                              setEditWH(wh);
-                              setEditForm({ name: wh.name || "", code: wh.code || "", city: wh.city || "", state: wh.state || "", contact_person: wh.contact_person || "", contact_phone: wh.contact_phone || "", is_active: wh.is_active ?? true });
-                              setEditOpen(true);
-                            }}>
-                              <Edit className="h-4 w-4 mr-2" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateWH.mutate({ id: wh.id, is_active: !wh.is_active })}>
-                              {wh.is_active ? <ToggleLeft className="h-4 w-4 mr-2" /> : <ToggleRight className="h-4 w-4 mr-2" />}
-                              {wh.is_active ? "Mark Inactive" : "Mark Active"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => deleteWH.mutate(wh.id)} className="text-destructive">
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                  ) : pagination.paginatedItems.map((wh: any) => (
+...
                   ))}
                 </TableBody>
               </Table>
             )}
-            {!isLoading && filtered.length > 0 && <TablePagination pagination={pagination} />}
+            {!isLoading && filtered.length > 0 && (
+              <TablePagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                from={pagination.from}
+                to={pagination.to}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.setPage}
+                onPageSizeChange={pagination.setPageSize}
+              />
+            )}
           </CardContent>
         </Card>
 
