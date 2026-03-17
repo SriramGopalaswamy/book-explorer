@@ -194,7 +194,7 @@ export default function PurchaseOrders() {
     { key: "vendor_name", header: "Vendor" },
     { key: "order_date", header: "Date", render: (r) => format(new Date(r.order_date), "dd MMM yyyy") },
     { key: "total_amount", header: "Total", render: (r) => <span className="font-semibold">₹{Number(r.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> },
-    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground text-xs truncate max-w-[160px] block">{r.notes || "—"}</span> },
+    { key: "notes", header: "Notes", render: (r) => r.notes ? <span className="text-muted-foreground text-xs max-w-[200px] block" title={r.notes}>{r.notes}</span> : <span className="text-muted-foreground text-xs">—</span> },
     {
       key: "status", header: "Status",
       render: (r) => {
