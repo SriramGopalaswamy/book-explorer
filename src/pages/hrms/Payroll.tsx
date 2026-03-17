@@ -814,6 +814,7 @@ export default function Payroll() {
                       </Button>
                     )}
 
+                    <BulkUploadDialog config={bulkUploadConfig} />
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                       <DialogTrigger asChild>
                         <Button>
@@ -821,8 +822,6 @@ export default function Payroll() {
                           Add Record
                         </Button>
                       </DialogTrigger>
-
-                      <BulkUploadDialog config={bulkUploadConfig} />
                       <DialogContent className="max-w-md glass-morphism">
                         <DialogHeader>
                           <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
