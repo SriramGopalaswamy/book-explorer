@@ -476,11 +476,23 @@ export default function Quotes() {
               <h3 className="text-lg font-semibold text-foreground">All Quotes</h3>
               <p className="text-sm text-muted-foreground">Manage, convert and download quotes</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input className="pl-9" placeholder="Search quotes..." value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="sent">Sent</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="converted">Converted</SelectItem>
+                </SelectContent>
+              </Select>
               <Dialog open={isDialogOpen} onOpenChange={(o) => { setIsDialogOpen(o); if (!o) resetCreateForm(); }}>
                 <DialogTrigger asChild><Button className="bg-gradient-financial text-white hover:opacity-90"><Plus className="h-4 w-4 mr-2" />New Quote</Button></DialogTrigger>
                 <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
