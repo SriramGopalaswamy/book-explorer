@@ -311,15 +311,15 @@ export function useGeneratePayroll() {
             const item = {
               name: c.component_name,
               annual: Number(c.annual_amount),
-              monthly: monthlyAmount,
+              monthly: periodAmount,
               is_taxable: c.is_taxable,
             };
             if (c.component_type === "earning") {
               earningsBreakdown.push(item);
-              grossEarnings += monthlyAmount;
+              grossEarnings += periodAmount;
             } else {
               deductionsBreakdown.push(item);
-              totalDeductions += monthlyAmount;
+              totalDeductions += periodAmount;
             }
           });
 
