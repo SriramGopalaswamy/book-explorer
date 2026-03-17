@@ -211,10 +211,25 @@ export function useGeneratePayroll() {
       }
 
       // 3. Fetch LWP for the period from leave_requests AND attendance_daily
-      const [year, month] = payPeriod.split("-").map(Number);
-      const periodStart = `${payPeriod}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const periodEnd = `${payPeriod}-${lastDay}`;
+      // Parse period: "2026-03", "2026-03-H1", "2026-03-W2"
+      const periodParts = payPeriod.split("-");
+      const year = parseInt(periodParts[0]);
+      const month = parseInt(periodParts[1]);
+      const periodSuffix = periodParts.length === 3 ? periodParts[2] : undefined;
+
+      const daysInMonth = new Date(year, month, 0).getDate();
+      let periodStartDay = 1;
+      let periodEndDay = daysInMonth;
+      if (periodSuffix === "H1") { periodEndDay = 15; }
+      else if (periodSuffix === "H2") { periodStartDay = 16; }
+      else if (periodSuffix?.startsWith("W")) {
+        const weekNum = parseInt(periodSuffix.replace("W", ""));
+        periodStartDay = (weekNum - 1) * 7 + 1;
+        periodEndDay = weekNum === 4 ? daysInMonth : Math.min(weekNum * 7, daysInMonth);
+      }
+
+      const periodStart = `${year}-${String(month).padStart(2, "0")}-${String(periodStartDay).padStart(2, "0")}`;
+      const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(periodEndDay).padStart(2, "0")}`;
 
       // Fetch company holidays for this period to exclude from working days
       const { data: holidays } = await supabase
@@ -225,7 +240,7 @@ export function useGeneratePayroll() {
         .lte("date", periodEnd);
 
       const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
-      const workingDays = getWorkingDays(year, month, holidayDates);
+      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
