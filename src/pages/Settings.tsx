@@ -773,8 +773,16 @@ function IntegrationsSection() {
 function UserManagementSection() {
   const { user } = useAuth();
   const bulkUploadConfig = useUsersAndRolesBulkUpload();
-  const [users, setUsers] = useState<UserWithRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loading, refetch: refreshUsers } = useQuery({
+    queryKey: ["user-roles"],
+    queryFn: async () => {
+      const { data } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "list_users" },
+      });
+      return (data?.users || []) as UserWithRole[];
+    },
+    enabled: !!user,
+  });
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [actionUser, setActionUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -790,6 +798,8 @@ function UserManagementSection() {
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
   const [newManagerUserId, setNewManagerUserId] = useState<string>("");
   const [updatingManager, setUpdatingManager] = useState(false);
+
+  const qc = useQueryClient();
 
   const activeUsers = useMemo(
     () => users.filter((u) => u.status === "active" || u.status === "on_leave"),
@@ -809,21 +819,6 @@ function UserManagementSection() {
         u.roles.some((r) => r.toLowerCase().includes(q))
     );
   }, [users, searchQuery]);
-
-  const refreshUsers = async () => {
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "list_users" },
-    });
-    if (data?.users) setUsers(data.users);
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      await refreshUsers();
-      setLoading(false);
-    })();
-  }, [user]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
