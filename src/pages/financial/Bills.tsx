@@ -765,10 +765,14 @@ export default function Bills() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
-  const enriched = bills.map((b: any) => ({
-    ...b,
-    effectiveStatus: isOverdue(b) ? "overdue" : b.status,
-  }));
+  const enriched = bills.map((b: any) => {
+    const normalizedStatus = (b.status || "draft").toLowerCase();
+    return {
+      ...b,
+      status: normalizedStatus,
+      effectiveStatus: isOverdue({ ...b, status: normalizedStatus }) ? "overdue" : normalizedStatus,
+    };
+  });
 
   const filtered = useMemo(() => enriched.filter((b: any) => {
     const matchSearch =
@@ -902,7 +906,7 @@ export default function Bills() {
                               <DropdownMenuItem onClick={() => openPreview(b)}>
                                 <Eye className="h-4 w-4 mr-2 text-muted-foreground" /> View Bill
                               </DropdownMenuItem>
-                              {(b.status === "draft" || b.status === "received" || b.status === "pending_approval") && (
+                              {(b.status?.toLowerCase() === "draft" || b.status?.toLowerCase() === "received" || b.status?.toLowerCase() === "pending_approval") && (
                                 <>
                                   <DropdownMenuItem onClick={() => openEditDialog(b)}>
                                     <Pencil className="h-4 w-4 mr-2 text-muted-foreground" /> Edit Bill
