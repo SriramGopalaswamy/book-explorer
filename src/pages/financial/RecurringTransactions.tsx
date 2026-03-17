@@ -130,7 +130,7 @@ export default function RecurringTransactionsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.filter(t => statusFilter === "all" || t.status === statusFilter).map((tx) => (
+                {pagination.paginatedItems.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell>
                       <div className="font-semibold text-foreground">{tx.name}</div>
