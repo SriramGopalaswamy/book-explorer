@@ -117,6 +117,7 @@ export default function RecurringTransactionsPage() {
           ) : transactions.filter(t => statusFilter === "all" || t.status === statusFilter).length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No recurring transactions match the filter.</div>
           ) : (
+            <div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -169,6 +170,7 @@ export default function RecurringTransactionsPage() {
               </TableBody>
             </Table>
             <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+            </div>
           )}
         </div>
 
