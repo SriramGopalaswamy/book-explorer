@@ -29,6 +29,7 @@ export default function RecurringTransactionsPage() {
   const { data: transactions = [], isLoading } = useRecurringTransactions();
   const createTx = useCreateRecurringTransaction();
   const updateStatus = useUpdateRecurringTransactionStatus();
+  const executeTx = useExecuteRecurringTransactions();
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
