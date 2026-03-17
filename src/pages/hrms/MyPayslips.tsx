@@ -234,8 +234,8 @@ export default function MyPayslips() {
                         </TableBody>
                       </Table>
                     </div>
+                    <TablePagination page={payslipPagination.page} totalPages={payslipPagination.totalPages} totalItems={payslipPagination.totalItems} from={payslipPagination.from} to={payslipPagination.to} pageSize={payslipPagination.pageSize} onPageChange={payslipPagination.setPage} onPageSizeChange={payslipPagination.setPageSize} />
                   )}
-                </CardContent>
               </Card>
             </motion.div>
           </TabsContent>
