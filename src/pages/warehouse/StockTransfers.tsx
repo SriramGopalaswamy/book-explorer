@@ -151,7 +151,7 @@ export default function StockTransfers() {
                     <Label>From Warehouse *</Label>
                     <Select value={form.from_warehouse_id} onValueChange={(v) => setForm({ ...form, from_warehouse_id: v })}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>{warehouses.filter((w: any) => w.is_active === true).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div>
