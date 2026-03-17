@@ -54,10 +54,20 @@ export default function PickingLists() {
   const [editList, setEditList] = useState<PickingList | null>(null);
   const [editNotes, setEditNotes] = useState("");
 
+  const [viewItemsLoading, setViewItemsLoading] = useState(false);
+
   const openView = async (list: PickingList) => {
     setViewList(list);
-    const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
-    setViewItems((data as any[]) || []);
+    setViewItems([]);
+    setViewItemsLoading(true);
+    try {
+      const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
+      setViewItems((data as any[]) || []);
+    } catch (e) {
+      console.error("Failed to load picking list items:", e);
+    } finally {
+      setViewItemsLoading(false);
+    }
   };
 
   const openEdit = (list: PickingList) => {
