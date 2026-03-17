@@ -107,6 +107,7 @@ export default function EwayBills() {
       return matchesSearch && matchesStatus;
     }
   );
+  const pagination = usePagination(filtered, 10);
 
   const counts = {
     all: ewayBills.length,
