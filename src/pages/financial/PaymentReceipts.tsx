@@ -40,6 +40,7 @@ export default function PaymentReceipts() {
   });
 
   const hasActiveFilters = methodFilter !== "all" || dateFrom || dateTo;
+  const pagination = usePagination(filtered, 10);
   const clearFilters = () => { setMethodFilter("all"); setDateFrom(""); setDateTo(""); };
 
   if (isLoading) return <MainLayout title="Payment Receipts"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
