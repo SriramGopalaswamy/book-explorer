@@ -78,6 +78,10 @@ serve(async (req) => {
 
     const { data: org } = await supabase.from("organizations").select("name, address").eq("id", run.organization_id).single();
 
+    // Fetch brand color from organization_compliance
+    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color").eq("organization_id", run.organization_id).maybeSingle();
+    const brandColor = compliance?.brand_color || "#e11d74";
+
     let query = supabase
       .from("payroll_entries")
       .select("*, profiles!profile_id(full_name, email, department, job_title, date_of_joining)")
