@@ -73,7 +73,7 @@ export default function Expenses() {
   const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
 
   // All org expenses (finance/admin view)
-  const { data: allExpenses = [], isLoading: isLoadingAll } = useQuery({
+  const { data: allExpenses = [], isLoading: isLoadingAll, error: allError } = useQuery({
     queryKey: ["expenses-all"],
     queryFn: async () => {
       if (!user) return [];
@@ -84,7 +84,7 @@ export default function Expenses() {
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data as Expense[];
+      return (data || []) as Expense[];
     },
     enabled: !!user && isFinanceOrAdmin,
   });
