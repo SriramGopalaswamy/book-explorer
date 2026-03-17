@@ -189,16 +189,19 @@ export function PayrollEnginePanel() {
             <CardTitle className="text-gradient-primary flex items-center gap-2">
               <Zap className="h-5 w-5" /> Payroll Engine
             </CardTitle>
-            <CardDescription>Generate, review, approve & lock payroll</CardDescription>
+            <CardDescription>
+              Generate, review, approve & lock payroll
+              <Badge variant="outline" className="ml-2 text-xs">{FREQUENCY_LABELS[frequency] || frequency}</Badge>
+            </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-52">
                 <Calendar className="h-4 w-4 mr-2" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {periods().map((p) => (
+                {generatePeriods(frequency).map((p) => (
                   <SelectItem key={p} value={p}>{periodLabel(p)}</SelectItem>
                 ))}
               </SelectContent>
