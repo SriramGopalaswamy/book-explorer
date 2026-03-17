@@ -248,13 +248,11 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
       });
 
-      // Fallback: if no expenses found, use financial_records (manual journal entries)
-      if (categoryMap.size === 0 && financialRes.data) {
-        financialRes.data.forEach((record) => {
-          const cat = record.category || "Uncategorized";
-          categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
-        });
-      }
+      // Also merge financial_records (manual journal entries) to capture all categories
+      (financialRes.data || []).forEach((record) => {
+        const cat = record.category || "Uncategorized";
+        categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
+      });
 
       if (categoryMap.size === 0) {
         return [];
