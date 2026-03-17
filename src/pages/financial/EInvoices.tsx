@@ -15,7 +15,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban, MoreHorizontal, Eye } from "lucide-react";
+import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban, MoreHorizontal, Eye, Download } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEInvoices, EInvoiceItem } from "@/hooks/useEInvoices";
 import { format } from "date-fns";
