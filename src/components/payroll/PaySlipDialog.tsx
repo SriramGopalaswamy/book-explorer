@@ -284,7 +284,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
-          margin: [10, 16, 10, 16],
+          margin: [10, 16, 20, 16],
           filename: `PaySlip_${employeeName.replace(/\s+/g, "_")}_${record.pay_period}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", width: 700, windowWidth: 700, scrollX: 0, scrollY: 0 },
