@@ -174,7 +174,7 @@ export default function PickingLists() {
                       <td className="px-4 py-3 font-mono font-semibold text-foreground">{list.pick_number}</td>
                       <td className="px-4 py-3">{format(new Date(list.created_at), "dd MMM yyyy")}</td>
                       <td className="px-4 py-3 text-muted-foreground">{(wh as any)?.name || list.warehouse_id}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <Badge className={statusColors[list.status] || ""}>{list.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground truncate max-w-[160px]">{list.notes || "—"}</td>
