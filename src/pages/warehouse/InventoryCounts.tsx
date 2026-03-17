@@ -448,13 +448,13 @@ export default function InventoryCounts() {
                   {countItems.map((row, i) => (
                     <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
                       <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                        <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Pick from inventory" /></SelectTrigger>
                         <SelectContent>
                           {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <Input
-                        placeholder="Or type item name"
+                        placeholder="e.g. Laptop, Chair"
                         value={row.item_name}
                         onChange={(e) => updateItemRow(i, "item_name", e.target.value)}
                       />
