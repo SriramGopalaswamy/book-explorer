@@ -7,6 +7,8 @@ import grx10Logo from "@/assets/grx10-logo.webp";
 import { useState, useEffect } from "react";
 import { normalizePayslip } from "@/lib/payslip-utils";
 import { numberToWords } from "@/lib/number-to-words";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 /** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
 function useLogoDataUrl(src: string) {
