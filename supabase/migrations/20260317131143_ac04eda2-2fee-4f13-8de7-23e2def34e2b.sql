@@ -1,0 +1,1 @@
+UPDATE public.bills SET status = lower(status) WHERE status != lower(status);
