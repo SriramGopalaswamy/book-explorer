@@ -74,7 +74,7 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
     <div className="rounded-xl border bg-card p-6 shadow-card">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-foreground">Expense Breakdown</h3>
-        <p className="text-sm text-muted-foreground">This month's spending by category</p>
+        <p className="text-sm text-muted-foreground">{subtitleText}</p>
       </div>
       {!hasData ? (
         <div className="h-64 flex items-center justify-center">
