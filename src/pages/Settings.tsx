@@ -1325,20 +1325,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="upload-history" className="mt-6">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5" />
-                    Upload History
-                  </CardTitle>
-                  <CardDescription>
-                    Track all bulk upload activity across modules — users, roles, attendance, payroll, and more.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
               <BulkUploadHistory />
-            </div>
           </TabsContent>
 
           <TabsContent value="privacy" className="mt-6">
