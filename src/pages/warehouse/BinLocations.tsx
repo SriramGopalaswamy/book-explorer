@@ -20,6 +20,7 @@ export default function BinLocations() {
   const deleteBin = useDeleteBinLocation();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -27,10 +28,12 @@ export default function BinLocations() {
   const [form, setForm] = useState({ warehouse_id: "", bin_code: "", zone: "", aisle: "", rack: "", level: "", capacity_units: 0, notes: "" });
   const [editForm, setEditForm] = useState({ bin_code: "", zone: "", aisle: "", rack: "", level: "", capacity_units: 0, is_active: true, notes: "" });
 
-  const filtered = bins.filter((b) =>
-    b.bin_code.toLowerCase().includes(search.toLowerCase()) ||
-    (b.zone || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = bins.filter((b) => {
+    const matchesSearch = b.bin_code.toLowerCase().includes(search.toLowerCase()) ||
+      (b.zone || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? b.is_active : !b.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     total: bins.length,
@@ -110,7 +113,17 @@ export default function BinLocations() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><MapPin className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.zones}</p><p className="text-xs text-muted-foreground">Zones</p></div></div></CardContent></Card>
         </div>
 
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search bins..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search bins..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No bin locations yet" />
 
         {/* Create Dialog */}

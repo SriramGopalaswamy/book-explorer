@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, PlayCircle, CheckCircle, XCircle, Plus, Trash2, MoreHorizontal, Eye, Pencil, Loader2 } from "lucide-react";
+import { ClipboardList, PlayCircle, CheckCircle, XCircle, Plus, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
 import {
   usePickingLists, useGeneratePickingList, useUpdatePickingListStatus, PickingList,
 } from "@/hooks/useWarehouse";
@@ -46,6 +46,8 @@ export default function PickingLists() {
 
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [warehouseId, setWarehouseId] = useState("");
   const [notes, setNotes] = useState("");
   const [pickItems, setPickItems] = useState<PickItemRow[]>([{ item_name: "", quantity: 1 }]);
@@ -148,11 +150,29 @@ export default function PickingLists() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.completed}</p><p className="text-xs text-muted-foreground">Completed</p></div></div></CardContent></Card>
         </div>
 
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search picking lists..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : lists.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No picking lists yet. Generate one above.</div>
+          ) : lists.filter(l => {
+            const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
+            const matchesStatus = statusFilter === "all" || l.status === statusFilter;
+            return matchesSearch && matchesStatus;
+          }).length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching picking lists." : "No picking lists yet. Generate one above."}</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -166,7 +186,11 @@ export default function PickingLists() {
                 </tr>
               </thead>
               <tbody>
-                {lists.map((list) => {
+                {lists.filter(l => {
+                  const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
+                  const matchesStatus = statusFilter === "all" || l.status === statusFilter;
+                  return matchesSearch && matchesStatus;
+                }).map((list) => {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (

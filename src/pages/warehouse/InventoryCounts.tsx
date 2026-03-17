@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2 } from "lucide-react";
+import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
   InventoryCount,
@@ -210,6 +210,8 @@ export default function InventoryCounts() {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [editingCount, setEditingCount] = useState<InventoryCount | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
@@ -302,11 +304,29 @@ export default function InventoryCounts() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.approved}</p><p className="text-xs text-muted-foreground">Approved</p></div></div></CardContent></Card>
         </div>
 
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search counts..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : counts.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No inventory counts yet. Create your first count above.</div>
+          ) : counts.filter(c => {
+            const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
+            const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+            return matchesSearch && matchesStatus;
+          }).length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
                 <table className="w-full text-sm">
                   <thead>
@@ -320,7 +340,11 @@ export default function InventoryCounts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {counts.map((count) => (
+                    {counts.filter(c => {
+                      const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
+                      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+                      return matchesSearch && matchesStatus;
+                    }).map((count) => (
                       <React.Fragment key={count.id}>
                         <tr className="border-b last:border-b-0 hover:bg-muted/30">
                           <td className="px-4 py-3">

@@ -33,6 +33,7 @@ export default function StockTransfers() {
   const createTransfer = useCreateStockTransfer();
   const updateStatus = useUpdateTransferStatus();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
   const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number }[]>([{ item_name: "", quantity: 1 }]);
@@ -46,7 +47,11 @@ export default function StockTransfers() {
   const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
   const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
 
-  const filtered = transfers.filter((t) => t.transfer_number.toLowerCase().includes(search.toLowerCase()));
+  const filtered = transfers.filter((t) => {
+    const matchesSearch = t.transfer_number.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || t.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     total: transfers.length,
@@ -194,7 +199,19 @@ export default function StockTransfers() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.received}</p><p className="text-xs text-muted-foreground">Received</p></div></div></CardContent></Card>
         </div>
 
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search transfers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" /></div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="in_transit">In Transit</SelectItem>
+              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No transfers yet" />
 
         {/* View Transfer Detail Dialog */}
