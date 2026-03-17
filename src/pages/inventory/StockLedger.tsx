@@ -60,7 +60,7 @@ export default function StockLedger() {
           <Select value={whFilter} onValueChange={setWhFilter}>
             <SelectTrigger className="w-full sm:w-60"><SelectValue placeholder="All Warehouses" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Warehouses</SelectItem>
+              <SelectItem value="__all__">All Warehouses</SelectItem>
               {(warehouses || []).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
             </SelectContent>
           </Select>
