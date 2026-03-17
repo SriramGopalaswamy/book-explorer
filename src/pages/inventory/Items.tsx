@@ -51,6 +51,7 @@ export default function Items() {
     i.name?.toLowerCase().includes(search.toLowerCase()) ||
     i.sku?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagination = usePagination(filtered, 10);
 
   const totalItems = items?.length || 0;
   const lowStock = (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
