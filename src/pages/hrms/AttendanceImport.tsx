@@ -733,6 +733,11 @@ export default function AttendanceImport() {
                               Auto (Name)
                             </Badge>
                           )}
+                          {entry.match_type === "fuzzy" && (
+                            <Badge variant="outline" className="bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400 text-xs">
+                              Fuzzy ({entry.fuzzy_score}%)
+                            </Badge>
+                          )}
                           {entry.match_type === "manual" && (
                             <Badge variant="outline" className="bg-violet-500/15 text-violet-700 border-violet-500/30 text-xs">
                               Manual
