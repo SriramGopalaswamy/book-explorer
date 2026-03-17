@@ -98,6 +98,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const paddedDeductions = [...deductions, ...Array(maxRows - deductions.length).fill(null)];
 
   const buildHTML = () => {
+    const bc = brandColor;
     const eRows = paddedEarnings.map((e, i) => {
       const d = paddedDeductions[i];
       return `<tr>
@@ -122,8 +123,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Employee Summary */
   .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
-  .emp-header { background: #e11d74; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .emp-name { font-size: 15px; font-weight: 700; color: #e11d74; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+  .emp-header { background: ${bc}; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .emp-name { font-size: 15px; font-weight: 700; color: ${bc}; padding: 8px 12px; border-bottom: 1px solid #ddd; }
   .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
   .emp-grid .eg-label { font-size: 11px; font-weight: 600; color: #333; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
   .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
@@ -132,7 +133,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Earnings & Deductions */
   .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
-  .ed-table .ed-header th { background: #e11d74; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border: 1px solid #c9176a; }
+  .ed-table .ed-header th { background: ${bc}; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border: 1px solid ${bc}; }
   .ed-table .ed-header th.r { text-align: right; }
   .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
   .cell.r { text-align: right; font-weight: 500; }
@@ -144,7 +145,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   .net-box .label-side { }
   .net-box .label-side .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
   .net-box .label-side .sub { font-size: 11px; color: #888; font-style: italic; }
-  .net-box .amount { font-size: 24px; font-weight: 800; color: #e11d74; }
+  .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
   .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; margin-bottom: 20px; }
 
   .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
