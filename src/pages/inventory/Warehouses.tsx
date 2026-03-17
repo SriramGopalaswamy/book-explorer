@@ -136,9 +136,9 @@ export default function Warehouses() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 ? (
+                  {pagination.currentItems.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No warehouses found.</TableCell></TableRow>
-                  ) : filtered.map((wh: any) => (
+                  ) : pagination.currentItems.map((wh: any) => (
                     <TableRow key={wh.id}>
                       <TableCell className="font-medium text-foreground">{wh.name}{wh.is_default && <Badge variant="outline" className="ml-2">Default</Badge>}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{wh.code}</TableCell>
@@ -174,6 +174,7 @@ export default function Warehouses() {
                 </TableBody>
               </Table>
             )}
+            {!isLoading && filtered.length > 0 && <TablePagination pagination={pagination} />}
           </CardContent>
         </Card>
 
