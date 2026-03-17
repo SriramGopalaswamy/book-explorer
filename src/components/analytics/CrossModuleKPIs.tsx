@@ -215,8 +215,9 @@ export function CrossModuleKPIs() {
                     formatter={(value: number, name: string) => [formatCurrency(value), name]}
                     contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))" }}
                   />
-                  <Bar dataKey="gross" name="Gross" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} opacity={0.8} />
-                  <Bar dataKey="net" name="Net" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                  <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="gross" name="Gross Pay" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                  <Bar dataKey="net" name="Net Pay" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} opacity={0.8} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
