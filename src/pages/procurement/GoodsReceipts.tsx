@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -43,6 +44,7 @@ export default function GoodsReceipts() {
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
+  const [viewGRItems, setViewGRItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
@@ -113,7 +115,11 @@ export default function GoodsReceipts() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setViewingGR(r)}>
+            <DropdownMenuItem onClick={async () => {
+              setViewingGR(r);
+              const { data } = await supabase.from("goods_receipt_items" as any).select("*").eq("goods_receipt_id", r.id);
+              setViewGRItems((data as any[]) || []);
+            }}>
               <Eye className="h-4 w-4 mr-2" /> View Receipt
             </DropdownMenuItem>
             {r.status === "draft" && (
@@ -236,18 +242,50 @@ export default function GoodsReceipts() {
         </Dialog>
         {/* View GR Dialog */}
         {viewingGR && (
-          <Dialog open={!!viewingGR} onOpenChange={(v) => { if (!v) setViewingGR(null); }}>
-            <DialogContent className="max-w-md">
+          <Dialog open={!!viewingGR} onOpenChange={(v) => { if (!v) { setViewingGR(null); setViewGRItems([]); } }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Goods Receipt — {viewingGR.grn_number}</DialogTitle></DialogHeader>
-              <div className="space-y-3 text-sm">
+              <div className="space-y-4 text-sm">
                 <div className="grid grid-cols-2 gap-3">
                   <div><p className="text-xs text-muted-foreground">GRN #</p><p className="font-mono font-medium">{viewingGR.grn_number}</p></div>
                   <div><p className="text-xs text-muted-foreground">Date</p><p>{format(new Date(viewingGR.receipt_date), "dd MMM yyyy")}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingGR.status] || ""}>{viewingGR.status}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingGR.status] || ""}>{viewingGR.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></div>
                 </div>
                 {viewingGR.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p>{viewingGR.notes}</p></div>}
+                <div>
+                  <p className="text-xs font-semibold text-foreground mb-2">Items Received</p>
+                  {viewGRItems.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No items found for this receipt.</p>
+                  ) : (
+                    <div className="rounded-md border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Item / Description</TableHead>
+                            <TableHead className="text-right text-xs">Qty Received</TableHead>
+                            <TableHead className="text-right text-xs">Unit Price</TableHead>
+                            <TableHead className="text-right text-xs">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {viewGRItems.map((item: any, idx: number) => (
+                            <TableRow key={idx}>
+                              <TableCell className="text-foreground text-xs">{item.description || item.item_name || "—"}</TableCell>
+                              <TableCell className="text-right text-xs">{item.quantity_received ?? item.quantity ?? "—"}</TableCell>
+                              <TableCell className="text-right text-xs">{item.unit_price != null ? `₹${Number(item.unit_price).toLocaleString("en-IN")}` : "—"}</TableCell>
+                              <TableCell className="text-right text-xs font-medium">
+                                {item.amount != null ? `₹${Number(item.amount).toLocaleString("en-IN")}` :
+                                  (item.quantity_received != null && item.unit_price != null ? `₹${(item.quantity_received * item.unit_price).toLocaleString("en-IN")}` : "—")}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
               </div>
-              <DialogFooter><Button variant="outline" onClick={() => setViewingGR(null)}>Close</Button></DialogFooter>
+              <DialogFooter><Button variant="outline" onClick={() => { setViewingGR(null); setViewGRItems([]); }}>Close</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         )}
