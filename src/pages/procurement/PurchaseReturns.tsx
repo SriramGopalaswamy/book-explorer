@@ -11,7 +11,7 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Trash2, MoreHorizontal, Eye, Search } from "lucide-react";
+import { Plus, Trash2, MoreHorizontal, Eye, Search, X } from "lucide-react";
 import { usePurchaseReturns, useCreatePurchaseReturn, useUpdatePurchaseReturnStatus, useCreateVendorCreditFromReturn } from "@/hooks/useReturns";
 import { format, isAfter, isBefore } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
