@@ -77,6 +77,20 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     },
   });
 
+  const moduleLabel = (m: string) => {
+    const labels: Record<string, string> = {
+      payroll: "Payroll",
+      attendance: "Attendance",
+      roles: "Roles",
+      holidays: "Holidays",
+      expenses: "Expenses",
+      users: "Users",
+    };
+    return labels[m] || m;
+  };
+
+  const pagination = usePagination(history, 10);
+
   if (isLoading) {
     return (
       <Card>
@@ -91,20 +105,6 @@ export function BulkUploadHistory({ module }: { module?: string }) {
       </Card>
     );
   }
-
-  const moduleLabel = (m: string) => {
-    const labels: Record<string, string> = {
-      payroll: "Payroll",
-      attendance: "Attendance",
-      roles: "Roles",
-      holidays: "Holidays",
-      expenses: "Expenses",
-      users: "Users",
-    };
-    return labels[m] || m;
-  };
-
-  const pagination = usePagination(history, 10);
 
   if (history.length === 0) {
     return (
