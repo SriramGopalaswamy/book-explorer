@@ -171,7 +171,7 @@ export default function EInvoices() {
     const html = `
       <html><head><style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; padding: 24px; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; padding: 24px 24px 50px; }
         h1 { font-size: 18px; margin-bottom: 2px; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 12px; }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
@@ -276,7 +276,7 @@ export default function EInvoices() {
       document.body.appendChild(container);
       html2pdf()
         .set({
-          margin: [10, 10, 10, 10],
+          margin: [10, 10, 20, 10],
           filename: `E-Invoice-${inv.doc_number}.pdf`,
           html2canvas: { scale: 2 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
