@@ -33,6 +33,7 @@ const statusColors: Record<string, string> = {
 export default function SalesOrders() {
   const { data: orders = [], isLoading } = useSalesOrders();
   const createSO = useCreateSalesOrder();
+  const updateSO = useUpdateSalesOrder();
   const updateStatus = useUpdateSOStatus();
   const deleteSO = useDeleteSalesOrder();
   const convertToInvoice = useConvertSOToInvoice();
@@ -41,7 +42,11 @@ export default function SalesOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
-
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSO, setEditingSO] = useState<SalesOrder | null>(null);
+  const [editForm, setEditForm] = useState({ customer_name: "", order_date: "", expected_delivery: "", notes: "" });
+  const [editItems, setEditItems] = useState<{ description: string; quantity: number; unit_price: number; tax_rate: number }[]>([]);
+  const { data: editSOItems = [] } = useSalesOrderItems(editingSO?.id);
   // Fetch customers for dropdown
   const { data: customers = [] } = useQuery({
     queryKey: ["customers-so-list"],
