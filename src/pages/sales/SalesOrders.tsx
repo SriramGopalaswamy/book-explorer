@@ -139,6 +139,7 @@ export default function SalesOrders() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {r.status === "draft" && <DropdownMenuItem onClick={() => openEditSO(r)}><Pencil className="h-4 w-4 mr-2" /> Edit</DropdownMenuItem>}
             {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
             {["confirmed", "processing"].includes(r.status) && !hasDN(r.id) && (
               <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
