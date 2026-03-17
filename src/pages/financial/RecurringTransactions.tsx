@@ -35,6 +35,8 @@ export default function RecurringTransactionsPage() {
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const filteredTx = transactions.filter(t => statusFilter === "all" || t.status === statusFilter);
+  const pagination = usePagination(filteredTx, 10);
   const [form, setForm] = useState({
     name: "",
     description: "",
