@@ -238,6 +238,24 @@ export function useCreateBillFromGR() {
       if (!user) throw new Error("Not authenticated");
       const callerOrgId = await resolveCallerOrg(user.id);
 
+      // Guard: check GR is still in 'accepted' status (not already bill_created)
+      const { data: gr } = await supabase.from("goods_receipts" as any)
+        .select("status")
+        .eq("id", params.goods_receipt_id)
+        .eq("organization_id", callerOrgId)
+        .single();
+      if (!gr) throw new Error("Goods Receipt not found.");
+      if ((gr as any).status === "bill_created") throw new Error("A bill has already been created for this Goods Receipt.");
+      if ((gr as any).status !== "accepted") throw new Error("Goods Receipt must be in 'accepted' status to create a bill.");
+
+      // Guard: check no existing bill already references this GR
+      const { data: existingBill } = await supabase.from("bills")
+        .select("id")
+        .eq("goods_receipt_id", params.goods_receipt_id)
+        .eq("organization_id", callerOrgId)
+        .limit(1);
+      if (existingBill && existingBill.length > 0) throw new Error("A bill already exists for this Goods Receipt.");
+
       // Verify PO belongs to caller's org
       const { data: po } = await supabase.from("purchase_orders" as any)
         .select("vendor_name, vendor_id, subtotal, tax_amount, total_amount")
