@@ -1084,6 +1084,18 @@ Deno.serve(async (req) => {
       unmatchedCodes.push(code);
     }
 
+    // ─── APPLY MANUAL MAPPINGS (from match step) ─────────
+    if (body.manual_mappings && Array.isArray(body.manual_mappings)) {
+      for (const mapping of body.manual_mappings) {
+        if (mapping.employee_code && mapping.profile_id) {
+          codeToProfileId.set(mapping.employee_code, mapping.profile_id);
+          const idx = unmatchedCodes.indexOf(mapping.employee_code);
+          if (idx >= 0) unmatchedCodes.splice(idx, 1);
+        }
+      }
+      console.log(`[MAIN] Applied ${body.manual_mappings.length} manual mappings`);
+    }
+
     // ─── INSERT PUNCHES ──────────────────────────────────
     const batchId = crypto.randomUUID();
     const insertRows = result.punches
