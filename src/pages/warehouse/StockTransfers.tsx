@@ -47,7 +47,11 @@ export default function StockTransfers() {
   const [editingTransfer, setEditingTransfer] = useState<StockTransfer | null>(null);
   const [editForm, setEditForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: "", notes: "" });
 
-  const filtered = transfers.filter((t) => t.transfer_number.toLowerCase().includes(search.toLowerCase()));
+  const filtered = transfers.filter((t) => {
+    const matchesSearch = t.transfer_number.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || t.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     total: transfers.length,
