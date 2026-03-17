@@ -851,7 +851,7 @@ export default function Bills() {
                 </Button>
               </div>
             ) : (
-              <Table>
+              <div>
                 <TableHeader>
                   <TableRow className="border-border/50 hover:bg-transparent">
                     <TableHead className="text-xs">Bill #</TableHead>
