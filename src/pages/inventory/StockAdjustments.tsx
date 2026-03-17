@@ -72,6 +72,7 @@ export default function StockAdjustments() {
     a.adjustment_number?.toLowerCase().includes(search.toLowerCase()) ||
     a.reason?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagination = usePagination(filtered, 10);
 
   const whName = (id: string) => warehouses?.find((w: any) => w.id === id)?.name || id?.slice(0, 8);
 
