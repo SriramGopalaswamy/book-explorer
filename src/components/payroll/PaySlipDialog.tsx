@@ -231,9 +231,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   </div>
   <div class="words-row">Amount in Words : ${numberToWords(netPay)}</div>
 
-  <div class="footer">
+   <div class="footer">
     <div>${processedDate ? `Processed on: ${processedDate}` : 'Not yet processed'}</div>
-    <div class="sig"><span class="line">Authorised Signatory</span></div>
+    <div class="sig">${signatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${signatoryName}</span>` : ''}<span class="line">Authorised Signatory</span></div>
   </div>
 </body></html>`;
   };
