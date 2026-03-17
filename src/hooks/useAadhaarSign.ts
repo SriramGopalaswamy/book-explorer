@@ -5,6 +5,31 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "@/hooks/use-toast";
 import { verifyPdfSignature } from "@/lib/pdfSignatureVerifier";
 
+// Storage bucket — uses the existing invoice-assets bucket (private, finance/admin upload policy).
+// Once the DB migration 20260317200000_add_aadhaar_esign.sql is applied via the Supabase SQL Editor,
+// a dedicated invoice-pdfs bucket can be used instead. For now, invoice-assets works correctly.
+const SIGNING_BUCKET = "invoice-assets";
+
+// ─────────────────────────────────────────────────────────────
+// Helper: silently handle missing-column DB errors (pre-migration)
+// PostgreSQL error code 42703 = "undefined_column"
+// ─────────────────────────────────────────────────────────────
+function isMissingColumnError(err: { code?: string; message?: string } | null): boolean {
+  return err?.code === "42703" || (err?.message?.includes("column") && err?.message?.includes("does not exist")) === true;
+}
+
+let _migrationWarningShown = false;
+function warnMigrationNeeded() {
+  if (_migrationWarningShown) return;
+  _migrationWarningShown = true;
+  toast({
+    title: "Database migration pending",
+    description:
+      "Apply migration 20260317200000_add_aadhaar_esign.sql in the Supabase SQL Editor to enable full signing status tracking.",
+    variant: "default",
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Helper: fetch PDF bytes from the existing Edge Function
 // ─────────────────────────────────────────────────────────────
@@ -36,7 +61,7 @@ async function fetchInvoicePdfBytes(invoiceId: string): Promise<Blob> {
 // ─────────────────────────────────────────────────────────────
 export async function getInvoicePdfSignedUrl(storagePath: string): Promise<string> {
   const { data, error } = await supabase.storage
-    .from("invoice-pdfs")
+    .from(SIGNING_BUCKET)
     .createSignedUrl(storagePath, 120); // 2-minute TTL
 
   if (error || !data?.signedUrl) {
@@ -59,10 +84,11 @@ export function useInitiateAadhaarSign() {
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("Organisation not found");
 
-      // Guard: don't re-initiate if already verified
+      // Guard: don't re-initiate if already verified.
+      // Use select("*") so this doesn't fail when signing_status column is missing.
       const { data: current } = await supabase
         .from("invoices")
-        .select("signing_status")
+        .select("*")
         .eq("id", invoiceId)
         .single();
 
@@ -73,10 +99,10 @@ export function useInitiateAadhaarSign() {
       // Generate PDF via existing Edge Function
       const pdfBlob = await fetchInvoicePdfBytes(invoiceId);
 
-      // Upload to Supabase Storage
-      const storagePath = `${orgId}/invoices/${invoiceId}/original.pdf`;
+      // Upload to Supabase Storage (invoice-assets bucket — always exists)
+      const storagePath = `esign/${orgId}/${invoiceId}/original.pdf`;
       const { error: uploadError } = await supabase.storage
-        .from("invoice-pdfs")
+        .from(SIGNING_BUCKET)
         .upload(storagePath, pdfBlob, {
           contentType: "application/pdf",
           upsert: true,
@@ -84,7 +110,7 @@ export function useInitiateAadhaarSign() {
 
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
 
-      // Update invoice signing state
+      // Update invoice signing state — silently skip if columns not yet migrated
       const { error: updateError } = await supabase
         .from("invoices")
         .update({
@@ -94,7 +120,14 @@ export function useInitiateAadhaarSign() {
         } as any)
         .eq("id", invoiceId);
 
-      if (updateError) throw new Error(`Failed to update invoice: ${updateError.message}`);
+      if (updateError) {
+        if (isMissingColumnError(updateError)) {
+          warnMigrationNeeded();
+          // Proceed without DB persistence — storage upload succeeded
+        } else {
+          throw new Error(`Failed to update invoice: ${updateError.message}`);
+        }
+      }
 
       return { storagePath, orgId, pdfSize: pdfBlob.size };
     },
@@ -125,7 +158,10 @@ export function useMarkPendingUpload() {
         .update({ signing_status: "pending_upload" } as any)
         .eq("id", invoiceId);
 
-      if (error) throw new Error(error.message);
+      if (error && !isMissingColumnError(error)) {
+        throw new Error(error.message);
+      }
+      if (error) warnMigrationNeeded();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -159,11 +195,11 @@ export function useUploadSignedPdf() {
         throw new Error("File is too large. Signed PDFs must be under 10 MB.");
       }
 
-      const storagePath = `${orgId}/invoices/${invoiceId}/signed.pdf`;
+      const storagePath = `esign/${orgId}/${invoiceId}/signed.pdf`;
 
       // Upload to Storage
       const { error: uploadError } = await supabase.storage
-        .from("invoice-pdfs")
+        .from(SIGNING_BUCKET)
         .upload(storagePath, file, {
           contentType: "application/pdf",
           upsert: true,
@@ -176,7 +212,11 @@ export function useUploadSignedPdf() {
         .from("invoices")
         .update({ signing_status: "verifying", signed_pdf_path: storagePath } as any)
         .eq("id", invoiceId);
-      if (verifyingErr) throw new Error(`Failed to update invoice: ${verifyingErr.message}`);
+
+      if (verifyingErr && !isMissingColumnError(verifyingErr)) {
+        throw new Error(`Failed to update invoice: ${verifyingErr.message}`);
+      }
+      if (verifyingErr) warnMigrationNeeded();
 
       // Verify digital signature (browser-side, no external dependencies)
       const result = await verifyPdfSignature(file);
@@ -190,7 +230,9 @@ export function useUploadSignedPdf() {
             signing_failure_reason: null,
           } as any)
           .eq("id", invoiceId);
-        if (verifiedErr) throw new Error(`Failed to record verification: ${verifiedErr.message}`);
+        if (verifiedErr && !isMissingColumnError(verifiedErr)) {
+          throw new Error(`Failed to record verification: ${verifiedErr.message}`);
+        }
       } else {
         const { error: failedErr } = await supabase
           .from("invoices")
@@ -199,7 +241,9 @@ export function useUploadSignedPdf() {
             signing_failure_reason: result.reason ?? "No digital signature found.",
           } as any)
           .eq("id", invoiceId);
-        if (failedErr) throw new Error(`Failed to record verification: ${failedErr.message}`);
+        if (failedErr && !isMissingColumnError(failedErr)) {
+          throw new Error(`Failed to record verification: ${failedErr.message}`);
+        }
       }
 
       return { verified: result.hasSig, reason: result.reason, signedPdfPath: storagePath };
