@@ -132,13 +132,13 @@ function BrandingSection() {
       setOrgId(profile.organization_id);
 
       const { data: settings } = await supabase
-        .from("organization_settings" as any)
+        .from("organization_settings")
         .select("logo_url, favicon_url")
         .eq("organization_id", profile.organization_id)
         .maybeSingle();
       if (settings) {
-        setLogoUrl((settings as any).logo_url);
-        setFaviconUrl((settings as any).favicon_url);
+        setLogoUrl(settings.logo_url);
+        setFaviconUrl(settings.favicon_url);
       }
     })();
   }, [user]);
@@ -162,14 +162,14 @@ function BrandingSection() {
       const url = publicData.publicUrl + "?v=" + Date.now();
 
       const { error: dbError } = await supabase
-        .from("organization_settings" as any)
+        .from("organization_settings")
         .upsert(
           {
             organization_id: orgId,
             [type === "logo" ? "logo_url" : "favicon_url"]: url,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
-          } as any,
+          },
           { onConflict: "organization_id" }
         );
       if (dbError) throw dbError;
@@ -187,8 +187,8 @@ function BrandingSection() {
   async function handleRemove(type: "logo" | "favicon") {
     if (!orgId) return;
     await supabase
-      .from("organization_settings" as any)
-      .update({ [type === "logo" ? "logo_url" : "favicon_url"]: null, updated_at: new Date().toISOString() } as any)
+      .from("organization_settings")
+      .update({ [type === "logo" ? "logo_url" : "favicon_url"]: null, updated_at: new Date().toISOString() })
       .eq("organization_id", orgId);
 
     if (type === "logo") setLogoUrl(null);
