@@ -43,6 +43,7 @@ export default function PurchaseOrders() {
   const { data: orders = [], isLoading } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
   const updateStatus = useUpdatePOStatus();
+  const deletePO = useDeletePurchaseOrder();
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
   const queryClient = useQueryClient();
