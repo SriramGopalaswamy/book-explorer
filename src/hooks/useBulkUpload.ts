@@ -505,3 +505,81 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
     onUpload,
   };
 }
+
+// ─── Employees ─────────────────────────────────────
+const employeeColumns: BulkUploadColumn[] = [
+  { key: "full_name", label: "Full Name", required: true },
+  { key: "email", label: "Email", required: true },
+  { key: "job_title", label: "Job Title" },
+  { key: "department", label: "Department" },
+  { key: "status", label: "Status (active/inactive)" },
+  { key: "join_date", label: "Join Date (YYYY-MM-DD)" },
+  { key: "phone", label: "Phone" },
+  { key: "manager_email", label: "Manager Email" },
+];
+
+const employeeTemplate = `full_name,email,job_title,department,status,join_date,phone,manager_email
+John Doe,john@company.com,Software Engineer,Engineering,active,2026-01-15,+91 98765 43210,manager@company.com
+Jane Smith,jane@company.com,HR Manager,Human Resources,active,2026-02-01,+91 91234 56789,`;
+
+export function useEmployeeBulkUpload(): BulkUploadConfig {
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    const errors: string[] = [];
+    let success = 0;
+    let created = 0;
+
+    for (const row of rows) {
+      const full_name = row.full_name?.trim();
+      const email = row.email?.trim();
+
+      if (!full_name || !email) {
+        errors.push(`Row "${full_name || email || "?"}": Full name and email are required`);
+        continue;
+      }
+
+      const payload: Record<string, any> = {
+        action: "create_user",
+        full_name,
+        email,
+        role: "employee",
+      };
+
+      if (row.job_title?.trim()) payload.job_title = row.job_title.trim();
+      if (row.department?.trim()) payload.department = row.department.trim();
+      if (row.phone?.trim()) payload.phone = row.phone.trim();
+      if (row.join_date?.trim()) payload.join_date = row.join_date.trim();
+      if (row.status?.trim()) {
+        const s = row.status.trim().toLowerCase();
+        if (["active", "inactive"].includes(s)) payload.status = s;
+      }
+      if (row.manager_email?.trim()) payload.manager_email = row.manager_email.trim();
+
+      const { data, error } = await supabase.functions.invoke("manage-roles", {
+        body: payload,
+      });
+
+      if (error || data?.error) {
+        errors.push(`${email}: ${data?.error || error?.message || "Failed to create"}`);
+      } else {
+        success++;
+        created++;
+      }
+    }
+
+    qc.invalidateQueries({ queryKey: ["employees"] });
+    qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    return { success, errors, created };
+  }, [qc]);
+
+  return {
+    module: "employees",
+    title: "Bulk Upload Employees",
+    description: "Upload multiple employees at once. Each row creates a new user account. The template matches the Add Employee form fields.",
+    columns: employeeColumns,
+    templateFileName: "employees_template.csv",
+    templateContent: employeeTemplate,
+    onUpload,
+  };
+}

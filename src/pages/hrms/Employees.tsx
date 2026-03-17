@@ -82,6 +82,8 @@ import {
   Employee,
 } from "@/hooks/useEmployees";
 import { EmployeeDetailDialog } from "@/components/employees/EmployeeDetailDialog";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { useEmployeeBulkUpload } from "@/hooks/useBulkUpload";
 
 const statusStyles = {
   active: "bg-success/10 text-success border-success/30",
