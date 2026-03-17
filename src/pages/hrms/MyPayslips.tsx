@@ -117,6 +117,7 @@ export default function MyPayslips() {
 
   // Filter out superseded payslips
   const activeRecords = myRecords.filter((r: any) => !r.is_superseded);
+  const payslipPagination = usePagination(activeRecords, 10);
 
   return (
     <MainLayout title="My Payslips" subtitle="View your salary details">
