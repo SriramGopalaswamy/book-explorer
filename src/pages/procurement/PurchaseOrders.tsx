@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil, Eye } from "lucide-react";
-import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePOStatus, PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil, Eye, XCircle, MoreHorizontal } from "lucide-react";
+import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePOStatus, useDeletePurchaseOrder, PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +18,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -44,6 +43,7 @@ export default function PurchaseOrders() {
   const { data: orders = [], isLoading } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
   const updateStatus = useUpdatePOStatus();
+  const deletePO = useDeletePurchaseOrder();
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
   const queryClient = useQueryClient();
@@ -221,6 +221,31 @@ export default function PurchaseOrders() {
             {r.status === "draft" && (
               <DropdownMenuItem onClick={() => openEditDialog(r)}>
                 <Pencil className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("submitted") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "submitted" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Submit
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("approved") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "approved" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Approve
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("received") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "received" })}>
+                <Package className="h-4 w-4 mr-2" /> Mark Received
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("cancelled") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
+                <XCircle className="h-4 w-4 mr-2" /> Cancel
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => deletePO.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
