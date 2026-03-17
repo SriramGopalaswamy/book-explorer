@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,14 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   Upload, FileText, AlertTriangle, CheckCircle2, Loader2,
-  ArrowLeft, ArrowRight, Search, Edit2, Download, Users, Calendar,
-  Clock, AlertCircle, BarChart3,
+  ArrowLeft, ArrowRight, Search, Users, Calendar,
+  Clock, AlertCircle, BarChart3, Link2, SkipForward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import {
   usePreviewBiometricAttendance,
   useUploadBiometricAttendance,
@@ -48,10 +52,22 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// ─── Match types ──────────────────────────────────
+type MatchType = "auto_code" | "auto_name" | "manual" | "skipped" | "unmatched";
+
+interface MatchEntry {
+  employee_code: string;
+  employee_name: string;
+  department?: string;
+  match_type: MatchType;
+  profile_id?: string;
+  profile_name?: string;
+}
+
 // ═══════════════════════════════════════════════════
 // STEP TYPE
 // ═══════════════════════════════════════════════════
-type Step = "upload" | "preview" | "importing" | "summary";
+type Step = "upload" | "preview" | "match" | "importing" | "summary";
 
 export default function AttendanceImport() {
   const [step, setStep] = useState<Step>("upload");
@@ -63,11 +79,41 @@ export default function AttendanceImport() {
   const [importResult, setImportResult] = useState<UploadParseResult | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [matchEntries, setMatchEntries] = useState<MatchEntry[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const { data: org } = useUserOrganization();
   const previewMutation = usePreviewBiometricAttendance();
   const importMutation = useUploadBiometricAttendance();
   const { data: uploadLogs } = useAttendanceUploadLogs();
+
+  // Fetch org employees for matching step
+  const { data: orgProfiles = [] } = useQuery({
+    queryKey: ["org-profiles-for-matching", org?.organizationId],
+    queryFn: async () => {
+      if (!org?.organizationId) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, department, job_title")
+        .eq("organization_id", org.organizationId)
+        .order("full_name");
+      return (data ?? []) as { id: string; full_name: string | null; department: string | null; job_title: string | null }[];
+    },
+    enabled: !!org?.organizationId,
+  });
+
+  const { data: empDetails = [] } = useQuery({
+    queryKey: ["emp-details-for-matching", org?.organizationId],
+    queryFn: async () => {
+      if (!org?.organizationId) return [];
+      const { data } = await supabase
+        .from("employee_details")
+        .select("profile_id, employee_id_number")
+        .eq("organization_id", org.organizationId);
+      return (data ?? []) as { profile_id: string; employee_id_number: string | null }[];
+    },
+    enabled: !!org?.organizationId,
+  });
 
   const reset = () => {
     setStep("upload");
@@ -78,6 +124,7 @@ export default function AttendanceImport() {
     setEditedRecords(new Map());
     setImportResult(null);
     setSearchTerm("");
+    setMatchEntries([]);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -110,19 +157,94 @@ export default function AttendanceImport() {
     } catch { /* handled by mutation */ }
   };
 
+  // Build match entries from preview data
+  const buildMatchEntries = useCallback(() => {
+    if (!previewData?.employees) return;
+    const entries: MatchEntry[] = [];
+    for (const emp of previewData.employees) {
+      const codeMatch = empDetails.find(e => e.employee_id_number === emp.employee_code);
+      if (codeMatch) {
+        const profile = orgProfiles.find(p => p.id === codeMatch.profile_id);
+        entries.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          department: emp.department,
+          match_type: "auto_code",
+          profile_id: codeMatch.profile_id,
+          profile_name: profile?.full_name || "Unknown",
+        });
+        continue;
+      }
+      const nameMatch = orgProfiles.find(p => p.full_name?.toLowerCase() === emp.employee_name?.toLowerCase());
+      if (nameMatch) {
+        entries.push({
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name,
+          department: emp.department,
+          match_type: "auto_name",
+          profile_id: nameMatch.id,
+          profile_name: nameMatch.full_name || "Unknown",
+        });
+        continue;
+      }
+      entries.push({
+        employee_code: emp.employee_code,
+        employee_name: emp.employee_name,
+        department: emp.department,
+        match_type: "unmatched",
+      });
+    }
+    setMatchEntries(entries);
+  }, [previewData, empDetails, orgProfiles]);
+
+  const handleProceedToMatch = () => {
+    buildMatchEntries();
+    setStep("match");
+  };
+
+  const handleMatchSelect = (empCode: string, profileId: string) => {
+    setMatchEntries(prev => prev.map(e => {
+      if (e.employee_code !== empCode) return e;
+      const profile = orgProfiles.find(p => p.id === profileId);
+      return { ...e, match_type: "manual" as MatchType, profile_id: profileId, profile_name: profile?.full_name || "Unknown" };
+    }));
+  };
+
+  const handleSkip = (empCode: string) => {
+    setMatchEntries(prev => prev.map(e =>
+      e.employee_code === empCode ? { ...e, match_type: "skipped" as MatchType, profile_id: undefined, profile_name: undefined } : e
+    ));
+  };
+
+  const handleUnskip = (empCode: string) => {
+    setMatchEntries(prev => prev.map(e =>
+      e.employee_code === empCode ? { ...e, match_type: "unmatched" as MatchType } : e
+    ));
+  };
+
+  const matchedCount = matchEntries.filter(e => e.profile_id && e.match_type !== "skipped").length;
+  const unmatchedCount = matchEntries.filter(e => e.match_type === "unmatched").length;
+  const skippedCount = matchEntries.filter(e => e.match_type === "skipped").length;
+
   const handleImport = async () => {
     if (!file) return;
     setStep("importing");
     try {
+      // Build manual mappings from match entries (manual + auto_name overrides)
+      const manualMappings = matchEntries
+        .filter(e => e.profile_id && (e.match_type === "manual" || e.match_type === "auto_name" || e.match_type === "auto_code"))
+        .map(e => ({ employee_code: e.employee_code, profile_id: e.profile_id! }));
+
       const result = await importMutation.mutateAsync({
         fileData: fileData || undefined,
         textContent: textContent || undefined,
         fileName: file.name,
+        manualMappings: manualMappings.length > 0 ? manualMappings : undefined,
       });
       setImportResult(result);
       setStep("summary");
     } catch {
-      setStep("preview");
+      setStep("match");
     }
   };
 
@@ -146,31 +268,43 @@ export default function AttendanceImport() {
       )
     : allRecords;
 
+  const stepperSteps = [
+    { key: "upload", label: "Upload" },
+    { key: "preview", label: "Preview & Validate" },
+    { key: "match", label: "Match Employees" },
+    { key: "summary", label: "Import Summary" },
+  ] as const;
+
   return (
     <div className="space-y-6 p-1">
       {/* Stepper */}
       <div className="flex items-center gap-2 mb-6">
-        {(["upload", "preview", "summary"] as const).map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors",
-              step === s || (s === "upload" && step === "importing")
-                ? "bg-primary text-primary-foreground"
-                : step === "summary" || (step === "preview" && s === "upload")
-                  ? "bg-primary/20 text-primary"
+        {stepperSteps.map((s, i) => {
+          const stepOrder = ["upload", "preview", "match", "importing", "summary"];
+          const currentIdx = stepOrder.indexOf(step);
+          const thisIdx = stepOrder.indexOf(s.key);
+          const isActive = step === s.key || (s.key === "summary" && step === "importing");
+          const isPast = currentIdx > thisIdx;
+          return (
+            <div key={s.key} className="flex items-center gap-2">
+              <div className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors",
+                isActive ? "bg-primary text-primary-foreground"
+                  : isPast ? "bg-primary/20 text-primary"
                   : "bg-muted text-muted-foreground"
-            )}>
-              {i + 1}
+              )}>
+                {i + 1}
+              </div>
+              <span className={cn(
+                "text-sm font-medium hidden sm:inline",
+                isActive ? "text-foreground" : "text-muted-foreground"
+              )}>
+                {s.label}
+              </span>
+              {i < stepperSteps.length - 1 && <div className="w-8 h-px bg-border" />}
             </div>
-            <span className={cn(
-              "text-sm font-medium hidden sm:inline",
-              step === s ? "text-foreground" : "text-muted-foreground"
-            )}>
-              {s === "upload" ? "Upload" : s === "preview" ? "Preview & Validate" : "Import Summary"}
-            </span>
-            {i < 2 && <div className="w-8 h-px bg-border" />}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ═══ STEP 1: UPLOAD ═══ */}
@@ -409,13 +543,151 @@ export default function AttendanceImport() {
             </Button>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
-                {allRecords.length} records ready to import
+                {allRecords.length} records ready
               </span>
-              <Button onClick={handleImport} disabled={importMutation.isPending || allRecords.length === 0}>
+              <Button onClick={handleProceedToMatch} disabled={allRecords.length === 0}>
+                <Link2 className="h-4 w-4 mr-2" />
+                Match Employees
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STEP 3: MATCH EMPLOYEES ═══ */}
+      {step === "match" && (
+        <div className="space-y-4">
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="p-4 text-center border-emerald-500/30">
+              <p className="text-2xl font-bold text-emerald-600">{matchedCount}</p>
+              <p className="text-xs text-muted-foreground">Matched</p>
+            </Card>
+            <Card className="p-4 text-center border-destructive/30">
+              <p className="text-2xl font-bold text-destructive">{unmatchedCount}</p>
+              <p className="text-xs text-muted-foreground">Unmatched</p>
+            </Card>
+            <Card className="p-4 text-center border-border">
+              <p className="text-2xl font-bold text-muted-foreground">{skippedCount}</p>
+              <p className="text-xs text-muted-foreground">Skipped</p>
+            </Card>
+          </div>
+
+          {unmatchedCount > 0 && (
+            <Card className="border-amber-500/30 bg-amber-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm text-amber-700 dark:text-amber-400">
+                    {unmatchedCount} employee(s) could not be auto-matched. Please match them manually or skip to exclude their records.
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Employee Matching
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="max-h-[500px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-24">Biometric Code</TableHead>
+                      <TableHead className="w-40">PDF Name</TableHead>
+                      <TableHead className="w-28">PDF Dept</TableHead>
+                      <TableHead className="w-28">Status</TableHead>
+                      <TableHead>Map to Employee</TableHead>
+                      <TableHead className="w-20">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {matchEntries.map((entry) => (
+                      <TableRow key={entry.employee_code} className={cn(
+                        entry.match_type === "skipped" && "opacity-50"
+                      )}>
+                        <TableCell className="font-mono text-xs">{entry.employee_code}</TableCell>
+                        <TableCell className="text-sm font-medium">{entry.employee_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{entry.department || "—"}</TableCell>
+                        <TableCell>
+                          {entry.match_type === "auto_code" && (
+                            <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400 text-xs">
+                              Auto (Code)
+                            </Badge>
+                          )}
+                          {entry.match_type === "auto_name" && (
+                            <Badge variant="outline" className="bg-sky-500/15 text-sky-700 border-sky-500/30 dark:text-sky-400 text-xs">
+                              Auto (Name)
+                            </Badge>
+                          )}
+                          {entry.match_type === "manual" && (
+                            <Badge variant="outline" className="bg-violet-500/15 text-violet-700 border-violet-500/30 text-xs">
+                              Manual
+                            </Badge>
+                          )}
+                          {entry.match_type === "unmatched" && (
+                            <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 text-xs">
+                              Unmatched
+                            </Badge>
+                          )}
+                          {entry.match_type === "skipped" && (
+                            <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-xs">
+                              Skipped
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {entry.match_type === "skipped" ? (
+                            <span className="text-sm text-muted-foreground italic">Skipped</span>
+                          ) : entry.match_type === "auto_code" ? (
+                            <span className="text-sm text-foreground">{entry.profile_name}</span>
+                          ) : (
+                            <EmployeeCombobox
+                              employees={orgProfiles}
+                              value={entry.profile_id || ""}
+                              onSelect={(id) => handleMatchSelect(entry.employee_code, id)}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {entry.match_type === "skipped" ? (
+                            <Button variant="ghost" size="sm" onClick={() => handleUnskip(entry.employee_code)}>
+                              Undo
+                            </Button>
+                          ) : entry.match_type !== "auto_code" && (
+                            <Button variant="ghost" size="sm" onClick={() => handleSkip(entry.employee_code)} title="Skip this employee">
+                              <SkipForward className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={() => setStep("preview")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Preview
+            </Button>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {matchedCount} of {matchEntries.length} matched
+              </span>
+              <Button onClick={handleImport} disabled={importMutation.isPending || matchedCount === 0}>
                 {importMutation.isPending ? (
                   <><Loader2 className="h-4 w-4 animate-spin mr-2" />Importing...</>
                 ) : (
-                  <><CheckCircle2 className="h-4 w-4 mr-2" />Confirm Import</>
+                  <><CheckCircle2 className="h-4 w-4 mr-2" />Confirm & Import</>
                 )}
               </Button>
             </div>
@@ -423,7 +695,7 @@ export default function AttendanceImport() {
         </div>
       )}
 
-      {/* ═══ STEP 2.5: IMPORTING ═══ */}
+      {/* ═══ STEP 3.5: IMPORTING ═══ */}
       {step === "importing" && (
         <Card className="p-12 text-center">
           <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary mb-4" />
@@ -434,7 +706,7 @@ export default function AttendanceImport() {
         </Card>
       )}
 
-      {/* ═══ STEP 3: IMPORT SUMMARY ═══ */}
+      {/* ═══ STEP 4: IMPORT SUMMARY ═══ */}
       {step === "summary" && importResult && (
         <div className="space-y-6">
           <Card className={cn(

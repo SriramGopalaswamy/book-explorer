@@ -206,10 +206,12 @@ export function useUploadBiometricAttendance() {
       textContent,
       fileData,
       fileName,
+      manualMappings,
     }: {
       textContent?: string;
       fileData?: string;
       fileName: string;
+      manualMappings?: { employee_code: string; profile_id: string }[];
     }): Promise<UploadParseResult> => {
       const orgId = org?.organizationId;
       if (!orgId) throw new Error("Organization not found");
@@ -221,6 +223,7 @@ export function useUploadBiometricAttendance() {
       if (fileData) body.file_data = fileData;
       else if (textContent) body.text_content = textContent;
       else throw new Error("No file content provided");
+      if (manualMappings && manualMappings.length > 0) body.manual_mappings = manualMappings;
 
       const { data, error } = await supabase.functions.invoke("parse-attendance", { body });
       if (error) throw error;
