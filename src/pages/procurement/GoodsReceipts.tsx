@@ -43,6 +43,8 @@ export default function GoodsReceipts() {
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
 
   const { data: receipts = [], isLoading } = useQuery({
