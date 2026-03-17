@@ -85,6 +85,7 @@ export default function WorkOrders() {
   const postFinishedGoods = usePostFinishedGoods();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
     product_name: "", planned_quantity: 1, priority: "normal",
