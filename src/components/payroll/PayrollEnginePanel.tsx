@@ -132,8 +132,10 @@ export function PayrollEnginePanel() {
   const generatePayslips = useGeneratePayslips();
   const { data: isFinance } = useIsFinance();
   const { data: currentRole } = useCurrentRole();
+  const { data: payrollFlags } = usePayrollFlags();
+  const frequency = payrollFlags?.payroll_frequency || "monthly";
 
-  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
+  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod(frequency));
   const [viewRun, setViewRun] = useState<PayrollRun | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ run: PayrollRun; action: string } | null>(null);
