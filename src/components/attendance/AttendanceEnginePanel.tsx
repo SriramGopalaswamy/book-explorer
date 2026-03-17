@@ -129,24 +129,41 @@ function BiometricUploadDialog({
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
 
-    if (ext === "zip") {
-      await handleZipUpload(file);
-    } else if (ext === "pdf") {
-      // PDF: send as base64 binary for proper server-side extraction
-      const base64 = await fileToBase64(file);
-      const data = await upload.mutateAsync({ fileData: base64, fileName: file.name });
-      setResult(data);
-    } else if (ext === "xlsx" || ext === "xls") {
-      // Mark IV: XLSX direct upload — convert to CSV text client-side
-      const buffer = await file.arrayBuffer();
-      const csvText = await xlsxToText(buffer);
-      const data = await upload.mutateAsync({ textContent: csvText, fileName: file.name });
-      setResult(data);
-    } else {
-      // TXT/CSV: send as plain text
-      const text = await file.text();
-      const data = await upload.mutateAsync({ textContent: text, fileName: file.name });
-      setResult(data);
+    try {
+      if (ext === "zip") {
+        await handleZipUpload(file);
+      } else if (ext === "pdf") {
+        // PDF: send as base64 binary for proper server-side extraction
+        const base64 = await fileToBase64(file);
+        const data = await upload.mutateAsync({ fileData: base64, fileName: file.name });
+        setResult(data);
+      } else if (ext === "xlsx" || ext === "xls") {
+        // Mark IV: XLSX direct upload — convert to CSV text client-side
+        const buffer = await file.arrayBuffer();
+        const csvText = await xlsxToText(buffer);
+        const data = await upload.mutateAsync({ textContent: csvText, fileName: file.name });
+        setResult(data);
+      } else {
+        // TXT/CSV: send as plain text
+        const text = await file.text();
+        const data = await upload.mutateAsync({ textContent: text, fileName: file.name });
+        setResult(data);
+      }
+    } catch (err: any) {
+      // If mutation's onError doesn't fire (e.g. timeout), show error here
+      const msg = err?.message || "Upload failed unexpectedly";
+      if (!msg.includes("Upload failed")) {
+        toast.error("Upload failed: " + msg);
+      }
+      setResult({
+        success: false,
+        error: msg,
+        total_parsed: 0,
+        inserted: 0,
+        duplicates_skipped: 0,
+        matched_employees: 0,
+        unmatched_codes: [],
+      } as any);
     }
   };
 
