@@ -20,6 +20,7 @@ export default function BinLocations() {
   const deleteBin = useDeleteBinLocation();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -27,10 +28,12 @@ export default function BinLocations() {
   const [form, setForm] = useState({ warehouse_id: "", bin_code: "", zone: "", aisle: "", rack: "", level: "", capacity_units: 0, notes: "" });
   const [editForm, setEditForm] = useState({ bin_code: "", zone: "", aisle: "", rack: "", level: "", capacity_units: 0, is_active: true, notes: "" });
 
-  const filtered = bins.filter((b) =>
-    b.bin_code.toLowerCase().includes(search.toLowerCase()) ||
-    (b.zone || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = bins.filter((b) => {
+    const matchesSearch = b.bin_code.toLowerCase().includes(search.toLowerCase()) ||
+      (b.zone || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? b.is_active : !b.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     total: bins.length,
