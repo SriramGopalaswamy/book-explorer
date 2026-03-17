@@ -1,0 +1,2 @@
+ALTER TABLE public.work_orders DROP CONSTRAINT work_orders_status_check;
+ALTER TABLE public.work_orders ADD CONSTRAINT work_orders_status_check CHECK (status = ANY (ARRAY['draft'::text, 'planned'::text, 'in_progress'::text, 'completed'::text, 'cancelled'::text, 'on_hold'::text]));
