@@ -621,9 +621,9 @@ export default function Bills() {
       tax_amount: String(bill.tax_amount || "0"),
       notes: bill.notes || "",
       status: bill.status || "draft",
-      ap_category: "",
-      payment_terms: "",
-      vendor_tax_number: "",
+      ap_category: bill.ap_category || "",
+      payment_terms: bill.payment_terms || "",
+      vendor_tax_number: bill.vendor_tax_number || "",
       tds_section: bill.tds_section || "",
       tds_rate: bill.tds_rate ? String(bill.tds_rate) : "",
     });
@@ -897,7 +897,7 @@ export default function Bills() {
                               <DropdownMenuItem onClick={() => openPreview(b)}>
                                 <Eye className="h-4 w-4 mr-2 text-muted-foreground" /> View Bill
                               </DropdownMenuItem>
-                              {(b.status === "draft" || b.status === "received") && (
+                              {(b.status === "draft" || b.status === "received" || b.status === "pending_approval") && (
                                 <>
                                   <DropdownMenuItem onClick={() => openEditDialog(b)}>
                                     <Pencil className="h-4 w-4 mr-2 text-muted-foreground" /> Edit Bill

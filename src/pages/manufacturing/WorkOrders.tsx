@@ -193,10 +193,11 @@ export default function WorkOrders() {
         const allowed = VALID_TRANSITIONS[r.status] ?? [];
         if (allowed.length === 0) return <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ")}</Badge>;
         return (
-          <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-            <SelectTrigger className="w-[150px] h-8"><SelectValue /></SelectTrigger>
+          <Select value="" onValueChange={(v) => { if (v && v !== r.status) updateStatus.mutate({ id: r.id, status: v }); }}>
+            <SelectTrigger className="w-[150px] h-8">
+              <span>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value={r.status}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
               {allowed.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
             </SelectContent>
           </Select>

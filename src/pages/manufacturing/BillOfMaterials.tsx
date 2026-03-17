@@ -12,6 +12,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Layers, CheckCircle, Archive, Search, Trash2, MoreHorizontal, Eye, Pencil, Power } from "lucide-react";
 import { useBOMs, useCreateBOM, useBOMLines, useBOMCostRollup, useUpdateBOMStatus, useDeleteBOM, BOM } from "@/hooks/useManufacturing";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -99,6 +102,56 @@ export default function BillOfMaterials() {
   const [editingBom, setEditingBom] = useState<BOM | null>(null);
   const [editForm, setEditForm] = useState({ product_name: "", notes: "" });
   const [editLines, setEditLines] = useState([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const qc = useQueryClient();
+
+  const addEditLine = () => setEditLines([...editLines, { material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
+  const removeEditLine = (i: number) => setEditLines(editLines.filter((_, idx) => idx !== i));
+  const updateEditLine = (i: number, field: string, value: any) => {
+    const updated = [...editLines];
+    (updated[i] as any)[field] = value;
+    setEditLines(updated);
+  };
+
+  const openEditBom = async (r: BOM) => {
+    setEditingBom(r);
+    setEditForm({ product_name: r.product_name, notes: r.notes || "" });
+    // Load existing lines
+    const { data: existingLines } = await supabase.from("bom_lines" as any).select("*").eq("bom_id", r.id).order("sort_order");
+    if (existingLines && existingLines.length > 0) {
+      setEditLines((existingLines as any[]).map((l: any) => ({ material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct || 0, est_cost: l.est_cost || 0 })));
+    } else {
+      setEditLines([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
+    }
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBom || !editForm.product_name.trim()) return;
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase.from("bill_of_materials" as any).update({ product_name: editForm.product_name.trim(), notes: editForm.notes || null, updated_at: new Date().toISOString() } as any).eq("id", editingBom.id);
+      if (error) throw error;
+      // Delete old lines and re-insert
+      await supabase.from("bom_lines" as any).delete().eq("bom_id", editingBom.id);
+      const validLines = editLines.filter(l => l.material_name.trim());
+      if (validLines.length > 0) {
+        const lines = validLines.map((l, i) => ({ bom_id: editingBom.id, material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, est_cost: l.est_cost || 0, sort_order: i }));
+        const { error: lErr } = await supabase.from("bom_lines" as any).insert(lines as any);
+        if (lErr) throw lErr;
+      }
+      toast.success("BOM updated");
+      await qc.invalidateQueries({ queryKey: ["boms"] });
+      await qc.invalidateQueries({ queryKey: ["bom-lines"] });
+      await qc.invalidateQueries({ queryKey: ["bom-cost-rollup"] });
+      setEditDialogOpen(false);
+      setEditingBom(null);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const filtered = boms.filter((b) =>
     b.bom_code.toLowerCase().includes(search.toLowerCase()) ||
@@ -149,12 +202,7 @@ export default function BillOfMaterials() {
               <Eye className="h-4 w-4 mr-2" /> View Details
             </DropdownMenuItem>
             {r.status === "draft" && (
-              <DropdownMenuItem onClick={() => {
-                setEditingBom(r);
-                setEditForm({ product_name: r.product_name, notes: r.notes || "" });
-                setEditLines([{ material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
-                setEditDialogOpen(true);
-              }}>
+              <DropdownMenuItem onClick={() => openEditBom(r)}>
                 <Pencil className="h-4 w-4 mr-2" /> Edit
               </DropdownMenuItem>
             )}
@@ -227,6 +275,31 @@ export default function BillOfMaterials() {
         <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No BOMs yet. Create your first Bill of Materials." />
 
         {viewBom && <BOMDetailDialog bom={viewBom} open={!!viewBom} onClose={() => setViewBom(null)} />}
+
+        {/* Edit Draft BOM Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Edit BOM — {editingBom?.bom_code}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div><Label>Product Name *</Label><Input value={editForm.product_name} onChange={(e) => setEditForm({ ...editForm, product_name: e.target.value })} /></div>
+              <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between"><Label className="text-base font-semibold">Materials</Label><Button variant="outline" size="sm" onClick={addEditLine}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
+                {editLines.map((line, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_80px_80px_80px_80px_32px] gap-2 items-end">
+                    <div><Label className="text-xs">Material</Label><Input value={line.material_name} onChange={(e) => updateEditLine(i, "material_name", e.target.value)} /></div>
+                    <div><Label className="text-xs">Qty</Label><Input type="number" value={line.quantity} onChange={(e) => updateEditLine(i, "quantity", Number(e.target.value))} /></div>
+                    <div><Label className="text-xs">UOM</Label><Input value={line.uom} onChange={(e) => updateEditLine(i, "uom", e.target.value)} /></div>
+                    <div><Label className="text-xs">Waste %</Label><Input type="number" value={line.wastage_pct} onChange={(e) => updateEditLine(i, "wastage_pct", Number(e.target.value))} /></div>
+                    <div><Label className="text-xs">Est. Cost</Label><Input type="number" value={line.est_cost} onChange={(e) => updateEditLine(i, "est_cost", Number(e.target.value))} placeholder="₹" /></div>
+                    <Button variant="ghost" size="icon" onClick={() => removeEditLine(i)} disabled={editLines.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleSaveEdit} disabled={savingEdit} className="w-full">{savingEdit ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

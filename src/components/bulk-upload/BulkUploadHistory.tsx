@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { History, CheckCircle2, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { format } from "date-fns";
 
 interface UploadRecord {
@@ -27,7 +30,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
         .from("bulk_upload_history")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(100);
 
       if (module) {
         query = query.eq("module", module);
@@ -64,7 +67,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
           const merged = [...bulkRecords, ...attRecords].sort(
             (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           );
-          return merged.slice(0, 20);
+          return merged;
         } catch (err) {
           console.warn("Could not fetch attendance_upload_logs:", err);
         }
@@ -100,6 +103,8 @@ export function BulkUploadHistory({ module }: { module?: string }) {
     };
     return labels[m] || m;
   };
+
+  const pagination = usePagination(history, 10);
 
   if (history.length === 0) {
     return (
@@ -138,7 +143,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history.map((record) => (
+            {pagination.paginatedItems.map((record) => (
               <TableRow key={record.id}>
                 {!module && (
                   <TableCell>
@@ -174,6 +179,20 @@ export function BulkUploadHistory({ module }: { module?: string }) {
             ))}
           </TableBody>
         </Table>
+        {pagination.totalPages > 1 && (
+          <div className="px-4 py-3 border-t">
+            <TablePagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              from={pagination.from}
+              to={pagination.to}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+              onPageSizeChange={pagination.setPageSize}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

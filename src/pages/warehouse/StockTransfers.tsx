@@ -94,7 +94,8 @@ export default function StockTransfers() {
       const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id);
       if (error) throw error;
       toast.success("Transfer updated");
-      qc.invalidateQueries({ queryKey: ["stock-transfers"] });
+      await qc.invalidateQueries({ queryKey: ["stock-transfers"] });
+      await qc.refetchQueries({ queryKey: ["stock-transfers"] });
       setEditDialogOpen(false);
       setEditingTransfer(null);
     } catch (e: any) {
