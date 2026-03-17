@@ -102,6 +102,26 @@ export default function SalesOrders() {
     });
   };
 
+  const openEditSO = (so: SalesOrder) => {
+    setEditingSO(so);
+    setEditForm({ customer_name: so.customer_name, order_date: so.order_date, expected_delivery: so.expected_delivery || "", notes: so.notes || "" });
+    setEditItems([]);
+    setEditDialogOpen(true);
+  };
+
+  // Populate edit items when SO items load
+  const editItemsReady = editingSO && editSOItems.length > 0 && editItems.length === 0;
+  if (editItemsReady) {
+    setEditItems(editSOItems.map(i => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })));
+  }
+
+  const handleEditSave = () => {
+    if (!editingSO) return;
+    updateSO.mutate({ id: editingSO.id, ...editForm, items: editItems }, {
+      onSuccess: () => { setEditDialogOpen(false); setEditingSO(null); },
+    });
+  };
+
   const hasDN = (soId: string) => existingDNs.includes(soId);
 
   const columns: Column<SalesOrder>[] = [
