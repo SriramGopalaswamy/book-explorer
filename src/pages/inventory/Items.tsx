@@ -220,7 +220,7 @@ export default function Items() {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No items found. Add your first item to get started.</TableCell></TableRow>
-                  ) : filtered.map((item: any) => (
+                  ) : pagination.paginatedItems.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium text-foreground">{item.name}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{item.sku}</TableCell>
