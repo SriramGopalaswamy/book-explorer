@@ -60,7 +60,12 @@ export default function Expenses() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const expensesBulkConfig = useExpensesBulkUpload();
+  let expensesBulkConfig: ReturnType<typeof useExpensesBulkUpload> | null = null;
+  try {
+    expensesBulkConfig = useExpensesBulkUpload();
+  } catch (e) {
+    console.error("useExpensesBulkUpload crashed:", e);
+  }
   const [createOpen, setCreateOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [newAmount, setNewAmount] = useState("");
