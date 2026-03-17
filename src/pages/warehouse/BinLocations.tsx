@@ -172,7 +172,9 @@ export default function BinLocations() {
                 <div><Label>Rack</Label><Input value={editForm.rack} onChange={(e) => setEditForm({ ...editForm, rack: e.target.value })} /></div>
                 <div><Label>Level</Label><Input value={editForm.level} onChange={(e) => setEditForm({ ...editForm, level: e.target.value })} /></div>
                 <div><Label>Capacity</Label><Input type="number" value={editForm.capacity_units} onChange={(e) => setEditForm({ ...editForm, capacity_units: Number(e.target.value) })} /></div>
+                <div><Label>Current Units</Label><Input type="number" value={editingBin?.current_units || 0} disabled className="bg-muted/50" /></div>
               </div>
+              <div><Label>Notes</Label><Input value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Optional notes about this bin location" /></div>
               <div className="flex items-center gap-3">
                 <input type="checkbox" id="isActive" checked={editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
                 <Label htmlFor="isActive">Active</Label>
