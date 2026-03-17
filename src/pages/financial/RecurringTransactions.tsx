@@ -9,10 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, RefreshCw, Pause, CheckCircle, XCircle, CalendarClock } from "lucide-react";
+import { Plus, RefreshCw, Pause, CheckCircle, XCircle, CalendarClock, Play } from "lucide-react";
 import {
   useRecurringTransactions, useCreateRecurringTransaction, useUpdateRecurringTransactionStatus,
-  RecurringTransaction,
+  useExecuteRecurringTransactions, RecurringTransaction,
 } from "@/hooks/useRecurringTransactions";
 import { format } from "date-fns";
 
@@ -29,6 +29,7 @@ export default function RecurringTransactionsPage() {
   const { data: transactions = [], isLoading } = useRecurringTransactions();
   const createTx = useCreateRecurringTransaction();
   const updateStatus = useUpdateRecurringTransactionStatus();
+  const executeTx = useExecuteRecurringTransactions();
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -76,9 +77,14 @@ export default function RecurringTransactionsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div />
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> New Recurring
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => executeTx.mutate()} disabled={executeTx.isPending}>
+              <Play className="h-4 w-4 mr-2" /> {executeTx.isPending ? "Running…" : "Run Due Now"}
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> New Recurring
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
