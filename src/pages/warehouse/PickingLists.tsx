@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { ClipboardList, PlayCircle, CheckCircle, XCircle, Plus, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
 import {
   usePickingLists, useGeneratePickingList, useUpdatePickingListStatus, PickingList,
@@ -49,6 +51,12 @@ export default function PickingLists() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [warehouseId, setWarehouseId] = useState("");
+  const filteredLists = lists.filter(l => {
+    const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || l.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const pagination = usePagination(filteredLists, 10);
   const [notes, setNotes] = useState("");
   const [pickItems, setPickItems] = useState<PickItemRow[]>([{ item_name: "", quantity: 1 }]);
   const [viewList, setViewList] = useState<PickingList | null>(null);
@@ -167,11 +175,7 @@ export default function PickingLists() {
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : lists.filter(l => {
-            const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
-            const matchesStatus = statusFilter === "all" || l.status === statusFilter;
-            return matchesSearch && matchesStatus;
-          }).length === 0 ? (
+          ) : filteredLists.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching picking lists." : "No picking lists yet. Generate one above."}</div>
           ) : (
             <table className="w-full text-sm">
@@ -186,11 +190,7 @@ export default function PickingLists() {
                 </tr>
               </thead>
               <tbody>
-                {lists.filter(l => {
-                  const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
-                  const matchesStatus = statusFilter === "all" || l.status === statusFilter;
-                  return matchesSearch && matchesStatus;
-                }).map((list) => {
+                {pagination.paginatedItems.map((list) => {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (
@@ -245,6 +245,7 @@ export default function PickingLists() {
             </table>
           )}
         </div>
+        <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
         {/* View Picking List Detail Dialog */}
         <Dialog open={!!viewList} onOpenChange={(v) => { if (!v) setViewList(null); }}>

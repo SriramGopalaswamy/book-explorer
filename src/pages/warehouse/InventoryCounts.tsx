@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
   InventoryCount,
@@ -217,6 +219,12 @@ export default function InventoryCounts() {
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [approveCountId, setApproveCountId] = useState<string | null>(null);
+  const filteredCounts = counts.filter(c => {
+    const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const pagination = usePagination(filteredCounts, 10);
 
   const approve = useApproveInventoryCount();
   const deleteCountMutation = useMutation({
@@ -321,11 +329,7 @@ export default function InventoryCounts() {
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : counts.filter(c => {
-            const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
-            const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-            return matchesSearch && matchesStatus;
-          }).length === 0 ? (
+          ) : filteredCounts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
                 <table className="w-full text-sm">
@@ -340,11 +344,7 @@ export default function InventoryCounts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {counts.filter(c => {
-                      const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
-                      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-                      return matchesSearch && matchesStatus;
-                    }).map((count) => (
+                    {pagination.paginatedItems.map((count) => (
                       <React.Fragment key={count.id}>
                         <tr className="border-b last:border-b-0 hover:bg-muted/30">
                           <td className="px-4 py-3">
@@ -400,6 +400,7 @@ export default function InventoryCounts() {
                 </table>
           )}
         </div>
+        <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
         {/* Approve & Post Dialog */}
         {approveCountId && (

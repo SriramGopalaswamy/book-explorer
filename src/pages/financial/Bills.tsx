@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
@@ -26,6 +26,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -763,21 +765,23 @@ export default function Bills() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
-  if (roleLoading) return null;
-  if (!isFinance) return <AccessDenied />;
-
   const enriched = bills.map((b: any) => ({
     ...b,
     effectiveStatus: isOverdue(b) ? "overdue" : b.status,
   }));
 
-  const filtered = enriched.filter((b: any) => {
+  const filtered = useMemo(() => enriched.filter((b: any) => {
     const matchSearch =
       b.vendor_name?.toLowerCase().includes(search.toLowerCase()) ||
       b.bill_number?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || b.effectiveStatus === statusFilter;
     return matchSearch && matchStatus;
-  });
+  }), [enriched, search, statusFilter]);
+
+  const pagination = usePagination(filtered, 10);
+
+  if (roleLoading) return null;
+  if (!isFinance) return <AccessDenied />;
 
   const totalPending  = bills.filter((b: any) => b.status === "received").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalOverdue  = enriched.filter((b: any) => b.effectiveStatus === "overdue").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
@@ -847,6 +851,7 @@ export default function Bills() {
                 </Button>
               </div>
             ) : (
+              <div>
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/50 hover:bg-transparent">
@@ -862,7 +867,7 @@ export default function Bills() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((b: any) => (
+                  {pagination.paginatedItems.map((b: any) => (
                     <TableRow key={b.id} className="border-border/30 hover:bg-muted/20">
                       <TableCell>
                         <div className="flex items-center gap-1.5">
@@ -929,6 +934,8 @@ export default function Bills() {
                   ))}
                 </TableBody>
               </Table>
+              <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+              </div>
             )}
           </CardContent>
         </Card>

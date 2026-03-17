@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Plus, RefreshCw, Pause, CheckCircle, XCircle, CalendarClock, Play } from "lucide-react";
 import {
   useRecurringTransactions, useCreateRecurringTransaction, useUpdateRecurringTransactionStatus,
@@ -33,6 +35,8 @@ export default function RecurringTransactionsPage() {
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const filteredTx = transactions.filter(t => statusFilter === "all" || t.status === statusFilter);
+  const pagination = usePagination(filteredTx, 10);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -113,6 +117,7 @@ export default function RecurringTransactionsPage() {
           ) : transactions.filter(t => statusFilter === "all" || t.status === statusFilter).length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No recurring transactions match the filter.</div>
           ) : (
+            <div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -126,7 +131,7 @@ export default function RecurringTransactionsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.filter(t => statusFilter === "all" || t.status === statusFilter).map((tx) => (
+                {pagination.paginatedItems.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell>
                       <div className="font-semibold text-foreground">{tx.name}</div>
@@ -164,6 +169,8 @@ export default function RecurringTransactionsPage() {
                 ))}
               </TableBody>
             </Table>
+            <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+            </div>
           )}
         </div>
 
