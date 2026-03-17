@@ -801,6 +801,9 @@ export default function EInvoices() {
               )}
             </div>
             <DialogFooter>
+              <Button variant="outline" onClick={() => downloadEInvoicePDF(viewingEInvoice)}>
+                <Download className="h-4 w-4 mr-2" /> Download PDF
+              </Button>
               <Button variant="outline" onClick={() => setViewingEInvoice(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
