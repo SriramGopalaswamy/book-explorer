@@ -154,10 +154,12 @@ export default function BillOfMaterials() {
     }
   };
 
-  const filtered = boms.filter((b) =>
-    b.bom_code.toLowerCase().includes(search.toLowerCase()) ||
-    b.product_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = boms.filter((b) => {
+    const matchSearch = b.bom_code.toLowerCase().includes(search.toLowerCase()) ||
+      b.product_name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || b.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const stats = {
     total: boms.length,
