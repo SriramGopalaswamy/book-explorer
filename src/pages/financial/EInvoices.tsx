@@ -624,8 +624,11 @@ export default function EInvoices() {
                            // View invoice details inline
                            setViewingEInvoice(inv);
                          }}>
-                           <Eye className="h-4 w-4 mr-2" /> View Invoice
-                         </DropdownMenuItem>
+                            <Eye className="h-4 w-4 mr-2" /> View Invoice
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadEInvoicePDF(inv)}>
+                            <Download className="h-4 w-4 mr-2" /> Download PDF
+                          </DropdownMenuItem>
                          {inv.status === "pending" && (
                            <DropdownMenuItem onClick={() => generateIRN(inv.id)} disabled={isGenerating}>
                              <QrCode className="h-4 w-4 mr-2" /> Generate IRN
