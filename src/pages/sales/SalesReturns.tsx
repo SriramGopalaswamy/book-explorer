@@ -150,7 +150,7 @@ export default function SalesReturnsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(r => (
+                {pagination.paginatedItems.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.return_number}</TableCell>
                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
