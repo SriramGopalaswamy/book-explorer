@@ -113,7 +113,7 @@ export default function PickingLists() {
 
   const stats = {
     total: lists.length,
-    draft: lists.filter((l) => l.status === "draft").length,
+    draft: lists.filter((l) => l.status === "draft" || l.status === "pending").length,
     in_progress: lists.filter((l) => l.status === "in_progress").length,
     completed: lists.filter((l) => l.status === "completed").length,
   };
