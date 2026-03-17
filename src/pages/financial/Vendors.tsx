@@ -128,7 +128,11 @@ export default function Vendors() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const filtered = vendors.filter((v) => v.name.toLowerCase().includes(search.toLowerCase()) || (v.email ?? "").toLowerCase().includes(search.toLowerCase()));
+  const filtered = vendors.filter((v) => {
+    const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || (v.email ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || v.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
   const pagination = usePagination(filtered, 10);
 
   const openEdit = (v: Vendor) => {
