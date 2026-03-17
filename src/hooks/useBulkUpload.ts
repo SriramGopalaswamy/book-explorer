@@ -515,12 +515,12 @@ const employeeColumns: BulkUploadColumn[] = [
   { key: "status", label: "Status (active/inactive)" },
   { key: "join_date", label: "Join Date (YYYY-MM-DD)" },
   { key: "phone", label: "Phone" },
-  { key: "manager_email", label: "Manager Email" },
+  { key: "manager", label: "Manager (Name or Email)" },
 ];
 
-const employeeTemplate = `full_name,email,job_title,department,status,join_date,phone,manager_email
+const employeeTemplate = `full_name,email,job_title,department,status,join_date,phone,manager
 John Doe,john@company.com,Software Engineer,Engineering,active,2026-01-15,+91 98765 43210,manager@company.com
-Jane Smith,jane@company.com,HR Manager,Human Resources,active,2026-02-01,+91 91234 56789,`;
+Jane Smith,jane@company.com,HR Manager,Human Resources,active,2026-02-01,+91 91234 56789,John Doe`;
 
 export function useEmployeeBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
