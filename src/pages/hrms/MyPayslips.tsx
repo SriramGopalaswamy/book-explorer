@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +117,7 @@ export default function MyPayslips() {
 
   // Filter out superseded payslips
   const activeRecords = myRecords.filter((r: any) => !r.is_superseded);
+  const payslipPagination = usePagination(activeRecords, 10);
 
   return (
     <MainLayout title="My Payslips" subtitle="View your salary details">
@@ -154,6 +157,7 @@ export default function MyPayslips() {
                       <p className="mt-3 text-muted-foreground">No payslips found</p>
                     </div>
                   ) : (
+                    <>
                     <div className="overflow-x-auto">
                       <Table className="min-w-[600px]">
                           <TableHeader>
@@ -168,7 +172,7 @@ export default function MyPayslips() {
                           </TableRow>
                           </TableHeader>
                         <TableBody>
-                          {activeRecords.map((r) => {
+                          {payslipPagination.paginatedItems.map((r) => {
                             const slip = normalizePayslip(r);
                             const existingDispute = getDisputeForRecord(r.id);
                             const canDispute = (r.status === "processed" || r.status === "approved" || r.status === "locked") && isWithinDisputeWindow(r.pay_period) && !existingDispute;
@@ -231,6 +235,8 @@ export default function MyPayslips() {
                         </TableBody>
                       </Table>
                     </div>
+                    <TablePagination page={payslipPagination.page} totalPages={payslipPagination.totalPages} totalItems={payslipPagination.totalItems} from={payslipPagination.from} to={payslipPagination.to} pageSize={payslipPagination.pageSize} onPageChange={payslipPagination.setPage} onPageSizeChange={payslipPagination.setPageSize} />
+                    </>
                   )}
                 </CardContent>
               </Card>

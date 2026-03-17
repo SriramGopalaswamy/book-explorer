@@ -9,6 +9,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 
 export interface Column<T> {
   key: string;
@@ -26,6 +28,8 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   onRowClick?: (item: T) => void;
   rowClassName?: (item: T) => string;
+  pageSize?: number;
+  paginate?: boolean;
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -35,8 +39,23 @@ export function DataTable<T extends { id: string | number }>({
   emptyMessage = "No records found",
   onRowClick,
   rowClassName,
+  pageSize: defaultPageSize = 10,
+  paginate = true,
 }: DataTableProps<T>) {
   const visibleColumns = columns.filter((col) => !col.hidden);
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems,
+    from,
+    to,
+  } = usePagination(data, defaultPageSize);
+
+  const displayData = paginate ? paginatedItems : data;
 
   if (isLoading) {
     return (
@@ -57,37 +76,51 @@ export function DataTable<T extends { id: string | number }>({
   }
 
   return (
-    <div className="rounded-md border bg-card overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
-            {visibleColumns.map((col) => (
-              <TableHead key={col.key} className={cn("whitespace-nowrap font-semibold", col.headerClassName)}>
-                {col.header}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((item) => (
-            <TableRow
-              key={item.id}
-              className={cn(
-                "transition-colors",
-                onRowClick ? "cursor-pointer hover:bg-muted/50" : "",
-                rowClassName?.(item)
-              )}
-              onClick={() => onRowClick?.(item)}
-            >
+    <div className="space-y-2">
+      <div className="rounded-md border bg-card overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
               {visibleColumns.map((col) => (
-                <TableCell key={`${item.id}-${col.key}`} className={cn("py-3 text-foreground", col.className)}>
-                  {col.render ? col.render(item) : (item as any)[col.key]}
-                </TableCell>
+                <TableHead key={col.key} className={cn("whitespace-nowrap font-semibold", col.headerClassName)}>
+                  {col.header}
+                </TableHead>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {displayData.map((item) => (
+              <TableRow
+                key={item.id}
+                className={cn(
+                  "transition-colors",
+                  onRowClick ? "cursor-pointer hover:bg-muted/50" : "",
+                  rowClassName?.(item)
+                )}
+                onClick={() => onRowClick?.(item)}
+              >
+                {visibleColumns.map((col) => (
+                  <TableCell key={`${item.id}-${col.key}`} className={cn("py-3 text-foreground", col.className)}>
+                    {col.render ? col.render(item) : (item as any)[col.key]}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {paginate && totalItems > 10 && (
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          from={from}
+          to={to}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      )}
     </div>
   );
 }

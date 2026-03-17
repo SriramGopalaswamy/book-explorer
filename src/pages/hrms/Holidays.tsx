@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +113,7 @@ export default function Holidays() {
       return !q || h.name.toLowerCase().includes(q);
     }),
   [holidays, searchQuery]);
+  const pagination = usePagination(filtered, 15);
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
@@ -247,6 +250,7 @@ export default function Holidays() {
                 <p>No holidays found for {selectedYear}</p>
               </div>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -257,7 +261,7 @@ export default function Holidays() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((h) => {
+                  {pagination.paginatedItems.map((h) => {
                     const d = new Date(h.date);
                     const isPast = d < new Date();
                     return (
@@ -284,6 +288,8 @@ export default function Holidays() {
                   })}
                 </TableBody>
               </Table>
+              <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+              </>
             )}
           </CardContent>
         </Card>

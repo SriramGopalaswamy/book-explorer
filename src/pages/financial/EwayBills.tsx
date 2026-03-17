@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { AnimatedPage } from "@/components/layout/AnimatedPage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,6 +107,7 @@ export default function EwayBills() {
       return matchesSearch && matchesStatus;
     }
   );
+  const pagination = usePagination(filtered, 10);
 
   const counts = {
     all: ewayBills.length,
@@ -222,7 +225,7 @@ export default function EwayBills() {
                   ) : filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-way bills found</TableCell></TableRow>
                   ) : (
-                    filtered.map((bill) => {
+                    pagination.paginatedItems.map((bill) => {
                       const isExpiringSoon = bill.valid_until && !isPast(new Date(bill.valid_until)) && differenceInHours(new Date(bill.valid_until), new Date()) < 24;
                       return (
                         <TableRow key={bill.id}>
@@ -310,6 +313,7 @@ export default function EwayBills() {
                   )}
                 </TableBody>
               </Table>
+              <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
             </CardContent>
           </Card>
         </div>

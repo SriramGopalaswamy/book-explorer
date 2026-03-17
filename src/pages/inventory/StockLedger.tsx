@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { useStockLedger, useItems, useWarehouses } from "@/hooks/useInventory";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +17,7 @@ export default function StockLedger() {
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
   const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
+  const pagination = usePagination(entries || [], 15);
 
   const txnBadge = (type: string) => {
     const inTypes = ["purchase", "transfer_in", "production_in", "opening", "return", "adjustment", "in"];
@@ -76,6 +79,7 @@ export default function StockLedger() {
             {isLoading ? (
               <div className="p-6 space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : (
+            <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -93,7 +97,7 @@ export default function StockLedger() {
                 <TableBody>
                   {(entries || []).length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No stock movements recorded yet.</TableCell></TableRow>
-                  ) : (entries || []).map((e: any) => (
+                  ) : pagination.paginatedItems.map((e: any) => (
                     <TableRow key={e.id}>
                       <TableCell className="text-muted-foreground">{(() => { try { return format(new Date(e.posted_at), "dd MMM yyyy"); } catch { return e.posted_at ?? "—"; } })()}</TableCell>
                       <TableCell className="font-medium text-foreground">{itemName(e.item_id)}</TableCell>
@@ -108,6 +112,8 @@ export default function StockLedger() {
                   ))}
                 </TableBody>
               </Table>
+              <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+            </>
             )}
           </CardContent>
         </Card>

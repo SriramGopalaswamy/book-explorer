@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ export default function PaymentReceipts() {
   });
 
   const hasActiveFilters = methodFilter !== "all" || dateFrom || dateTo;
+  const pagination = usePagination(filtered, 10);
   const clearFilters = () => { setMethodFilter("all"); setDateFrom(""); setDateTo(""); };
 
   if (isLoading) return <MainLayout title="Payment Receipts"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
@@ -113,7 +116,7 @@ export default function PaymentReceipts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(r => (
+                {pagination.paginatedItems.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.receipt_number}</TableCell>
                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
@@ -126,6 +129,7 @@ export default function PaymentReceipts() {
                 {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No receipts match filters" : "No payment receipts yet"}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </CardContent>
         </Card>
       </div>

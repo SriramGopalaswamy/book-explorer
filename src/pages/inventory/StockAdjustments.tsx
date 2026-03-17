@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { useStockAdjustments, useCreateStockAdjustment, useWarehouses } from "@/hooks/useInventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -70,6 +72,7 @@ export default function StockAdjustments() {
     a.adjustment_number?.toLowerCase().includes(search.toLowerCase()) ||
     a.reason?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagination = usePagination(filtered, 10);
 
   const whName = (id: string) => warehouses?.find((w: any) => w.id === id)?.name || id?.slice(0, 8);
 
@@ -145,6 +148,7 @@ export default function StockAdjustments() {
             {isLoading ? (
               <div className="p-6 space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -160,7 +164,7 @@ export default function StockAdjustments() {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No stock adjustments found.</TableCell></TableRow>
-                  ) : filtered.map((adj: any) => (
+                  ) : pagination.paginatedItems.map((adj: any) => (
                     <TableRow key={adj.id}>
                       <TableCell className="font-mono font-medium text-foreground">{adj.adjustment_number}</TableCell>
                       <TableCell className="text-muted-foreground">{format(new Date(adj.adjustment_date), "dd MMM yyyy")}</TableCell>
@@ -180,7 +184,6 @@ export default function StockAdjustments() {
                                   <CheckCircle className="h-4 w-4 mr-2" /> Approve
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
-                                  // Edit: re-open with current values
                                   setForm({ adjustment_number: adj.adjustment_number, warehouse_id: adj.warehouse_id, reason: adj.reason, notes: adj.notes || "" });
                                   setOpen(true);
                                 }}>
@@ -210,6 +213,8 @@ export default function StockAdjustments() {
                   ))}
                 </TableBody>
               </Table>
+              <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+              </>
             )}
           </CardContent>
         </Card>
