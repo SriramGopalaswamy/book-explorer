@@ -250,6 +250,7 @@ export default function Holidays() {
                 <p>No holidays found for {selectedYear}</p>
               </div>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -288,7 +289,9 @@ export default function Holidays() {
                 </TableBody>
               </Table>
               <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+              </>
             )}
+          </CardContent>
         </Card>
         {isAdmin && <BulkUploadHistory module="holidays" />}
       </div>
