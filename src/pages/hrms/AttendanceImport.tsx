@@ -120,11 +120,15 @@ export default function AttendanceImport() {
     queryKey: ["saved-code-mappings", org?.organizationId],
     queryFn: async () => {
       if (!org?.organizationId) return [];
-      const { data } = await supabase
-        .from("employee_code_mappings" as any)
+      const { data, error } = await supabase
+        .from("employee_code_mappings")
         .select("employee_code, profile_id, employee_name_hint")
         .eq("organization_id", org.organizationId);
-      return (data ?? []) as { employee_code: string; profile_id: string; employee_name_hint: string | null }[];
+      if (error) {
+        console.warn("Could not fetch saved mappings:", error.message);
+        return [];
+      }
+      return (data ?? []) as unknown as { employee_code: string; profile_id: string; employee_name_hint: string | null }[];
     },
     enabled: !!org?.organizationId,
   });
