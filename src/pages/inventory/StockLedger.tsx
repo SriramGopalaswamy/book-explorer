@@ -53,7 +53,7 @@ export default function StockLedger() {
           <Select value={itemFilter} onValueChange={setItemFilter}>
             <SelectTrigger className="w-full sm:w-60"><SelectValue placeholder="All Items" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Items</SelectItem>
+              <SelectItem value="__all__">All Items</SelectItem>
               {(items || []).map((i: any) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
             </SelectContent>
           </Select>
