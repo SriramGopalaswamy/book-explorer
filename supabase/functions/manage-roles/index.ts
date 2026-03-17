@@ -768,6 +768,7 @@ Deno.serve(async (req) => {
           await supabase.from("user_roles").insert({
             user_id: newUser.user.id,
             role,
+            organization_id: requestingOrgId,
           });
 
           results.push({ email, success: true });

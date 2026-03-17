@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -773,8 +774,16 @@ function IntegrationsSection() {
 function UserManagementSection() {
   const { user } = useAuth();
   const bulkUploadConfig = useUsersAndRolesBulkUpload();
-  const [users, setUsers] = useState<UserWithRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: users = [], isLoading: loading, refetch: refreshUsers } = useQuery({
+    queryKey: ["user-roles"],
+    queryFn: async () => {
+      const { data } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "list_users" },
+      });
+      return (data?.users || []) as UserWithRole[];
+    },
+    enabled: !!user,
+  });
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [actionUser, setActionUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -790,6 +799,8 @@ function UserManagementSection() {
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
   const [newManagerUserId, setNewManagerUserId] = useState<string>("");
   const [updatingManager, setUpdatingManager] = useState(false);
+
+  const qc = useQueryClient();
 
   const activeUsers = useMemo(
     () => users.filter((u) => u.status === "active" || u.status === "on_leave"),
@@ -810,21 +821,6 @@ function UserManagementSection() {
     );
   }, [users, searchQuery]);
 
-  const refreshUsers = async () => {
-    const { data } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "list_users" },
-    });
-    if (data?.users) setUsers(data.users);
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      await refreshUsers();
-      setLoading(false);
-    })();
-  }, [user]);
-
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
     const { data, error } = await supabase.functions.invoke("manage-roles", {
@@ -834,9 +830,7 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to update role");
     } else {
       toast.success("Role updated successfully");
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, roles: [newRole] } : u))
-      );
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setUpdatingUser(null);
   };
@@ -850,9 +844,7 @@ function UserManagementSection() {
       toast.error(data?.error || "Failed to approve user");
     } else {
       toast.success("User approved and activated");
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, status: "active", roles: [role] } : u))
-      );
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setActionUser(null);
   };
@@ -886,13 +878,10 @@ function UserManagementSection() {
     } else {
       if (managerDialogAction === "deactivate") {
         toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been deactivated`);
-        setUsers((prev) =>
-          prev.map((u) => (u.user_id === userId ? { ...u, status: "inactive" } : u))
-        );
       } else {
         toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been removed`);
-        setUsers((prev) => prev.filter((u) => u.user_id !== userId));
       }
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
 
     setActionUser(null);
