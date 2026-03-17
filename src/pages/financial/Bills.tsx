@@ -765,9 +765,6 @@ export default function Bills() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
-  if (roleLoading) return null;
-  if (!isFinance) return <AccessDenied />;
-
   const enriched = bills.map((b: any) => ({
     ...b,
     effectiveStatus: isOverdue(b) ? "overdue" : b.status,
@@ -782,6 +779,9 @@ export default function Bills() {
   }), [enriched, search, statusFilter]);
 
   const pagination = usePagination(filtered, 10);
+
+  if (roleLoading) return null;
+  if (!isFinance) return <AccessDenied />;
 
   const totalPending  = bills.filter((b: any) => b.status === "received").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
   const totalOverdue  = enriched.filter((b: any) => b.effectiveStatus === "overdue").reduce((s: number, b: any) => s + Number(b.total_amount), 0);
