@@ -580,7 +580,7 @@ export default function EInvoices() {
                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                ) : filtered.length === 0 ? (
                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-invoices found</TableCell></TableRow>
-               ) : filtered.map((inv) => (
+               ) : pagination.paginatedItems.map((inv) => (
                  <TableRow key={inv.id}>
                    <TableCell className="font-medium">{inv.doc_number}</TableCell>
                    <TableCell><Badge variant="outline">{inv.doc_type}</Badge></TableCell>
