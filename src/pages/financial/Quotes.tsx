@@ -472,17 +472,17 @@ export default function Quotes() {
         {/* Table card */}
         <div className="rounded-xl border bg-card shadow-card">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b p-6">
-            <div>
+            <div className="shrink-0">
               <h3 className="text-lg font-semibold text-foreground">All Quotes</h3>
               <p className="text-sm text-muted-foreground">Manage, convert and download quotes</p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative w-full sm:max-w-xs">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-initial sm:w-56">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input className="pl-9" placeholder="Search quotes..." value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-32 shrink-0"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
@@ -494,7 +494,7 @@ export default function Quotes() {
                 </SelectContent>
               </Select>
               <Dialog open={isDialogOpen} onOpenChange={(o) => { setIsDialogOpen(o); if (!o) resetCreateForm(); }}>
-                <DialogTrigger asChild><Button className="bg-gradient-financial text-white hover:opacity-90"><Plus className="h-4 w-4 mr-2" />New Quote</Button></DialogTrigger>
+                <DialogTrigger asChild><Button className="bg-gradient-financial text-white hover:opacity-90 shrink-0"><Plus className="h-4 w-4 mr-2" />New Quote</Button></DialogTrigger>
                 <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create Quote</DialogTitle>
