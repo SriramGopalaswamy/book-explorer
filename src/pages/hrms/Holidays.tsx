@@ -113,6 +113,7 @@ export default function Holidays() {
       return !q || h.name.toLowerCase().includes(q);
     }),
   [holidays, searchQuery]);
+  const pagination = usePagination(filtered, 15);
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
