@@ -515,12 +515,12 @@ const employeeColumns: BulkUploadColumn[] = [
   { key: "status", label: "Status (active/inactive)" },
   { key: "join_date", label: "Join Date (YYYY-MM-DD)" },
   { key: "phone", label: "Phone" },
-  { key: "manager_email", label: "Manager Email" },
+  { key: "manager", label: "Manager (Name or Email)" },
 ];
 
-const employeeTemplate = `full_name,email,job_title,department,status,join_date,phone,manager_email
+const employeeTemplate = `full_name,email,job_title,department,status,join_date,phone,manager
 John Doe,john@company.com,Software Engineer,Engineering,active,2026-01-15,+91 98765 43210,manager@company.com
-Jane Smith,jane@company.com,HR Manager,Human Resources,active,2026-02-01,+91 91234 56789,`;
+Jane Smith,jane@company.com,HR Manager,Human Resources,active,2026-02-01,+91 91234 56789,John Doe`;
 
 export function useEmployeeBulkUpload(): BulkUploadConfig {
   const qc = useQueryClient();
@@ -554,7 +554,27 @@ export function useEmployeeBulkUpload(): BulkUploadConfig {
         const s = row.status.trim().toLowerCase();
         if (["active", "inactive"].includes(s)) payload.status = s;
       }
-      if (row.manager_email?.trim()) payload.manager_email = row.manager_email.trim();
+      // Accept manager as name or email — detect by presence of '@'
+      const managerVal = (row.manager || row.manager_email || "").trim();
+      if (managerVal) {
+        if (managerVal.includes("@")) {
+          payload.manager_email = managerVal;
+        } else {
+          // Treat as manager name — resolve to email via profiles lookup
+          const { data: managerProfile } = await supabase
+            .from("profiles")
+            .select("email")
+            .ilike("full_name", managerVal)
+            .limit(1)
+            .maybeSingle();
+          if (managerProfile?.email) {
+            payload.manager_email = managerProfile.email;
+          } else {
+            errors.push(`${email}: Manager "${managerVal}" not found`);
+            continue;
+          }
+        }
+      }
 
       const { data, error } = await supabase.functions.invoke("manage-roles", {
         body: payload,
