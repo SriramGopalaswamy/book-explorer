@@ -365,7 +365,11 @@ export default function Quotes() {
   // ── Computed ──
   const { subtotal: createSubtotal, cgstTotal: createCgst, sgstTotal: createSgst, total: createTotal } = calculateLineItemTotals(lineItems);
   const { subtotal: editSubtotal, cgstTotal: editCgst, sgstTotal: editSgst, total: editTotal } = calculateLineItemTotals(editLineItems);
-  const filtered = quotes.filter((q) => q.client_name.toLowerCase().includes(search.toLowerCase()) || q.quote_number.toLowerCase().includes(search.toLowerCase()));
+  const filtered = quotes.filter((q) => {
+    const matchesSearch = q.client_name.toLowerCase().includes(search.toLowerCase()) || q.quote_number.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || q.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
   const pagination = usePagination(filtered, 10);
 
   if (isCheckingRole) return <MainLayout title="Quotes"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
