@@ -46,6 +46,8 @@ export default function PickingLists() {
 
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [warehouseId, setWarehouseId] = useState("");
   const [notes, setNotes] = useState("");
   const [pickItems, setPickItems] = useState<PickItemRow[]>([{ item_name: "", quantity: 1 }]);
