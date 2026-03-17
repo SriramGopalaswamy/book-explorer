@@ -54,10 +54,20 @@ export default function PickingLists() {
   const [editList, setEditList] = useState<PickingList | null>(null);
   const [editNotes, setEditNotes] = useState("");
 
+  const [viewItemsLoading, setViewItemsLoading] = useState(false);
+
   const openView = async (list: PickingList) => {
     setViewList(list);
-    const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
-    setViewItems((data as any[]) || []);
+    setViewItems([]);
+    setViewItemsLoading(true);
+    try {
+      const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
+      setViewItems((data as any[]) || []);
+    } catch (e) {
+      console.error("Failed to load picking list items:", e);
+    } finally {
+      setViewItemsLoading(false);
+    }
   };
 
   const openEdit = (list: PickingList) => {
@@ -160,11 +170,11 @@ export default function PickingLists() {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (
-                    <tr key={list.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                    <tr key={list.id} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer" onClick={() => openView(list)}>
                       <td className="px-4 py-3 font-mono font-semibold text-foreground">{list.pick_number}</td>
                       <td className="px-4 py-3">{format(new Date(list.created_at), "dd MMM yyyy")}</td>
                       <td className="px-4 py-3 text-muted-foreground">{(wh as any)?.name || list.warehouse_id}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <Badge className={statusColors[list.status] || ""}>{list.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground truncate max-w-[160px]">{list.notes || "—"}</td>
@@ -218,15 +228,39 @@ export default function PickingLists() {
             <DialogHeader><DialogTitle>Picking List — {viewList?.pick_number}</DialogTitle></DialogHeader>
             {viewList && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Warehouse:</span> <span className="font-medium text-foreground">{(warehouses.find((w: any) => w.id === viewList.warehouse_id) as any)?.name || viewList.warehouse_id}</span></div>
-                  <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewList.status] || ""}>{viewList.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></div>
-                  <div><span className="text-muted-foreground">Created:</span> <span className="text-foreground">{format(new Date(viewList.created_at), "dd MMM yyyy")}</span></div>
-                </div>
-                {viewList.notes && <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm text-foreground">{viewList.notes}</p></div>}
-                {viewItems.length > 0 && (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                   <div>
-                    <p className="text-sm font-semibold mb-2">Items ({viewItems.length})</p>
+                    <p className="text-muted-foreground text-xs">Warehouse</p>
+                    <p className="font-medium text-foreground">{(warehouses.find((w: any) => w.id === viewList.warehouse_id) as any)?.name || viewList.warehouse_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Status</p>
+                    <Badge className={statusColors[viewList.status] || ""}>{viewList.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Created</p>
+                    <p className="text-foreground">{format(new Date(viewList.created_at), "dd MMM yyyy, hh:mm a")}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Pick Number</p>
+                    <p className="font-mono font-semibold text-foreground">{viewList.pick_number}</p>
+                  </div>
+                </div>
+
+                {viewList.notes && (
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">Notes</p>
+                    <p className="text-sm text-foreground bg-muted/40 rounded-md p-2">{viewList.notes}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-semibold mb-2">Items</p>
+                  {viewItemsLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading items…
+                    </div>
+                  ) : viewItems.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Picked</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                       <TableBody>
@@ -240,8 +274,10 @@ export default function PickingLists() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No items recorded for this picking list.</p>
+                  )}
+                </div>
               </div>
             )}
             <DialogFooter><Button variant="outline" onClick={() => setViewList(null)}>Close</Button></DialogFooter>
