@@ -33,6 +33,7 @@ export default function StockTransfers() {
   const createTransfer = useCreateStockTransfer();
   const updateStatus = useUpdateTransferStatus();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
   const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number }[]>([{ item_name: "", quantity: 1 }]);
