@@ -2238,6 +2238,7 @@ export type Database = {
         Row: {
           bom_id: string
           created_at: string
+          est_cost: number | null
           id: string
           item_id: string | null
           material_name: string
@@ -2250,6 +2251,7 @@ export type Database = {
         Insert: {
           bom_id: string
           created_at?: string
+          est_cost?: number | null
           id?: string
           item_id?: string | null
           material_name: string
@@ -2262,6 +2264,7 @@ export type Database = {
         Update: {
           bom_id?: string
           created_at?: string
+          est_cost?: number | null
           id?: string
           item_id?: string | null
           material_name?: string

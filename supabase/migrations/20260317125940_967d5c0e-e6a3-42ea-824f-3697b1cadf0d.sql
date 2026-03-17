@@ -1,0 +1,2 @@
+
+ALTER TABLE public.bom_lines ADD COLUMN IF NOT EXISTS est_cost NUMERIC DEFAULT 0;

@@ -98,12 +98,22 @@ export function usePayrollAutoCalc(profileId: string | null, payPeriod: string):
       // Calculate LOP days from all approved leaves
       const lopBreakdown: { type: string; days: number }[] = [];
 
-      // Helper: calculate overlapping days within the pay period
+      // Helper: calculate overlapping WORKING days within the pay period (skip weekends)
       const overlapDays = (fromDate: string, toDate: string): number => {
         const start = new Date(Math.max(new Date(fromDate).getTime(), new Date(periodStart).getTime()));
         const end = new Date(Math.min(new Date(toDate).getTime(), new Date(periodEnd).getTime()));
         if (end < start) return 0;
-        return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        let count = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          const dow = cur.getDay(); // 0=Sun, 6=Sat
+          const isWeekend =
+            (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) ||
+            (weekendPolicy === "sun_only" && dow === 0);
+          if (!isWeekend) count++;
+          cur.setDate(cur.getDate() + 1);
+        }
+        return count;
       };
 
       // All approved leaves → LOP
