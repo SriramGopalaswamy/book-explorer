@@ -148,6 +148,7 @@ export default function StockAdjustments() {
             {isLoading ? (
               <div className="p-6 space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -183,7 +184,6 @@ export default function StockAdjustments() {
                                   <CheckCircle className="h-4 w-4 mr-2" /> Approve
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {
-                                  // Edit: re-open with current values
                                   setForm({ adjustment_number: adj.adjustment_number, warehouse_id: adj.warehouse_id, reason: adj.reason, notes: adj.notes || "" });
                                   setOpen(true);
                                 }}>
@@ -214,6 +214,8 @@ export default function StockAdjustments() {
                 </TableBody>
               </Table>
               <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
