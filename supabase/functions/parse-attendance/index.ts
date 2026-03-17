@@ -134,7 +134,7 @@ ${text}`;
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000);
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -144,7 +144,7 @@ ${text}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         messages: [{ role: "user", content: prompt }],
         tools: [toolDef],
         tool_choice: { type: "function", function: { name: "extract_attendance" } },
