@@ -211,10 +211,25 @@ export function useGeneratePayroll() {
       }
 
       // 3. Fetch LWP for the period from leave_requests AND attendance_daily
-      const [year, month] = payPeriod.split("-").map(Number);
-      const periodStart = `${payPeriod}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const periodEnd = `${payPeriod}-${lastDay}`;
+      // Parse period: "2026-03", "2026-03-H1", "2026-03-W2"
+      const periodParts = payPeriod.split("-");
+      const year = parseInt(periodParts[0]);
+      const month = parseInt(periodParts[1]);
+      const periodSuffix = periodParts.length === 3 ? periodParts[2] : undefined;
+
+      const daysInMonth = new Date(year, month, 0).getDate();
+      let periodStartDay = 1;
+      let periodEndDay = daysInMonth;
+      if (periodSuffix === "H1") { periodEndDay = 15; }
+      else if (periodSuffix === "H2") { periodStartDay = 16; }
+      else if (periodSuffix?.startsWith("W")) {
+        const weekNum = parseInt(periodSuffix.replace("W", ""));
+        periodStartDay = (weekNum - 1) * 7 + 1;
+        periodEndDay = weekNum === 4 ? daysInMonth : Math.min(weekNum * 7, daysInMonth);
+      }
+
+      const periodStart = `${year}-${String(month).padStart(2, "0")}-${String(periodStartDay).padStart(2, "0")}`;
+      const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(periodEndDay).padStart(2, "0")}`;
 
       // Fetch company holidays for this period to exclude from working days
       const { data: holidays } = await supabase
@@ -225,7 +240,7 @@ export function useGeneratePayroll() {
         .lte("date", periodEnd);
 
       const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
-      const workingDays = getWorkingDays(year, month, holidayDates);
+      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
@@ -271,6 +286,12 @@ export function useGeneratePayroll() {
         }
       });
 
+      // Determine the divisor based on frequency
+      // Monthly = 12, Biweekly = 24, Weekly = 52
+      const periodsPerYear = periodSuffix?.startsWith("W") ? 52
+        : periodSuffix?.startsWith("H") ? 24
+        : 12;
+
       // 4. Generate entries
       const entries = structures.map((s: any) => {
         const components = s.compensation_components || [];
@@ -286,19 +307,19 @@ export function useGeneratePayroll() {
         components
           .sort((a: any, b: any) => a.display_order - b.display_order)
           .forEach((c: any) => {
-            const monthlyAmount = Math.round((Number(c.annual_amount) / 12) * payRatio);
+            const periodAmount = Math.round((Number(c.annual_amount) / periodsPerYear) * payRatio);
             const item = {
               name: c.component_name,
               annual: Number(c.annual_amount),
-              monthly: monthlyAmount,
+              monthly: periodAmount,
               is_taxable: c.is_taxable,
             };
             if (c.component_type === "earning") {
               earningsBreakdown.push(item);
-              grossEarnings += monthlyAmount;
+              grossEarnings += periodAmount;
             } else {
               deductionsBreakdown.push(item);
-              totalDeductions += monthlyAmount;
+              totalDeductions += periodAmount;
             }
           });
 
@@ -609,10 +630,28 @@ export function useUpdateEntryLWP() {
   });
 }
 
-function getWorkingDays(year: number, month: number, holidayDates?: Set<string>): number {
+/**
+ * Calculate working days for a pay period.
+ * Supports: "2026-03" (full month), "2026-03-H1" / "H2" (biweekly), "2026-03-W1..W4" (weekly)
+ */
+function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string): number {
   const daysInMonth = new Date(year, month, 0).getDate();
+
+  let startDay = 1;
+  let endDay = daysInMonth;
+
+  if (periodSuffix === "H1") {
+    endDay = 15;
+  } else if (periodSuffix === "H2") {
+    startDay = 16;
+  } else if (periodSuffix?.startsWith("W")) {
+    const weekNum = parseInt(periodSuffix.replace("W", ""));
+    startDay = (weekNum - 1) * 7 + 1;
+    endDay = weekNum === 4 ? daysInMonth : Math.min(weekNum * 7, daysInMonth);
+  }
+
   let working = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = startDay; d <= endDay; d++) {
     const date = new Date(year, month - 1, d);
     const day = date.getDay();
     if (day === 0 || day === 6) continue; // skip weekends
