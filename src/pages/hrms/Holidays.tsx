@@ -260,7 +260,7 @@ export default function Holidays() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((h) => {
+                  {pagination.paginatedItems.map((h) => {
                     const d = new Date(h.date);
                     const isPast = d < new Date();
                     return (
