@@ -165,3 +165,42 @@ export function useUpdateRecurringTransactionStatus() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+export function useExecuteRecurringTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/execute-recurring-transactions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Execution failed");
+      return body as { message: string; executed: number; total_due: number; errors?: string[] };
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["financial-records"] });
+      if (data.executed > 0) {
+        toast.success(`Executed ${data.executed} recurring transaction(s)`);
+      } else {
+        toast.info(data.message);
+      }
+      if (data.errors && data.errors.length > 0) {
+        toast.warning(`${data.errors.length} error(s) during execution`);
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
