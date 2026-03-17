@@ -132,13 +132,13 @@ function BrandingSection() {
       setOrgId(profile.organization_id);
 
       const { data: settings } = await supabase
-        .from("organization_settings" as any)
+        .from("organization_settings")
         .select("logo_url, favicon_url")
         .eq("organization_id", profile.organization_id)
         .maybeSingle();
       if (settings) {
-        setLogoUrl((settings as any).logo_url);
-        setFaviconUrl((settings as any).favicon_url);
+        setLogoUrl(settings.logo_url);
+        setFaviconUrl(settings.favicon_url);
       }
     })();
   }, [user]);
