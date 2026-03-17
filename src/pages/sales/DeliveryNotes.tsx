@@ -176,7 +176,32 @@ export default function DeliveryNotes() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><RotateCcw className="h-8 w-8 text-destructive" /><div><p className="text-2xl font-bold text-foreground">{stats.returned}</p><p className="text-xs text-muted-foreground">Returned</p></div></div></CardContent></Card>
         </div>
 
-        <DataTable columns={columns} data={notes} isLoading={isLoading} emptyMessage="No delivery notes yet. Create one from a Sales Order." />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search deliveries..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="dispatched">Dispatched</SelectItem>
+              <SelectItem value="in_transit">In Transit</SelectItem>
+              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="returned">Returned</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <DataTable columns={columns} data={notes.filter(n => {
+          const matchesSearch = n.dn_number.toLowerCase().includes(search.toLowerCase()) ||
+            (n.customer_name || "").toLowerCase().includes(search.toLowerCase()) ||
+            (n.so_number || "").toLowerCase().includes(search.toLowerCase()) ||
+            (n.tracking_number || "").toLowerCase().includes(search.toLowerCase());
+          const matchesStatus = statusFilter === "all" || n.status === statusFilter;
+          return matchesSearch && matchesStatus;
+        })} isLoading={isLoading} emptyMessage="No delivery notes yet. Create one from a Sales Order." />
 
         {/* View Details Dialog */}
         <Dialog open={!!viewDN} onOpenChange={v => { if (!v) setViewDN(null); }}>
