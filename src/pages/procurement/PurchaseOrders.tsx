@@ -68,10 +68,12 @@ export default function PurchaseOrders() {
     },
   });
 
-  const filtered = orders.filter((o) =>
-    o.po_number.toLowerCase().includes(search.toLowerCase()) ||
-    o.vendor_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders.filter((o) => {
+    const matchesSearch = o.po_number.toLowerCase().includes(search.toLowerCase()) ||
+      o.vendor_name.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     total: orders.length,
