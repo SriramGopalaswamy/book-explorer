@@ -167,6 +167,7 @@ function buildPayslipHTML(data: {
   earnings: any[]; deductions: any[];
   grossEarnings: number; totalDeductions: number; netPay: number;
   workingDays: number; paidDays: number; lwpDays: number;
+  brandColor: string;
 }): string {
   const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
