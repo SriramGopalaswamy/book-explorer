@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 export interface Currency {
@@ -35,10 +36,14 @@ export function useCurrencies() {
 }
 
 export function useExchangeRates() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["exchange-rates"],
+    queryKey: ["exchange-rates", orgId],
+    enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("exchange_rates" as any).select("*").order("effective_date", { ascending: false });
+      if (!orgId) return [] as ExchangeRate[];
+      const { data, error } = await supabase.from("exchange_rates" as any).select("*").eq("organization_id", orgId).order("effective_date", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as ExchangeRate[];
     },
