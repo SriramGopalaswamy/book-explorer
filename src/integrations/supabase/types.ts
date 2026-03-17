@@ -5718,10 +5718,16 @@ export type Database = {
           is_deleted: boolean
           notes: string | null
           organization_id: string
+          original_pdf_path: string | null
           payment_terms: string | null
           place_of_supply: string | null
           sales_order_id: string | null
           sgst_total: number
+          signed_pdf_path: string | null
+          signing_completed_at: string | null
+          signing_failure_reason: string | null
+          signing_initiated_at: string | null
+          signing_status: string | null
           status: string
           subtotal: number
           total_amount: number
@@ -5748,10 +5754,16 @@ export type Database = {
           is_deleted?: boolean
           notes?: string | null
           organization_id?: string
+          original_pdf_path?: string | null
           payment_terms?: string | null
           place_of_supply?: string | null
           sales_order_id?: string | null
           sgst_total?: number
+          signed_pdf_path?: string | null
+          signing_completed_at?: string | null
+          signing_failure_reason?: string | null
+          signing_initiated_at?: string | null
+          signing_status?: string | null
           status?: string
           subtotal?: number
           total_amount?: number
@@ -5778,10 +5790,16 @@ export type Database = {
           is_deleted?: boolean
           notes?: string | null
           organization_id?: string
+          original_pdf_path?: string | null
           payment_terms?: string | null
           place_of_supply?: string | null
           sales_order_id?: string | null
           sgst_total?: number
+          signed_pdf_path?: string | null
+          signing_completed_at?: string | null
+          signing_failure_reason?: string | null
+          signing_initiated_at?: string | null
+          signing_status?: string | null
           status?: string
           subtotal?: number
           total_amount?: number
