@@ -7,7 +7,7 @@ interface StatCardProps {
   value: string;
   change?: {
     value: string;
-    type: "increase" | "decrease";
+    type: "increase" | "decrease" | "neutral";
   };
   icon: ReactNode;
   className?: string;
