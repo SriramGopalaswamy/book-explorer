@@ -170,7 +170,7 @@ export default function PickingLists() {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (
-                    <tr key={list.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                    <tr key={list.id} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer" onClick={() => openView(list)}>
                       <td className="px-4 py-3 font-mono font-semibold text-foreground">{list.pick_number}</td>
                       <td className="px-4 py-3">{format(new Date(list.created_at), "dd MMM yyyy")}</td>
                       <td className="px-4 py-3 text-muted-foreground">{(wh as any)?.name || list.warehouse_id}</td>
