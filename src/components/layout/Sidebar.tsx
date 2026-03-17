@@ -192,7 +192,7 @@ const manufacturingNav: NavItem[] = [
 
 const warehouseNav: NavItem[] = [
   { name: "Bin Locations", path: "/warehouse/bins", icon: MapPin, module: "financial" },
-  { name: "Transfers", path: "/warehouse/transfers", icon: ArrowRightLeft, module: "financial" },
+  { name: "Stock Transfers", path: "/warehouse/transfers", icon: ArrowRightLeft, module: "financial" },
   { name: "Picking Lists", path: "/warehouse/picking", icon: ClipboardList, module: "financial" },
   { name: "Inv. Counts", path: "/warehouse/counts", icon: ClipboardCheck, module: "financial" },
 ];
