@@ -58,6 +58,8 @@ import {
   Settings2,
   Search,
   Filter,
+  PenLine,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -69,6 +71,8 @@ import {
   downloadInvoicePdf,
   Invoice,
 } from "@/hooks/useInvoices";
+import { AadhaarSignModal } from "@/components/financial/AadhaarSignModal";
+import { getInvoicePdfSignedUrl } from "@/hooks/useAadhaarSign";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
@@ -94,6 +98,22 @@ const getStatusConfig = (status: Invoice["status"]) => {
       return { label: "Cancelled", variant: "outline" as const, icon: XCircle, className: "text-muted-foreground" };
     default:
       return { label: status, variant: "outline" as const, icon: Clock, className: "" };
+  }
+};
+
+const getSigningBadge = (signingStatus: Invoice["signing_status"]) => {
+  switch (signingStatus) {
+    case "pending_download":
+    case "pending_upload":
+      return { label: "Signing Initiated", className: "bg-amber-100 text-amber-700 border-amber-300" };
+    case "verifying":
+      return { label: "Verifying...", className: "bg-blue-100 text-blue-700 border-blue-300" };
+    case "verified":
+      return { label: "eSigned", className: "bg-emerald-100 text-emerald-700 border-emerald-300" };
+    case "failed":
+      return { label: "Sign Failed", className: "bg-red-100 text-red-700 border-red-300" };
+    default:
+      return null;
   }
 };
 
@@ -188,6 +208,7 @@ export default function Invoicing() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [aadhaarSignInvoice, setAadhaarSignInvoice] = useState<Invoice | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [editSelectedCustomerId, setEditSelectedCustomerId] = useState("");
 
@@ -784,10 +805,21 @@ export default function Invoicing() {
                         <TableCell className="text-muted-foreground">{(invoice as any).invoice_date || invoice.created_at?.split("T")[0]}</TableCell>
                         <TableCell>{invoice.due_date}</TableCell>
                         <TableCell>
-                          <Badge variant={statusConfig.variant} className={statusConfig.className}>
-                            <StatusIcon className="mr-1 h-3 w-3" />
-                            {statusConfig.label}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant={statusConfig.variant} className={statusConfig.className}>
+                              <StatusIcon className="mr-1 h-3 w-3" />
+                              {statusConfig.label}
+                            </Badge>
+                            {(() => {
+                              const sb = getSigningBadge((invoice as any).signing_status);
+                              return sb ? (
+                                <Badge variant="outline" className={`text-xs ${sb.className}`}>
+                                  <ShieldCheck className="mr-1 h-3 w-3" />
+                                  {sb.label}
+                                </Badge>
+                              ) : null;
+                            })()}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -816,6 +848,26 @@ export default function Invoicing() {
                                   }}
                                 >
                                   <Download className="mr-2 h-4 w-4" /> Download PDF
+                                </DropdownMenuItem>
+                              )}
+                              {(invoice.status === "sent" || invoice.status === "overdue" || invoice.status === "paid") &&
+                                (invoice as any).signing_status !== "verified" && (
+                                <DropdownMenuItem onClick={() => setAadhaarSignInvoice(invoice)}>
+                                  <PenLine className="mr-2 h-4 w-4" /> Sign with Aadhaar
+                                </DropdownMenuItem>
+                              )}
+                              {(invoice as any).signing_status === "verified" && (
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    try {
+                                      const url = await getInvoicePdfSignedUrl((invoice as any).signed_pdf_path);
+                                      window.open(url, "_blank");
+                                    } catch (err: any) {
+                                      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+                                    }
+                                  }}
+                                >
+                                  <Download className="mr-2 h-4 w-4" /> Download Signed PDF
                                 </DropdownMenuItem>
                               )}
                               {invoice.status === "draft" && (
@@ -856,6 +908,15 @@ export default function Invoicing() {
             </div>
           )}
         </div>
+
+        {/* Aadhaar eSign Modal */}
+        {aadhaarSignInvoice && (
+          <AadhaarSignModal
+            invoice={aadhaarSignInvoice}
+            open={!!aadhaarSignInvoice}
+            onOpenChange={(o) => { if (!o) setAadhaarSignInvoice(null); }}
+          />
+        )}
 
         {/* View Invoice Dialog */}
         <Dialog open={!!viewingInvoice} onOpenChange={(o) => { if (!o) setViewingInvoice(null); }}>
