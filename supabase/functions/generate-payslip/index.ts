@@ -272,9 +272,9 @@ function buildPayslipHTML(data: {
   </div>
   <div class="words-row">Amount in Words : ${numberToWords(data.netPay)}</div>
 
-  <div class="footer">
+   <div class="footer">
     <div>Generated: ${new Date().toLocaleDateString("en-IN")}</div>
-    <div class="sig"><span>Authorised Signatory</span></div>
+    <div class="sig">${data.authorizedSignatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${data.authorizedSignatoryName}</span>` : ''}<span>Authorised Signatory</span></div>
   </div>
 </body></html>`;
 }
