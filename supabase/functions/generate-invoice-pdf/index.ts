@@ -175,6 +175,7 @@ serve(async (req) => {
       .maybeSingle();
 
     let authorizedSignatoryName = "";
+    let brandColor = "#d6336c"; // default magenta
     if (profile?.organization_id) {
       // Check organization_settings first, then fall back to organization_compliance
       const [settingsRes, complianceRes] = await Promise.all([
@@ -185,7 +186,7 @@ serve(async (req) => {
           .maybeSingle(),
         supabaseClient
           .from("organization_compliance")
-          .select("authorized_signatory_name")
+          .select("authorized_signatory_name, brand_color")
           .eq("organization_id", profile.organization_id)
           .maybeSingle(),
       ]);
@@ -193,7 +194,12 @@ serve(async (req) => {
         settingsRes.data?.authorized_signatory_name ||
         complianceRes.data?.authorized_signatory_name ||
         "";
+      if (complianceRes.data?.brand_color) {
+        brandColor = complianceRes.data.brand_color;
+      }
     }
+
+    const BRAND_COLORS = buildBrandColors(brandColor);
 
     const s: InvoiceSettings = settings || {};
 
