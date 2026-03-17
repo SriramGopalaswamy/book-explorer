@@ -466,7 +466,7 @@ export function useGeneratePickingList() {
       return pickData;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["picking-lists"] }); toast.success("Picking list created"); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => { qc.invalidateQueries({ queryKey: ["picking-lists"] }); toast.error(e.message); },
   });
 }
 

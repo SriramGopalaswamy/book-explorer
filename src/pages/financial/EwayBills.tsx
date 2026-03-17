@@ -200,6 +200,7 @@ export default function EwayBills() {
                     <SelectItem value="generated">Generated</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="extended">Extended</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>

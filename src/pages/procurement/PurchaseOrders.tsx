@@ -62,7 +62,7 @@ export default function PurchaseOrders() {
     queryKey: ["vendors-list"],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").order("name");
       if (error) throw error;
       return data || [];
     },
@@ -194,6 +194,7 @@ export default function PurchaseOrders() {
     { key: "vendor_name", header: "Vendor" },
     { key: "order_date", header: "Date", render: (r) => format(new Date(r.order_date), "dd MMM yyyy") },
     { key: "total_amount", header: "Total", render: (r) => <span className="font-semibold">₹{Number(r.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> },
+    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground text-xs truncate max-w-[160px] block">{r.notes || "—"}</span> },
     {
       key: "status", header: "Status",
       render: (r) => {
