@@ -456,7 +456,6 @@ export function useGeneratePickingList() {
         required_quantity: item.quantity,
         picked_quantity: 0,
         status: "pending",
-        organization_id: profile.organization_id,
       }));
       const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
       if (linesErr) {
