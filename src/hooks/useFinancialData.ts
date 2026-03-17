@@ -242,7 +242,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
 
       const categoryMap = new Map<string, number>();
 
-      // Primary source: expenses table (all statuses)
+      // Primary source: expenses table (approved + paid only, matching KPI logic)
       (expensesRes.data || []).forEach((record) => {
         const cat = record.category || "Uncategorized";
         categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
