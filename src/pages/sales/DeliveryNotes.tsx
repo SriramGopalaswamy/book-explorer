@@ -156,7 +156,15 @@ export default function DeliveryNotes() {
         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => openViewDialog(r)}><Eye className="h-4 w-4 mr-2" /> View Details</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => openShippingDialog(r)}><MapPin className="h-4 w-4 mr-2" /> Shipping</DropdownMenuItem>
+          {r.status === "draft" && (
+            <DropdownMenuItem onClick={() => openShippingDialog(r)}><MapPin className="h-4 w-4 mr-2" /> Shipping</DropdownMenuItem>
+          )}
+          {(r.status === "dispatched" || r.status === "in_transit") && (
+            <DropdownMenuItem onClick={() => updateShipping.mutate({ id: r.id, status: "delivered" })}><PackageCheck className="h-4 w-4 mr-2" /> Mark as Delivered</DropdownMenuItem>
+          )}
+          {r.status === "delivered" && (
+            <DropdownMenuItem onClick={() => updateShipping.mutate({ id: r.id, status: "returned" })}><RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned</DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     ) },
