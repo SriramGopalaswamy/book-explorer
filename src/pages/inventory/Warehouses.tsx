@@ -45,6 +45,7 @@ export default function Warehouses() {
     w.name?.toLowerCase().includes(search.toLowerCase()) ||
     w.code?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagination = usePagination(filtered, 10);
 
   const handleCreate = () => {
     createWH.mutate({
