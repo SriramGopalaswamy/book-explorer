@@ -212,7 +212,7 @@ export default function PickingLists() {
                             <DropdownMenuItem onClick={() => openView(list)}>
                               <Eye className="h-4 w-4 mr-2" /> View Details
                             </DropdownMenuItem>
-                            {(list.status === "draft" || list.status === "pending") && (
+                            {(list.status === "pending" || list.status === "draft") && (
                               <DropdownMenuItem onClick={() => openEdit(list)}>
                                 <Pencil className="h-4 w-4 mr-2" /> Edit
                               </DropdownMenuItem>
