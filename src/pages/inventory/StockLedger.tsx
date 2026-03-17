@@ -12,11 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
 export default function StockLedger() {
-  const [itemFilter, setItemFilter] = useState<string>("");
-  const [whFilter, setWhFilter] = useState<string>("");
+  const [itemFilter, setItemFilter] = useState<string>("__all__");
+  const [whFilter, setWhFilter] = useState<string>("__all__");
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
-  const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter || undefined, whFilter || undefined);
+  const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter === "__all__" ? undefined : itemFilter, whFilter === "__all__" ? undefined : whFilter);
   const pagination = usePagination(entries || [], 15);
 
   const txnBadge = (type: string) => {
