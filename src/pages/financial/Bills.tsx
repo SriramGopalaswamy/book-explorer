@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ScanLine, Plus, Search, Upload, Loader2, Sparkles, MoreHorizontal, Trash2,
