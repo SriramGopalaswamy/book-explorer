@@ -43,7 +43,7 @@ export default function PurchaseReturnsPage() {
     queryKey: ["vendors-list"],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name").eq("is_active", true).order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name").eq("is_active", true as any).order("name");
       if (error) throw error;
       return data || [];
     },
