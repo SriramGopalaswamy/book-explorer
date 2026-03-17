@@ -14,6 +14,7 @@ interface ApprovalGateResult {
   workflowId: string | null;
   requiredRole: string | null;
   thresholdAmount: number | null;
+  totalSteps: number;
 }
 
 export async function checkApprovalGate(
