@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
-import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2 } from "lucide-react";
+import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -43,6 +43,8 @@ export default function GoodsReceipts() {
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
 
   const { data: receipts = [], isLoading } = useQuery({
@@ -172,7 +174,30 @@ export default function GoodsReceipts() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><AlertTriangle className="h-8 w-8 text-destructive" /><div><p className="text-2xl font-bold text-foreground">{stats.rejected}</p><p className="text-xs text-muted-foreground">Rejected</p></div></div></CardContent></Card>
         </div>
 
-        <DataTable columns={columns} data={receipts} isLoading={isLoading} emptyMessage="No goods receipts yet. Create one from a Purchase Order." />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search GRNs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="inspecting">Inspecting</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="bill_created">Bill Created</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <DataTable columns={columns} data={receipts.filter((r) => {
+          const matchesSearch = r.grn_number.toLowerCase().includes(search.toLowerCase()) || (r.notes || "").toLowerCase().includes(search.toLowerCase());
+          const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+          return matchesSearch && matchesStatus;
+        })} isLoading={isLoading} emptyMessage="No goods receipts yet. Create one from a Purchase Order." />
 
         {/* Create GR Dialog */}
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
