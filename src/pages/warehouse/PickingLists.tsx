@@ -175,11 +175,7 @@ export default function PickingLists() {
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : lists.filter(l => {
-            const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
-            const matchesStatus = statusFilter === "all" || l.status === statusFilter;
-            return matchesSearch && matchesStatus;
-          }).length === 0 ? (
+          ) : filteredLists.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching picking lists." : "No picking lists yet. Generate one above."}</div>
           ) : (
             <table className="w-full text-sm">
@@ -194,11 +190,7 @@ export default function PickingLists() {
                 </tr>
               </thead>
               <tbody>
-                {lists.filter(l => {
-                  const matchesSearch = l.pick_number.toLowerCase().includes(search.toLowerCase()) || (l.notes || "").toLowerCase().includes(search.toLowerCase());
-                  const matchesStatus = statusFilter === "all" || l.status === statusFilter;
-                  return matchesSearch && matchesStatus;
-                }).map((list) => {
+                {pagination.paginatedItems.map((list) => {
                   const nextStates = TRANSITIONS[list.status] ?? [];
                   const wh = warehouses.find((w: any) => w.id === list.warehouse_id);
                   return (
@@ -253,6 +245,7 @@ export default function PickingLists() {
             </table>
           )}
         </div>
+        <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
         {/* View Picking List Detail Dialog */}
         <Dialog open={!!viewList} onOpenChange={(v) => { if (!v) setViewList(null); }}>
