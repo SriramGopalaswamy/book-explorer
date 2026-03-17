@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { useItems, useCreateItem, useUpdateItem, useDeleteItem } from "@/hooks/useInventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
