@@ -108,10 +108,12 @@ export default function WorkOrders() {
   const [fgWO, setFgWO] = useState<WorkOrder | null>(null);
   const [fgForm, setFgForm] = useState({ cost_per_unit: "", notes: "" });
 
-  const filtered = orders.filter((o) =>
-    o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
-    o.product_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orders.filter((o) => {
+    const matchSearch = o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
+      o.product_name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || o.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const stats = {
     total: orders.length,
