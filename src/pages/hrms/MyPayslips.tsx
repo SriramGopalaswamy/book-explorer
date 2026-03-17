@@ -171,7 +171,7 @@ export default function MyPayslips() {
                           </TableRow>
                           </TableHeader>
                         <TableBody>
-                          {activeRecords.map((r) => {
+                          {payslipPagination.paginatedItems.map((r) => {
                             const slip = normalizePayslip(r);
                             const existingDispute = getDisputeForRecord(r.id);
                             const canDispute = (r.status === "processed" || r.status === "approved" || r.status === "locked") && isWithinDisputeWindow(r.pay_period) && !existingDispute;
