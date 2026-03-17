@@ -225,7 +225,7 @@ export default function EwayBills() {
                   ) : filtered.length === 0 ? (
                     <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No e-way bills found</TableCell></TableRow>
                   ) : (
-                    filtered.map((bill) => {
+                    pagination.paginatedItems.map((bill) => {
                       const isExpiringSoon = bill.valid_until && !isPast(new Date(bill.valid_until)) && differenceInHours(new Date(bill.valid_until), new Date()) < 24;
                       return (
                         <TableRow key={bill.id}>
