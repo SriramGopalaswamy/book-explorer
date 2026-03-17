@@ -38,6 +38,21 @@ const fmtFull = (value: number) =>
 
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
+/** Fetch brand color from organization_compliance for current user */
+function useBrandColor(userId: string | undefined) {
+  const [color, setColor] = useState("#e11d74");
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
+      if (!profile?.organization_id) return;
+      const { data } = await supabase.from("organization_compliance" as any).select("brand_color").eq("organization_id", profile.organization_id).maybeSingle();
+      if ((data as any)?.brand_color) setColor((data as any).brand_color);
+    })();
+  }, [userId]);
+  return color;
+}
+
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
