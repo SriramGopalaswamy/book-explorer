@@ -73,7 +73,7 @@ export default function Expenses() {
   const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
 
   // All org expenses (finance/admin view)
-  const { data: allExpenses = [], isLoading: isLoadingAll } = useQuery({
+  const { data: allExpenses = [], isLoading: isLoadingAll, error: allError } = useQuery({
     queryKey: ["expenses-all"],
     queryFn: async () => {
       if (!user) return [];
@@ -84,13 +84,13 @@ export default function Expenses() {
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data as Expense[];
+      return (data || []) as Expense[];
     },
     enabled: !!user && isFinanceOrAdmin,
   });
 
   // Employee's own expenses
-  const { data: myExpenses = [], isLoading: isLoadingMy } = useQuery({
+  const { data: myExpenses = [], isLoading: isLoadingMy, error: myError } = useQuery({
     queryKey: ["expenses-my", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -102,10 +102,14 @@ export default function Expenses() {
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data as Expense[];
+      return (data || []) as Expense[];
     },
     enabled: !!user && !isFinanceOrAdmin,
   });
+
+  // Log any query errors for debugging
+  if (allError) console.error("expenses-all query error:", allError);
+  if (myError) console.error("expenses-my query error:", myError);
 
   const expenses = isFinanceOrAdmin ? allExpenses : myExpenses;
   const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
@@ -352,7 +356,7 @@ export default function Expenses() {
       <div className="space-y-6">
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} change={totalExpenses > 0 ? { value: "Approved + Paid", type: "neutral" as any } : undefined} />
+          <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} change={totalExpenses > 0 ? { value: "Approved + Paid", type: "neutral" } : undefined} />
           <StatCard title="Pending Approval" value={formatCurrency(pendingAmount)} icon={<Clock className="h-4 w-4" />} />
           <StatCard title={isFinanceOrAdmin ? "Approved (Unpaid)" : "Approved"} value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
           <StatCard title="Paid" value={formatCurrency(paidAmount)} icon={<CircleDollarSign className="h-4 w-4" />} />

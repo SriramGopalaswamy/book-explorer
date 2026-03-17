@@ -7,7 +7,7 @@ interface StatCardProps {
   value: string;
   change?: {
     value: string;
-    type: "increase" | "decrease";
+    type: "increase" | "decrease" | "neutral";
   };
   icon: ReactNode;
   className?: string;
@@ -28,18 +28,18 @@ export function StatCard({ title, value, change, icon, className }: StatCardProp
           <div className="mt-1 flex items-center gap-1">
             {change.type === "increase" ? (
               <TrendingUp className="h-4 w-4 text-success" />
-            ) : (
+            ) : change.type === "decrease" ? (
               <TrendingDown className="h-4 w-4 text-destructive" />
-            )}
+            ) : null}
             <span
               className={cn(
                 "text-sm font-medium",
-                change.type === "increase" ? "text-success" : "text-destructive"
+                change.type === "increase" ? "text-success" : change.type === "decrease" ? "text-destructive" : "text-muted-foreground"
               )}
             >
               {change.value}
             </span>
-            <span className="text-sm text-muted-foreground">vs last month</span>
+            {change.type !== "neutral" && <span className="text-sm text-muted-foreground">vs last month</span>}
           </div>
         )}
       </div>
