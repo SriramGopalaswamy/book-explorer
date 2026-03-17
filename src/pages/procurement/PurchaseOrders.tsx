@@ -223,6 +223,31 @@ export default function PurchaseOrders() {
                 <Pencil className="h-4 w-4 mr-2" /> Edit
               </DropdownMenuItem>
             )}
+            {(PO_TRANSITIONS[r.status] || []).includes("submitted") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "submitted" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Submit
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("approved") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "approved" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Approve
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("received") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "received" })}>
+                <Package className="h-4 w-4 mr-2" /> Mark Received
+              </DropdownMenuItem>
+            )}
+            {(PO_TRANSITIONS[r.status] || []).includes("cancelled") && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
+                <XCircle className="h-4 w-4 mr-2" /> Cancel
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => deletePO.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
