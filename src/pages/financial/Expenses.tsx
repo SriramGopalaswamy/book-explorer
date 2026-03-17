@@ -90,7 +90,7 @@ export default function Expenses() {
   });
 
   // Employee's own expenses
-  const { data: myExpenses = [], isLoading: isLoadingMy } = useQuery({
+  const { data: myExpenses = [], isLoading: isLoadingMy, error: myError } = useQuery({
     queryKey: ["expenses-my", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -102,10 +102,14 @@ export default function Expenses() {
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data as Expense[];
+      return (data || []) as Expense[];
     },
     enabled: !!user && !isFinanceOrAdmin,
   });
+
+  // Log any query errors for debugging
+  if (allError) console.error("expenses-all query error:", allError);
+  if (myError) console.error("expenses-my query error:", myError);
 
   const expenses = isFinanceOrAdmin ? allExpenses : myExpenses;
   const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
