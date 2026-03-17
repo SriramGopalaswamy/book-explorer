@@ -131,7 +131,7 @@ export default function FinishedGoods() {
                   <Select value={warehouseId} onValueChange={setWarehouseId}>
                     <SelectTrigger><SelectValue placeholder="Default" /></SelectTrigger>
                     <SelectContent>
-                      {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {warehouses.filter((w: any) => w.is_active !== false).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
