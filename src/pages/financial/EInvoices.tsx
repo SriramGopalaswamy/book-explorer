@@ -294,14 +294,16 @@ export default function EInvoices() {
     });
   }
 
-  const filtered = eInvoices.filter((e) => {
+  const filtered = useMemo(() => eInvoices.filter((e) => {
     if (statusFilter !== "all" && e.status !== statusFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       return (e.doc_number?.toLowerCase().includes(s) || e.irn?.toLowerCase().includes(s) || e.buyer_legal_name?.toLowerCase().includes(s));
     }
     return true;
-  });
+  }), [eInvoices, statusFilter, search]);
+
+  const pagination = usePagination(filtered, 10);
 
   const statusCounts = {
     pending: eInvoices.filter(e => e.status === "pending").length,
