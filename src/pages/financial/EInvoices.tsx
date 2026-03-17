@@ -276,7 +276,7 @@ export default function EInvoices() {
       document.body.appendChild(container);
       html2pdf()
         .set({
-          margin: [10, 10, 10, 10],
+          margin: [10, 10, 20, 10],
           filename: `E-Invoice-${inv.doc_number}.pdf`,
           html2canvas: { scale: 2 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
