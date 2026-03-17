@@ -82,6 +82,8 @@ import {
   Employee,
 } from "@/hooks/useEmployees";
 import { EmployeeDetailDialog } from "@/components/employees/EmployeeDetailDialog";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { useEmployeeBulkUpload } from "@/hooks/useBulkUpload";
 
 const statusStyles = {
   active: "bg-success/10 text-success border-success/30",
@@ -162,6 +164,7 @@ export default function Employees() {
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
   const deleteEmployee = useDeleteEmployee();
+  const employeeBulkConfig = useEmployeeBulkUpload();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -323,13 +326,15 @@ export default function Employees() {
                 </SelectContent>
               </Select>
               {!isReadOnly && (
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-hrms text-white hover:opacity-90">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add Employee
-                  </Button>
-                </DialogTrigger>
+                <div className="flex items-center gap-2">
+                  <BulkUploadDialog config={employeeBulkConfig} />
+                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-gradient-hrms text-white hover:opacity-90">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Add Employee
+                      </Button>
+                    </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle>Add New Employee</DialogTitle>
@@ -426,6 +431,7 @@ export default function Employees() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+                </div>
               )}
             </div>
           </div>
