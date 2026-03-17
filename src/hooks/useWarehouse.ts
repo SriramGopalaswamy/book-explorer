@@ -445,7 +445,7 @@ export function useGeneratePickingList() {
       const pickNumber = `PICK-${Date.now().toString(36).toUpperCase()}`;
       const { data: pickData, error: pickErr } = await supabase
         .from("picking_lists" as any)
-        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "draft", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
+        .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "pending", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (pickErr) throw pickErr;
 

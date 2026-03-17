@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
+  pending: "bg-muted text-muted-foreground",
   draft: "bg-muted text-muted-foreground",
   in_progress: "bg-yellow-500/20 text-yellow-400",
   completed: "bg-green-500/20 text-green-400",
@@ -112,7 +113,7 @@ export default function PickingLists() {
 
   const stats = {
     total: lists.length,
-    draft: lists.filter((l) => l.status === "draft").length,
+    draft: lists.filter((l) => l.status === "draft" || l.status === "pending").length,
     in_progress: lists.filter((l) => l.status === "in_progress").length,
     completed: lists.filter((l) => l.status === "completed").length,
   };
@@ -211,7 +212,7 @@ export default function PickingLists() {
                             <DropdownMenuItem onClick={() => openView(list)}>
                               <Eye className="h-4 w-4 mr-2" /> View Details
                             </DropdownMenuItem>
-                            {(list.status === "draft" || list.status === "pending") && (
+                            {(list.status === "pending" || list.status === "draft") && (
                               <DropdownMenuItem onClick={() => openEdit(list)}>
                                 <Pencil className="h-4 w-4 mr-2" /> Edit
                               </DropdownMenuItem>
