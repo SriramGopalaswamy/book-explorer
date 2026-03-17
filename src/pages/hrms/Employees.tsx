@@ -326,13 +326,15 @@ export default function Employees() {
                 </SelectContent>
               </Select>
               {!isReadOnly && (
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-hrms text-white hover:opacity-90">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add Employee
-                  </Button>
-                </DialogTrigger>
+                <div className="flex items-center gap-2">
+                  <BulkUploadDialog config={employeeBulkConfig} />
+                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-gradient-hrms text-white hover:opacity-90">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Add Employee
+                      </Button>
+                    </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle>Add New Employee</DialogTitle>
