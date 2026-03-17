@@ -431,6 +431,7 @@ export default function Employees() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+                </div>
               )}
             </div>
           </div>
