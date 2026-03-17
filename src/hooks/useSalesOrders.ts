@@ -140,6 +140,66 @@ export function useCreateSalesOrder() {
   });
 }
 
+export function useUpdateSalesOrder() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (params: { id: string; customer_name: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!params.customer_name.trim()) throw new Error("Customer name is required.");
+      if (!params.order_date) throw new Error("Order date is required.");
+      if (params.items.length === 0) throw new Error("At least one line item is required.");
+      if (params.items.some(i => i.quantity <= 0)) throw new Error("All quantities must be greater than zero.");
+      if (params.items.some(i => i.unit_price < 0)) throw new Error("Unit prices cannot be negative.");
+      if (params.items.some(i => !i.description?.trim())) throw new Error("All line items must have a description.");
+      if (params.expected_delivery && params.expected_delivery < params.order_date) {
+        throw new Error("Expected delivery date cannot be before the order date.");
+      }
+
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
+      // Verify it's still draft
+      const { data: current } = await supabase.from("sales_orders" as any).select("status").eq("id", params.id).eq("organization_id", profile.organization_id).maybeSingle();
+      if (!current) throw new Error("Sales order not found.");
+      if ((current as any).status !== "draft") throw new Error("Only draft sales orders can be edited.");
+
+      const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const tax = params.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
+
+      const { error: soErr } = await supabase.from("sales_orders" as any).update({
+        customer_name: params.customer_name.trim(),
+        order_date: params.order_date,
+        expected_delivery: params.expected_delivery || null,
+        notes: params.notes || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", params.id).eq("organization_id", profile.organization_id);
+      if (soErr) throw soErr;
+
+      // Replace items: delete old, insert new
+      await supabase.from("sales_order_items" as any).delete().eq("sales_order_id", params.id);
+      const newItems = params.items.map((i) => ({
+        sales_order_id: params.id,
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        tax_rate: i.tax_rate,
+        amount: Math.round(i.quantity * i.unit_price * (1 + i.tax_rate / 100) * 100) / 100,
+        item_id: i.item_id || null,
+      }));
+      if (newItems.length > 0) {
+        const { error: itemErr } = await supabase.from("sales_order_items" as any).insert(newItems as any);
+        if (itemErr) throw itemErr;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); qc.invalidateQueries({ queryKey: ["so-items"] }); toast.success("Sales order updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 const VALID_SO_STATUSES = ["draft", "confirmed", "processing", "partially_shipped", "shipped", "delivered", "cancelled", "closed"] as const;
 const SO_TRANSITIONS: Record<string, string[]> = {
   draft: ["confirmed", "cancelled"],
