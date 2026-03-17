@@ -96,7 +96,7 @@ export function useInitiateAadhaarSign() {
 
       if (updateError) throw new Error(`Failed to update invoice: ${updateError.message}`);
 
-      return { storagePath, orgId };
+      return { storagePath, orgId, pdfSize: pdfBlob.size };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -172,16 +172,17 @@ export function useUploadSignedPdf() {
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
       // Mark as verifying
-      await supabase
+      const { error: verifyingErr } = await supabase
         .from("invoices")
         .update({ signing_status: "verifying", signed_pdf_path: storagePath } as any)
         .eq("id", invoiceId);
+      if (verifyingErr) throw new Error(`Failed to update invoice: ${verifyingErr.message}`);
 
       // Verify digital signature (browser-side, no external dependencies)
       const result = await verifyPdfSignature(file);
 
       if (result.hasSig) {
-        await supabase
+        const { error: verifiedErr } = await supabase
           .from("invoices")
           .update({
             signing_status: "verified",
@@ -189,17 +190,19 @@ export function useUploadSignedPdf() {
             signing_failure_reason: null,
           } as any)
           .eq("id", invoiceId);
+        if (verifiedErr) throw new Error(`Failed to record verification: ${verifiedErr.message}`);
       } else {
-        await supabase
+        const { error: failedErr } = await supabase
           .from("invoices")
           .update({
             signing_status: "failed",
             signing_failure_reason: result.reason ?? "No digital signature found.",
           } as any)
           .eq("id", invoiceId);
+        if (failedErr) throw new Error(`Failed to record verification: ${failedErr.message}`);
       }
 
-      return { verified: result.hasSig, reason: result.reason };
+      return { verified: result.hasSig, reason: result.reason, signedPdfPath: storagePath };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });

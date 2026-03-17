@@ -75,7 +75,7 @@ export async function verifyPdfSignature(file: File): Promise<SignatureCheckResu
   }
 
   // Count occurrences of /Sig to estimate the number of signature fields
-  const sigMatches = text.match(/\/Sig[\s/\[(<]/g);
+  const sigMatches = text.match(/\/Sig[\s/\[(<>\})]/g);
   const fieldCount = sigMatches ? sigMatches.length : 1;
 
   return {

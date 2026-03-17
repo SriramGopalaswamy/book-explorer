@@ -58,6 +58,14 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{ verified: boolean; reason?: string } | null>(null);
+  // Store PDF paths from mutation results — invoice prop may be stale until query refetches
+  const [originalPdfPath, setOriginalPdfPath] = useState<string | null>(
+    invoice.original_pdf_path ?? null
+  );
+  const [signedPdfPath, setSignedPdfPath] = useState<string | null>(
+    invoice.signed_pdf_path ?? null
+  );
+  const [originalPdfSize, setOriginalPdfSize] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initiateSign = useInitiateAadhaarSign();
@@ -74,7 +82,9 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
 
   async function handleBegin() {
     try {
-      await initiateSign.mutateAsync({ invoiceId: invoice.id });
+      const result = await initiateSign.mutateAsync({ invoiceId: invoice.id });
+      setOriginalPdfPath(result.storagePath);
+      setOriginalPdfSize(result.pdfSize);
       setStep("download");
     } catch {
       // error toast handled in hook
@@ -82,7 +92,7 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
   }
 
   async function handleDownloadPdf() {
-    const path = invoice.original_pdf_path;
+    const path = originalPdfPath;
     if (!path) {
       toast({ title: "PDF not ready", description: "Please click Begin again.", variant: "destructive" });
       return;
@@ -117,6 +127,9 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
         file: selectedFile,
       });
       setVerificationResult(result);
+      if (result.verified) {
+        setSignedPdfPath(result.signedPdfPath ?? null);
+      }
       setStep(result.verified ? "done" : "failed");
     } catch {
       setStep("failed");
@@ -124,7 +137,7 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
   }
 
   async function handleDownloadSignedPdf() {
-    const path = invoice.signed_pdf_path;
+    const path = signedPdfPath ?? invoice.signed_pdf_path;
     if (!path) return;
     try {
       const url = await getInvoicePdfSignedUrl(path);
@@ -134,12 +147,12 @@ export function AadhaarSignModal({ invoice, open, onOpenChange }: AadhaarSignMod
     }
   }
 
-  // File size mismatch warning (heuristic: same size = likely original)
+  // File size mismatch warning (heuristic: same size as original = likely unsigned)
   const fileLooksLikeOriginal =
     selectedFile &&
-    invoice.original_pdf_path &&
+    originalPdfSize !== null &&
     selectedFile.size > 0 &&
-    selectedFile.size === (selectedFile as any)._originalSize;
+    selectedFile.size === originalPdfSize;
 
   // ── Render ───────────────────────────────────────────────
 
