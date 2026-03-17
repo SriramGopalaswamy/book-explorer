@@ -14,6 +14,14 @@ export interface ApprovalWorkflow {
   created_at: string;
 }
 
+export interface ApprovalWorkflowStep {
+  id: string;
+  workflow_id: string;
+  step_order: number;
+  required_role: string;
+  created_at: string;
+}
+
 export interface ApprovalRequest {
   id: string;
   organization_id: string;
@@ -31,6 +39,8 @@ export interface ApprovalRequest {
   rejected_at: string | null;
   rejection_reason: string | null;
   notes: string | null;
+  current_step: number;
+  total_steps: number;
   created_at: string;
   updated_at: string;
 }
@@ -51,19 +61,36 @@ export function useApprovalWorkflows() {
   });
 }
 
+export function useApprovalWorkflowSteps(workflowIds: string[]) {
+  return useQuery({
+    queryKey: ["approval-workflow-steps", workflowIds],
+    queryFn: async () => {
+      if (workflowIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("approval_workflow_steps" as any)
+        .select("*")
+        .in("workflow_id", workflowIds)
+        .order("step_order", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as ApprovalWorkflowStep[];
+    },
+    enabled: workflowIds.length > 0,
+  });
+}
+
 export function useCreateApprovalWorkflow() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: org } = useUserOrganization();
   return useMutation({
-    mutationFn: async (w: { workflow_type: string; threshold_amount: number; required_role: string }) => {
+    mutationFn: async (w: { workflow_type: string; threshold_amount: number; steps: { role: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!org?.organizationId) throw new Error("Organization context not available");
       if (!w.workflow_type?.trim()) throw new Error("Workflow type is required.");
       if (w.threshold_amount < 0) throw new Error("Threshold amount cannot be negative.");
-      if (!w.required_role?.trim()) throw new Error("Required role is required.");
+      if (!w.steps || w.steps.length === 0) throw new Error("At least one approval step is required.");
 
-      const VALID_TYPES = ["invoice", "bill", "expense", "purchase_order", "payroll", "leave", "compensation"];
+      const VALID_TYPES = ["invoice", "bill", "expense", "purchase_order", "payroll", "leave", "compensation", "sales_order", "reimbursement"];
       if (!VALID_TYPES.includes(w.workflow_type)) {
         throw new Error(`Invalid workflow type. Must be one of: ${VALID_TYPES.join(", ")}`);
       }
@@ -80,15 +107,39 @@ export function useCreateApprovalWorkflow() {
         throw new Error(`An active approval workflow for "${w.workflow_type}" already exists. Deactivate it first.`);
       }
 
-      const { error } = await supabase.from("approval_workflows").insert([{
+      // Create the workflow with first step's role as required_role (backward compat)
+      const { data: wfData, error: wfErr } = await supabase.from("approval_workflows").insert([{
         organization_id: org!.organizationId,
         workflow_type: w.workflow_type,
         threshold_amount: w.threshold_amount,
-        required_role: w.required_role,
-      }] as any);
-      if (error) throw error;
+        required_role: w.steps[0].role,
+      }] as any).select("id").single();
+      if (wfErr) throw wfErr;
+
+      const workflowId = (wfData as any).id;
+
+      // Insert chain steps
+      if (w.steps.length > 0) {
+        const stepRows = w.steps.map((s, i) => ({
+          workflow_id: workflowId,
+          step_order: i + 1,
+          required_role: s.role,
+        }));
+        const { error: stepErr } = await supabase
+          .from("approval_workflow_steps" as any)
+          .insert(stepRows as any);
+        if (stepErr) {
+          // Rollback: delete the workflow
+          await supabase.from("approval_workflows").delete().eq("id", workflowId);
+          throw stepErr;
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["approval-workflows"] }); toast.success("Workflow created"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["approval-workflows"] });
+      qc.invalidateQueries({ queryKey: ["approval-workflow-steps"] });
+      toast.success("Workflow created");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 }
@@ -97,7 +148,6 @@ export function useToggleWorkflow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      // Resolve caller org for tenant isolation
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
       if (!profile?.organization_id) throw new Error("Organization not found");
       const { error } = await supabase.from("approval_workflows").update({ is_active }).eq("id", id).eq("organization_id", profile.organization_id);
@@ -131,14 +181,13 @@ export function useApproveRequest() {
     mutationFn: async ({ id }: { id: string }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Resolve caller org for tenant isolation
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      // Double-review guard: verify request is still pending (org-scoped)
+      // Double-review guard
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
-        .select("status, document_type, document_id, requested_by")
+        .select("status, document_type, document_id, requested_by, current_step, total_steps, workflow_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
         .single();
@@ -147,11 +196,27 @@ export function useApproveRequest() {
         throw new Error("This request has already been reviewed.");
       }
 
-      // Maker-checker: prevent self-approval
+      // Maker-checker
       if ((current as any)?.requested_by === user.id) {
         throw new Error("You cannot approve your own request.");
       }
 
+      const currentStep = (current as any)?.current_step || 1;
+      const totalSteps = (current as any)?.total_steps || 1;
+
+      if (currentStep < totalSteps) {
+        // Advance to next step — not fully approved yet
+        const { error } = await supabase.from("approval_requests" as any).update({
+          current_step: currentStep + 1,
+          notes: `Step ${currentStep} approved by ${user.id} at ${new Date().toISOString()}. ${(current as any)?.notes || ""}`.trim(),
+          updated_at: new Date().toISOString(),
+        } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
+        if (error) throw error;
+
+        return { advanced: true, currentStep, totalSteps };
+      }
+
+      // Final step — fully approve
       const { error } = await supabase.from("approval_requests" as any).update({
         status: "approved",
         approved_by: user.id,
@@ -160,7 +225,7 @@ export function useApproveRequest() {
       } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
-      // ── Auto-execute: propagate approval back to source document ──
+      // Auto-execute: propagate approval back to source document
       const docType = (current as any)?.document_type;
       const docId = (current as any)?.document_id;
       if (docType && docId) {
@@ -182,14 +247,20 @@ export function useApproveRequest() {
           await supabase.from(table as any).update({ status: newStatus } as any).eq("id", docId).eq("organization_id", callerProfile.organization_id);
         }
       }
+
+      return { advanced: false, currentStep, totalSteps };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ["approval-requests"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["bills"] });
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["purchase-orders"] });
-      toast.success("Request approved — document status updated");
+      if (result?.advanced) {
+        toast.success(`Step ${result.currentStep} approved — awaiting next approver (step ${result.currentStep + 1} of ${result.totalSteps})`);
+      } else {
+        toast.success("Request fully approved — document status updated");
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -203,11 +274,10 @@ export function useRejectRequest() {
       if (!user) throw new Error("Not authenticated");
       if (!reason?.trim()) throw new Error("A rejection reason is required.");
 
-      // Resolve caller org for tenant isolation
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      // Double-review guard (org-scoped)
+      // Double-review guard
       const { data: current, error: fetchErr } = await supabase
         .from("approval_requests" as any)
         .select("status, requested_by")
@@ -219,7 +289,7 @@ export function useRejectRequest() {
         throw new Error("This request has already been reviewed.");
       }
 
-      // Maker-checker: prevent self-rejection
+      // Maker-checker
       if ((current as any)?.requested_by === user.id) {
         throw new Error("You cannot reject your own request.");
       }
