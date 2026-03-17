@@ -58,13 +58,15 @@ export function useCreateExchangeRate() {
       if (!user) throw new Error("Not authenticated");
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
-      const { error } = await supabase.from("exchange_rates" as any).insert(
-        { ...r, organization_id: profile.organization_id } as any
-      );
+      const { data, error } = await supabase.from("exchange_rates" as any).insert(
+        { ...r, organization_id: profile.organization_id, source: 'manual' } as any
+      ).select();
       if (error) {
+        console.error("Exchange rate insert error:", error);
         if (error.code === '23505') throw new Error("An exchange rate for this currency pair and date already exists.");
-        throw error;
+        throw new Error(error.message || "Failed to save exchange rate");
       }
+      return data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["exchange-rates"] }); toast.success("Exchange rate saved"); },
     onError: (e: any) => toast.error(e.message),
