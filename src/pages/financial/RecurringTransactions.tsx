@@ -9,10 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, RefreshCw, Pause, CheckCircle, XCircle, CalendarClock } from "lucide-react";
+import { Plus, RefreshCw, Pause, CheckCircle, XCircle, CalendarClock, Play } from "lucide-react";
 import {
   useRecurringTransactions, useCreateRecurringTransaction, useUpdateRecurringTransactionStatus,
-  RecurringTransaction,
+  useExecuteRecurringTransactions, RecurringTransaction,
 } from "@/hooks/useRecurringTransactions";
 import { format } from "date-fns";
 
