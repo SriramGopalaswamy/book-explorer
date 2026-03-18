@@ -92,7 +92,7 @@ const financialNav: NavItem[] = [
   { name: "Ledger Explorer", path: "/financial/ledger", icon: BookMarked, module: "financial" },
   { name: "Customers", path: "/financial/customers", icon: UserCheck, module: "financial" },
   { name: "Vendors", path: "/financial/vendors", icon: Truck, module: "financial" },
-  { name: "Invoicing", path: "/financial/invoicing", icon: FileText, module: "financial" },
+  
   { name: "Quotes", path: "/financial/quotes", icon: Quote, module: "financial" },
   { name: "Expenses", path: "/financial/expenses", icon: Wallet, module: "financial" },
   { name: "Bills", path: "/financial/bills", icon: ScanLine, module: "financial" },
