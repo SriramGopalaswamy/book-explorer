@@ -291,6 +291,57 @@ export default function SalesOrders() {
             </div>
           </DialogContent>
         </Dialog>
+        {/* View SO Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={(v) => { if (!v) { setViewDialogOpen(false); setViewingSO(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Sales Order — {viewingSO?.so_number}</DialogTitle></DialogHeader>
+            {viewingSO && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label className="text-muted-foreground text-xs">Customer</Label><p className="font-medium text-foreground">{viewingSO.customer_name}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Status</Label><div><Badge className={statusColors[viewingSO.status] || ""}>{viewingSO.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</Badge></div></div>
+                  <div><Label className="text-muted-foreground text-xs">Order Date</Label><p className="text-foreground">{format(new Date(viewingSO.order_date), "dd MMM yyyy")}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Expected Delivery</Label><p className="text-foreground">{viewingSO.expected_delivery ? format(new Date(viewingSO.expected_delivery), "dd MMM yyyy") : "—"}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Total Amount</Label><p className="font-semibold text-foreground">₹{Number(viewingSO.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p></div>
+                </div>
+                {viewingSO.notes && (
+                  <div><Label className="text-muted-foreground text-xs">Notes</Label><p className="text-sm text-foreground whitespace-pre-wrap">{viewingSO.notes}</p></div>
+                )}
+                <div className="space-y-2">
+                  <Label className="text-base font-semibold">Line Items</Label>
+                  {viewSOItems.length > 0 ? (
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left p-2 font-medium text-muted-foreground">Description</th>
+                            <th className="text-right p-2 font-medium text-muted-foreground">Qty</th>
+                            <th className="text-right p-2 font-medium text-muted-foreground">Unit Price</th>
+                            <th className="text-right p-2 font-medium text-muted-foreground">Tax %</th>
+                            <th className="text-right p-2 font-medium text-muted-foreground">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewSOItems.map((item: any) => (
+                            <tr key={item.id} className="border-t border-border">
+                              <td className="p-2 text-foreground">{item.description}</td>
+                              <td className="p-2 text-right text-foreground">{item.quantity}</td>
+                              <td className="p-2 text-right text-foreground">₹{Number(item.unit_price).toLocaleString("en-IN")}</td>
+                              <td className="p-2 text-right text-foreground">{item.tax_rate}%</td>
+                              <td className="p-2 text-right font-medium text-foreground">₹{Number(item.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No line items found.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
