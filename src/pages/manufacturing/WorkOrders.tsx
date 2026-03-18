@@ -80,6 +80,7 @@ export default function WorkOrders() {
   const { data: orders = [], isLoading } = useWorkOrders();
   const { data: boms = [] } = useBOMs();
   const createWO = useCreateWorkOrder();
+  const updateWO = useUpdateWorkOrder();
   const updateStatus = useUpdateWOStatus();
   const recordProduction = useRecordProduction();
   const postFinishedGoods = usePostFinishedGoods();
