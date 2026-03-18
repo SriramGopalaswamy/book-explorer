@@ -406,6 +406,46 @@ export default function WorkOrders() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Draft WO Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(v) => { if (!v) { setEditDialogOpen(false); setEditingWO(null); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Work Order — {editingWO?.wo_number}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Product Name *</Label><Input value={editForm.product_name} onChange={(e) => setEditForm({ ...editForm, product_name: e.target.value })} /></div>
+            <div>
+              <Label>Bill of Materials (optional)</Label>
+              <Select value={editForm.bom_id || "none"} onValueChange={(v) => setEditForm({ ...editForm, bom_id: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Select BOM…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  {boms.map((b) => <SelectItem key={b.id} value={b.id}>{b.product_name} ({b.bom_code})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {editForm.bom_id && <BOMPreview bomId={editForm.bom_id} />}
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Planned Quantity</Label><Input type="number" value={editForm.planned_quantity} onChange={(e) => setEditForm({ ...editForm, planned_quantity: Number(e.target.value) })} /></div>
+              <div>
+                <Label>Priority</Label>
+                <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Planned Start</Label><Input type="date" value={editForm.planned_start} onChange={(e) => setEditForm({ ...editForm, planned_start: e.target.value })} /></div>
+              <div><Label>Planned End</Label><Input type="date" value={editForm.planned_end} onChange={(e) => setEditForm({ ...editForm, planned_end: e.target.value })} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+            <Button onClick={handleEditSave} disabled={updateWO.isPending} className="w-full">{updateWO.isPending ? "Saving…" : "Save Changes"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
