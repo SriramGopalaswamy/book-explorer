@@ -1,49 +1,13 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { useExpenseBreakdown, DateRangeFilter } from "@/hooks/useFinancialData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Info } from "lucide-react";
 
 const formatCurrency = (value: number) => {
-  if (value >= 100000) {
-    return `₹${(value / 100000).toFixed(1)}L`;
-  }
+  if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;
+  if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
   return `₹${value.toLocaleString("en-IN")}`;
-};
-
-const RADIAN = Math.PI / 180;
-
-const renderCustomizedLabel = ({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-}: {
-  cx: number;
-  cy: number;
-  midAngle: number;
-  innerRadius: number;
-  outerRadius: number;
-  percent: number;
-}) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  if (percent < 0.05) return null;
-
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="white"
-      textAnchor="middle"
-      dominantBaseline="central"
-      className="text-xs font-medium"
-    >
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
 };
 
 interface ExpenseBreakdownChartProps {
@@ -53,9 +17,10 @@ interface ExpenseBreakdownChartProps {
 export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps) {
   const { data: expenseData, isLoading } = useExpenseBreakdown(dateRange);
 
-  const subtitleText = dateRange?.from && dateRange?.to
-    ? `Spending by category (${dateRange.from.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} – ${dateRange.to.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})`
-    : "This month's spending by category";
+  const isFiltered = !!(dateRange?.from || dateRange?.to);
+  const subtitleText = isFiltered
+    ? `Spending by category (${dateRange!.from?.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} – ${dateRange!.to?.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})`
+    : "Spending by category";
 
   if (isLoading) {
     return (
@@ -69,76 +34,69 @@ export function ExpenseBreakdownChart({ dateRange }: ExpenseBreakdownChartProps)
 
   const total = expenseData?.reduce((sum, item) => sum + item.value, 0) || 0;
   const hasData = expenseData && expenseData.length > 0;
+  const sorted = [...(expenseData || [])].sort((a, b) => b.value - a.value);
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">
-      <div className="mb-4">
+      <div className="mb-5">
         <h3 className="text-lg font-semibold text-foreground">Expense Breakdown</h3>
         <p className="text-sm text-muted-foreground">{subtitleText}</p>
       </div>
+
       {!hasData ? (
-        <div className="h-64 flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">No expense data for this period</p>
+        <div className="h-48 flex flex-col items-center justify-center gap-2">
+          <p className="text-sm text-muted-foreground">No approved or paid expenses found</p>
+          {isFiltered && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+              <Info className="h-3.5 w-3.5" />
+              <span>Try adjusting the date range to see more categories</span>
+            </div>
+          )}
         </div>
       ) : (
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={expenseData || []}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={renderCustomizedLabel}
-              outerRadius={90}
-              innerRadius={40}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {(expenseData || []).map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value: number, name: string) => [formatCurrency(value), name]}
-              contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                color: "hsl(var(--foreground))",
-              }}
-              labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
-              itemStyle={{ color: "hsl(var(--foreground))" }}
-            />
-            <Legend
-              layout="vertical"
-              align="right"
-              verticalAlign="middle"
-              content={({ payload }) => (
-                <ul className="flex flex-col gap-2 pl-4">
-                  {(payload || []).map((entry, index) => (
-                    <li key={`legend-${index}`} className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      <span className="text-sm text-muted-foreground">{entry.value}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-      )}
-      <div className="mt-4 pt-4 border-t">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">Total Expenses</span>
-          <span className="text-lg font-bold text-foreground">{formatCurrency(total)}</span>
+        <div className="space-y-4">
+          {sorted.map((item) => {
+            const pct = total > 0 ? (item.value / total) * 100 : 0;
+            return (
+              <div key={item.name} className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">{item.name}</span>
+                  <span className="text-sm font-medium text-muted-foreground tabular-nums">
+                    {pct.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-muted/50 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.max(pct, 1)}%`,
+                      backgroundColor: item.color,
+                    }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground">{formatCurrency(item.value)}</span>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      <div className="mt-5 pt-4 border-t flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Total Expenses</span>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+            {sorted.length} {sorted.length === 1 ? "category" : "categories"}
+          </Badge>
+        </div>
+        <span className="text-lg font-bold text-foreground">{formatCurrency(total)}</span>
       </div>
+
+      {isFiltered && sorted.length > 0 && (
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
+          <Info className="h-3 w-3 shrink-0" />
+          <span>Showing only categories with approved/paid expenses in the selected range</span>
+        </div>
+      )}
     </div>
   );
 }

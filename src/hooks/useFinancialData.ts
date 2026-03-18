@@ -212,10 +212,8 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
     queryFn: async (): Promise<CategoryData[]> => {
       if (!user || !orgId) return getDefaultExpenseData();
 
-      const fromDate = dateRange?.from || (() => {
-        const d = new Date();
-        return new Date(d.getFullYear(), d.getMonth(), 1);
-      })();
+      // Default to all-time so every approved/paid category appears
+      const fromDate = dateRange?.from || new Date("2000-01-01");
       const toDate = dateRange?.to || new Date();
       const fromStr = fromDate.toISOString().split("T")[0];
       const toStr = toDate.toISOString().split("T")[0];
