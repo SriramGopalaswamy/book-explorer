@@ -80,7 +80,7 @@ export default function SalesOrders() {
     total: orders.length,
     draft: orders.filter((o) => o.status === "draft").length,
     active: orders.filter((o) => ["confirmed", "processing", "shipped"].includes(o.status)).length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
+    confirmed: orders.filter((o) => o.status === "confirmed").length,
   };
 
   const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
@@ -226,7 +226,7 @@ export default function SalesOrders() {
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ShoppingBag className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total SOs</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Clock className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.draft}</p><p className="text-xs text-muted-foreground">Drafts</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Truck className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.active}</p><p className="text-xs text-muted-foreground">Active</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.delivered}</p><p className="text-xs text-muted-foreground">Delivered</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.confirmed}</p><p className="text-xs text-muted-foreground">Confirmed</p></div></div></CardContent></Card>
         </div>
 
         <div className="flex items-center gap-2">
