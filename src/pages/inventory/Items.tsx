@@ -295,7 +295,10 @@ export default function Items() {
               <div><Label>HSN Code</Label><Input value={editForm.hsn_code} onChange={e => setEditForm(f => ({ ...f, hsn_code: e.target.value }))} /></div>
               <div><Label>Barcode</Label><Input value={editForm.barcode} onChange={e => setEditForm(f => ({ ...f, barcode: e.target.value }))} /></div>
             </div>
-            <div><Label>Reorder Level</Label><Input type="number" value={editForm.reorder_level} onChange={e => setEditForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Reorder Level</Label><Input type="number" value={editForm.reorder_level} onChange={e => setEditForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
+              <div><Label>Opening Stock</Label><Input type="number" value={editForm.opening_stock} onChange={e => setEditForm(f => ({ ...f, opening_stock: e.target.value }))} /></div>
+            </div>
             <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
             <Button onClick={handleEdit} disabled={!editForm.name || !editForm.sku || updateItem.isPending}>
               {updateItem.isPending ? "Saving..." : "Save Changes"}
