@@ -15,7 +15,7 @@ import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, Chev
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
-  useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
+  useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount, usePostInventoryCount,
   InventoryCount,
 } from "@/hooks/useWarehouse";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
