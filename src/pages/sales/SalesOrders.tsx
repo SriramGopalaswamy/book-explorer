@@ -28,6 +28,7 @@ const statusColors: Record<string, string> = {
   delivered: "bg-green-500/20 text-green-400",
   invoiced: "bg-purple-500/20 text-purple-400",
   cancelled: "bg-destructive/20 text-destructive",
+  returned: "bg-orange-500/20 text-orange-400",
 };
 
 export default function SalesOrders() {
