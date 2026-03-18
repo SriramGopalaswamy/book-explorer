@@ -104,14 +104,13 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
   );
 }
 
-// ─── Approve & Post Dialog ─────────────────────────
-function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+// ─── Approve Dialog ─────────────────────────
+function ApproveDialog({ countId, open, onOpenChange }: { countId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: lines = [], isLoading } = useCountLines(open ? countId : undefined);
   const updateLine = useUpdateCountLine();
   const approve = useApproveInventoryCount();
   const [actualQtys, setActualQtys] = useState<Record<string, string>>({});
 
-  // Initialize actual qtys from existing data when lines load
   React.useEffect(() => {
     if (lines.length > 0) {
       const initial: Record<string, string> = {};
@@ -125,7 +124,6 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
   }, [lines]);
 
   const handleConfirm = async () => {
-    // First save all actual quantities
     const updates = lines.map((line) => {
       const val = parseFloat(actualQtys[line.id] ?? "");
       if (isNaN(val)) return null;
@@ -134,7 +132,6 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
 
     try {
       await Promise.all(updates);
-      // Small delay to ensure DB has updated before approval checks
       await new Promise((r) => setTimeout(r, 300));
       await approve.mutateAsync(countId);
       onOpenChange(false);
@@ -151,7 +148,7 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Approve & Post — Enter Actual Quantities</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Approve — Enter Actual Quantities</DialogTitle></DialogHeader>
         {isLoading ? (
           <div className="py-6 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Loading items…</div>
         ) : lines.length === 0 ? (
@@ -195,7 +192,7 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleConfirm} disabled={!allFilled || approve.isPending || updateLine.isPending}>
-            <CheckCircle className="h-4 w-4 mr-1" />
+            <ShieldCheck className="h-4 w-4 mr-1" />
             {approve.isPending ? "Approving…" : "Confirm & Approve"}
           </Button>
         </DialogFooter>
