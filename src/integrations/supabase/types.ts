@@ -5736,6 +5736,7 @@ export type Database = {
           total_amount: number
           updated_at: string
           user_id: string
+          version: number | null
         }
         Insert: {
           amount: number
@@ -5772,6 +5773,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           user_id: string
+          version?: number | null
         }
         Update: {
           amount?: number
@@ -5808,6 +5810,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           user_id?: string
+          version?: number | null
         }
         Relationships: [
           {
