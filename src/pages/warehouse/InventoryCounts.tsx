@@ -225,6 +225,7 @@ export default function InventoryCounts() {
   const pagination = usePagination(filteredCounts, 10);
 
   const approve = useApproveInventoryCount();
+  const postCount = usePostInventoryCount();
   const deleteCountMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
