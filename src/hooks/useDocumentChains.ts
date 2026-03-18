@@ -294,10 +294,15 @@ export function useCreateBillFromGR() {
       }
 
       // Update GR status to "bill_created"
-      await supabase.from("goods_receipts" as any)
+      const { error: grUpdateError } = await supabase.from("goods_receipts" as any)
         .update({ status: "bill_created" } as any)
         .eq("id", params.goods_receipt_id)
         .eq("organization_id", callerOrgId);
+      if (grUpdateError) {
+        console.error("Failed to update GR status:", grUpdateError);
+        // Bill was created but GR status didn't update - warn user
+        toast.warning("Bill created but GR status update failed. Refreshing...");
+      }
 
       return bill;
     },
