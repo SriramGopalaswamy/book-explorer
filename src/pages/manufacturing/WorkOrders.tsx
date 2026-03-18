@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck } from "lucide-react";
+import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil } from "lucide-react";
 import {
-  useWorkOrders, useCreateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
+  useWorkOrders, useCreateWorkOrder, useUpdateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
   useBOMs, useBOMCostRollup, WorkOrder,
 } from "@/hooks/useManufacturing";
 import { format } from "date-fns";
