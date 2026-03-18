@@ -653,7 +653,7 @@ export function useUpdateEntryLWP() {
  * Calculate working days for a pay period.
  * Supports: "2026-03" (full month), "2026-03-H1" / "H2" (biweekly), "2026-03-W1..W4" (weekly)
  */
-function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string): number {
+function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string, weekendPolicy: string = "sat_sun"): number {
   const daysInMonth = new Date(year, month, 0).getDate();
 
   let startDay = 1;
@@ -673,7 +673,10 @@ function getWorkingDays(year: number, month: number, holidayDates?: Set<string>,
   for (let d = startDay; d <= endDay; d++) {
     const date = new Date(year, month - 1, d);
     const day = date.getDay();
-    if (day === 0 || day === 6) continue; // skip weekends
+    // Skip weekends based on org policy
+    if (weekendPolicy === "sat_sun" && (day === 0 || day === 6)) continue;
+    if (weekendPolicy === "sun_only" && day === 0) continue;
+    // 'none' = no weekends, all days are working days
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     if (holidayDates?.has(dateStr)) continue; // skip holidays
     working++;
