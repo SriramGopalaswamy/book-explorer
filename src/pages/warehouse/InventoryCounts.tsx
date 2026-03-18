@@ -318,9 +318,8 @@ export default function InventoryCounts() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="posted">Posted</SelectItem>
             </SelectContent>
           </Select>
         </div>
