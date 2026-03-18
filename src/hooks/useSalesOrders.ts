@@ -200,14 +200,14 @@ export function useUpdateSalesOrder() {
   });
 }
 
-const VALID_SO_STATUSES = ["draft", "confirmed", "processing", "partially_shipped", "shipped", "delivered", "cancelled", "closed"] as const;
+const VALID_SO_STATUSES = ["draft", "confirmed", "processing", "partially_shipped", "shipped", "delivered", "returned", "cancelled", "closed"] as const;
 const SO_TRANSITIONS: Record<string, string[]> = {
   draft: ["confirmed", "cancelled"],
   confirmed: ["processing", "cancelled"],
   processing: ["partially_shipped", "shipped", "cancelled"],
   partially_shipped: ["shipped", "delivered"],
   shipped: ["delivered", "invoiced"],
-  delivered: ["invoiced"],
+  delivered: ["invoiced", "returned"],
 };
 
 export function useDeleteSalesOrder() {

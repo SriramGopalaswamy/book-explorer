@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye } from "lucide-react";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye, RotateCcw } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, useUpdateSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderItems } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
@@ -28,6 +28,7 @@ const statusColors: Record<string, string> = {
   delivered: "bg-green-500/20 text-green-400",
   invoiced: "bg-purple-500/20 text-purple-400",
   cancelled: "bg-destructive/20 text-destructive",
+  returned: "bg-orange-500/20 text-orange-400",
 };
 
 export default function SalesOrders() {
@@ -167,6 +168,11 @@ export default function SalesOrders() {
               {["delivered", "shipped"].includes(r.status) && (
                 <DropdownMenuItem onClick={() => convertToInvoice.mutate(r)}>
                   <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
+                </DropdownMenuItem>
+              )}
+              {r.status === "delivered" && (
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "returned" })}>
+                  <RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned
                 </DropdownMenuItem>
               )}
               {r.status === "draft" && (
