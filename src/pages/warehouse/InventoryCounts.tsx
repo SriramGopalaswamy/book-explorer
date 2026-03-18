@@ -361,29 +361,26 @@ export default function InventoryCounts() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {count.status === "approved" ? (
-                                  <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
-                                    <Eye className="h-4 w-4 mr-2" /> View Details
-                                  </DropdownMenuItem>
-                                ) : (
+                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Details
+                                </DropdownMenuItem>
+                                {count.status === "draft" && (
                                   <>
-                                    <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
-                                      <Eye className="h-4 w-4 mr-2" /> View Details
+                                    <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
+                                      <Pencil className="h-4 w-4 mr-2" /> Edit
                                     </DropdownMenuItem>
-                                    {count.status === "draft" && (
-                                      <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
-                                        <Pencil className="h-4 w-4 mr-2" /> Edit
-                                      </DropdownMenuItem>
-                                    )}
                                     <DropdownMenuItem onClick={() => setApproveCountId(count.id)}>
-                                      <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
+                                      <ShieldCheck className="h-4 w-4 mr-2" /> Approve
                                     </DropdownMenuItem>
-                                    {count.status === "draft" && (
-                                      <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
-                                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                      </DropdownMenuItem>
-                                    )}
+                                    <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
+                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                    </DropdownMenuItem>
                                   </>
+                                )}
+                                {count.status === "approved" && (
+                                  <DropdownMenuItem onClick={() => postCount.mutate(count.id)}>
+                                    <Send className="h-4 w-4 mr-2" /> Post Variances
+                                  </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
