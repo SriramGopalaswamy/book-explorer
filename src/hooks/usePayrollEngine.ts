@@ -231,16 +231,35 @@ export function useGeneratePayroll() {
       const periodStart = `${year}-${String(month).padStart(2, "0")}-${String(periodStartDay).padStart(2, "0")}`;
       const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(periodEndDay).padStart(2, "0")}`;
 
-      // Fetch company holidays for this period to exclude from working days
-      const { data: holidays } = await supabase
-        .from("holidays")
-        .select("date")
-        .eq("organization_id", orgId)
-        .gte("date", periodStart)
-        .lte("date", periodEnd);
+      // Fetch company holidays and org weekend policy for this period
+      const [holidaysRes, orgPolicyRes] = await Promise.all([
+        supabase
+          .from("holidays")
+          .select("date")
+          .eq("organization_id", orgId)
+          .gte("date", periodStart)
+          .lte("date", periodEnd),
+        supabase
+          .from("organizations")
+          .select("weekend_policy")
+          .eq("id", orgId)
+          .maybeSingle(),
+      ]);
 
-      const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
-      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix);
+      const weekendPolicy: string = (orgPolicyRes.data as any)?.weekend_policy || "sat_sun";
+
+      // Exclude holidays that fall on weekends (they don't reduce working days)
+      const holidayDates = new Set(
+        (holidaysRes.data ?? [])
+          .map((h: any) => h.date)
+          .filter((dateStr: string) => {
+            const dow = new Date(dateStr).getDay();
+            if (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) return false;
+            if (weekendPolicy === "sun_only" && dow === 0) return false;
+            return true;
+          })
+      );
+      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix, weekendPolicy);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
@@ -256,7 +275,17 @@ export function useGeneratePayroll() {
       (leaves ?? []).forEach((l: any) => {
         const start = new Date(Math.max(new Date(l.start_date).getTime(), new Date(periodStart).getTime()));
         const end = new Date(Math.min(new Date(l.end_date).getTime(), new Date(periodEnd).getTime()));
-        const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
+        // Count only working days (skip weekends based on policy)
+        let days = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          const dow = cur.getDay();
+          const isWeekend =
+            (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) ||
+            (weekendPolicy === "sun_only" && dow === 0);
+          if (!isWeekend) days++;
+          cur.setDate(cur.getDate() + 1);
+        }
         lwpMap.set(l.profile_id, (lwpMap.get(l.profile_id) || 0) + days);
       });
 
@@ -282,7 +311,14 @@ export function useGeneratePayroll() {
       (absences ?? []).forEach((a: any) => {
         const key = `${a.profile_id}:${a.attendance_date}`;
         if (!leaveProfileDates.has(key)) {
-          lwpMap.set(a.profile_id, (lwpMap.get(a.profile_id) || 0) + 1);
+          // Skip absences on weekends — they're not working days
+          const dow = new Date(a.attendance_date).getDay();
+          const isWeekend =
+            (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) ||
+            (weekendPolicy === "sun_only" && dow === 0);
+          if (!isWeekend) {
+            lwpMap.set(a.profile_id, (lwpMap.get(a.profile_id) || 0) + 1);
+          }
         }
       });
 
@@ -634,7 +670,7 @@ export function useUpdateEntryLWP() {
  * Calculate working days for a pay period.
  * Supports: "2026-03" (full month), "2026-03-H1" / "H2" (biweekly), "2026-03-W1..W4" (weekly)
  */
-function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string): number {
+function getWorkingDays(year: number, month: number, holidayDates?: Set<string>, periodSuffix?: string, weekendPolicy: string = "sat_sun"): number {
   const daysInMonth = new Date(year, month, 0).getDate();
 
   let startDay = 1;
@@ -654,7 +690,10 @@ function getWorkingDays(year: number, month: number, holidayDates?: Set<string>,
   for (let d = startDay; d <= endDay; d++) {
     const date = new Date(year, month - 1, d);
     const day = date.getDay();
-    if (day === 0 || day === 6) continue; // skip weekends
+    // Skip weekends based on org policy
+    if (weekendPolicy === "sat_sun" && (day === 0 || day === 6)) continue;
+    if (weekendPolicy === "sun_only" && day === 0) continue;
+    // 'none' = no weekends, all days are working days
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     if (holidayDates?.has(dateStr)) continue; // skip holidays
     working++;
