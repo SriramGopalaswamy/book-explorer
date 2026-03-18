@@ -238,6 +238,11 @@ export default function WorkOrders() {
       key: "id" as any, header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
+          {r.status === "draft" && (
+            <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+            </Button>
+          )}
           {(r.status === "in_progress" || r.status === "planned") && (
             <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
               <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
