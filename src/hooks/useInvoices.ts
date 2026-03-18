@@ -394,17 +394,6 @@ export function useUpdateInvoice() {
       if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
       if (!data.client_name?.trim()) throw new Error("Client name is required.");
 
-      // Fetch current version for optimistic locking (scope by org to satisfy RLS)
-      const { data: current, error: fetchErr } = await (supabase as any)
-        .from("invoices")
-        .select("version")
-        .eq("id", data.id)
-        .eq("organization_id", callerOrgId)
-        .single();
-      if (fetchErr) throw fetchErr;
-
-      const currentVersion = current?.version ?? null;
-      
       // Build update payload
       const updatePayload: Record<string, any> = {
         client_name: data.client_name,
@@ -422,24 +411,17 @@ export function useUpdateInvoice() {
         total_amount: data.total_amount || data.amount,
         notes: data.notes || null,
         customer_gstin: data.customer_gstin || null,
-        version: (currentVersion ?? 0) + 1,
       };
 
-      let query = (supabase as any)
+      const { data: updateResult, error: invoiceError } = await (supabase as any)
         .from("invoices")
         .update(updatePayload)
         .eq("id", data.id)
-        .eq("organization_id", callerOrgId);
-
-      // Only apply version check if version column has a value
-      if (currentVersion !== null && currentVersion !== undefined) {
-        query = query.eq("version", currentVersion);
-      }
-
-      const { data: updateResult, error: invoiceError } = await query.select();
+        .eq("organization_id", callerOrgId)
+        .select();
       if (invoiceError) throw invoiceError;
       if (!updateResult || updateResult.length === 0) {
-        throw new Error("This invoice was modified by another user. Please refresh and try again.");
+        throw new Error("Failed to update invoice. Please refresh and try again.");
       }
 
       // Delete old items and reinsert
