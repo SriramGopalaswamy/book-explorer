@@ -118,7 +118,27 @@ export function useEwayBills() {
       if (!orgId) return [] as EwayBill[];
       const { data, error } = await (supabase as any).from("eway_bills").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
-      return data as EwayBill[];
+      const bills = data as EwayBill[];
+
+      // Auto-expire bills whose valid_until has passed
+      const now = new Date();
+      const expiredBills = bills.filter(
+        (b) => b.valid_until && new Date(b.valid_until) < now && !["expired", "cancelled"].includes(b.status)
+      );
+      if (expiredBills.length > 0) {
+        const ids = expiredBills.map((b) => b.id);
+        await (supabase as any)
+          .from("eway_bills")
+          .update({ status: "expired" })
+          .in("id", ids)
+          .eq("organization_id", orgId);
+        // Update local data to reflect the change immediately
+        for (const b of bills) {
+          if (ids.includes(b.id)) b.status = "expired";
+        }
+      }
+
+      return bills;
     },
     enabled: !!user && !!orgId,
   });
