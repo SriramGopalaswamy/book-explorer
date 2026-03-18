@@ -294,10 +294,16 @@ export function useCreateBillFromGR() {
       }
 
       // Update GR status to "bill_created"
-      await supabase.from("goods_receipts" as any)
+      const { error: grUpdateError, data: grUpdateData } = await supabase.from("goods_receipts" as any)
         .update({ status: "bill_created" } as any)
         .eq("id", params.goods_receipt_id)
-        .eq("organization_id", callerOrgId);
+        .eq("organization_id", callerOrgId)
+        .select();
+      if (grUpdateError) {
+        console.error("Failed to update GR status to bill_created:", grUpdateError);
+      } else if (!grUpdateData || (grUpdateData as any[]).length === 0) {
+        console.error("GR status update matched 0 rows — org_id mismatch?", { gr_id: params.goods_receipt_id, org: callerOrgId });
+      }
 
       return bill;
     },
