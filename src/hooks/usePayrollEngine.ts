@@ -275,7 +275,17 @@ export function useGeneratePayroll() {
       (leaves ?? []).forEach((l: any) => {
         const start = new Date(Math.max(new Date(l.start_date).getTime(), new Date(periodStart).getTime()));
         const end = new Date(Math.min(new Date(l.end_date).getTime(), new Date(periodEnd).getTime()));
-        const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
+        // Count only working days (skip weekends based on policy)
+        let days = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          const dow = cur.getDay();
+          const isWeekend =
+            (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) ||
+            (weekendPolicy === "sun_only" && dow === 0);
+          if (!isWeekend) days++;
+          cur.setDate(cur.getDate() + 1);
+        }
         lwpMap.set(l.profile_id, (lwpMap.get(l.profile_id) || 0) + days);
       });
 
