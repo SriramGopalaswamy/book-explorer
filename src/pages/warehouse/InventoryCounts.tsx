@@ -69,7 +69,7 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
               <TableCell className="font-medium">{line.item_name}</TableCell>
               <TableCell className="text-right">{line.expected_qty}</TableCell>
               <TableCell className="text-right">
-                {countStatus !== "approved" ? (
+                {countStatus !== "posted" ? (
                   <Input
                     type="number"
                     className="w-24 text-right inline-block"
