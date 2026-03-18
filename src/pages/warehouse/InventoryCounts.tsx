@@ -82,7 +82,7 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
                   />
                 ) : countStatus === "posted" ? (
                   <span>{line.actual_qty ?? "—"}</span>
-                )}
+                ) : null}
               </TableCell>
               <TableCell className={`text-right font-semibold ${Number(line.variance ?? 0) < 0 ? "text-red-400" : Number(line.variance ?? 0) > 0 ? "text-green-400" : "text-muted-foreground"}`}>
                 {line.variance !== null && line.variance !== undefined ? (Number(line.variance) > 0 ? `+${line.variance}` : String(line.variance)) : "—"}
