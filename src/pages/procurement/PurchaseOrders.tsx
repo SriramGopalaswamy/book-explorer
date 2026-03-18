@@ -78,7 +78,7 @@ export default function PurchaseOrders() {
   const stats = {
     total: orders.length,
     draft: orders.filter((o) => o.status === "draft").length,
-    pending: orders.filter((o) => ["approved", "ordered", "submitted"].includes(o.status)).length,
+    pending: orders.filter((o) => ["submitted", "approved", "ordered", "partially_received"].includes(o.status)).length,
     received: orders.filter((o) => o.status === "received").length,
   };
 
