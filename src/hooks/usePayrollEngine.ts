@@ -311,7 +311,14 @@ export function useGeneratePayroll() {
       (absences ?? []).forEach((a: any) => {
         const key = `${a.profile_id}:${a.attendance_date}`;
         if (!leaveProfileDates.has(key)) {
-          lwpMap.set(a.profile_id, (lwpMap.get(a.profile_id) || 0) + 1);
+          // Skip absences on weekends — they're not working days
+          const dow = new Date(a.attendance_date).getDay();
+          const isWeekend =
+            (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) ||
+            (weekendPolicy === "sun_only" && dow === 0);
+          if (!isWeekend) {
+            lwpMap.set(a.profile_id, (lwpMap.get(a.profile_id) || 0) + 1);
+          }
         }
       });
 
