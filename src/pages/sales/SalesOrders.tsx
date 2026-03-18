@@ -169,6 +169,11 @@ export default function SalesOrders() {
                   <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
                 </DropdownMenuItem>
               )}
+              {r.status === "delivered" && (
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "returned" })}>
+                  <RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned
+                </DropdownMenuItem>
+              )}
               {r.status === "draft" && (
                 <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
                   Cancel Order
