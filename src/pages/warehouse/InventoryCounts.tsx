@@ -29,7 +29,8 @@ const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   in_progress: "bg-yellow-500/20 text-yellow-400",
   completed: "bg-blue-500/20 text-blue-400",
-  approved: "bg-green-500/20 text-green-400",
+  approved: "bg-blue-500/20 text-blue-400",
+  posted: "bg-green-500/20 text-green-400",
 };
 
 interface CountItemRow { item_id?: string; item_name: string; expected_qty: number }

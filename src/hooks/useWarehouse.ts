@@ -342,31 +342,59 @@ export function useApproveInventoryCount() {
     mutationFn: async (countId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Resolve caller org for tenant isolation
       const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       const callerOrgId = orgProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization not found");
 
-      // Fetch count + lines (org-scoped)
-      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
+      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
-      if ((count as any).status === "approved") throw new Error("Count already approved");
+      if ((count as any).status !== "draft") throw new Error("Only draft counts can be approved");
 
       // Maker-checker: prevent self-approval
       if ((count as any).created_by === user.id) {
         throw new Error("You cannot approve an inventory count you created. Another user must approve it.");
       }
 
+      // Verify all lines have actual quantities
       const { data: lines, error: lErr } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId);
       if (lErr) throw lErr;
-
       const unrecorded = (lines as any[]).filter((l) => l.actual_qty === null || l.actual_qty === undefined);
       if (unrecorded.length > 0) throw new Error(`${unrecorded.length} line(s) still have no actual count. Record all quantities before approving.`);
+
+      // Mark count as approved (no stock posting yet)
+      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
+      if (updErr) throw updErr;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory-counts"] });
+      qc.invalidateQueries({ queryKey: ["count-lines"] });
+      toast.success("Inventory count approved. You can now post variances.");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function usePostInventoryCount() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (countId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const callerOrgId = orgProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization not found");
+
+      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id").eq("id", countId).eq("organization_id", callerOrgId).single();
+      if (cErr) throw cErr;
+      if ((count as any).status !== "approved") throw new Error("Only approved counts can be posted");
+
+      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId);
+      if (lErr) throw lErr;
 
       // Post stock adjustment ledger entries for variances
       const variantLines = (lines as any[]).filter((l) => l.item_id && Number(l.variance || 0) !== 0);
       for (const line of variantLines) {
-        const qty = Math.abs(Number(line.variance));
         const signedQty = Number(line.variance);
         await supabase.from("stock_ledger" as any).insert({
           organization_id: callerOrgId,
@@ -385,8 +413,8 @@ export function useApproveInventoryCount() {
         } as any);
       }
 
-      // Mark count as approved
-      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
+      // Mark count as posted
+      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "posted" } as any).eq("id", countId).eq("organization_id", callerOrgId);
       if (updErr) throw updErr;
     },
     onSuccess: () => {
@@ -394,7 +422,7 @@ export function useApproveInventoryCount() {
       qc.invalidateQueries({ queryKey: ["count-lines"] });
       qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       qc.invalidateQueries({ queryKey: ["items"] });
-      toast.success("Inventory count approved and variances posted");
+      toast.success("Variances posted to stock ledger");
     },
     onError: (e: any) => toast.error(e.message),
   });
