@@ -231,16 +231,35 @@ export function useGeneratePayroll() {
       const periodStart = `${year}-${String(month).padStart(2, "0")}-${String(periodStartDay).padStart(2, "0")}`;
       const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(periodEndDay).padStart(2, "0")}`;
 
-      // Fetch company holidays for this period to exclude from working days
-      const { data: holidays } = await supabase
-        .from("holidays")
-        .select("date")
-        .eq("organization_id", orgId)
-        .gte("date", periodStart)
-        .lte("date", periodEnd);
+      // Fetch company holidays and org weekend policy for this period
+      const [holidaysRes, orgPolicyRes] = await Promise.all([
+        supabase
+          .from("holidays")
+          .select("date")
+          .eq("organization_id", orgId)
+          .gte("date", periodStart)
+          .lte("date", periodEnd),
+        supabase
+          .from("organizations")
+          .select("weekend_policy")
+          .eq("id", orgId)
+          .maybeSingle(),
+      ]);
 
-      const holidayDates = new Set((holidays ?? []).map((h: any) => h.date));
-      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix);
+      const weekendPolicy: string = (orgPolicyRes.data as any)?.weekend_policy || "sat_sun";
+
+      // Exclude holidays that fall on weekends (they don't reduce working days)
+      const holidayDates = new Set(
+        (holidaysRes.data ?? [])
+          .map((h: any) => h.date)
+          .filter((dateStr: string) => {
+            const dow = new Date(dateStr).getDay();
+            if (weekendPolicy === "sat_sun" && (dow === 0 || dow === 6)) return false;
+            if (weekendPolicy === "sun_only" && dow === 0) return false;
+            return true;
+          })
+      );
+      const workingDays = getWorkingDays(year, month, holidayDates, periodSuffix, weekendPolicy);
 
       // Source 1: Approved unpaid leaves
       const { data: leaves } = await supabase
