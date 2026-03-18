@@ -47,6 +47,9 @@ export default function SalesOrders() {
   const [editForm, setEditForm] = useState({ customer_name: "", order_date: "", expected_delivery: "", notes: "" });
   const [editItems, setEditItems] = useState<{ description: string; quantity: number; unit_price: number; tax_rate: number }[]>([]);
   const { data: editSOItems = [] } = useSalesOrderItems(editingSO?.id);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewingSO, setViewingSO] = useState<SalesOrder | null>(null);
+  const { data: viewSOItems = [] } = useSalesOrderItems(viewingSO?.id);
   // Fetch customers for dropdown
   const { data: customers = [] } = useQuery({
     queryKey: ["customers-so-list"],
