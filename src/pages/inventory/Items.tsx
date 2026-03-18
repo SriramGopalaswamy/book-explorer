@@ -55,7 +55,7 @@ export default function Items() {
 
   const totalItems = items?.length || 0;
   const lowStock = (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
-  const totalValue = (items || []).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.purchase_price || 0)), 0);
+  const totalValue = (items || []).filter((i: any) => i.is_active !== false).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.selling_price || 0)), 0);
 
   const handleCreate = () => {
     createItem.mutate({
