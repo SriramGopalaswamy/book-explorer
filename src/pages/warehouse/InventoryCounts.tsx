@@ -92,11 +92,11 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
           ))}
         </TableBody>
       </Table>
-      {countStatus !== "approved" && (
+      {countStatus === "draft" && (
         <div className="px-4 py-3 flex justify-end">
           <Button size="sm" variant="default" onClick={() => approve.mutate(countId)} disabled={approve.isPending}>
-            <CheckCircle className="h-4 w-4 mr-1" />
-            {approve.isPending ? "Approving…" : "Approve & Post Variances"}
+            <ShieldCheck className="h-4 w-4 mr-1" />
+            {approve.isPending ? "Approving…" : "Approve"}
           </Button>
         </div>
       )}
