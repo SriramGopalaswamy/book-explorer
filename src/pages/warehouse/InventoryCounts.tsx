@@ -11,11 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
+import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search, Send, ShieldCheck } from "lucide-react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
-  useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount,
+  useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount, usePostInventoryCount,
   InventoryCount,
 } from "@/hooks/useWarehouse";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +29,8 @@ const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   in_progress: "bg-yellow-500/20 text-yellow-400",
   completed: "bg-blue-500/20 text-blue-400",
-  approved: "bg-green-500/20 text-green-400",
+  approved: "bg-blue-500/20 text-blue-400",
+  posted: "bg-green-500/20 text-green-400",
 };
 
 interface CountItemRow { item_id?: string; item_name: string; expected_qty: number }
@@ -68,7 +69,7 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
               <TableCell className="font-medium">{line.item_name}</TableCell>
               <TableCell className="text-right">{line.expected_qty}</TableCell>
               <TableCell className="text-right">
-                {countStatus !== "approved" ? (
+                {countStatus !== "posted" ? (
                   <Input
                     type="number"
                     className="w-24 text-right inline-block"
@@ -79,9 +80,9 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
                     onKeyDown={(e) => { if (e.key === "Enter") handleSave(line.id); }}
                     min={0}
                   />
-                ) : (
+                ) : countStatus === "posted" ? (
                   <span>{line.actual_qty ?? "—"}</span>
-                )}
+                ) : null}
               </TableCell>
               <TableCell className={`text-right font-semibold ${Number(line.variance ?? 0) < 0 ? "text-red-400" : Number(line.variance ?? 0) > 0 ? "text-green-400" : "text-muted-foreground"}`}>
                 {line.variance !== null && line.variance !== undefined ? (Number(line.variance) > 0 ? `+${line.variance}` : String(line.variance)) : "—"}
@@ -91,11 +92,11 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
           ))}
         </TableBody>
       </Table>
-      {countStatus !== "approved" && (
+      {countStatus === "draft" && (
         <div className="px-4 py-3 flex justify-end">
           <Button size="sm" variant="default" onClick={() => approve.mutate(countId)} disabled={approve.isPending}>
-            <CheckCircle className="h-4 w-4 mr-1" />
-            {approve.isPending ? "Approving…" : "Approve & Post Variances"}
+            <ShieldCheck className="h-4 w-4 mr-1" />
+            {approve.isPending ? "Approving…" : "Approve"}
           </Button>
         </div>
       )}
@@ -103,14 +104,13 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
   );
 }
 
-// ─── Approve & Post Dialog ─────────────────────────
-function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+// ─── Approve Dialog ─────────────────────────
+function ApproveDialog({ countId, open, onOpenChange }: { countId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: lines = [], isLoading } = useCountLines(open ? countId : undefined);
   const updateLine = useUpdateCountLine();
   const approve = useApproveInventoryCount();
   const [actualQtys, setActualQtys] = useState<Record<string, string>>({});
 
-  // Initialize actual qtys from existing data when lines load
   React.useEffect(() => {
     if (lines.length > 0) {
       const initial: Record<string, string> = {};
@@ -124,7 +124,6 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
   }, [lines]);
 
   const handleConfirm = async () => {
-    // First save all actual quantities
     const updates = lines.map((line) => {
       const val = parseFloat(actualQtys[line.id] ?? "");
       if (isNaN(val)) return null;
@@ -133,7 +132,6 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
 
     try {
       await Promise.all(updates);
-      // Small delay to ensure DB has updated before approval checks
       await new Promise((r) => setTimeout(r, 300));
       await approve.mutateAsync(countId);
       onOpenChange(false);
@@ -150,7 +148,7 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Approve & Post — Enter Actual Quantities</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Approve — Enter Actual Quantities</DialogTitle></DialogHeader>
         {isLoading ? (
           <div className="py-6 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Loading items…</div>
         ) : lines.length === 0 ? (
@@ -194,7 +192,7 @@ function ApprovePostDialog({ countId, open, onOpenChange }: { countId: string; o
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleConfirm} disabled={!allFilled || approve.isPending || updateLine.isPending}>
-            <CheckCircle className="h-4 w-4 mr-1" />
+            <ShieldCheck className="h-4 w-4 mr-1" />
             {approve.isPending ? "Approving…" : "Confirm & Approve"}
           </Button>
         </DialogFooter>
@@ -227,6 +225,7 @@ export default function InventoryCounts() {
   const pagination = usePagination(filteredCounts, 10);
 
   const approve = useApproveInventoryCount();
+  const postCount = usePostInventoryCount();
   const deleteCountMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
@@ -243,8 +242,8 @@ export default function InventoryCounts() {
   const stats = {
     total: counts.length,
     draft: counts.filter((c) => c.status === "draft").length,
-    in_progress: counts.filter((c) => c.status === "in_progress").length,
     approved: counts.filter((c) => c.status === "approved").length,
+    posted: counts.filter((c) => c.status === "posted").length,
   };
 
   const toggleExpand = (id: string) =>
@@ -308,8 +307,8 @@ export default function InventoryCounts() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ClipboardCheck className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Clock className="h-8 w-8 text-muted-foreground" /><div><p className="text-2xl font-bold text-foreground">{stats.draft}</p><p className="text-xs text-muted-foreground">Draft</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><PlayCircle className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.in_progress}</p><p className="text-xs text-muted-foreground">In Progress</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.approved}</p><p className="text-xs text-muted-foreground">Approved</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.approved}</p><p className="text-xs text-muted-foreground">Approved</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.posted}</p><p className="text-xs text-muted-foreground">Posted</p></div></div></CardContent></Card>
         </div>
 
         <div className="flex items-center gap-3">
@@ -319,9 +318,8 @@ export default function InventoryCounts() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="posted">Posted</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -363,29 +361,26 @@ export default function InventoryCounts() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {count.status === "approved" ? (
-                                  <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
-                                    <Eye className="h-4 w-4 mr-2" /> View Details
-                                  </DropdownMenuItem>
-                                ) : (
+                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                  <Eye className="h-4 w-4 mr-2" /> View Details
+                                </DropdownMenuItem>
+                                {count.status === "draft" && (
                                   <>
-                                    <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
-                                      <Eye className="h-4 w-4 mr-2" /> View Details
+                                    <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
+                                      <Pencil className="h-4 w-4 mr-2" /> Edit
                                     </DropdownMenuItem>
-                                    {count.status === "draft" && (
-                                      <DropdownMenuItem onClick={() => { setEditingCount(count); setWarehouseId(count.warehouse_id); setCountDate(count.count_date); setNotes(count.notes || ""); setDialogOpen(true); }}>
-                                        <Pencil className="h-4 w-4 mr-2" /> Edit
-                                      </DropdownMenuItem>
-                                    )}
                                     <DropdownMenuItem onClick={() => setApproveCountId(count.id)}>
-                                      <CheckCircle className="h-4 w-4 mr-2" /> Approve & Post
+                                      <ShieldCheck className="h-4 w-4 mr-2" /> Approve
                                     </DropdownMenuItem>
-                                    {count.status === "draft" && (
-                                      <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
-                                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                      </DropdownMenuItem>
-                                    )}
+                                    <DropdownMenuItem className="text-destructive" onClick={() => deleteCount(count.id)}>
+                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                    </DropdownMenuItem>
                                   </>
+                                )}
+                                {count.status === "approved" && (
+                                  <DropdownMenuItem onClick={() => postCount.mutate(count.id)}>
+                                    <Send className="h-4 w-4 mr-2" /> Post Variances
+                                  </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -402,9 +397,9 @@ export default function InventoryCounts() {
         </div>
         <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
-        {/* Approve & Post Dialog */}
+        {/* Approve Dialog */}
         {approveCountId && (
-          <ApprovePostDialog countId={approveCountId} open={!!approveCountId} onOpenChange={(v) => { if (!v) setApproveCountId(null); }} />
+          <ApproveDialog countId={approveCountId} open={!!approveCountId} onOpenChange={(v) => { if (!v) setApproveCountId(null); }} />
         )}
 
         {/* New Count Dialog */}
