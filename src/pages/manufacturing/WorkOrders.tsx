@@ -109,6 +109,32 @@ export default function WorkOrders() {
   const [fgWO, setFgWO] = useState<WorkOrder | null>(null);
   const [fgForm, setFgForm] = useState({ cost_per_unit: "", notes: "" });
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
+  const [editForm, setEditForm] = useState({ product_name: "", planned_quantity: 1, priority: "normal", planned_start: "", planned_end: "", notes: "", bom_id: "" });
+
+  const openEditWO = (wo: WorkOrder) => {
+    setEditingWO(wo);
+    setEditForm({
+      product_name: wo.product_name,
+      planned_quantity: wo.planned_quantity,
+      priority: wo.priority,
+      planned_start: wo.planned_start ? wo.planned_start.split("T")[0] : "",
+      planned_end: wo.planned_end ? wo.planned_end.split("T")[0] : "",
+      notes: wo.notes || "",
+      bom_id: wo.bom_id || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = () => {
+    if (!editingWO) return;
+    updateWO.mutate(
+      { id: editingWO.id, ...editForm, planned_quantity: Number(editForm.planned_quantity), bom_id: editForm.bom_id || undefined },
+      { onSuccess: () => { setEditDialogOpen(false); setEditingWO(null); } }
+    );
+  };
+
   const filtered = orders.filter((o) => {
     const matchSearch = o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
       o.product_name.toLowerCase().includes(search.toLowerCase());
