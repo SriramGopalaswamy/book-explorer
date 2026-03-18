@@ -272,7 +272,6 @@ export default function EInvoices() {
     import("html2pdf.js").then((html2pdfModule) => {
       const html2pdf = html2pdfModule.default;
       const container = document.createElement("div");
-      const container = document.createElement("div");
       container.style.position = "absolute";
       container.style.left = "-9999px";
       container.style.top = "-9999px";
