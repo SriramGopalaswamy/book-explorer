@@ -276,6 +276,42 @@ export function useCreateWorkOrder() {
   });
 }
 
+export function useUpdateWorkOrder() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (wo: { id: string; product_name: string; bom_id?: string; planned_quantity: number; priority: string; planned_start?: string; planned_end?: string; notes?: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      if (!wo.product_name?.trim()) throw new Error("Product name is required");
+      if (wo.planned_quantity <= 0) throw new Error("Planned quantity must be greater than zero.");
+
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found");
+
+      const { data: current } = await supabase.from("work_orders" as any).select("status").eq("id", wo.id).eq("organization_id", profile.organization_id).maybeSingle();
+      if ((current as any)?.status !== "draft") throw new Error("Only draft work orders can be edited");
+
+      const { error } = await supabase
+        .from("work_orders" as any)
+        .update({
+          product_name: wo.product_name,
+          bom_id: wo.bom_id || null,
+          planned_quantity: wo.planned_quantity,
+          priority: wo.priority,
+          planned_start: wo.planned_start || null,
+          planned_end: wo.planned_end || null,
+          notes: wo.notes || null,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", wo.id)
+        .eq("organization_id", profile.organization_id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders"] }); toast.success("Work order updated"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 const VALID_WO_STATUSES = ["draft", "planned", "in_progress", "completed", "cancelled", "on_hold"] as const;
 const WO_TRANSITIONS: Record<string, string[]> = {
   draft: ["planned", "cancelled"],
