@@ -80,7 +80,7 @@ function CountLinesPanel({ countId, countStatus }: { countId: string; countStatu
                     onKeyDown={(e) => { if (e.key === "Enter") handleSave(line.id); }}
                     min={0}
                   />
-                ) : (
+                ) : countStatus === "posted" ? (
                   <span>{line.actual_qty ?? "—"}</span>
                 )}
               </TableCell>
