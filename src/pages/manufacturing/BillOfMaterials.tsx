@@ -35,7 +35,7 @@ function BOMDetailDialog({ bom, open, onClose }: { bom: BOM; open: boolean; onCl
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><span className="text-muted-foreground">Product:</span> <span className="font-medium text-foreground">{bom.product_name}</span></div>
-            <div><span className="text-muted-foreground">Version:</span> <span className="font-medium text-foreground">v{bom.version}</span></div>
+            
             <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[bom.status] || ""}>{bom.status}</Badge></div>
             <div><span className="text-muted-foreground">Created:</span> <span className="text-foreground">{format(new Date(bom.created_at), "dd MMM yyyy")}</span></div>
           </div>
