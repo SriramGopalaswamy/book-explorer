@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS set_exchange_rates_org ON public.exchange_rates;
