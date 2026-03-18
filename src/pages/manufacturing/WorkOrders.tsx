@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck } from "lucide-react";
+import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil } from "lucide-react";
 import {
-  useWorkOrders, useCreateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
+  useWorkOrders, useCreateWorkOrder, useUpdateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
   useBOMs, useBOMCostRollup, WorkOrder,
 } from "@/hooks/useManufacturing";
 import { format } from "date-fns";
@@ -80,6 +80,7 @@ export default function WorkOrders() {
   const { data: orders = [], isLoading } = useWorkOrders();
   const { data: boms = [] } = useBOMs();
   const createWO = useCreateWorkOrder();
+  const updateWO = useUpdateWorkOrder();
   const updateStatus = useUpdateWOStatus();
   const recordProduction = useRecordProduction();
   const postFinishedGoods = usePostFinishedGoods();
@@ -107,6 +108,32 @@ export default function WorkOrders() {
   const [fgDialogOpen, setFgDialogOpen] = useState(false);
   const [fgWO, setFgWO] = useState<WorkOrder | null>(null);
   const [fgForm, setFgForm] = useState({ cost_per_unit: "", notes: "" });
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
+  const [editForm, setEditForm] = useState({ product_name: "", planned_quantity: 1, priority: "normal", planned_start: "", planned_end: "", notes: "", bom_id: "" });
+
+  const openEditWO = (wo: WorkOrder) => {
+    setEditingWO(wo);
+    setEditForm({
+      product_name: wo.product_name,
+      planned_quantity: wo.planned_quantity,
+      priority: wo.priority,
+      planned_start: wo.planned_start ? wo.planned_start.split("T")[0] : "",
+      planned_end: wo.planned_end ? wo.planned_end.split("T")[0] : "",
+      notes: wo.notes || "",
+      bom_id: wo.bom_id || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = () => {
+    if (!editingWO) return;
+    updateWO.mutate(
+      { id: editingWO.id, ...editForm, planned_quantity: Number(editForm.planned_quantity), bom_id: editForm.bom_id || undefined },
+      { onSuccess: () => { setEditDialogOpen(false); setEditingWO(null); } }
+    );
+  };
 
   const filtered = orders.filter((o) => {
     const matchSearch = o.wo_number.toLowerCase().includes(search.toLowerCase()) ||
@@ -211,6 +238,11 @@ export default function WorkOrders() {
       key: "id" as any, header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
+          {r.status === "draft" && (
+            <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+            </Button>
+          )}
           {(r.status === "in_progress" || r.status === "planned") && (
             <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
               <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
@@ -371,6 +403,46 @@ export default function WorkOrders() {
                 {postFinishedGoods.isPending ? "Posting…" : "Post to Inventory"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Draft WO Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(v) => { if (!v) { setEditDialogOpen(false); setEditingWO(null); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Work Order — {editingWO?.wo_number}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Product Name *</Label><Input value={editForm.product_name} onChange={(e) => setEditForm({ ...editForm, product_name: e.target.value })} /></div>
+            <div>
+              <Label>Bill of Materials (optional)</Label>
+              <Select value={editForm.bom_id || "none"} onValueChange={(v) => setEditForm({ ...editForm, bom_id: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Select BOM…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  {boms.map((b) => <SelectItem key={b.id} value={b.id}>{b.product_name} ({b.bom_code})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {editForm.bom_id && <BOMPreview bomId={editForm.bom_id} />}
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Planned Quantity</Label><Input type="number" value={editForm.planned_quantity} onChange={(e) => setEditForm({ ...editForm, planned_quantity: Number(e.target.value) })} /></div>
+              <div>
+                <Label>Priority</Label>
+                <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Planned Start</Label><Input type="date" value={editForm.planned_start} onChange={(e) => setEditForm({ ...editForm, planned_start: e.target.value })} /></div>
+              <div><Label>Planned End</Label><Input type="date" value={editForm.planned_end} onChange={(e) => setEditForm({ ...editForm, planned_end: e.target.value })} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+            <Button onClick={handleEditSave} disabled={updateWO.isPending} className="w-full">{updateWO.isPending ? "Saving…" : "Save Changes"}</Button>
           </div>
         </DialogContent>
       </Dialog>
