@@ -279,7 +279,7 @@ export default function EInvoices() {
       container.style.overflow = "hidden";
       container.style.zIndex = "-9999";
       container.style.pointerEvents = "none";
-      container.style.visibility = "hidden";
+      container.style.visibility = "visible";
       container.innerHTML = html;
       document.body.appendChild(container);
       html2pdf()
