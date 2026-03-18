@@ -242,8 +242,8 @@ export default function InventoryCounts() {
   const stats = {
     total: counts.length,
     draft: counts.filter((c) => c.status === "draft").length,
-    in_progress: counts.filter((c) => c.status === "in_progress").length,
     approved: counts.filter((c) => c.status === "approved").length,
+    posted: counts.filter((c) => c.status === "posted").length,
   };
 
   const toggleExpand = (id: string) =>
