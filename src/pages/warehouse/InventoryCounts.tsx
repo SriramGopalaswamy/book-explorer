@@ -397,9 +397,9 @@ export default function InventoryCounts() {
         </div>
         <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
 
-        {/* Approve & Post Dialog */}
+        {/* Approve Dialog */}
         {approveCountId && (
-          <ApprovePostDialog countId={approveCountId} open={!!approveCountId} onOpenChange={(v) => { if (!v) setApproveCountId(null); }} />
+          <ApproveDialog countId={approveCountId} open={!!approveCountId} onOpenChange={(v) => { if (!v) setApproveCountId(null); }} />
         )}
 
         {/* New Count Dialog */}
