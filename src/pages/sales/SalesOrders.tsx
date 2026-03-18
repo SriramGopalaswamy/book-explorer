@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil } from "lucide-react";
+import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, useUpdateSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderItems } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
