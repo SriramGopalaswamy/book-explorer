@@ -145,6 +145,11 @@ export default function SalesOrders() {
               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
             </Button>
           )}
+          {r.status !== "draft" && (
+            <Button variant="outline" size="sm" onClick={() => { setViewingSO(r); setViewDialogOpen(true); }}>
+              <Eye className="h-3.5 w-3.5 mr-1" /> View
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
