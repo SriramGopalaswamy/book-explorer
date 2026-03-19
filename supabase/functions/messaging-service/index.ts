@@ -144,7 +144,7 @@ async function sendViaMeta(
   }
 
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
-  const recipient = phone.replace("+", "");
+  const recipient = phone.replace(/\+/g, "");
 
   let body: any;
 
@@ -262,22 +262,29 @@ async function sendViaTwilio(
   }
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
+    return await withRetry(async () => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.warn(`[messaging-service] Twilio API error ${res.status}:`, data);
+        if (res.status >= 500 || res.status === 429) {
+          const err: any = new Error(`Twilio ${res.status}`);
+          err.status = res.status;
+          throw err;
+        }
+        return { sent: false, externalId: null, error: `Twilio ${res.status}: ${data.message || ""}` };
+      }
+
+      return { sent: true, externalId: data.sid || null, error: null };
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      console.warn(`[messaging-service] Twilio API error ${res.status}:`, data);
-      return { sent: false, externalId: null, error: `Twilio ${res.status}: ${data.message || ""}` };
-    }
-
-    return { sent: true, externalId: data.sid || null, error: null };
   } catch (err: any) {
     console.warn("[messaging-service] Twilio API exception:", err);
     return { sent: false, externalId: null, error: err.message };
@@ -302,7 +309,7 @@ async function sendViaGupshup(
   }
 
   const url = "https://api.gupshup.io/wa/api/v1/msg";
-  const destination = phone.replace("+", "");
+  const destination = phone.replace(/\+/g, "");
 
   let messagePayload: any;
 
@@ -335,22 +342,29 @@ async function sendViaGupshup(
   params.append("message", JSON.stringify(messagePayload));
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        apikey: apiKey,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
+    return await withRetry(async () => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          apikey: apiKey,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.status === "error") {
+        console.warn(`[messaging-service] Gupshup API error:`, data);
+        if (res.status >= 500 || res.status === 429) {
+          const err: any = new Error(`Gupshup ${res.status}`);
+          err.status = res.status;
+          throw err;
+        }
+        return { sent: false, externalId: null, error: `Gupshup: ${data.message || "unknown error"}` };
+      }
+
+      return { sent: true, externalId: data.messageId || null, error: null };
     });
-
-    const data = await res.json();
-    if (!res.ok || data.status === "error") {
-      console.warn(`[messaging-service] Gupshup API error:`, data);
-      return { sent: false, externalId: null, error: `Gupshup: ${data.message || "unknown error"}` };
-    }
-
-    return { sent: true, externalId: data.messageId || null, error: null };
   } catch (err: any) {
     console.warn("[messaging-service] Gupshup API exception:", err);
     return { sent: false, externalId: null, error: err.message };
@@ -478,7 +492,7 @@ Deno.serve(async (req) => {
       status = "failed";
       whatsappError = `Invalid phone number: ${to}`;
     } else {
-      const result = await sendWhatsAppMessage(to, content || "", templateConfig, variables || null);
+      const result = await sendWhatsAppMessage(normalizedTo, content || "", templateConfig, variables || null);
       status = result.sent ? "sent" : "failed";
       externalId = result.externalId;
       whatsappError = result.error;
@@ -512,10 +526,12 @@ Deno.serve(async (req) => {
       external_id: externalId || null,
       thread_id: thread_id || null,
       organization_id,
-      metadata: {
-        ...(variables ? { variables } : {}),
-        ...(whatsappError ? { error: whatsappError } : {}),
-      },
+      metadata: (variables || whatsappError)
+        ? {
+            ...(variables ? { variables } : {}),
+            ...(whatsappError ? { error: whatsappError } : {}),
+          }
+        : null,
     })
     .select("id")
     .single();

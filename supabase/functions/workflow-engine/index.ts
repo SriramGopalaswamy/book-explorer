@@ -154,12 +154,20 @@ async function evaluateCondition(
       return String(actualValue) !== String(value);
     case ">":
       if (field === "last_message.created_at") {
-        return new Date(actualValue).getTime() > new Date(value).getTime();
+        if (!actualValue || !value) return false;
+        const aTime = new Date(actualValue).getTime();
+        const vTime = new Date(value).getTime();
+        if (isNaN(aTime) || isNaN(vTime)) return false;
+        return aTime > vTime;
       }
       return Number(actualValue) > Number(value);
     case "<":
       if (field === "last_message.created_at") {
-        return new Date(actualValue).getTime() < new Date(value).getTime();
+        if (!actualValue || !value) return false;
+        const aTime2 = new Date(actualValue).getTime();
+        const vTime2 = new Date(value).getTime();
+        if (isNaN(aTime2) || isNaN(vTime2)) return false;
+        return aTime2 < vTime2;
       }
       return Number(actualValue) < Number(value);
     default:
@@ -399,13 +407,26 @@ Deno.serve(async (req) => {
   const errorList: string[] = [];
 
   try {
+    // Use an atomic claim pattern to prevent duplicate processing by concurrent
+    // cron invocations: update next_run_at to a future time before processing,
+    // then set the real next_run_at after step execution.
+    const claimUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min claim window
+
     const { data: runs, error: fetchErr } = await supabase
-      .from("workflow_runs")
-      .select("*")
-      .eq("status", "running")
-      .lte("next_run_at", now)
-      .order("next_run_at", { ascending: true })
-      .limit(50);
+      .rpc("claim_workflow_runs", { p_now: now, p_claim_until: claimUntil, p_limit: 50 })
+      .then((result: any) => {
+        // Fallback to direct query if RPC doesn't exist yet
+        if (result.error?.code === "42883") {
+          return supabase
+            .from("workflow_runs")
+            .select("*")
+            .eq("status", "running")
+            .lte("next_run_at", now)
+            .order("next_run_at", { ascending: true })
+            .limit(50);
+        }
+        return result;
+      });
 
     if (fetchErr) throw fetchErr;
 

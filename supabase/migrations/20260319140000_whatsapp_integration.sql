@@ -49,10 +49,7 @@ CREATE TRIGGER trg_whatsapp_templates_updated_at
   BEFORE UPDATE ON public.whatsapp_templates
   FOR EACH ROW EXECUTE FUNCTION public.set_whatsapp_templates_updated_at();
 
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_whatsapp_templates_org_name
-  ON whatsapp_templates (organization_id, name);
-
+-- Indexes (UNIQUE constraint on org+name already creates an index, so only add the active filter)
 CREATE INDEX IF NOT EXISTS idx_whatsapp_templates_org_active
   ON whatsapp_templates (organization_id, is_active)
   WHERE is_active = true;
@@ -86,7 +83,40 @@ CREATE INDEX IF NOT EXISTS idx_invoices_client_phone
   ON invoices (client_phone)
   WHERE client_phone IS NOT NULL;
 
--- ── 4. Seed default WhatsApp templates for existing organizations ────────────
+-- ── 4. Atomic claim function for workflow_runs (prevents duplicate processing)
+-- Used by workflow-engine to atomically claim runs before processing them.
+-- Returns claimed rows while setting next_run_at to a future claim window,
+-- preventing concurrent cron invocations from picking up the same runs.
+
+CREATE OR REPLACE FUNCTION claim_workflow_runs(
+  p_now        TIMESTAMPTZ,
+  p_claim_until TIMESTAMPTZ,
+  p_limit      INT DEFAULT 50
+)
+RETURNS SETOF workflow_runs
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE workflow_runs
+  SET next_run_at = p_claim_until,
+      updated_at = NOW()
+  WHERE id IN (
+    SELECT id FROM workflow_runs
+    WHERE status = 'running'
+      AND next_run_at <= p_now
+    ORDER BY next_run_at ASC
+    LIMIT p_limit
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING *;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION claim_workflow_runs(TIMESTAMPTZ, TIMESTAMPTZ, INT) TO service_role;
+
+-- ── 5. Seed default WhatsApp templates for existing organizations ────────────
 DO $$
 DECLARE
   org RECORD;
