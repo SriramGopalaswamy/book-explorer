@@ -33,7 +33,7 @@ const statusColors: Record<string, string> = {
   posted: "bg-green-500/20 text-green-400",
 };
 
-interface CountItemRow { item_id?: string; item_name: string; expected_qty: number }
+interface CountItemRow { item_id?: string; item_name: string; expected_qty: number; bin_id?: string }
 
 function CountLinesPanel({ countId, countStatus }: { countId: string; countStatus: string }) {
   const { data: lines = [], isLoading } = useCountLines(countId);
