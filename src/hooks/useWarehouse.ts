@@ -461,7 +461,7 @@ export function useGeneratePickingList() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (params: { warehouse_id: string; sales_order_id?: string; notes?: string; items: { item_id?: string; item_name: string; quantity: number; bin_location?: string }[] }) => {
+    mutationFn: async (params: { warehouse_id: string; sales_order_id?: string; notes?: string; items: { item_id?: string; item_name: string; quantity: number; bin_id?: string; bin_location?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.warehouse_id) throw new Error("Warehouse is required");
       if (!params.items || params.items.length === 0) throw new Error("At least one item is required");
