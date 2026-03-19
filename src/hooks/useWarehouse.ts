@@ -279,7 +279,7 @@ export function useCreateInventoryCount() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (params: { warehouse_id: string; count_date: string; notes?: string; items: { item_id?: string; item_name: string; expected_qty: number }[] }) => {
+    mutationFn: async (params: { warehouse_id: string; count_date: string; notes?: string; items: { item_id?: string; item_name: string; expected_qty: number; bin_id?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.warehouse_id) throw new Error("Warehouse is required");
       if (!params.count_date) throw new Error("Count date is required");
