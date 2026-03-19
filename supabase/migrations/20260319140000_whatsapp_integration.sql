@@ -115,5 +115,28 @@ BEGIN
       'en'
     )
     ON CONFLICT (organization_id, name) DO NOTHING;
+
+    -- Aliases: reminder_1 / reminder_2 (so email template names work for WhatsApp too)
+    INSERT INTO whatsapp_templates (organization_id, name, template_name, variables, category, language)
+    VALUES (
+      org.id,
+      'reminder_1',
+      'invoice_payment_reminder',
+      '{"1": "client_name", "2": "invoice_number", "3": "amount", "4": "due_date"}'::jsonb,
+      'UTILITY',
+      'en'
+    )
+    ON CONFLICT (organization_id, name) DO NOTHING;
+
+    INSERT INTO whatsapp_templates (organization_id, name, template_name, variables, category, language)
+    VALUES (
+      org.id,
+      'reminder_2',
+      'invoice_final_reminder',
+      '{"1": "client_name", "2": "invoice_number", "3": "amount", "4": "due_date"}'::jsonb,
+      'UTILITY',
+      'en'
+    )
+    ON CONFLICT (organization_id, name) DO NOTHING;
   END LOOP;
 END $$;

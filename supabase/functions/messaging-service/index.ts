@@ -78,6 +78,34 @@ function normalizePhoneE164(phone: string): string {
   return `+${digits}`;
 }
 
+function isValidE164(phone: string): boolean {
+  // E.164: + followed by 7-15 digits
+  return /^\+[1-9]\d{6,14}$/.test(phone);
+}
+
+// ─── Retry helper with exponential backoff ───────────────────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      // Only retry on network/transient errors, not 4xx client errors
+      const isRetryable = !err.status || err.status >= 500 || err.status === 429;
+      if (!isRetryable || attempt === maxRetries) throw err;
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
 async function sendWhatsAppMessage(
   to: string,
   content: string,
@@ -157,24 +185,32 @@ async function sendViaMeta(
   }
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+    return await withRetry(async () => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`[messaging-service] Meta WhatsApp API error ${res.status}:`, errText);
+        // Throw on 5xx/429 so retry kicks in; return failure on 4xx
+        if (res.status >= 500 || res.status === 429) {
+          const err: any = new Error(`Meta API ${res.status}`);
+          err.status = res.status;
+          throw err;
+        }
+        return { sent: false, externalId: null, error: `Meta API ${res.status}: ${errText.slice(0, 200)}` };
+      }
+
+      const data = await res.json();
+      const messageId = data?.messages?.[0]?.id || null;
+      return { sent: true, externalId: messageId, error: null };
     });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.warn(`[messaging-service] Meta WhatsApp API error ${res.status}:`, errText);
-      return { sent: false, externalId: null, error: `Meta API ${res.status}: ${errText.slice(0, 200)}` };
-    }
-
-    const data = await res.json();
-    const messageId = data?.messages?.[0]?.id || null;
-    return { sent: true, externalId: messageId, error: null };
   } catch (err: any) {
     console.warn("[messaging-service] Meta WhatsApp API exception:", err);
     return { sent: false, externalId: null, error: err.message };
@@ -387,6 +423,7 @@ Deno.serve(async (req) => {
 
   let status: "sent" | "failed" | "pending" = "pending";
   let externalId: string | null = null;
+  let whatsappError: string | null = null;
 
   // ── Route by channel ──────────────────────────────────────────────────────────
 
@@ -434,12 +471,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result = await sendWhatsAppMessage(to, content || "", templateConfig, variables || null);
-    status = result.sent ? "sent" : "failed";
-    externalId = result.externalId;
+    // Validate phone number before attempting send
+    const normalizedTo = normalizePhoneE164(to);
+    if (!isValidE164(normalizedTo)) {
+      console.warn(`[messaging-service] Invalid phone number: ${to} → ${normalizedTo}`);
+      status = "failed";
+      whatsappError = `Invalid phone number: ${to}`;
+    } else {
+      const result = await sendWhatsAppMessage(to, content || "", templateConfig, variables || null);
+      status = result.sent ? "sent" : "failed";
+      externalId = result.externalId;
+      whatsappError = result.error;
 
-    if (!result.sent) {
-      console.warn("[messaging-service] WhatsApp send failed:", result.error);
+      if (!result.sent) {
+        console.warn("[messaging-service] WhatsApp send failed:", result.error);
+      }
     }
 
   } else {
@@ -466,7 +512,10 @@ Deno.serve(async (req) => {
       external_id: externalId || null,
       thread_id: thread_id || null,
       organization_id,
-      metadata: variables ? { variables } : null,
+      metadata: {
+        ...(variables ? { variables } : {}),
+        ...(whatsappError ? { error: whatsappError } : {}),
+      },
     })
     .select("id")
     .single();

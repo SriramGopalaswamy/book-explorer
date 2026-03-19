@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       // Find the message by external_id
       const { data: message } = await supabase
         .from("messages")
-        .select("id, status, entity_type, entity_id, organization_id")
+        .select("id, status, entity_type, entity_id, organization_id, metadata")
         .eq("external_id", su.externalId)
         .eq("channel", "whatsapp")
         .maybeSingle();
@@ -198,25 +198,29 @@ Deno.serve(async (req) => {
 
       updated++;
 
-      // Fire workflow event for failed deliveries (so workflows can react)
-      if (su.status === "failed" && message.organization_id) {
+      // Fire workflow events for status changes (so workflows can react)
+      if (message.organization_id && ["delivered", "read", "failed"].includes(su.status)) {
+        const eventType = su.status === "failed"
+          ? "message_delivery_failed"
+          : `message_${su.status}`;
+
         try {
           await supabase.functions.invoke("workflow-event", {
             body: {
-              event_type: "message_delivery_failed",
+              event_type: eventType,
               entity_type: message.entity_type,
               entity_id: message.entity_id,
               organization_id: message.organization_id,
               payload: {
                 channel: "whatsapp",
                 message_id: message.id,
-                error_code: su.errorCode,
-                error_message: su.errorMessage,
+                new_status: su.status,
+                ...(su.errorCode ? { error_code: su.errorCode, error_message: su.errorMessage } : {}),
               },
             },
           });
         } catch (err) {
-          console.warn("[whatsapp-status] Failed to fire delivery_failed event:", err);
+          console.warn(`[whatsapp-status] Failed to fire ${eventType} event:`, err);
         }
       }
     } catch (err: any) {

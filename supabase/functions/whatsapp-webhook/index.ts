@@ -119,6 +119,81 @@ function parseMetaFormat(body: any): { from: string; content: string; messageId:
   }
 }
 
+// ─── Inline fallback classifier (when message-processor is unavailable) ──────
+
+async function classifyInlineFallback(
+  supabase: any,
+  messageContent: string,
+  invoiceId: string,
+  invoiceStatus: string,
+  messageId: string | null
+): Promise<{ classification: "acknowledged" | "dispute" | "other"; reason: string }> {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    return { classification: "other", reason: "API key not configured" };
+  }
+
+  const prompt = `You are an invoice message classifier. A WhatsApp message regarding an invoice has been received.
+
+Classify the message as exactly one of:
+- "acknowledged": Client confirms receipt, acceptance, or acknowledgement of the invoice (e.g. "received", "noted", "we acknowledge", "thank you", "will process", "approved", "ok", "done")
+- "dispute": Client disputes the amount, items, dates, or raises concerns (e.g. "incorrect", "wrong amount", "we disagree", "dispute", "not what we ordered")
+- "other": Payment confirmation, general question, or anything else
+
+Body: ${messageContent.slice(0, 2000)}
+
+Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"dispute"|"other", "reason": "one sentence reason"}`;
+
+  let classification: "acknowledged" | "dispute" | "other" = "other";
+  let reason = "Classification failed";
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 128, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const text = data?.content?.[0]?.text ?? "";
+      const parsed = JSON.parse(text.trim());
+      const allowed = ["acknowledged", "dispute", "other"] as const;
+      if (allowed.includes(parsed.classification)) {
+        classification = parsed.classification;
+        reason = parsed.reason ?? "";
+      }
+    }
+  } catch {
+    // classification remains "other"
+  }
+
+  // Update messages.classification since message-processor didn't run
+  if (messageId) {
+    await supabase
+      .from("messages")
+      .update({ classification })
+      .eq("id", messageId)
+      .catch(() => {});
+  }
+
+  // Update invoice status for acknowledged/dispute
+  if (classification === "acknowledged" && invoiceStatus === "sent") {
+    await supabase
+      .from("invoices")
+      .update({ status: "acknowledged", updated_at: new Date().toISOString() })
+      .eq("id", invoiceId)
+      .catch(() => {});
+  } else if (classification === "dispute" && invoiceStatus === "sent") {
+    await supabase
+      .from("invoices")
+      .update({ status: "dispute", updated_at: new Date().toISOString() })
+      .eq("id", invoiceId)
+      .catch(() => {});
+  }
+
+  return { classification, reason };
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -238,10 +313,14 @@ Deno.serve(async (req) => {
   }
 
   if (!invoice) {
-    // Store as unmatched message for manual review
+    // Store as unmatched message for manual review.
+    // Use entity_type="unmatched" to distinguish from mapped messages.
+    // entity_id uses a deterministic UUID derived from the phone number so
+    // unmatched messages from the same sender are grouped together.
+    const unmatchedEntityId = "00000000-0000-0000-0000-000000000001"; // reserved sentinel for unmatched WA messages
     await supabase.from("messages").insert({
-      entity_type: "unknown",
-      entity_id: "00000000-0000-0000-0000-000000000000",
+      entity_type: "unmatched_whatsapp",
+      entity_id: unmatchedEntityId,
       channel: "whatsapp",
       direction: "inbound",
       sender: normalizedPhone,
@@ -249,7 +328,7 @@ Deno.serve(async (req) => {
       status: "delivered",
       external_id: externalMessageId,
       organization_id: providedOrgId,
-      metadata: { match_method: "none", raw_from: fromPhone },
+      metadata: { match_method: "none", raw_from: fromPhone, needs_manual_review: true },
     }).catch(() => {});
 
     return new Response(
@@ -288,6 +367,7 @@ Deno.serve(async (req) => {
   // ── 3. Delegate classification to message-processor ──────────────────────
   let classification: "acknowledged" | "dispute" | "other" = "other";
   let reason = "";
+  let usedFallback = false;
 
   try {
     const { data: procResult, error: procErr } = await supabase.functions.invoke(
@@ -311,8 +391,14 @@ Deno.serve(async (req) => {
     classification = procResult.classification;
     reason = procResult.reason ?? "";
   } catch (err) {
-    console.warn("[whatsapp-webhook] message-processor unavailable:", err);
-    // Classification stays "other" — no inline fallback to keep this function simple
+    // Fallback: classify inline (mirrors email-webhook fallback pattern)
+    console.warn("[whatsapp-webhook] message-processor unavailable, using inline fallback:", err);
+    const fallback = await classifyInlineFallback(
+      supabase, messageContent, invoice.id, invoice.status, messageRow?.id ?? null
+    );
+    classification = fallback.classification;
+    reason = fallback.reason;
+    usedFallback = true;
   }
 
   // ── 4. Fire channel-agnostic message_received event ──────────────────────
@@ -327,7 +413,17 @@ Deno.serve(async (req) => {
     invoice_number: invoice.invoice_number,
   });
 
-  // ── 5. Fire specific events based on classification ──────────────────────
+  // ── 5. Fire whatsapp_message_received event (parity with email_received) ──
+  await fireWorkflowEvent(supabase, "whatsapp_message_received", "invoice", invoice.id, organizationId, {
+    from: normalizedPhone,
+    content: messageContent.slice(0, 500),
+    classification,
+    reason,
+    invoice_number: invoice.invoice_number,
+    message_id: messageRow?.id ?? null,
+  });
+
+  // ── 6. Fire specific events based on classification ──────────────────────
   if (classification === "acknowledged") {
     await fireWorkflowEvent(supabase, "invoice_acknowledged", "invoice", invoice.id, organizationId, {
       from: normalizedPhone,
@@ -360,6 +456,7 @@ Deno.serve(async (req) => {
       reason,
       message_id: messageRow?.id ?? null,
       match_method: matchMethod,
+      used_fallback: usedFallback,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );

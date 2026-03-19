@@ -294,6 +294,9 @@ async function executeAction(
       };
 
       // Delegate to messaging-service (which resolves template + sends via provider)
+      let waMessagingStatus = "failed";
+      let waMessageId: string | null = null;
+
       try {
         const { data: msgResult, error: msgErr } = await supabase.functions.invoke("messaging-service", {
           body: {
@@ -310,10 +313,29 @@ async function executeAction(
 
         if (msgErr) {
           console.warn("[workflow-engine] messaging-service (whatsapp) error:", msgErr);
+        } else {
+          waMessagingStatus = msgResult?.status ?? "failed";
+          waMessageId = msgResult?.message_id ?? null;
         }
       } catch (err) {
         console.warn("[workflow-engine] Failed to invoke messaging-service (whatsapp):", err);
       }
+
+      // Log WhatsApp action result to workflow_events (parity with email logging)
+      await supabase.from("workflow_events").insert({
+        organization_id: organizationId,
+        workflow_run_id: run.id,
+        event_type: "whatsapp_message_sent",
+        entity_type: run.entity_type,
+        entity_id: run.entity_id,
+        payload: {
+          template,
+          to_phone: toPhone,
+          sent: waMessagingStatus === "sent",
+          status: waMessagingStatus,
+          message_id: waMessageId,
+        },
+      }).catch(() => {/* non-critical */});
     }
 
   } else if (action_type === "update_invoice_status") {
