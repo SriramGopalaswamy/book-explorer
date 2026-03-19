@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2, Search } from "lucide-react";
+import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, Eye, Trash2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
