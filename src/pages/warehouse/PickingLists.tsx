@@ -203,7 +203,7 @@ export default function PickingLists() {
                         <Badge className={statusColors[list.status] || ""}>{list.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground max-w-[250px] break-words whitespace-normal">{list.notes || "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
