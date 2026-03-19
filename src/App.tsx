@@ -63,6 +63,8 @@ import ManagerInbox from "./pages/hrms/ManagerInbox";
 import Reimbursements from "./pages/hrms/Reimbursements";
 import MyExpenses from "./pages/hrms/MyExpenses";
 import ReimbursementsFinance from "./pages/financial/ReimbursementsFinance";
+import WorkflowsPage from "./pages/financial/Workflows";
+import AutomationDashboard from "./pages/financial/AutomationDashboard";
 
 // Performance OS
 import Goals from "./pages/performance/Goals";
@@ -186,6 +188,8 @@ const App = () => (
                 <Route path="/financial/eway-bills" element={<Guarded><FinanceRoute><EwayBills /></FinanceRoute></Guarded>} />
                 <Route path="/financial/e-invoices" element={<Guarded><FinanceRoute><EInvoices /></FinanceRoute></Guarded>} />
                 <Route path="/financial/recurring" element={<Guarded><FinanceRoute><RecurringTransactionsPage /></FinanceRoute></Guarded>} />
+                <Route path="/financial/workflows" element={<Guarded><FinanceRoute><WorkflowsPage /></FinanceRoute></Guarded>} />
+                <Route path="/financial/automation" element={<Guarded><FinanceRoute><AutomationDashboard /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
                 <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />

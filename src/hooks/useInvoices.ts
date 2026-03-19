@@ -357,6 +357,18 @@ export function useUpdateInvoiceStatus() {
           body: { type: "invoice_status_changed", payload: { invoice_id: variables.id, new_status: variables.status } },
         }).catch((err) => console.warn("Failed to send invoice notification:", err));
       }
+      // Trigger workflow engine when invoice is sent
+      if (variables.status === "sent" && data?.organization_id) {
+        supabase.functions.invoke("workflow-event", {
+          body: {
+            event_type: "invoice_sent",
+            entity_type: "invoice",
+            entity_id: variables.id,
+            organization_id: data.organization_id,
+            payload: { invoice_id: variables.id, status: "sent" },
+          },
+        }).catch((err) => console.warn("Failed to trigger workflow event:", err));
+      }
     },
     onError: (error) => {
       toast({ title: "Error", description: `Failed to update status: ${error.message}`, variant: "destructive" });
