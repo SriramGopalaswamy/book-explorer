@@ -20,12 +20,15 @@
  *  1. Parse & normalize email fields
  *  2. Extract invoice number from subject via regex
  *  3. Find matching invoice in DB
- *  4. Log to email_logs (direction='inbound')
- *  5. Classify body with Claude AI (acknowledged / dispute / other)
- *  6. Update email_logs with classification
- *  7. If acknowledged → update invoice.status = 'acknowledged'
- *  8. Fire workflow-event: email_received (always)
- *  9. If acknowledged → fire workflow-event: invoice_acknowledged
+ *  4. Log to email_logs (direction='inbound')          ← unchanged for backward compat
+ *  5. Log to messages table (channel='email', direction='inbound')  ← NEW
+ *  6. Classify body via messageProcessor function
+ *  7. Update email_logs with classification            ← unchanged
+ *  8. Update messages row with classification          ← NEW
+ *  9. If acknowledged → update invoice.status = 'acknowledged'
+ * 10. Fire workflow-event: message_received (NEW — channel-agnostic)
+ * 11. Fire workflow-event: email_received (preserved for backward compat)
+ * 12. If acknowledged → fire workflow-event: invoice_acknowledged
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -35,68 +38,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-// ─── AI Classification ────────────────────────────────────────────────────────
-
-type Classification = "acknowledged" | "dispute" | "other";
-
-async function classifyEmail(
-  subject: string,
-  bodyText: string
-): Promise<{ classification: Classification; reason: string }> {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
-    console.warn("[email-webhook] ANTHROPIC_API_KEY not set — skipping AI classification");
-    return { classification: "other", reason: "API key not configured" };
-  }
-
-  const prompt = `You are an invoice email classifier. A client has replied to an invoice email.
-
-Classify their reply as exactly one of:
-- "acknowledged": Client confirms receipt, acceptance, or acknowledgement of the invoice (e.g. "received", "noted", "we acknowledge", "thank you", "will process", "approved")
-- "dispute": Client disputes the amount, items, dates, or raises concerns (e.g. "incorrect", "wrong amount", "we disagree", "dispute", "not what we ordered")
-- "other": Payment confirmation, general question, out-of-office, or anything else
-
-Subject: ${subject}
-Body: ${bodyText.slice(0, 2000)}
-
-Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"dispute"|"other", "reason": "one sentence reason"}`;
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 128,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn("[email-webhook] Anthropic API error:", res.status);
-      return { classification: "other", reason: "Classification API error" };
-    }
-
-    const data = await res.json();
-    const text = data?.content?.[0]?.text ?? "";
-    const parsed = JSON.parse(text.trim());
-
-    const allowed: Classification[] = ["acknowledged", "dispute", "other"];
-    const classification = allowed.includes(parsed.classification)
-      ? (parsed.classification as Classification)
-      : "other";
-
-    return { classification, reason: parsed.reason ?? "" };
-  } catch (err) {
-    console.warn("[email-webhook] Classification error:", err);
-    return { classification: "other", reason: "Classification failed" };
-  }
-}
 
 // ─── Invoice number extractor ─────────────────────────────────────────────────
 
@@ -150,6 +91,27 @@ async function fireWorkflowEvent(
   } catch (err) {
     console.warn(`[email-webhook] Failed to fire ${eventType}:`, err);
   }
+}
+
+// ─── Fire message_received event (channel-agnostic replacement for email_received)
+
+async function fireMessageReceivedEvent(
+  supabase: any,
+  entityType: string,
+  entityId: string,
+  organizationId: string,
+  channel: string,
+  content: string,
+  messageId: string | null,
+  extra: Record<string, any>
+): Promise<void> {
+  await fireWorkflowEvent(supabase, "message_received", entityType, entityId, organizationId, {
+    channel,
+    entity_id: entityId,
+    content: content.slice(0, 500),
+    message_id: messageId,
+    ...extra,
+  });
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -243,7 +205,7 @@ Deno.serve(async (req) => {
 
   const organizationId = providedOrgId ?? invoice.organization_id;
 
-  // 3. Log inbound email
+  // 3. Log inbound email to legacy email_logs (UNCHANGED — backward compatibility)
   const { data: emailLog, error: logErr } = await supabase
     .from("email_logs")
     .insert({
@@ -264,10 +226,56 @@ Deno.serve(async (req) => {
     console.warn("[email-webhook] Failed to log email:", logErr);
   }
 
-  // 4. AI classification
-  const { classification, reason } = await classifyEmail(subject, bodyText);
+  // 4. Log inbound email to new messages table (NEW — channel-agnostic record)
+  const { data: messageRow } = await supabase
+    .from("messages")
+    .insert({
+      entity_type: "invoice",
+      entity_id: invoice.id,
+      channel: "email",
+      direction: "inbound",
+      sender: fromEmail,
+      recipient: invoice.client_email,
+      subject,
+      content: bodyText.slice(0, 10000),
+      status: "delivered",
+      thread_id: thread_id ?? null,
+      organization_id: organizationId,
+      metadata: { email_log_id: emailLog?.id ?? null, raw_subject: subject },
+    })
+    .select("id")
+    .single();
 
-  // 5. Update email_log with classification
+  // 5. Delegate classification to messageProcessor edge function
+  //    (or call inline if messageProcessor isn't deployed yet — fallback below)
+  let classification: "acknowledged" | "dispute" | "other" = "other";
+  let reason = "";
+
+  try {
+    const classifyRes = await supabase.functions.invoke("message-processor", {
+      body: {
+        subject,
+        content: bodyText,
+        channel: "email",
+        entity_type: "invoice",
+        entity_id: invoice.id,
+        message_id: messageRow?.id ?? null,
+        organization_id: organizationId,
+      },
+    });
+    if (classifyRes.data?.classification) {
+      classification = classifyRes.data.classification;
+      reason = classifyRes.data.reason ?? "";
+    }
+  } catch (classifyErr) {
+    // Fallback: classify inline using Anthropic directly (preserves existing behavior)
+    console.warn("[email-webhook] messageProcessor unavailable, falling back to inline classification:", classifyErr);
+    const inlineResult = await classifyEmailInline(subject, bodyText);
+    classification = inlineResult.classification;
+    reason = inlineResult.reason;
+  }
+
+  // 6. Update legacy email_logs with classification (UNCHANGED)
   if (emailLog?.id) {
     await supabase
       .from("email_logs")
@@ -275,7 +283,15 @@ Deno.serve(async (req) => {
       .eq("id", emailLog.id);
   }
 
-  // 6. If acknowledged → update invoice status
+  // 7. Update messages row with classification (NEW)
+  if (messageRow?.id) {
+    await supabase
+      .from("messages")
+      .update({ classification })
+      .eq("id", messageRow.id);
+  }
+
+  // 8. If acknowledged → update invoice status (UNCHANGED)
   if (classification === "acknowledged" && invoice.status === "sent") {
     await supabase
       .from("invoices")
@@ -283,7 +299,26 @@ Deno.serve(async (req) => {
       .eq("id", invoice.id);
   }
 
-  // 7. Fire email_received workflow event (always)
+  // 9. Fire channel-agnostic message_received event (NEW)
+  await fireMessageReceivedEvent(
+    supabase,
+    "invoice",
+    invoice.id,
+    organizationId,
+    "email",
+    bodyText,
+    messageRow?.id ?? null,
+    {
+      from: fromEmail,
+      subject,
+      classification,
+      reason,
+      invoice_number: invoice.invoice_number,
+      email_log_id: emailLog?.id,
+    }
+  );
+
+  // 10. Fire legacy email_received workflow event (PRESERVED — backward compat)
   await fireWorkflowEvent(
     supabase,
     "email_received",
@@ -300,7 +335,7 @@ Deno.serve(async (req) => {
     }
   );
 
-  // 8. If acknowledged → fire invoice_acknowledged event
+  // 11. If acknowledged → fire invoice_acknowledged event (UNCHANGED)
   if (classification === "acknowledged") {
     await fireWorkflowEvent(
       supabase,
@@ -326,7 +361,68 @@ Deno.serve(async (req) => {
       invoice_number: invoice.invoice_number,
       classification,
       reason,
+      message_id: messageRow?.id ?? null,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });
+
+// ─── Inline classification fallback (preserves original behavior if messageProcessor is unavailable)
+
+async function classifyEmailInline(
+  subject: string,
+  bodyText: string
+): Promise<{ classification: "acknowledged" | "dispute" | "other"; reason: string }> {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    console.warn("[email-webhook] ANTHROPIC_API_KEY not set — skipping AI classification");
+    return { classification: "other", reason: "API key not configured" };
+  }
+
+  const prompt = `You are an invoice email classifier. A client has replied to an invoice email.
+
+Classify their reply as exactly one of:
+- "acknowledged": Client confirms receipt, acceptance, or acknowledgement of the invoice (e.g. "received", "noted", "we acknowledge", "thank you", "will process", "approved")
+- "dispute": Client disputes the amount, items, dates, or raises concerns (e.g. "incorrect", "wrong amount", "we disagree", "dispute", "not what we ordered")
+- "other": Payment confirmation, general question, out-of-office, or anything else
+
+Subject: ${subject}
+Body: ${bodyText.slice(0, 2000)}
+
+Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"dispute"|"other", "reason": "one sentence reason"}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 128,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn("[email-webhook] Anthropic API error:", res.status);
+      return { classification: "other", reason: "Classification API error" };
+    }
+
+    const data = await res.json();
+    const text = data?.content?.[0]?.text ?? "";
+    const parsed = JSON.parse(text.trim());
+
+    const allowed = ["acknowledged", "dispute", "other"] as const;
+    const classification = allowed.includes(parsed.classification)
+      ? parsed.classification
+      : "other";
+
+    return { classification, reason: parsed.reason ?? "" };
+  } catch (err) {
+    console.warn("[email-webhook] Classification error:", err);
+    return { classification: "other", reason: "Classification failed" };
+  }
+}
