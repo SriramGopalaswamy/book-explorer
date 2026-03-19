@@ -120,13 +120,14 @@ export default function SalesReturnsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2"><Label>Return Items</Label><Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_40px] gap-2 mb-2">
-                      <div><Label className="text-xs">Description</Label><Input placeholder="Description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} /></div>
-                      <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} /></div>
-                      <div><Label className="text-xs">Price</Label><Input type="number" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} /></div>
-                      <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
+                    <div key={i} className="grid grid-cols-[1fr_1fr_80px_100px_80px_40px] gap-2 mb-2">
+                       <div><Label className="text-xs">Description</Label><Input placeholder="Description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} /></div>
+                       <div><Label className="text-xs">Reason</Label><Input placeholder="Reason for return" value={item.reason} onChange={e => updateItem(i, "reason", e.target.value)} /></div>
+                       <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                       <div><Label className="text-xs">Price</Label><Input type="number" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} /></div>
+                       <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
+                       <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                     </div>
                   ))}
                 </div>
                 <Button onClick={handleCreate} disabled={createReturn.isPending} className="w-full">{createReturn.isPending ? "Creating..." : "Create Return"}</Button>
