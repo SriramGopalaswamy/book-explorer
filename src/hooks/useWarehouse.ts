@@ -303,6 +303,7 @@ export function useCreateInventoryCount() {
         expected_qty: item.expected_qty,
         actual_qty: null,
         variance: null,
+        bin_id: item.bin_id || null,
       }));
       const { error: linesErr } = await supabase.from("inventory_count_lines" as any).insert(lines as any);
       if (linesErr) {
