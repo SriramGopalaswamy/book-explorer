@@ -21,7 +21,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Calendar as CalendarIcon, Plus, Pencil, Trash2, ShieldAlert, PartyPopper, Search } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Pencil, Trash2, PartyPopper, Search, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
@@ -144,6 +144,7 @@ export default function Holidays() {
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={() => { setIsAddOpen(false); setEditTarget(null); }}>Cancel</Button>
         <Button onClick={onSubmit} disabled={isPending || !form.name || !form.date}>
+          {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {isPending ? "Saving..." : submitLabel}
         </Button>
       </div>
@@ -254,9 +255,8 @@ export default function Holidays() {
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <PartyPopper className="mx-auto h-12 w-12 mb-3" />
-                <p>No holidays found for {selectedYear}</p>
+              <div className="text-center py-16">
+                {searchQuery ? <span className="text-muted-foreground">No holidays match your search.</span> : <div className="flex flex-col items-center gap-3"><CalendarIcon className="h-10 w-10 text-muted-foreground/50" /><div><p className="font-medium text-muted-foreground">No holidays for {selectedYear}</p><p className="text-sm text-muted-foreground/70 mt-1">Add holidays to keep your team informed about upcoming days off</p></div><Button variant="outline" size="sm" onClick={() => setIsAddOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Holiday</Button></div>}
               </div>
             ) : (
               <>

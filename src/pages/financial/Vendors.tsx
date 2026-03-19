@@ -18,6 +18,10 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Building2, Mail, Phone, Truck, ToggleRight } from "lucide-react";
@@ -53,6 +57,7 @@ export default function Vendors() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<{ email?: string; phone?: string; tax_number?: string }>({});
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   // Auto-set country code when country changes
   useEffect(() => {
@@ -274,7 +279,7 @@ export default function Vendors() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
               ) : pagination.paginatedItems.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">{search ? "No vendors match." : "No vendors yet."}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-16">{search ? <span className="text-muted-foreground">No vendors match your search.</span> : <div className="flex flex-col items-center gap-3"><Truck className="h-10 w-10 text-muted-foreground/50" /><div><p className="font-medium text-muted-foreground">No vendors yet</p><p className="text-sm text-muted-foreground/70 mt-1">Add your first vendor to get started with procurement</p></div><Button variant="outline" size="sm" onClick={() => setIsDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Vendor</Button></div>}</TableCell></TableRow>
               ) : pagination.paginatedItems.map((v) => (
                 <TableRow key={v.id}>
                   <TableCell><div className="font-medium">{v.name}</div>{v.contact_person && <div className="text-xs text-muted-foreground">{v.contact_person}</div>}</TableCell>
@@ -288,7 +293,7 @@ export default function Vendors() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(v)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({ id: v.id, currentStatus: v.status })}><ToggleRight className="h-4 w-4 mr-2" />{v.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(v.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(v.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -301,6 +306,23 @@ export default function Vendors() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this vendor. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMutation.mutate(deleteTarget!); setDeleteTarget(null); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

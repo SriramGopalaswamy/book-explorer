@@ -58,12 +58,17 @@ const fallbackPalette = [
   "hsl(190, 75%, 50%)", "hsl(310, 60%, 55%)", "hsl(120, 50%, 45%)",
   "hsl(240, 55%, 60%)",
 ];
+const MAX_DYNAMIC_COLORS = 100;
 let fallbackIndex = 0;
 const dynamicColorCache: Record<string, string> = {};
 
 function getCategoryColor(name: string): string {
   if (categoryColors[name]) return categoryColors[name];
   if (!dynamicColorCache[name]) {
+    // Cap the cache to prevent unbounded memory growth
+    if (Object.keys(dynamicColorCache).length >= MAX_DYNAMIC_COLORS) {
+      return fallbackPalette[name.length % fallbackPalette.length];
+    }
     dynamicColorCache[name] = fallbackPalette[fallbackIndex % fallbackPalette.length];
     fallbackIndex++;
   }

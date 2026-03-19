@@ -276,13 +276,17 @@ export function useCreateStockAdjustment() {
 
 export function useUOM() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["uom"],
-    enabled: !!user,
+    queryKey: ["uom", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("units_of_measure" as any)
         .select("*")
+        .eq("organization_id", orgId)
         .order("name");
       if (error) throw error;
       return data as any[];
