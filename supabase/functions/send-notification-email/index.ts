@@ -292,6 +292,28 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, email_sent: sent }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ─── RAW EMAIL (used by internal services e.g. messaging-service) ────────
+    // Accepts pre-rendered HTML so callers don't need their own MS Graph code.
+    // Required payload fields: to_email, subject, html_body
+    if (type === "raw_email") {
+      const { to_email, to_name, subject: rawSubject, html_body } = payload as any;
+      if (!to_email || !rawSubject || !html_body) {
+        return new Response(
+          JSON.stringify({ error: "to_email, subject, and html_body are required for raw_email" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const sent = await send(
+        [{ email: String(to_email), name: String(to_name || to_email) }],
+        String(rawSubject),
+        String(html_body)
+      );
+      return new Response(
+        JSON.stringify({ success: true, email_sent: sent }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── MEMO PUBLISHED ───────────────────────────────────────────────────────
     if (type === "memo_published") {
       const { memo_id } = payload;

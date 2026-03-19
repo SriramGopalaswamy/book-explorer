@@ -29,7 +29,11 @@
  *   1. Classify message content using AI (Anthropic Claude)
  *   2. Update messages.classification if message_id provided
  *   3. Update invoice.status if classification == "acknowledged" and status == "sent"
- *   4. Emit workflow event if needed (via fireWorkflowEvent)
+ *   4. Return classification + invoice_updated to caller
+ *      NOTE: this function does NOT emit workflow events. The caller (e.g.
+ *      email-webhook) is responsible for firing events such as
+ *      invoice_acknowledged based on the returned classification. This avoids
+ *      double-firing when the same classification triggers multiple actions.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -180,11 +184,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 4. Emit event if classification warrants it
-  //    (invoice_acknowledged is fired by email-webhook after this call;
-  //     message-processor itself does not fire events to avoid double-firing.
-  //     If called standalone (e.g. from a whatsapp handler), the caller is
-  //     responsible for firing events based on the returned classification.)
+  // 4. Return result — caller fires any necessary workflow events.
+  //    This function intentionally does not emit events to keep it stateless
+  //    and reusable across channels without risk of double-firing.
 
   return new Response(
     JSON.stringify({

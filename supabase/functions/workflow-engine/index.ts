@@ -13,16 +13,23 @@
  *   3. Advance to next step or complete/fail the run
  *
  * Action types supported:
- *   - send_email    → backward-compatible; internally maps to send_message(channel="email")
- *   - send_message  → new channel-agnostic action (channel: "email" | "whatsapp")
+ *   - send_email    → backward-compatible; maps to send_message(channel="email")
+ *   - send_message  → new channel-agnostic action; delegates to messaging-service
  *   - update_invoice_status
  *   - notify_internal
  *
+ * Email transport chain for send_email / send_message(channel="email"):
+ *   workflow-engine (template render)
+ *     → messaging-service (channel routing + messages table)
+ *       → send-notification-email (MS Graph transport)
+ *   email_logs also written here for backward compatibility.
+ *
  * Condition fields supported:
- *   - invoice.<column>         (e.g. invoice.status)
- *   - last_message.channel     (channel of the last message for this entity)
- *   - last_message.status      (delivery status of the last message)
- *   - last_message.created_at  (ISO timestamp of the last message)
+ *   - invoice.<column>              e.g. invoice.status
+ *   - last_message.channel          channel of last message for this entity
+ *   - last_message.status           delivery status of last message
+ *   - last_message.created_at       ISO timestamp of last message
+ *   - last_message.classification   AI classification of last inbound message
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -33,93 +40,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// ─── Email helpers (same MS Graph pattern as send-notification-email) ─────────
-
 const defaultSenderEmail = "admin@grx10.com";
-const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getMsGraphToken(creds: { tenantId: string; clientId: string; clientSecret: string }, cacheKey: string): Promise<string | null> {
-  const cached = tokenCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt - 60000) return cached.token;
-
-  try {
-    const res = await fetch(`https://login.microsoftonline.com/${creds.tenantId}/oauth2/v2.0/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: creds.clientId,
-        client_secret: creds.clientSecret,
-        scope: "https://graph.microsoft.com/.default",
-        grant_type: "client_credentials",
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 });
-    return data.access_token;
-  } catch {
-    return null;
-  }
-}
-
-async function sendEmail(
-  supabase: any,
-  organizationId: string,
-  to: { email: string; name?: string }[],
-  subject: string,
-  htmlBody: string
-): Promise<boolean> {
-  // Try org-specific OAuth config first
-  const { data: orgConfig } = await supabase
-    .from("organization_oauth_configs")
-    .select("tenant_id, client_id, client_secret, sender_email")
-    .eq("organization_id", organizationId)
-    .eq("provider", "microsoft")
-    .maybeSingle();
-
-  let senderEmail = defaultSenderEmail;
-  let token: string | null = null;
-
-  if (orgConfig?.tenant_id && orgConfig?.client_id && orgConfig?.client_secret) {
-    senderEmail = orgConfig.sender_email || defaultSenderEmail;
-    token = await getMsGraphToken(
-      { tenantId: orgConfig.tenant_id, clientId: orgConfig.client_id, clientSecret: orgConfig.client_secret },
-      organizationId
-    );
-  } else {
-    // Fallback to env vars
-    const tenantId = Deno.env.get("AZURE_TENANT_ID");
-    const clientId = Deno.env.get("AZURE_CLIENT_ID");
-    const clientSecret = Deno.env.get("AZURE_CLIENT_SECRET");
-    if (tenantId && clientId && clientSecret) {
-      token = await getMsGraphToken({ tenantId, clientId, clientSecret }, "__global__");
-    }
-  }
-
-  if (!token) {
-    console.warn("[workflow-engine] No email token available");
-    return false;
-  }
-
-  try {
-    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: {
-          subject,
-          body: { contentType: "HTML", content: htmlBody },
-          toRecipients: to.map((r) => ({ emailAddress: { address: r.email, name: r.name || r.email } })),
-          from: { emailAddress: { address: senderEmail, name: "GRX10 Finance" } },
-        },
-        saveToSentItems: false,
-      }),
-    });
-    return res.ok || res.status === 202;
-  } catch {
-    return false;
-  }
-}
+// ─── Email HTML renderer (template rendering stays here — business logic) ─────
 
 function emailHtml(heading: string, body: string): string {
   return `
@@ -137,67 +60,7 @@ function emailHtml(heading: string, body: string): string {
   `;
 }
 
-// ─── Condition evaluator ──────────────────────────────────────────────────────
-
-async function evaluateCondition(supabase: any, config: any, entityType: string, entityId: string): Promise<boolean> {
-  const { field, operator, value } = config;
-  if (!field || !operator) return true;
-
-  // Resolve field value
-  let actualValue: any = null;
-
-  if (field.startsWith("invoice.")) {
-    // ── invoice.<column> ──────────────────────────────────────────────────────
-    const col = field.replace("invoice.", "");
-    const { data: invoice } = await supabase
-      .from("invoices")
-      .select(col)
-      .eq("id", entityId)
-      .maybeSingle();
-    actualValue = invoice?.[col];
-
-  } else if (field.startsWith("last_message.")) {
-    // ── last_message.<field> ──────────────────────────────────────────────────
-    // Fetches the most recent messages row for this entity.
-    const subField = field.replace("last_message.", "");
-    const { data: lastMsg } = await supabase
-      .from("messages")
-      .select("channel, status, created_at, classification")
-      .eq("entity_type", entityType)
-      .eq("entity_id", entityId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (lastMsg) {
-      actualValue = lastMsg[subField] ?? null;
-    }
-  }
-
-  // Evaluate operator
-  switch (operator) {
-    case "=":
-    case "==":
-      return String(actualValue) === String(value);
-    case "!=":
-      return String(actualValue) !== String(value);
-    case ">":
-      // Support ISO date comparison as well as numeric
-      if (field === "last_message.created_at") {
-        return new Date(actualValue).getTime() > new Date(value).getTime();
-      }
-      return Number(actualValue) > Number(value);
-    case "<":
-      if (field === "last_message.created_at") {
-        return new Date(actualValue).getTime() < new Date(value).getTime();
-      }
-      return Number(actualValue) < Number(value);
-    default:
-      return true;
-  }
-}
-
-// ─── Messaging helper: resolves invoice details for templates ─────────────────
+// ─── Invoice email content builder (fetches data + renders template HTML) ──────
 
 async function buildInvoiceEmailContent(
   supabase: any,
@@ -242,6 +105,68 @@ async function buildInvoiceEmailContent(
   };
 }
 
+// ─── Condition evaluator ──────────────────────────────────────────────────────
+
+async function evaluateCondition(
+  supabase: any,
+  config: any,
+  entityType: string,
+  entityId: string
+): Promise<boolean> {
+  const { field, operator, value } = config;
+  if (!field || !operator) return true;
+
+  let actualValue: any = null;
+
+  if (field.startsWith("invoice.")) {
+    // invoice.<column> — original behaviour, unchanged
+    const col = field.replace("invoice.", "");
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select(col)
+      .eq("id", entityId)
+      .maybeSingle();
+    actualValue = invoice?.[col];
+
+  } else if (field.startsWith("last_message.")) {
+    // last_message.<field> — query messages table for most recent entry
+    // Supported: channel, status, created_at, classification
+    const subField = field.replace("last_message.", "");
+    const { data: lastMsg } = await supabase
+      .from("messages")
+      .select("channel, status, created_at, classification")
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastMsg) {
+      actualValue = lastMsg[subField] ?? null;
+    }
+  }
+
+  switch (operator) {
+    case "=":
+    case "==":
+      return String(actualValue) === String(value);
+    case "!=":
+      return String(actualValue) !== String(value);
+    case ">":
+      if (field === "last_message.created_at") {
+        return new Date(actualValue).getTime() > new Date(value).getTime();
+      }
+      return Number(actualValue) > Number(value);
+    case "<":
+      if (field === "last_message.created_at") {
+        return new Date(actualValue).getTime() < new Date(value).getTime();
+      }
+      return Number(actualValue) < Number(value);
+    default:
+      return true;
+  }
+}
+
 // ─── Action executor ──────────────────────────────────────────────────────────
 
 async function executeAction(
@@ -252,79 +177,96 @@ async function executeAction(
 ): Promise<void> {
   const { action_type } = config;
 
-  // ── send_message: channel-agnostic new action ─────────────────────────────
-  // ── send_email: backward-compatible; internally maps to send_message(channel="email")
+  // ── send_email / send_message ─────────────────────────────────────────────
+  // send_email is fully backward-compatible: mapped to channel="email".
+  // send_message is the new action; channel defaults to "email" if omitted.
+  // Both delegate transport to messaging-service, which in turn calls
+  // send-notification-email for email. This engine never touches MS Graph.
   if (action_type === "send_message" || action_type === "send_email") {
     const channel = action_type === "send_email" ? "email" : (config.channel || "email");
     const template = config.template || "reminder_1";
 
     if (channel === "email") {
-      // Build email content from invoice + template (same logic as before)
+      // 1. Build content from invoice data + template (business logic stays here)
       const built = await buildInvoiceEmailContent(supabase, run.entity_id, template);
-
       if (!built) {
         console.warn("[workflow-engine] Invoice not found for email action:", run.entity_id);
         return;
       }
 
-      const toEmail = config.to === "client_email" || !config.to
-        ? built.toEmail
-        : config.to;
+      const toEmail =
+        config.to === "client_email" || !config.to ? built.toEmail : config.to;
 
-      if (toEmail) {
-        const sent = await sendEmail(
-          supabase,
-          organizationId,
-          [{ email: toEmail, name: built.clientName }],
-          built.heading,
-          built.htmlBody
+      if (!toEmail) return;
+
+      // 2. Delegate to messaging-service (which routes to send-notification-email
+      //    and writes to the messages table). This is the single outbound path.
+      let messagingStatus = "failed";
+      let messageId: string | null = null;
+
+      try {
+        const { data: msgResult, error: msgErr } = await supabase.functions.invoke(
+          "messaging-service",
+          {
+            body: {
+              channel: "email",
+              to: toEmail,
+              sender_name: built.clientName,
+              subject: built.heading,
+              html_body: built.htmlBody,
+              content: `Reminder email. Template: ${template}.`,
+              template,
+              entity_type: run.entity_type,
+              entity_id: run.entity_id,
+              organization_id: organizationId,
+            },
+          }
         );
 
-        const msgStatus = sent ? "sent" : "failed";
-
-        // Log to legacy email_logs (unchanged — backward compatibility)
-        await supabase.from("email_logs").insert({
-          organization_id: organizationId,
-          invoice_id: run.entity_id,
-          direction: "outbound",
-          subject: built.heading,
-          from_email: defaultSenderEmail,
-          to_email: toEmail,
-          body_text: `Reminder email sent for Invoice. Template: ${template}.`,
-          raw_payload: { template, sent, workflow_run_id: run.id },
-        }).catch(() => {/* non-critical */});
-
-        // Log to new messages table (channel-agnostic record)
-        await supabase.from("messages").insert({
-          entity_type: run.entity_type,
-          entity_id: run.entity_id,
-          channel: "email",
-          direction: "outbound",
-          recipient: toEmail,
-          subject: built.heading,
-          content: `Reminder email. Template: ${template}.`,
-          template,
-          status: msgStatus,
-          organization_id: organizationId,
-          metadata: { workflow_run_id: run.id, action_type },
-        }).catch(() => {/* non-critical */});
+        if (msgErr) {
+          console.warn("[workflow-engine] messaging-service error:", msgErr);
+        } else {
+          messagingStatus = msgResult?.status ?? "failed";
+          messageId = msgResult?.message_id ?? null;
+        }
+      } catch (err) {
+        console.warn("[workflow-engine] Failed to invoke messaging-service:", err);
       }
 
-    } else if (channel === "whatsapp") {
-      // TODO: WhatsApp integration — for now log stub row to messages table
-      console.log(`[workflow-engine] [WhatsApp STUB] Would send whatsapp for entity ${run.entity_id}`);
-      await supabase.from("messages").insert({
-        entity_type: run.entity_type,
-        entity_id: run.entity_id,
-        channel: "whatsapp",
-        direction: "outbound",
-        recipient: config.to || null,
-        content: config.content || `Reminder. Template: ${template}.`,
-        template,
-        status: "pending",
+      // 3. Write to legacy email_logs (backward compatibility — unchanged behaviour)
+      await supabase.from("email_logs").insert({
         organization_id: organizationId,
-        metadata: { workflow_run_id: run.id, action_type, todo: "WhatsApp API not yet integrated" },
+        invoice_id: run.entity_id,
+        direction: "outbound",
+        subject: built.heading,
+        from_email: defaultSenderEmail,
+        to_email: toEmail,
+        body_text: `Reminder email sent for Invoice. Template: ${template}.`,
+        raw_payload: {
+          template,
+          sent: messagingStatus === "sent",
+          workflow_run_id: run.id,
+          message_id: messageId,
+        },
       }).catch(() => {/* non-critical */});
+
+    } else if (channel === "whatsapp") {
+      // Delegate to messaging-service (stub path)
+      try {
+        await supabase.functions.invoke("messaging-service", {
+          body: {
+            channel: "whatsapp",
+            to: config.to || null,
+            content: config.content || `Reminder. Template: ${template}.`,
+            template,
+            entity_type: run.entity_type,
+            entity_id: run.entity_id,
+            organization_id: organizationId,
+          },
+        });
+      } catch (err) {
+        console.warn("[workflow-engine] Failed to invoke messaging-service (whatsapp):", err);
+      }
     }
 
   } else if (action_type === "update_invoice_status") {
@@ -339,13 +281,11 @@ async function executeAction(
   } else if (action_type === "notify_internal") {
     const { message = "Invoice pending acknowledgement" } = config;
 
-    // Insert in-app notifications for all finance/admin users in org
     const { data: finUsers } = await supabase
       .from("user_roles")
       .select("user_id")
       .in("role", ["finance", "admin"]);
 
-    // Get invoice number for context
     const { data: invoice } = await supabase
       .from("invoices")
       .select("invoice_number, client_name")
@@ -385,18 +325,16 @@ Deno.serve(async (req) => {
 
   const now = new Date().toISOString();
   let processed = 0;
-  let errors = 0;
   const errorList: string[] = [];
 
   try {
-    // Fetch all due workflow runs
     const { data: runs, error: fetchErr } = await supabase
       .from("workflow_runs")
       .select("*")
       .eq("status", "running")
       .lte("next_run_at", now)
       .order("next_run_at", { ascending: true })
-      .limit(50); // Process up to 50 at a time
+      .limit(50);
 
     if (fetchErr) throw fetchErr;
 
@@ -409,7 +347,6 @@ Deno.serve(async (req) => {
 
     for (const run of runs) {
       try {
-        // Get workflow steps ordered
         const { data: steps, error: stepsErr } = await supabase
           .from("workflow_steps")
           .select("*")
@@ -419,7 +356,6 @@ Deno.serve(async (req) => {
         if (stepsErr) throw stepsErr;
 
         if (!steps || steps.length === 0) {
-          // No steps — mark complete
           await supabase
             .from("workflow_runs")
             .update({ status: "completed", updated_at: new Date().toISOString() })
@@ -427,11 +363,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // current_step is 0-indexed into steps array
         const stepIndex = run.current_step ?? 0;
 
         if (stepIndex >= steps.length) {
-          // All steps done
           await supabase
             .from("workflow_runs")
             .update({ status: "completed", updated_at: new Date().toISOString() })
@@ -452,7 +386,6 @@ Deno.serve(async (req) => {
         const nextStepIndex = stepIndex + 1;
         const hasMoreSteps = nextStepIndex < steps.length;
 
-        // Log step execution
         await supabase.from("workflow_events").insert({
           organization_id: run.organization_id,
           workflow_run_id: run.id,
@@ -476,10 +409,11 @@ Deno.serve(async (req) => {
             .eq("id", run.id);
 
         } else if (step.step_type === "condition") {
-          const conditionMet = await evaluateCondition(supabase, config, run.entity_type, run.entity_id);
+          const conditionMet = await evaluateCondition(
+            supabase, config, run.entity_type, run.entity_id
+          );
 
           if (!conditionMet) {
-            // Condition false → workflow complete (stop)
             await supabase
               .from("workflow_runs")
               .update({ status: "completed", updated_at: new Date().toISOString() })
@@ -493,7 +427,6 @@ Deno.serve(async (req) => {
               payload: { step_order: step.step_order, reason: "Condition evaluated to false" },
             });
           } else {
-            // Condition true → advance to next step immediately
             await supabase
               .from("workflow_runs")
               .update({
@@ -508,7 +441,6 @@ Deno.serve(async (req) => {
         } else if (step.step_type === "action") {
           await executeAction(supabase, config, run, run.organization_id);
 
-          // Advance to next step
           await supabase
             .from("workflow_runs")
             .update({
@@ -533,9 +465,7 @@ Deno.serve(async (req) => {
 
         processed++;
       } catch (runErr: any) {
-        errors++;
         errorList.push(`run ${run.id}: ${runErr.message}`);
-        // Mark run as failed
         await supabase
           .from("workflow_runs")
           .update({ status: "failed", updated_at: new Date().toISOString() })
