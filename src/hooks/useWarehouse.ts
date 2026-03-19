@@ -152,7 +152,7 @@ export function useCreateStockTransfer() {
       if (error) throw error;
 
       if (t.items.length > 0) {
-        const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null }));
+        const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null, from_bin_id: i.from_bin_id || null, to_bin_id: i.to_bin_id || null }));
         const { error: ie } = await supabase.from("stock_transfer_items" as any).insert(items as any);
         if (ie) {
           // Rollback: delete the transfer header if items fail
