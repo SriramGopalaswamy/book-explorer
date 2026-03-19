@@ -76,6 +76,7 @@ import { getInvoicePdfSignedUrl } from "@/hooks/useAadhaarSign";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
+import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
 
 const formatCurrency = (amount: number) => {
   if (amount >= 100000) {
@@ -1043,6 +1044,16 @@ export default function Invoicing() {
                   <div>
                     <p className="text-xs text-muted-foreground">Notes</p>
                     <p className="text-sm">{(viewingInvoice as any).notes}</p>
+                  </div>
+                )}
+
+                {/* Workflow Status Section */}
+                {viewingInvoice && (viewingInvoice.status === "sent" || viewingInvoice.status === "overdue") && (viewingInvoice as any).organization_id && (
+                  <div className="pt-2 border-t">
+                    <WorkflowStatus
+                      invoiceId={viewingInvoice.id}
+                      organizationId={(viewingInvoice as any).organization_id}
+                    />
                   </div>
                 )}
               </div>
