@@ -325,22 +325,14 @@ export default function PickingLists() {
         </Dialog>
 
         {/* Generate Pick List Dialog */}
-        <PickListFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          warehouses={warehouses}
-          allItems={items}
-          warehouseId={warehouseId}
-          setWarehouseId={setWarehouseId}
-          notes={notes}
-          setNotes={setNotes}
-          pickItems={pickItems}
-          addItem={addItem}
-          removeItem={removeItem}
-          updateItem={updateItem}
-          handleSelectItem={handleSelectItem}
-          handleCreate={handleCreate}
-          isPending={generateList.isPending}
+        <PickListFormInner
+          dialogOpen={dialogOpen} setDialogOpen={setDialogOpen}
+          warehouses={warehouses} allItems={items}
+          warehouseId={warehouseId} setWarehouseId={setWarehouseId}
+          notes={notes} setNotes={setNotes}
+          pickItems={pickItems} addItem={addItem} removeItem={removeItem}
+          updateItem={updateItem} handleSelectItem={handleSelectItem}
+          handleCreate={handleCreate} isPending={generateList.isPending}
         />
       </div>
     </MainLayout>
