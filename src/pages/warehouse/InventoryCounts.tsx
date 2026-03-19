@@ -403,80 +403,16 @@ export default function InventoryCounts() {
         )}
 
         {/* New Count Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>New Inventory Count</DialogTitle></DialogHeader>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Warehouse *</Label>
-                  <Select value={warehouseId} onValueChange={setWarehouseId}>
-                    <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
-                    <SelectContent>
-                      {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Count Date *</Label>
-                  <Input type="date" value={countDate} onChange={(e) => setCountDate(e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Items to Count *</Label>
-                  <Button size="sm" variant="outline" onClick={addItemRow}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
-                </div>
-                <p className="text-xs text-muted-foreground mb-2">Pick an existing inventory item or enter a custom name. Set the expected quantity you believe should be in stock.</p>
-                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center mb-1 px-1">
-                  <span className="text-xs font-medium text-muted-foreground">Inventory Item</span>
-                  <span className="text-xs font-medium text-muted-foreground">Custom Item Name</span>
-                  <span className="text-xs font-medium text-muted-foreground w-28">Expected Qty</span>
-                  <span className="w-9"></span>
-                </div>
-                <div className="space-y-2">
-                  {countItems.map((row, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
-                      <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                        <SelectTrigger><SelectValue placeholder="Pick from inventory" /></SelectTrigger>
-                        <SelectContent>
-                          {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        placeholder="e.g. Laptop, Chair"
-                        value={row.item_name}
-                        onChange={(e) => updateItemRow(i, "item_name", e.target.value)}
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Expected qty"
-                        value={row.expected_qty}
-                        onChange={(e) => updateItemRow(i, "expected_qty", parseFloat(e.target.value) || 0)}
-                        className="w-28"
-                        min={0}
-                      />
-                      <Button size="icon" variant="ghost" onClick={() => removeItemRow(i)} disabled={countItems.length === 1}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createCount.isPending || !warehouseId || !countDate}>
-                {createCount.isPending ? "Creating…" : "Create Count"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CountFormDialog
+          dialogOpen={dialogOpen} setDialogOpen={setDialogOpen}
+          warehouses={warehouses} items={items}
+          warehouseId={warehouseId} setWarehouseId={setWarehouseId}
+          countDate={countDate} setCountDate={setCountDate}
+          notes={notes} setNotes={setNotes}
+          countItems={countItems} addItemRow={addItemRow} removeItemRow={removeItemRow}
+          updateItemRow={updateItemRow} handleSelectItem={handleSelectItem}
+          handleCreate={handleCreate} isPending={createCount.isPending}
+        />
       </div>
     </MainLayout>
   );
