@@ -343,6 +343,19 @@ export function useUpdateInvoiceStatus() {
         }
       }
 
+      // Auto-cancel running workflow_runs when invoice reaches a terminal state
+      // (paid, acknowledged, dispute, cancelled) to prevent further reminder emails.
+      const terminalStatuses = ["paid", "acknowledged", "dispute", "cancelled"];
+      if (terminalStatuses.includes(status)) {
+        await supabase
+          .from("workflow_runs")
+          .update({ status: "cancelled", updated_at: new Date().toISOString() })
+          .eq("entity_type", "invoice")
+          .eq("entity_id", id)
+          .eq("status", "running")
+          .catch((err: any) => console.warn("Failed to cancel workflow runs:", err));
+      }
+
       return data;
     },
     onSuccess: (data, variables) => {
@@ -352,9 +365,10 @@ export function useUpdateInvoiceStatus() {
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-runs-invoice", variables.id] });
       toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
-      // Fire financial notification
-      if (["sent", "paid"].includes(variables.status)) {
+      // Fire financial notification (only for paid — avoid duplicate comms on sent)
+      if (variables.status === "paid") {
         supabase.functions.invoke("send-notification-email", {
           body: { type: "invoice_status_changed", payload: { invoice_id: variables.id, new_status: variables.status } },
         }).catch((err) => console.warn("Failed to send invoice notification:", err));

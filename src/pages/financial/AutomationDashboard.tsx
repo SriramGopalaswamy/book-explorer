@@ -52,6 +52,16 @@ interface InvoiceInfo {
   sent_at?: string;
 }
 
+interface MessageEnrichment {
+  invoice_id: string;
+  last_message_channel: string | null;
+  last_message_status: string | null;
+  last_message_at: string | null;
+  last_contacted_at: string | null;
+  total_messages_sent: number;
+  total_replies: number;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
@@ -138,7 +148,7 @@ function RunDetailDialog({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Current Step</p>
-              <p className="font-medium">{run.current_step}</p>
+              <p className="font-medium">{run.current_step + 1}</p>
             </div>
             {run.next_run_at && (
               <div>
@@ -237,6 +247,22 @@ export default function AutomationDashboard() {
 
   const invoiceMap = Object.fromEntries(invoices.map((inv) => [inv.id, inv]));
 
+  // Fetch message enrichment data for all invoice entities in view
+  const { data: enrichmentList = [] } = useQuery({
+    queryKey: ["message-enrichment", organizationId, invoiceIds.join(",")],
+    enabled: !!organizationId && invoiceIds.length > 0,
+    queryFn: async () => {
+      const res = await supabase.functions.invoke("invoice-dashboard-enrichment", {
+        body: { organization_id: organizationId, invoice_ids: invoiceIds },
+      });
+      return (res.data ?? []) as MessageEnrichment[];
+    },
+  });
+
+  const enrichmentMap = Object.fromEntries(
+    enrichmentList.map((e) => [e.invoice_id, e])
+  );
+
   // Manually trigger engine run
   const triggerEngine = useMutation({
     mutationFn: async () => {
@@ -331,6 +357,8 @@ export default function AutomationDashboard() {
                 <TableHead>Client</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Days Since Sent</TableHead>
+                <TableHead>Last Message</TableHead>
+                <TableHead>Msgs Sent / Replies</TableHead>
                 <TableHead>Workflow Step</TableHead>
                 <TableHead>Next Action</TableHead>
                 <TableHead className="text-right">Details</TableHead>
@@ -354,6 +382,7 @@ export default function AutomationDashboard() {
               ) : (
                 activeRuns.map((run) => {
                   const inv = invoiceMap[run.entity_id];
+                  const enrich = enrichmentMap[run.entity_id];
                   return (
                     <TableRow key={run.id}>
                       <TableCell className="font-mono text-sm font-medium">
@@ -372,8 +401,30 @@ export default function AutomationDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        {enrich?.last_message_at ? (
+                          <div className="text-xs space-y-0.5">
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs py-0 h-4">
+                                {enrich.last_message_channel ?? "—"}
+                              </Badge>
+                              <span className="text-muted-foreground">{enrich.last_message_status ?? "—"}</span>
+                            </div>
+                            <div className="text-muted-foreground">
+                              {formatDistanceToNow(new Date(enrich.last_message_at), { addSuffix: true })}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No messages</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {enrich
+                          ? `${enrich.total_messages_sent} / ${enrich.total_replies}`
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Zap className="h-3.5 w-3.5" /> Step {run.current_step}
+                          <Zap className="h-3.5 w-3.5" /> Step {run.current_step + 1}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -438,7 +489,7 @@ export default function AutomationDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {run.current_step}
+                        {run.current_step + 1}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
