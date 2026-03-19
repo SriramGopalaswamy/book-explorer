@@ -16,7 +16,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount, usePostInventoryCount,
-  InventoryCount,
+  InventoryCount, useBinLocations,
 } from "@/hooks/useWarehouse";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
