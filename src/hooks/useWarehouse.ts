@@ -117,7 +117,7 @@ export function useCreateStockTransfer() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string }[] }) => {
+    mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string; from_bin_id?: string; to_bin_id?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
 
       // ── Validation: prevent self-transfers ──
@@ -152,7 +152,7 @@ export function useCreateStockTransfer() {
       if (error) throw error;
 
       if (t.items.length > 0) {
-        const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null }));
+        const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null, from_bin_id: i.from_bin_id || null, to_bin_id: i.to_bin_id || null }));
         const { error: ie } = await supabase.from("stock_transfer_items" as any).insert(items as any);
         if (ie) {
           // Rollback: delete the transfer header if items fail
@@ -279,7 +279,7 @@ export function useCreateInventoryCount() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (params: { warehouse_id: string; count_date: string; notes?: string; items: { item_id?: string; item_name: string; expected_qty: number }[] }) => {
+    mutationFn: async (params: { warehouse_id: string; count_date: string; notes?: string; items: { item_id?: string; item_name: string; expected_qty: number; bin_id?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.warehouse_id) throw new Error("Warehouse is required");
       if (!params.count_date) throw new Error("Count date is required");
@@ -303,6 +303,7 @@ export function useCreateInventoryCount() {
         expected_qty: item.expected_qty,
         actual_qty: null,
         variance: null,
+        bin_id: item.bin_id || null,
       }));
       const { error: linesErr } = await supabase.from("inventory_count_lines" as any).insert(lines as any);
       if (linesErr) {
@@ -461,7 +462,7 @@ export function useGeneratePickingList() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (params: { warehouse_id: string; sales_order_id?: string; notes?: string; items: { item_id?: string; item_name: string; quantity: number; bin_location?: string }[] }) => {
+    mutationFn: async (params: { warehouse_id: string; sales_order_id?: string; notes?: string; items: { item_id?: string; item_name: string; quantity: number; bin_id?: string; bin_location?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.warehouse_id) throw new Error("Warehouse is required");
       if (!params.items || params.items.length === 0) throw new Error("At least one item is required");
@@ -483,6 +484,7 @@ export function useGeneratePickingList() {
         item_name: item.item_name,
         required_quantity: item.quantity,
         picked_quantity: 0,
+        bin_id: item.bin_id || null,
         status: "pending",
       }));
       const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);

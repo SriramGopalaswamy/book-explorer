@@ -15,7 +15,7 @@ import { Plus, ArrowRightLeft, Clock, Truck, CheckCircle, Search, Trash2, Pencil
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer } from "@/hooks/useWarehouse";
+import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer, useBinLocations } from "@/hooks/useWarehouse";
 import { useWarehouses, useItems } from "@/hooks/useInventory";
 import { format } from "date-fns";
 
@@ -36,7 +36,11 @@ export default function StockTransfers() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ from_warehouse_id: "", to_warehouse_id: "", transfer_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
-  const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number }[]>([{ item_name: "", quantity: 1 }]);
+  const [items, setItems] = useState<{ item_id?: string; item_name: string; quantity: number; from_bin_id?: string; to_bin_id?: string }[]>([{ item_name: "", quantity: 1 }]);
+
+  // Bin locations filtered by selected warehouses
+  const { data: fromBins = [] } = useBinLocations(form.from_warehouse_id || undefined);
+  const { data: toBins = [] } = useBinLocations(form.to_warehouse_id || undefined);
 
   // View detail state
   const [viewTransfer, setViewTransfer] = useState<StockTransfer | null>(null);
@@ -108,6 +112,13 @@ export default function StockTransfers() {
     }
   };
 
+  // Helper to find bin name
+  const binName = (binId: string | null, bins: any[]) => {
+    if (!binId) return null;
+    const bin = bins.find((b: any) => b.id === binId);
+    return bin ? bin.bin_code : null;
+  };
+
   const columns: Column<StockTransfer>[] = [
     { key: "transfer_number", header: "Transfer #", render: (r) => <span className="font-mono font-semibold text-foreground">{r.transfer_number}</span> },
     { key: "transfer_date", header: "Date", render: (r) => format(new Date(r.transfer_date), "dd MMM yyyy") },
@@ -135,6 +146,9 @@ export default function StockTransfers() {
       ),
     },
   ];
+
+  const activeFromBins = fromBins.filter((b: any) => b.is_active);
+  const activeToBins = toBins.filter((b: any) => b.is_active);
 
   return (
     <MainLayout title="Stock Transfers" subtitle="Move inventory between warehouses">
@@ -167,22 +181,50 @@ export default function StockTransfers() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between"><Label className="text-base font-semibold">Items</Label><Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-end">
-                      <div>
-                        <Label className="text-xs">Item</Label>
-                        <Select value={item.item_id || ""} onValueChange={(v) => {
-                          const found = itemMaster.find((it: any) => it.id === v);
-                          const u = [...items];
-                          u[i] = { ...u[i], item_id: v, item_name: (found as any)?.name || (found as any)?.item_name || u[i].item_name };
-                          setItems(u);
-                        }}>
-                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{itemMaster.filter((it: any) => it.is_active !== false).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
-                        </Select>
+                    <div key={i} className="space-y-2 rounded-lg border p-3">
+                      <div className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-end">
+                        <div>
+                          <Label className="text-xs">Item</Label>
+                          <Select value={item.item_id || ""} onValueChange={(v) => {
+                            const found = itemMaster.find((it: any) => it.id === v);
+                            const u = [...items];
+                            u[i] = { ...u[i], item_id: v, item_name: (found as any)?.name || (found as any)?.item_name || u[i].item_name };
+                            setItems(u);
+                          }}>
+                            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>{itemMaster.filter((it: any) => it.is_active !== false).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div><Label className="text-xs">Or custom name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} placeholder="Item name" /></div>
+                        <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
-                      <div><Label className="text-xs">Or custom name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} placeholder="Item name" /></div>
-                      <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        {form.from_warehouse_id && activeFromBins.length > 0 && (
+                          <div>
+                            <Label className="text-xs">From Bin</Label>
+                            <Select value={item.from_bin_id || "none"} onValueChange={(v) => updateItem(i, "from_bin_id", v === "none" ? undefined : v)}>
+                              <SelectTrigger className="h-8"><SelectValue placeholder="Optional" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— None —</SelectItem>
+                                {activeFromBins.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.bin_code}{b.zone ? ` (${b.zone})` : ""}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {form.to_warehouse_id && activeToBins.length > 0 && (
+                          <div>
+                            <Label className="text-xs">To Bin</Label>
+                            <Select value={item.to_bin_id || "none"} onValueChange={(v) => updateItem(i, "to_bin_id", v === "none" ? undefined : v)}>
+                              <SelectTrigger className="h-8"><SelectValue placeholder="Optional" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— None —</SelectItem>
+                                {activeToBins.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.bin_code}{b.zone ? ` (${b.zone})` : ""}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -235,6 +277,8 @@ export default function StockTransfers() {
                         <TableRow>
                           <TableHead className="text-xs">Item</TableHead>
                           <TableHead className="text-xs text-right">Quantity</TableHead>
+                          <TableHead className="text-xs">From Bin</TableHead>
+                          <TableHead className="text-xs">To Bin</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -242,6 +286,8 @@ export default function StockTransfers() {
                           <TableRow key={i}>
                             <TableCell className="text-sm text-foreground">{it.item_name}</TableCell>
                             <TableCell className="text-sm text-right text-foreground">{it.quantity}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{it.from_bin_id ? it.from_bin_id.substring(0, 8) + "…" : "—"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{it.to_bin_id ? it.to_bin_id.substring(0, 8) + "…" : "—"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

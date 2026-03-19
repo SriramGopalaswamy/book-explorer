@@ -16,7 +16,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount, usePostInventoryCount,
-  InventoryCount,
+  InventoryCount, useBinLocations,
 } from "@/hooks/useWarehouse";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +33,7 @@ const statusColors: Record<string, string> = {
   posted: "bg-green-500/20 text-green-400",
 };
 
-interface CountItemRow { item_id?: string; item_name: string; expected_qty: number }
+interface CountItemRow { item_id?: string; item_name: string; expected_qty: number; bin_id?: string }
 
 function CountLinesPanel({ countId, countStatus }: { countId: string; countStatus: string }) {
   const { data: lines = [], isLoading } = useCountLines(countId);
@@ -194,6 +194,94 @@ function ApproveDialog({ countId, open, onOpenChange }: { countId: string; open:
           <Button onClick={handleConfirm} disabled={!allFilled || approve.isPending || updateLine.isPending}>
             <ShieldCheck className="h-4 w-4 mr-1" />
             {approve.isPending ? "Approving…" : "Confirm & Approve"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CountFormDialog({ dialogOpen, setDialogOpen, warehouses, items, warehouseId, setWarehouseId, countDate, setCountDate, notes, setNotes, countItems, addItemRow, removeItemRow, updateItemRow, handleSelectItem, handleCreate, isPending }: {
+  dialogOpen: boolean; setDialogOpen: (v: boolean) => void;
+  warehouses: any[]; items: any[];
+  warehouseId: string; setWarehouseId: (v: string) => void;
+  countDate: string; setCountDate: (v: string) => void;
+  notes: string; setNotes: (v: string) => void;
+  countItems: CountItemRow[]; addItemRow: () => void; removeItemRow: (i: number) => void;
+  updateItemRow: (i: number, field: keyof CountItemRow, val: string | number) => void;
+  handleSelectItem: (i: number, v: string) => void;
+  handleCreate: () => void; isPending: boolean;
+}) {
+  const { data: bins = [] } = useBinLocations(warehouseId || undefined);
+  const activeBins = bins.filter((b: any) => b.is_active);
+
+  return (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader><DialogTitle>New Inventory Count</DialogTitle></DialogHeader>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Warehouse *</Label>
+              <Select value={warehouseId} onValueChange={setWarehouseId}>
+                <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Count Date *</Label>
+              <Input type="date" value={countDate} onChange={(e) => setCountDate(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Items to Count *</Label>
+              <Button size="sm" variant="outline" onClick={addItemRow}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">Pick an existing inventory item or enter a custom name. Set the expected quantity you believe should be in stock.</p>
+            <div className="space-y-2">
+              {countItems.map((row, i) => (
+                <div key={i} className="space-y-2 rounded-lg border p-3">
+                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                    <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
+                      <SelectTrigger><SelectValue placeholder="Pick from inventory" /></SelectTrigger>
+                      <SelectContent>
+                        {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input placeholder="e.g. Laptop, Chair" value={row.item_name} onChange={(e) => updateItemRow(i, "item_name", e.target.value)} />
+                    <Input type="number" placeholder="Expected qty" value={row.expected_qty} onChange={(e) => updateItemRow(i, "expected_qty", parseFloat(e.target.value) || 0)} className="w-28" min={0} />
+                    <Button size="icon" variant="ghost" onClick={() => removeItemRow(i)} disabled={countItems.length === 1}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  {warehouseId && activeBins.length > 0 && (
+                    <div>
+                      <Label className="text-xs">Bin Location</Label>
+                      <Select value={row.bin_id || "none"} onValueChange={(v) => updateItemRow(i, "bin_id", v === "none" ? "" : v)}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Optional" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {activeBins.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.bin_code}{b.zone ? ` (${b.zone})` : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={isPending || !warehouseId || !countDate}>
+            {isPending ? "Creating…" : "Create Count"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -403,80 +491,16 @@ export default function InventoryCounts() {
         )}
 
         {/* New Count Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>New Inventory Count</DialogTitle></DialogHeader>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Warehouse *</Label>
-                  <Select value={warehouseId} onValueChange={setWarehouseId}>
-                    <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
-                    <SelectContent>
-                      {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Count Date *</Label>
-                  <Input type="date" value={countDate} onChange={(e) => setCountDate(e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Items to Count *</Label>
-                  <Button size="sm" variant="outline" onClick={addItemRow}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
-                </div>
-                <p className="text-xs text-muted-foreground mb-2">Pick an existing inventory item or enter a custom name. Set the expected quantity you believe should be in stock.</p>
-                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center mb-1 px-1">
-                  <span className="text-xs font-medium text-muted-foreground">Inventory Item</span>
-                  <span className="text-xs font-medium text-muted-foreground">Custom Item Name</span>
-                  <span className="text-xs font-medium text-muted-foreground w-28">Expected Qty</span>
-                  <span className="w-9"></span>
-                </div>
-                <div className="space-y-2">
-                  {countItems.map((row, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
-                      <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                        <SelectTrigger><SelectValue placeholder="Pick from inventory" /></SelectTrigger>
-                        <SelectContent>
-                          {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        placeholder="e.g. Laptop, Chair"
-                        value={row.item_name}
-                        onChange={(e) => updateItemRow(i, "item_name", e.target.value)}
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Expected qty"
-                        value={row.expected_qty}
-                        onChange={(e) => updateItemRow(i, "expected_qty", parseFloat(e.target.value) || 0)}
-                        className="w-28"
-                        min={0}
-                      />
-                      <Button size="icon" variant="ghost" onClick={() => removeItemRow(i)} disabled={countItems.length === 1}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createCount.isPending || !warehouseId || !countDate}>
-                {createCount.isPending ? "Creating…" : "Create Count"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CountFormDialog
+          dialogOpen={dialogOpen} setDialogOpen={setDialogOpen}
+          warehouses={warehouses} items={items}
+          warehouseId={warehouseId} setWarehouseId={setWarehouseId}
+          countDate={countDate} setCountDate={setCountDate}
+          notes={notes} setNotes={setNotes}
+          countItems={countItems} addItemRow={addItemRow} removeItemRow={removeItemRow}
+          updateItemRow={updateItemRow} handleSelectItem={handleSelectItem}
+          handleCreate={handleCreate} isPending={createCount.isPending}
+        />
       </div>
     </MainLayout>
   );

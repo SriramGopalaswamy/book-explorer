@@ -5359,6 +5359,7 @@ export type Database = {
       inventory_count_lines: {
         Row: {
           actual_qty: number | null
+          bin_id: string | null
           count_id: string
           created_at: string
           expected_qty: number
@@ -5370,6 +5371,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number | null
+          bin_id?: string | null
           count_id: string
           created_at?: string
           expected_qty?: number
@@ -5381,6 +5383,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number | null
+          bin_id?: string | null
           count_id?: string
           created_at?: string
           expected_qty?: number
@@ -5391,6 +5394,13 @@ export type Database = {
           variance?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_count_lines_bin_id_fkey"
+            columns: ["bin_id"]
+            isOneToOne: false
+            referencedRelation: "bin_locations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_count_lines_count_id_fkey"
             columns: ["count_id"]
