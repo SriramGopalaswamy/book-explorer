@@ -40,6 +40,86 @@ const TRANSITIONS: Record<string, string[]> = {
 
 interface PickItemRow { item_id?: string; item_name: string; quantity: number; bin_id?: string }
 
+function PickListFormInner({ dialogOpen, setDialogOpen, warehouses, allItems, warehouseId, setWarehouseId, notes, setNotes, pickItems, addItem, removeItem, updateItem, handleSelectItem, handleCreate, isPending }: {
+  dialogOpen: boolean; setDialogOpen: (v: boolean) => void;
+  warehouses: any[]; allItems: any[];
+  warehouseId: string; setWarehouseId: (v: string) => void;
+  notes: string; setNotes: (v: string) => void;
+  pickItems: PickItemRow[]; addItem: () => void; removeItem: (i: number) => void;
+  updateItem: (i: number, field: keyof PickItemRow, val: string | number) => void;
+  handleSelectItem: (i: number, v: string) => void;
+  handleCreate: () => void; isPending: boolean;
+}) {
+  const { data: bins = [] } = useBinLocations(warehouseId || undefined);
+  const activeBins = bins.filter((b: any) => b.is_active);
+
+  return (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle>Generate Pick List</DialogTitle></DialogHeader>
+        <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+          <div>
+            <Label>Warehouse *</Label>
+            <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+              <SelectContent>
+                {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Items to Pick *</Label>
+              <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+            </div>
+            <div className="space-y-2">
+              {pickItems.map((row, i) => (
+                <div key={i} className="space-y-2 rounded-lg border p-3">
+                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                    <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
+                      <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                      <SelectContent>
+                        {allItems.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} />
+                    <Input type="number" value={row.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
+                    <Button size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={pickItems.length === 1}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  {warehouseId && activeBins.length > 0 && (
+                    <div>
+                      <Label className="text-xs">Bin Location</Label>
+                      <Select value={row.bin_id || "none"} onValueChange={(v) => updateItem(i, "bin_id", v === "none" ? "" : v)}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Optional" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {activeBins.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.bin_code}{b.zone ? ` (${b.zone})` : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={isPending || !warehouseId}>
+            {isPending ? "Generating…" : "Generate"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PickingLists() {
   const { data: lists = [], isLoading } = usePickingLists();
   const { data: warehouses = [] } = useWarehouses();
