@@ -120,13 +120,14 @@ export default function SalesReturnsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2"><Label>Return Items</Label><Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_40px] gap-2 mb-2">
-                      <div><Label className="text-xs">Description</Label><Input placeholder="Description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} /></div>
-                      <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} /></div>
-                      <div><Label className="text-xs">Price</Label><Input type="number" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} /></div>
-                      <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
+                    <div key={i} className="grid grid-cols-[1fr_1fr_80px_100px_80px_40px] gap-2 mb-2">
+                       <div><Label className="text-xs">Description</Label><Input placeholder="Description" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} /></div>
+                       <div><Label className="text-xs">Reason</Label><Input placeholder="Reason for return" value={item.reason} onChange={e => updateItem(i, "reason", e.target.value)} /></div>
+                       <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={e => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                       <div><Label className="text-xs">Price</Label><Input type="number" value={item.unit_price} onChange={e => updateItem(i, "unit_price", Number(e.target.value))} /></div>
+                       <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={e => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
+                       <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                     </div>
                   ))}
                 </div>
                 <Button onClick={handleCreate} disabled={createReturn.isPending} className="w-full">{createReturn.isPending ? "Creating..." : "Create Return"}</Button>
@@ -141,20 +142,22 @@ export default function SalesReturnsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Return #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                   <TableHead>Return #</TableHead>
+                   <TableHead>Customer</TableHead>
+                   <TableHead>Reason</TableHead>
+                   <TableHead>Date</TableHead>
+                   <TableHead className="text-right">Total</TableHead>
+                   <TableHead>Status</TableHead>
+                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pagination.paginatedItems.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.return_number}</TableCell>
-                    <TableCell className="text-foreground">{r.customer_name}</TableCell>
-                    <TableCell className="text-foreground">{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
+                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
+                     <TableCell className="text-foreground text-sm">{r.reason || "—"}</TableCell>
+                     <TableCell className="text-foreground">{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.total_amount).toLocaleString()}</TableCell>
                     <TableCell><Badge variant={statusColors[r.status] || "secondary"}>{r.status}</Badge></TableCell>
                     <TableCell>
@@ -173,7 +176,7 @@ export default function SalesReturnsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No sales returns</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No sales returns</TableCell></TableRow>}
               </TableBody>
             </Table>
             <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
@@ -198,10 +201,10 @@ export default function SalesReturnsPage() {
                   <div className="space-y-2">
                     <p className="text-sm font-semibold">Items</p>
                     <Table>
-                      <TableHeader><TableRow><TableHead className="text-xs">Description</TableHead><TableHead className="text-xs text-right">Qty</TableHead><TableHead className="text-xs text-right">Price</TableHead><TableHead className="text-xs text-right">Amount</TableHead></TableRow></TableHeader>
-                      <TableBody>{viewItems.map((it: any, i: number) => (
-                        <TableRow key={i}><TableCell className="text-sm">{it.description}</TableCell><TableCell className="text-sm text-right">{it.quantity}</TableCell><TableCell className="text-sm text-right">₹{Number(it.unit_price).toLocaleString()}</TableCell><TableCell className="text-sm text-right font-medium">₹{Number(it.amount).toLocaleString()}</TableCell></TableRow>
-                      ))}</TableBody>
+                       <TableHeader><TableRow><TableHead className="text-xs">Description</TableHead><TableHead className="text-xs">Reason</TableHead><TableHead className="text-xs text-right">Qty</TableHead><TableHead className="text-xs text-right">Price</TableHead><TableHead className="text-xs text-right">Amount</TableHead></TableRow></TableHeader>
+                       <TableBody>{viewItems.map((it: any, i: number) => (
+                         <TableRow key={i}><TableCell className="text-sm">{it.description}</TableCell><TableCell className="text-sm text-muted-foreground">{it.reason || "—"}</TableCell><TableCell className="text-sm text-right">{it.quantity}</TableCell><TableCell className="text-sm text-right">₹{Number(it.unit_price).toLocaleString()}</TableCell><TableCell className="text-sm text-right font-medium">₹{Number(it.amount).toLocaleString()}</TableCell></TableRow>
+                       ))}</TableBody>
                     </Table>
                   </div>
                 )}

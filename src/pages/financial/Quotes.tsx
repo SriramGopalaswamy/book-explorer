@@ -609,9 +609,9 @@ export default function Quotes() {
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setViewingQuote(q)}><Eye className="h-4 w-4 mr-2" /> View Quote</DropdownMenuItem>
-                              {q.status !== "converted" && (
-                                <DropdownMenuItem onClick={() => openEditDialog(q)}><Pencil className="h-4 w-4 mr-2" /> Edit Quote</DropdownMenuItem>
-                              )}
+              {!["converted", "rejected"].includes(q.status) && (
+                                 <DropdownMenuItem onClick={() => openEditDialog(q)}><Pencil className="h-4 w-4 mr-2" /> Edit Quote</DropdownMenuItem>
+                               )}
                               {(q.status === "sent" || q.status === "accepted") && (
                                 <DropdownMenuItem onClick={async () => {
                                   try { toast({ title: "Generating PDF", description: "Please wait..." }); await downloadQuotePdf(q.id); toast({ title: "Download Complete" }); }
