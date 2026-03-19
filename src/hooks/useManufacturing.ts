@@ -375,7 +375,8 @@ export function useUpdateWOStatus() {
   });
 }
 
-/** Record actual production quantities on a work order (sets completed_quantity, rejected_quantity, actual_end) */
+/** Record actual production quantities on a work order (sets completed_quantity, rejected_quantity, actual_end)
+ *  Also auto-creates material_consumption entries from the linked BOM. */
 export function useRecordProduction() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -391,11 +392,11 @@ export function useRecordProduction() {
       if (params.completed_quantity < 0) throw new Error("Completed quantity cannot be negative");
       if ((params.rejected_quantity ?? 0) < 0) throw new Error("Rejected quantity cannot be negative");
 
-      // Resolve caller org for tenant isolation
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       const callerOrgId = profile?.organization_id;
       if (!callerOrgId) throw new Error("Organization not found");
 
+      // Update work order with production data
       const { error } = await supabase
         .from("work_orders" as any)
         .update({
@@ -408,10 +409,65 @@ export function useRecordProduction() {
         .eq("id", params.id)
         .eq("organization_id", callerOrgId);
       if (error) throw error;
+
+      // Fetch the work order to get bom_id and warehouse_id
+      const { data: wo } = await supabase
+        .from("work_orders" as any)
+        .select("bom_id, warehouse_id, planned_quantity")
+        .eq("id", params.id)
+        .single();
+
+      if (wo && (wo as any).bom_id) {
+        const bomId = (wo as any).bom_id;
+        const warehouseId = (wo as any).warehouse_id;
+        const plannedQty = Number((wo as any).planned_quantity) || 1;
+        const actualTotal = params.completed_quantity + (params.rejected_quantity ?? 0);
+
+        // Fetch BOM lines
+        const { data: bomLines } = await supabase
+          .from("bom_lines" as any)
+          .select("*")
+          .eq("bom_id", bomId)
+          .order("sort_order");
+
+        if (bomLines && bomLines.length > 0) {
+          // Delete any existing consumption entries for this WO (allows re-recording)
+          await supabase
+            .from("material_consumption" as any)
+            .delete()
+            .eq("work_order_id", params.id)
+            .eq("organization_id", callerOrgId);
+
+          const consumptionRows = (bomLines as any[]).map((line) => {
+            const ratio = actualTotal / plannedQty;
+            const plannedMaterialQty = Number(line.quantity) * (plannedQty);
+            const actualMaterialQty = Number(line.quantity) * actualTotal;
+            const wastagePct = Number(line.wastage_pct) || 0;
+            const wastageQty = actualMaterialQty * (wastagePct / 100);
+            return {
+              work_order_id: params.id,
+              organization_id: callerOrgId,
+              material_name: line.material_name,
+              item_id: line.item_id || null,
+              planned_quantity: plannedMaterialQty,
+              actual_quantity: actualMaterialQty + wastageQty,
+              wastage_quantity: wastageQty,
+              warehouse_id: warehouseId || null,
+              consumed_at: params.actual_end ?? new Date().toISOString().split("T")[0],
+            };
+          });
+
+          const { error: cErr } = await supabase
+            .from("material_consumption" as any)
+            .insert(consumptionRows as any);
+          if (cErr) console.error("Failed to create consumption records:", cErr);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["work-orders"] });
-      toast.success("Production recorded");
+      qc.invalidateQueries({ queryKey: ["material-consumption"] });
+      toast.success("Production recorded & material consumption logged");
     },
     onError: (e: any) => toast.error(e.message),
   });
