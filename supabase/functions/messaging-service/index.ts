@@ -144,7 +144,7 @@ async function sendViaMeta(
   }
 
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
-  const recipient = phone.replace("+", "");
+  const recipient = phone.replace(/\+/g, "");
 
   let body: any;
 
@@ -309,7 +309,7 @@ async function sendViaGupshup(
   }
 
   const url = "https://api.gupshup.io/wa/api/v1/msg";
-  const destination = phone.replace("+", "");
+  const destination = phone.replace(/\+/g, "");
 
   let messagePayload: any;
 
@@ -492,7 +492,7 @@ Deno.serve(async (req) => {
       status = "failed";
       whatsappError = `Invalid phone number: ${to}`;
     } else {
-      const result = await sendWhatsAppMessage(to, content || "", templateConfig, variables || null);
+      const result = await sendWhatsAppMessage(normalizedTo, content || "", templateConfig, variables || null);
       status = result.sent ? "sent" : "failed";
       externalId = result.externalId;
       whatsappError = result.error;

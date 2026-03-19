@@ -67,7 +67,7 @@ function parseMetaStatuses(body: any): Array<{
           results.push({
             externalId: s.id,
             status: s.status,
-            timestamp: s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : null,
+            timestamp: s.timestamp && Number.isFinite(Number(s.timestamp)) ? new Date(Number(s.timestamp) * 1000).toISOString() : null,
             errorCode: s.errors?.[0]?.code?.toString() || null,
             errorMessage: s.errors?.[0]?.title || null,
           });
@@ -78,6 +78,31 @@ function parseMetaStatuses(body: any): Array<{
     // Return empty if parsing fails
   }
   return results;
+}
+
+// ─── Webhook signature verification (Meta X-Hub-Signature-256) ───────────────
+
+async function verifyMetaSignature(req: Request, rawBody: string): Promise<boolean> {
+  const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
+  if (!appSecret) {
+    console.warn("[whatsapp-status] WHATSAPP_APP_SECRET not set — skipping signature verification");
+    return true;
+  }
+
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!signature || !signature.startsWith("sha256=")) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+  const computed = "sha256=" + Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+  return computed === signature;
 }
 
 // ─── Main handler ────────────────────────────────────────────────────────────
@@ -107,14 +132,28 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  let rawBodyText: string;
   let rawBody: any;
   try {
-    rawBody = await req.json();
+    rawBodyText = await req.text();
+    rawBody = JSON.parse(rawBodyText);
   } catch {
     return new Response(
       JSON.stringify({ error: "Invalid JSON body" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  }
+
+  // Verify webhook signature for Meta payloads
+  if (rawBody.object === "whatsapp_business_account") {
+    const valid = await verifyMetaSignature(req, rawBodyText);
+    if (!valid) {
+      console.warn("[whatsapp-status] Invalid webhook signature — rejecting request");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   }
 
   // ── Parse status updates ─────────────────────────────────────────────────
@@ -153,12 +192,17 @@ Deno.serve(async (req) => {
   for (const su of statusUpdates) {
     try {
       // Find the message by external_id
-      const { data: message } = await supabase
+      // Use limit(1) instead of maybeSingle() — external_id is not unique,
+      // so maybeSingle() would throw if duplicates exist
+      const { data: messages } = await supabase
         .from("messages")
         .select("id, status, entity_type, entity_id, organization_id, metadata")
         .eq("external_id", su.externalId)
         .eq("channel", "whatsapp")
-        .maybeSingle();
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const message = messages?.[0] ?? null;
 
       if (!message) {
         console.warn(`[whatsapp-status] No message found for external_id: ${su.externalId}`);
@@ -191,10 +235,15 @@ Deno.serve(async (req) => {
         };
       }
 
-      await supabase
+      const { error: updateErr } = await supabase
         .from("messages")
         .update(updateData)
         .eq("id", message.id);
+
+      if (updateErr) {
+        console.warn(`[whatsapp-status] Failed to update message ${message.id}:`, updateErr);
+        continue;
+      }
 
       updated++;
 

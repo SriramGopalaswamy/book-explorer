@@ -173,7 +173,7 @@ Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"d
       .from("messages")
       .update({ classification })
       .eq("id", messageId)
-      .catch(() => {});
+      .catch((e: any) => console.warn("[whatsapp-webhook] classification update failed:", e));
   }
 
   // Update invoice status for acknowledged/dispute
@@ -182,16 +182,47 @@ Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"d
       .from("invoices")
       .update({ status: "acknowledged", updated_at: new Date().toISOString() })
       .eq("id", invoiceId)
-      .catch(() => {});
+      .catch((e: any) => console.warn("[whatsapp-webhook] invoice status update failed:", e));
   } else if (classification === "dispute" && invoiceStatus === "sent") {
     await supabase
       .from("invoices")
       .update({ status: "dispute", updated_at: new Date().toISOString() })
       .eq("id", invoiceId)
-      .catch(() => {});
+      .catch((e: any) => console.warn("[whatsapp-webhook] invoice status update failed:", e));
   }
 
   return { classification, reason };
+}
+
+// ─── Webhook signature verification (Meta X-Hub-Signature-256) ───────────────
+
+async function verifyMetaSignature(req: Request, rawBody: string): Promise<boolean> {
+  const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
+  if (!appSecret) {
+    console.warn("[whatsapp-webhook] WHATSAPP_APP_SECRET not set — skipping signature verification");
+    return true; // Allow through in dev; in prod, set the secret
+  }
+
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!signature) {
+    console.warn("[whatsapp-webhook] Missing X-Hub-Signature-256 header");
+    return false;
+  }
+
+  const expectedPrefix = "sha256=";
+  if (!signature.startsWith(expectedPrefix)) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+  const computed = expectedPrefix + Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+  return computed === signature;
 }
 
 // ─── Main handler ────────────────────────────────────────────────────────────
@@ -221,14 +252,29 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // Read raw body for signature verification + JSON parsing
+  let rawBodyText: string;
   let rawBody: any;
   try {
-    rawBody = await req.json();
+    rawBodyText = await req.text();
+    rawBody = JSON.parse(rawBodyText);
   } catch {
     return new Response(
       JSON.stringify({ error: "Invalid JSON body" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  }
+
+  // Verify webhook signature for Meta payloads
+  if (rawBody.object === "whatsapp_business_account") {
+    const valid = await verifyMetaSignature(req, rawBodyText);
+    if (!valid) {
+      console.warn("[whatsapp-webhook] Invalid webhook signature — rejecting request");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   }
 
   // ── Parse message from either Meta format or simplified JSON ─────────────
@@ -279,10 +325,12 @@ Deno.serve(async (req) => {
   // 1a. Try to extract invoice number from message content
   const invoiceRef = extractInvoiceRef(messageContent);
   if (invoiceRef) {
+    // Escape SQL LIKE wildcards to prevent unintended matches
+    const escapedRef = invoiceRef.replace(/%/g, "\\%").replace(/_/g, "\\_");
     const { data: invByRef } = await supabase
       .from("invoices")
       .select("id, invoice_number, organization_id, client_name, client_email, client_phone, status")
-      .ilike("invoice_number", `%${invoiceRef}%`)
+      .ilike("invoice_number", `%${escapedRef}%`)
       .maybeSingle();
 
     if (invByRef) {
@@ -329,7 +377,7 @@ Deno.serve(async (req) => {
       external_id: externalMessageId,
       organization_id: providedOrgId,
       metadata: { match_method: "none", raw_from: fromPhone, needs_manual_review: true },
-    }).catch(() => {});
+    }).catch((e: any) => console.warn("[whatsapp-webhook] unmatched message insert failed:", e));
 
     return new Response(
       JSON.stringify({ success: true, matched: false, reason: "No invoice found for sender phone" }),

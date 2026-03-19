@@ -350,25 +350,24 @@ describe("Meta status webhook parsing", () => {
 
 // ─── Channel Routing Logic ───────────────────────────────────────────────────
 
+// Mirrors the actual logic from workflow-engine executeAction
+function resolveChannel(actionType: string, configChannel?: string): string {
+  return actionType === "send_email" ? "email" : (configChannel || "email");
+}
+
 describe("Channel routing in messaging-service", () => {
   it("should map send_email action to email channel", () => {
-    const actionType = "send_email";
-    const channel = actionType === "send_email" ? "email" : "email";
-    expect(channel).toBe("email");
+    expect(resolveChannel("send_email")).toBe("email");
+    expect(resolveChannel("send_email", "whatsapp")).toBe("email"); // send_email always email
   });
 
   it("should use config.channel for send_message action", () => {
-    const actionType = "send_message";
-    const configChannel = "whatsapp";
-    const channel = actionType === "send_email" ? "email" : (configChannel || "email");
-    expect(channel).toBe("whatsapp");
+    expect(resolveChannel("send_message", "whatsapp")).toBe("whatsapp");
   });
 
   it("should default send_message to email when no channel specified", () => {
-    const actionType = "send_message";
-    const configChannel = undefined;
-    const channel = actionType === "send_email" ? "email" : (configChannel || "email");
-    expect(channel).toBe("email");
+    expect(resolveChannel("send_message")).toBe("email");
+    expect(resolveChannel("send_message", undefined)).toBe("email");
   });
 });
 
@@ -722,6 +721,29 @@ describe("Workflow trigger events include WhatsApp events", () => {
   });
 });
 
+// ─── SQL Wildcard Escaping ────────────────────────────────────────────────────
+
+describe("SQL wildcard escaping in invoice matching", () => {
+  it("should escape % characters in invoice reference", () => {
+    const ref = "INV%2026";
+    const escaped = ref.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    expect(escaped).toBe("INV\\%2026");
+    expect(escaped).not.toContain("%2026");
+  });
+
+  it("should escape _ characters in invoice reference", () => {
+    const ref = "INV_2026_001";
+    const escaped = ref.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    expect(escaped).toBe("INV\\_2026\\_001");
+  });
+
+  it("should not modify clean references", () => {
+    const ref = "INV-2026-001";
+    const escaped = ref.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    expect(escaped).toBe("INV-2026-001");
+  });
+});
+
 // ─── Regression Safety ───────────────────────────────────────────────────────
 
 describe("Email flow regression safety", () => {
@@ -738,9 +760,8 @@ describe("Email flow regression safety", () => {
       to: "client_email",
     };
 
-    // The workflow engine maps send_email → channel="email"
-    const channel = existingConfig.action_type === "send_email" ? "email" : "email";
-    expect(channel).toBe("email");
+    // send_email always maps to email, even if config.channel is set
+    expect(resolveChannel(existingConfig.action_type, "whatsapp")).toBe("email");
     expect(existingConfig.template).toBe("reminder_1");
   });
 
