@@ -17,7 +17,7 @@ export interface Invoice {
   amount: number;
   invoice_date: string;
   due_date: string;
-  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  status: "draft" | "sent" | "paid" | "overdue" | "cancelled" | "acknowledged" | "dispute";
   created_at: string;
   updated_at: string;
   place_of_supply?: string | null;
@@ -275,8 +275,10 @@ export function useUpdateInvoiceStatus() {
         draft: ["sent", "cancelled"],
         sent: ["paid", "overdue", "cancelled"],
         overdue: ["paid", "cancelled"],
-        paid: [],        // terminal
-        cancelled: [],   // terminal
+        paid: [],           // terminal
+        cancelled: [],      // terminal
+        acknowledged: ["paid", "cancelled"],  // AI-set; can still be paid
+        dispute: ["sent", "cancelled"],       // AI-set; can re-send or cancel
       };
 
       // Fetch current status to validate transition (org-scoped)
@@ -368,6 +370,18 @@ export function useUpdateInvoiceStatus() {
             payload: { invoice_id: variables.id, status: "sent" },
           },
         }).catch((err) => console.warn("Failed to trigger workflow event:", err));
+      }
+      // Trigger invoice_acknowledged event when status changes to acknowledged
+      if (variables.status === "acknowledged" && data?.organization_id) {
+        supabase.functions.invoke("workflow-event", {
+          body: {
+            event_type: "invoice_acknowledged",
+            entity_type: "invoice",
+            entity_id: variables.id,
+            organization_id: data.organization_id,
+            payload: { invoice_id: variables.id, status: "acknowledged", source: "manual" },
+          },
+        }).catch((err) => console.warn("Failed to trigger invoice_acknowledged event:", err));
       }
     },
     onError: (error) => {
