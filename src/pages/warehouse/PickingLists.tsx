@@ -328,51 +328,22 @@ export default function PickingLists() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-xl">
             <DialogHeader><DialogTitle>Generate Pick List</DialogTitle></DialogHeader>
-            <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
-              <div>
-                <Label>Warehouse *</Label>
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Items to Pick *</Label>
-                  <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
-                </div>
-                <div className="space-y-2">
-                  {pickItems.map((row, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
-                      <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                        <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-                        <SelectContent>
-                          {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} />
-                      <Input type="number" value={row.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
-                      <Button size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={pickItems.length === 1}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={generateList.isPending || !warehouseId}>
-                {generateList.isPending ? "Generating…" : "Generate"}
-              </Button>
-            </DialogFooter>
+            <PickListForm
+              warehouses={warehouses}
+              items={items}
+              warehouseId={warehouseId}
+              setWarehouseId={setWarehouseId}
+              notes={notes}
+              setNotes={setNotes}
+              pickItems={pickItems}
+              setPickItems={setPickItems}
+              addItem={addItem}
+              removeItem={removeItem}
+              updateItem={updateItem}
+              handleSelectItem={handleSelectItem}
+              handleCreate={handleCreate}
+              isPending={generateList.isPending}
+            />
           </DialogContent>
         </Dialog>
       </div>
