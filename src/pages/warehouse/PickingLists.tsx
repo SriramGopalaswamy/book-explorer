@@ -38,7 +38,7 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-interface PickItemRow { item_id?: string; item_name: string; quantity: number }
+interface PickItemRow { item_id?: string; item_name: string; quantity: number; bin_id?: string }
 
 export default function PickingLists() {
   const { data: lists = [], isLoading } = usePickingLists();
