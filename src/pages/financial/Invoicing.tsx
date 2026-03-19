@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -178,7 +178,7 @@ export default function Invoicing() {
   const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
     inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
 
-  const filteredInvoices = invoices.filter((inv) => {
+  const filteredInvoices = useMemo(() => invoices.filter((inv) => {
     const matchesSearch = !searchQuery ||
       inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inv.client_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -186,7 +186,7 @@ export default function Invoicing() {
     const matchesStatus = statusFilter === "all" || inv.status === statusFilter ||
       (statusFilter === "overdue" && isEffectivelyOverdue(inv));
     return matchesSearch && matchesStatus;
-  });
+  }), [invoices, searchQuery, statusFilter]);
 
   const pagination = usePagination(filteredInvoices, 10);
 
@@ -222,6 +222,23 @@ export default function Invoicing() {
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
   const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
+  const { totalOutstanding, totalPaid, overdueCount, draftCount } = useMemo(() => {
+    let outstanding = 0;
+    let paid = 0;
+    let overdue = 0;
+    let drafts = 0;
+    for (const inv of invoices) {
+      if (inv.status === "paid") {
+        paid += Number(inv.amount);
+      } else if (inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv)) {
+        outstanding += Number(inv.amount);
+      }
+      if (inv.status === "overdue" || isEffectivelyOverdue(inv)) overdue++;
+      if (inv.status === "draft") drafts++;
+    }
+    return { totalOutstanding: outstanding, totalPaid: paid, overdueCount: overdue, draftCount: drafts };
+  }, [invoices]);
+
   if (isCheckingRole) {
     return (
       <MainLayout title="Invoicing">
@@ -243,17 +260,6 @@ export default function Invoicing() {
       />
     );
   }
-
-
-
-  const totalOutstanding = invoices
-    .filter((inv) => inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv))
-    .reduce((sum, inv) => sum + Number(inv.amount), 0);
-  const totalPaid = invoices
-    .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + Number(inv.amount), 0);
-  const overdueCount = invoices.filter((inv) => inv.status === "overdue" || isEffectivelyOverdue(inv)).length;
-  const draftCount = invoices.filter((inv) => inv.status === "draft").length;
 
   const updateLineItem = (index: number, field: keyof LineItem, value: string) => {
     setLineItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));

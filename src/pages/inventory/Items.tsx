@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes, MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
+import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes, MoreHorizontal, Pencil, Power, PowerOff, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEM_TYPES = [
@@ -191,6 +191,7 @@ export default function Items() {
                 </div>
                 <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <Button onClick={handleCreate} disabled={!form.name || !form.sku || createItem.isPending}>
+                  {createItem.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {createItem.isPending ? "Creating..." : "Create Item"}
                 </Button>
               </div>
@@ -221,7 +222,7 @@ export default function Items() {
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No items found. Add your first item to get started.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-16">{search ? <span className="text-muted-foreground">No items match your search.</span> : <div className="flex flex-col items-center gap-3"><Package className="h-10 w-10 text-muted-foreground/50" /><div><p className="font-medium text-muted-foreground">No items yet</p><p className="text-sm text-muted-foreground/70 mt-1">Add your first item to start managing your inventory</p></div><Button variant="outline" size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Item</Button></div>}</TableCell></TableRow>
                   ) : pagination.paginatedItems.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium text-foreground">{item.name}</TableCell>
@@ -302,6 +303,7 @@ export default function Items() {
             </div>
             <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
             <Button onClick={handleEdit} disabled={!editForm.name || !editForm.sku || updateItem.isPending}>
+              {updateItem.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {updateItem.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>

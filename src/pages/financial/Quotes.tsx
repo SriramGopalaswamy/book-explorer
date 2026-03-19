@@ -18,6 +18,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,6 +144,7 @@ export default function Quotes() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [viewingQuote, setViewingQuote] = useState<Quote | null>(null);
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   // Create form
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -629,7 +634,7 @@ export default function Quotes() {
                               {q.status === "sent" && <DropdownMenuItem onClick={() => statusMutation.mutate({ id: q.id, status: "rejected" })}><XCircle className="h-4 w-4 mr-2" /> Mark as Rejected</DropdownMenuItem>}
                               {(q.status === "accepted" || q.status === "sent") && <DropdownMenuItem onClick={() => convertToInvoice.mutate(q)}><ArrowRight className="h-4 w-4 mr-2" /> Convert to Invoice</DropdownMenuItem>}
                               {(q.status === "accepted" || q.status === "sent") && <DropdownMenuItem onClick={() => convertToSO.mutate(q)}><ShoppingBag className="h-4 w-4 mr-2" /> Convert to Sales Order</DropdownMenuItem>}
-                              <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(q.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(q.id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -754,6 +759,23 @@ export default function Quotes() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this quote. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMutation.mutate(deleteTarget!); setDeleteTarget(null); }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

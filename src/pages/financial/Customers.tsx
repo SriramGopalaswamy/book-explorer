@@ -319,7 +319,7 @@ export default function Customers() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
               ) : pagination.paginatedItems.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">{search ? "No customers match your search." : "No customers yet. Add your first customer."}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-16">{search ? <span className="text-muted-foreground">No customers match your search.</span> : <div className="flex flex-col items-center gap-3"><Users className="h-10 w-10 text-muted-foreground/50" /><div><p className="font-medium text-muted-foreground">No customers yet</p><p className="text-sm text-muted-foreground/70 mt-1">Add your first customer to start managing your sales</p></div><Button variant="outline" size="sm" onClick={() => setIsDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Customer</Button></div>}</TableCell></TableRow>
               ) : pagination.paginatedItems.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell><div className="font-medium">{c.name}</div>{c.contact_person && <div className="text-xs text-muted-foreground">{c.contact_person}</div>}</TableCell>
