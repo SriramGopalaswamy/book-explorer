@@ -1,32 +1,36 @@
 // deno-lint-ignore-file
 // @ts-nocheck
 /**
- * invoice-dashboard-enrichment: Returns dashboard-ready invoice data enriched
- * with messaging metadata from the messages table.
+ * invoice-dashboard-enrichment: Returns messaging metadata for invoices,
+ * enriching the dashboard without touching existing invoice APIs.
  *
- * This endpoint does NOT modify the existing invoice endpoints — it provides
- * additional fields that the dashboard UI can optionally fetch without any
- * breaking changes to existing API consumers.
+ * Delegates aggregation to the get_invoice_message_enrichment SQL RPC,
+ * which uses a single GROUP BY query and is significantly more efficient
+ * than JavaScript-side aggregation over all message rows.
  *
- * POST body:
+ * POST body (or query params):
  * {
  *   organization_id: string,
- *   invoice_ids?: string[]    // optional subset; omit to fetch all org invoices
+ *   invoice_ids?: string[]    // optional subset; omit to get all org invoices
  * }
  *
- * Returns for each invoice:
+ * Returns:
  * {
- *   invoice_id:           string,
- *   last_message_channel: string | null,   // "email" | "whatsapp" | null
- *   last_message_status:  string | null,   // "sent" | "delivered" | "failed" | null
- *   last_message_at:      string | null,   // ISO timestamp | null
- *   last_contacted_at:    string | null,   // ISO timestamp of last outbound message | null
- *   total_messages_sent:  number,
- *   total_replies:        number
+ *   enrichment: [
+ *     {
+ *       invoice_id:           string,
+ *       last_message_channel: string | null,
+ *       last_message_status:  string | null,
+ *       last_message_at:      string | null,
+ *       last_contacted_at:    string | null,
+ *       total_messages_sent:  number,
+ *       total_replies:        number
+ *     }
+ *   ],
+ *   count: number
  * }
  *
- * This is additive-only — it does NOT change any existing invoice schema or
- * endpoint behavior.
+ * Additive-only — does NOT modify any existing invoice schema or endpoint.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -52,7 +56,7 @@ Deno.serve(async (req) => {
   try {
     body = await req.json();
   } catch {
-    // Allow empty body — will use organization_id from query param if present
+    // allow empty body — fall through to query-param fallback
   }
 
   const organization_id =
@@ -66,84 +70,29 @@ Deno.serve(async (req) => {
     );
   }
 
-  const invoice_ids: string[] | null = body.invoice_ids ?? null;
+  // invoice_ids is optional; null means "all invoices for this org"
+  const invoice_ids: string[] | null = body.invoice_ids?.length > 0
+    ? body.invoice_ids
+    : null;
 
   try {
-    // ── Fetch last message per invoice entity ──────────────────────────────────
-    // Single query: get the most recent message per (entity_type, entity_id)
-    // for the given organization, using DISTINCT ON for efficiency.
-
-    let lastMsgQuery = supabase
-      .from("messages")
-      .select("entity_id, channel, status, direction, created_at")
-      .eq("organization_id", organization_id)
-      .eq("entity_type", "invoice")
-      .order("entity_id", { ascending: true })
-      .order("created_at", { ascending: false });
-
-    if (invoice_ids && invoice_ids.length > 0) {
-      lastMsgQuery = lastMsgQuery.in("entity_id", invoice_ids);
-    }
-
-    const { data: allMessages, error: msgErr } = await lastMsgQuery;
-
-    if (msgErr) throw msgErr;
-
-    // ── Aggregate per invoice_id ───────────────────────────────────────────────
-    // Build a map: invoice_id → { last_message_*, total_sent, total_replies }
-
-    const enrichmentMap: Record<string, {
-      last_message_channel: string | null;
-      last_message_status: string | null;
-      last_message_at: string | null;
-      last_contacted_at: string | null;
-      total_messages_sent: number;
-      total_replies: number;
-    }> = {};
-
-    for (const msg of allMessages ?? []) {
-      const eid = msg.entity_id;
-      if (!enrichmentMap[eid]) {
-        enrichmentMap[eid] = {
-          last_message_channel: null,
-          last_message_status: null,
-          last_message_at: null,
-          last_contacted_at: null,
-          total_messages_sent: 0,
-          total_replies: 0,
-        };
+    // Call the SQL RPC — single GROUP BY query, uses idx_messages_entity_created.
+    // Far more efficient than fetching all message rows and aggregating in JS.
+    const { data: enrichment, error: rpcErr } = await supabase.rpc(
+      "get_invoice_message_enrichment",
+      {
+        p_organization_id: organization_id,
+        p_invoice_ids: invoice_ids,
       }
+    );
 
-      const entry = enrichmentMap[eid];
-
-      // Track last message (any direction) — messages are ordered by created_at DESC
-      // so first encounter per entity_id is the most recent
-      if (!entry.last_message_at) {
-        entry.last_message_channel = msg.channel;
-        entry.last_message_status = msg.status;
-        entry.last_message_at = msg.created_at;
-      }
-
-      if (msg.direction === "outbound") {
-        entry.total_messages_sent += 1;
-        // last outbound message (also first encountered since ordered DESC)
-        if (!entry.last_contacted_at) {
-          entry.last_contacted_at = msg.created_at;
-        }
-      } else if (msg.direction === "inbound") {
-        entry.total_replies += 1;
-      }
-    }
-
-    // ── Format response ────────────────────────────────────────────────────────
-
-    const result = Object.entries(enrichmentMap).map(([invoice_id, data]) => ({
-      invoice_id,
-      ...data,
-    }));
+    if (rpcErr) throw rpcErr;
 
     return new Response(
-      JSON.stringify({ enrichment: result, count: result.length }),
+      JSON.stringify({
+        enrichment: enrichment ?? [],
+        count: enrichment?.length ?? 0,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
