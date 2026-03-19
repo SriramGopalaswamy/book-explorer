@@ -83,8 +83,8 @@ export default function SalesOrders() {
   const stats = {
     total: orders.length,
     draft: orders.filter((o) => o.status === "draft").length,
-    active: orders.filter((o) => ["confirmed", "processing", "shipped"].includes(o.status)).length,
     confirmed: orders.filter((o) => o.status === "confirmed").length,
+    cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
 
   const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
