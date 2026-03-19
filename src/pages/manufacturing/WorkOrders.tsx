@@ -218,43 +218,41 @@ export default function WorkOrders() {
     },
     { key: "priority", header: "Priority", render: (r) => <Badge className={priorityColors[r.priority] || ""}>{r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</Badge> },
     {
-      key: "status", header: "Status",
+      key: "id" as any, header: "Actions",
       render: (r) => {
         const allowed = VALID_TRANSITIONS[r.status] ?? [];
-        if (allowed.length === 0) return <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ")}</Badge>;
         return (
-          <Select value="" onValueChange={(v) => { if (v && v !== r.status) updateStatus.mutate({ id: r.id, status: v }); }}>
-            <SelectTrigger className="w-[150px] h-8">
-              <span>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-            </SelectTrigger>
-            <SelectContent>
-              {allowed.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            {r.status === "draft" && (
+              <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
+                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+              </Button>
+            )}
+            {(r.status === "in_progress" || r.status === "planned") && (
+              <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
+                <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
+              </Button>
+            )}
+            {r.status === "completed" && (
+              <Button variant="outline" size="sm" onClick={() => openFgDialog(r)}>
+                <PackageCheck className="h-3.5 w-3.5 mr-1" /> Post FG
+              </Button>
+            )}
+            {allowed.length > 0 ? (
+              <Select value="" onValueChange={(v) => { if (v && v !== r.status) updateStatus.mutate({ id: r.id, status: v }); }}>
+                <SelectTrigger className="w-[130px] h-8">
+                  <span>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {allowed.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ")}</Badge>
+            )}
+          </div>
         );
       },
-    },
-    {
-      key: "id" as any, header: "Actions",
-      render: (r) => (
-        <div className="flex items-center gap-1">
-          {r.status === "draft" && (
-            <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
-              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-            </Button>
-          )}
-          {(r.status === "in_progress" || r.status === "planned") && (
-            <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
-              <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
-            </Button>
-          )}
-          {r.status === "completed" && (
-            <Button variant="outline" size="sm" onClick={() => openFgDialog(r)}>
-              <PackageCheck className="h-3.5 w-3.5 mr-1" /> Post FG
-            </Button>
-          )}
-        </div>
-      ),
     },
     { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[120px] block">{r.notes || "—"}</span> },
     { key: "planned_start", header: "Start", render: (r) => r.planned_start ? format(new Date(r.planned_start), "dd MMM") : <span className="text-muted-foreground">—</span> },
