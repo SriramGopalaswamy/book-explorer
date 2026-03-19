@@ -142,12 +142,13 @@ export default function SalesReturnsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Return #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                   <TableHead>Return #</TableHead>
+                   <TableHead>Customer</TableHead>
+                   <TableHead>Reason</TableHead>
+                   <TableHead>Date</TableHead>
+                   <TableHead className="text-right">Total</TableHead>
+                   <TableHead>Status</TableHead>
+                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
