@@ -13,6 +13,7 @@ import {
 import {
   LayoutDashboard, RefreshCw, Clock, CheckCircle2, XCircle,
   AlertCircle, Play, Zap, ChevronRight, Calendar,
+  Activity, CheckCircle,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -200,7 +201,7 @@ export default function AutomationDashboard() {
   const { data: currentRole } = useCurrentRole();
   const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
 
-  const organizationId = orgData?.organization_id;
+  const organizationId = orgData?.organizationId;
 
   // Fetch workflow runs with workflow name + invoice info
   const { data: runs = [], isLoading, refetch } = useQuery({
@@ -311,10 +312,10 @@ export default function AutomationDashboard() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Runs" value={String(total)} icon="activity" />
-          <StatCard title="Active" value={String(running)} icon="clock" />
-          <StatCard title="Completed" value={String(completed)} icon="check-circle" />
-          <StatCard title="Failed" value={String(failed)} icon="alert-circle" />
+          <StatCard title="Total Runs" value={String(total)} icon={<Activity className="h-4 w-4" />} />
+          <StatCard title="Active" value={String(running)} icon={<Play className="h-4 w-4" />} />
+          <StatCard title="Completed" value={String(completed)} icon={<CheckCircle className="h-4 w-4" />} />
+          <StatCard title="Failed" value={String(failed)} icon={<AlertCircle className="h-4 w-4" />} />
         </div>
 
         {/* Active workflow runs table */}

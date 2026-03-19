@@ -297,7 +297,7 @@ export default function WorkflowsPage() {
     { step_order: 1, step_type: "delay", config: { duration_hours: 24 } },
   ]);
 
-  const organizationId = orgData?.organization_id;
+  const organizationId = orgData?.organizationId;
 
   // Fetch workflows
   const { data: workflows = [], isLoading } = useQuery({
