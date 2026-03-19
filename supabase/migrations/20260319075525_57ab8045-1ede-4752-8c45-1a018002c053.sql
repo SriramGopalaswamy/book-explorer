@@ -1,0 +1,1 @@
+ALTER TABLE public.inventory_count_lines ADD COLUMN IF NOT EXISTS bin_id UUID REFERENCES public.bin_locations(id) ON DELETE SET NULL;
