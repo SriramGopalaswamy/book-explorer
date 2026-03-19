@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Plus, ShoppingBag, Clock, Truck, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye, RotateCcw } from "lucide-react";
+import { Plus, ShoppingBag, Clock, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye, RotateCcw, XCircle } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, useUpdateSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderItems } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
@@ -83,8 +83,8 @@ export default function SalesOrders() {
   const stats = {
     total: orders.length,
     draft: orders.filter((o) => o.status === "draft").length,
-    active: orders.filter((o) => ["confirmed", "processing", "shipped"].includes(o.status)).length,
     confirmed: orders.filter((o) => o.status === "confirmed").length,
+    cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
 
   const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
@@ -239,8 +239,8 @@ export default function SalesOrders() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ShoppingBag className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total SOs</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Clock className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.draft}</p><p className="text-xs text-muted-foreground">Drafts</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Truck className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.active}</p><p className="text-xs text-muted-foreground">Active</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.confirmed}</p><p className="text-xs text-muted-foreground">Confirmed</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.confirmed}</p><p className="text-xs text-muted-foreground">Confirmed</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><XCircle className="h-8 w-8 text-destructive" /><div><p className="text-2xl font-bold text-foreground">{stats.cancelled}</p><p className="text-xs text-muted-foreground">Cancelled</p></div></div></CardContent></Card>
         </div>
 
         <div className="flex items-center gap-2">
