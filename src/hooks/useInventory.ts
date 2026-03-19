@@ -57,8 +57,10 @@ export function useUpdateItem() {
       if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
-      const { error } = await supabase.from("items" as any).update(updates).eq("id", id).eq("organization_id", orgId);
+      const { data, error } = await supabase.from("items" as any).update(updates).eq("id", id).eq("organization_id", orgId).select();
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Item update failed — no rows were modified");
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["items"] });

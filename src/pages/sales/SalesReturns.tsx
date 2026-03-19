@@ -201,10 +201,10 @@ export default function SalesReturnsPage() {
                   <div className="space-y-2">
                     <p className="text-sm font-semibold">Items</p>
                     <Table>
-                      <TableHeader><TableRow><TableHead className="text-xs">Description</TableHead><TableHead className="text-xs text-right">Qty</TableHead><TableHead className="text-xs text-right">Price</TableHead><TableHead className="text-xs text-right">Amount</TableHead></TableRow></TableHeader>
-                      <TableBody>{viewItems.map((it: any, i: number) => (
-                        <TableRow key={i}><TableCell className="text-sm">{it.description}</TableCell><TableCell className="text-sm text-right">{it.quantity}</TableCell><TableCell className="text-sm text-right">₹{Number(it.unit_price).toLocaleString()}</TableCell><TableCell className="text-sm text-right font-medium">₹{Number(it.amount).toLocaleString()}</TableCell></TableRow>
-                      ))}</TableBody>
+                       <TableHeader><TableRow><TableHead className="text-xs">Description</TableHead><TableHead className="text-xs">Reason</TableHead><TableHead className="text-xs text-right">Qty</TableHead><TableHead className="text-xs text-right">Price</TableHead><TableHead className="text-xs text-right">Amount</TableHead></TableRow></TableHeader>
+                       <TableBody>{viewItems.map((it: any, i: number) => (
+                         <TableRow key={i}><TableCell className="text-sm">{it.description}</TableCell><TableCell className="text-sm text-muted-foreground">{it.reason || "—"}</TableCell><TableCell className="text-sm text-right">{it.quantity}</TableCell><TableCell className="text-sm text-right">₹{Number(it.unit_price).toLocaleString()}</TableCell><TableCell className="text-sm text-right font-medium">₹{Number(it.amount).toLocaleString()}</TableCell></TableRow>
+                       ))}</TableBody>
                     </Table>
                   </div>
                 )}
