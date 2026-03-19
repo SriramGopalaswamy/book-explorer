@@ -341,7 +341,9 @@ function RootCauseAuditTab() {
         body: { action: "history" },
       });
       if (data?.runs) setHistory(data.runs);
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to fetch audit history:", (err as Error).message);
+    }
   };
 
   const checks = result?.checks ?? [];

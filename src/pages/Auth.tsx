@@ -140,6 +140,14 @@ export default function Auth() {
         setIsMsLoading(false);
         return;
       }
+      // Validate redirect URL to prevent open redirect attacks
+      const redirectUrl = new URL(data.url);
+      const allowedHosts = ["login.microsoftonline.com", "login.microsoft.com", "login.live.com"];
+      if (!allowedHosts.includes(redirectUrl.hostname)) {
+        toast.error("Invalid authentication URL received");
+        setIsMsLoading(false);
+        return;
+      }
       sessionStorage.setItem("ms365_oauth_state", data.state);
       window.location.href = data.url;
     } catch (err) {

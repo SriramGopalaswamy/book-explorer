@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,6 +132,7 @@ async function downloadQuotePdf(quoteId: string) {
 
 // ─── Component ───────────────────────────────────────────────
 export default function Quotes() {
+  const navigate = useNavigate();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
@@ -604,12 +606,12 @@ export default function Quotes() {
                               <StatusIcon className="mr-1 h-3 w-3" />{sc.label}
                             </Badge>
                             {q.status === "converted" && q.converted_invoice_id && (
-                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => window.location.href = "/financial/invoicing"}>
+                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => navigate("/financial/invoicing")}>
                                 → Converted to Invoice
                               </p>
                             )}
                             {q.status === "converted" && !q.converted_invoice_id && (
-                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => window.location.href = "/sales/orders"}>
+                              <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => navigate("/sales/orders")}>
                                 → Converted to Sales Order
                               </p>
                             )}
