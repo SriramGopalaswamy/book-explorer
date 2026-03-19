@@ -228,7 +228,7 @@ export default function WorkOrders() {
                 <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
               </Button>
             )}
-            {(r.status === "in_progress" || r.status === "planned") && (
+            {r.status === "in_progress" && (
               <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
                 <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
               </Button>
