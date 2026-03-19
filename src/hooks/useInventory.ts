@@ -13,7 +13,7 @@ export function useItems() {
 
   return useQuery({
     queryKey: ["items", orgId],
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name");
@@ -112,7 +112,7 @@ export function useWarehouses() {
 
   return useQuery({
     queryKey: ["warehouses", orgId],
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase.from("warehouses" as any).select("*").eq("organization_id", orgId).order("name");
@@ -205,7 +205,7 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
 
   return useQuery({
     queryKey: ["stock-ledger", itemId, warehouseId, orgId],
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
       try {
@@ -238,7 +238,7 @@ export function useStockAdjustments() {
 
   return useQuery({
     queryKey: ["stock-adjustments", orgId],
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase.from("stock_adjustments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });

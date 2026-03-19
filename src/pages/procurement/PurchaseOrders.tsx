@@ -46,6 +46,7 @@ export default function PurchaseOrders() {
   const deletePO = useDeletePurchaseOrder();
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -59,10 +60,10 @@ export default function PurchaseOrders() {
 
   // Fetch vendors for dropdown
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors-list"],
-    enabled: !!user,
+    queryKey: ["vendors-list", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data || [];
     },
@@ -137,8 +138,7 @@ export default function PurchaseOrders() {
   const editMutation = useMutation({
     mutationFn: async () => {
       if (!editingPO || !user) throw new Error("Not ready");
-      const orgId = orgData?.organizationId;
-      if (!orgId) throw new Error("No organization");
+      if (!orgId) throw new Error("Organization not found");
 
       const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);

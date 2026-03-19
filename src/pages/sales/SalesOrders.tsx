@@ -17,6 +17,8 @@ import { useSalesOrderItems } from "@/hooks/useSalesOrders";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -32,6 +34,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SalesOrders() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: orders = [], isLoading } = useSalesOrders();
   const createSO = useCreateSalesOrder();
   const updateSO = useUpdateSalesOrder();
@@ -53,9 +58,10 @@ export default function SalesOrders() {
   const { data: viewSOItems = [] } = useSalesOrderItems(viewingSO?.id);
   // Fetch customers for dropdown
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers-so-list"],
+    queryKey: ["customers-so-list", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("id, name").eq("status", "active").order("name");
+      const { data, error } = await supabase.from("customers").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data || [];
     },
@@ -63,9 +69,10 @@ export default function SalesOrders() {
 
   // Fetch existing delivery notes to know which SOs already have one
   const { data: existingDNs = [] } = useQuery({
-    queryKey: ["delivery-notes-so-ids"],
+    queryKey: ["delivery-notes-so-ids", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("delivery_notes" as any).select("sales_order_id");
+      const { data, error } = await supabase.from("delivery_notes" as any).select("sales_order_id").eq("organization_id", orgId);
       if (error) throw error;
       return (data || []).map((d: any) => d.sales_order_id).filter(Boolean) as string[];
     },

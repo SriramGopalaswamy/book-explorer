@@ -26,6 +26,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { getPhoneConfig, getTaxConfig, validatePhone, validateTaxNumber } from "@/lib/country-validation";
 
@@ -43,6 +44,8 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function Vendors() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -83,20 +86,21 @@ export default function Vendors() {
   }, [form.email, form.phone, form.tax_number, form.country]);
 
   const { data: vendors = [], isLoading } = useQuery({
-    queryKey: ["vendors", user?.id],
+    queryKey: ["vendors", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("vendors").select("*").order("created_at", { ascending: false });
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("vendors").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as Vendor[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: typeof emptyForm) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("vendors").insert({ ...values, user_id: user.id });
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("vendors").insert({ ...values, user_id: user.id, organization_id: orgId });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Added" }); setIsDialogOpen(false); setForm(emptyForm); },
@@ -105,7 +109,8 @@ export default function Vendors() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: typeof emptyForm }) => {
-      const { error } = await supabase.from("vendors").update(values).eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("vendors").update(values).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); toast({ title: "Vendor Updated" }); setEditingVendor(null); setForm(emptyForm); },
@@ -113,15 +118,16 @@ export default function Vendors() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("vendors").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("vendors").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
+      if (!orgId) throw new Error("Organization not found");
       const newStatus = currentStatus === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("vendors").update({ status: newStatus }).eq("id", id);
+      const { error } = await supabase.from("vendors").update({ status: newStatus }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
       return newStatus;
     },

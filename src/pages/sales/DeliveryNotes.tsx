@@ -14,6 +14,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Truck, PackageCheck, RotateCcw, ClipboardList, ExternalLink, MapPin, MoreHorizontal, Eye, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 interface DeliveryNote {
@@ -61,15 +63,20 @@ const CARRIERS = [
 ];
 
 export default function DeliveryNotes() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { data: notes = [], isLoading } = useQuery({
-    queryKey: ["delivery-notes"],
+    queryKey: ["delivery-notes", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("delivery_notes" as any)
         .select("*, sales_orders:sales_order_id(so_number, customer_name)")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return ((data || []) as any[]).map((d: any) => ({
@@ -82,8 +89,9 @@ export default function DeliveryNotes() {
 
   const updateShipping = useMutation({
     mutationFn: async (update: { id: string; carrier_name?: string; tracking_number?: string; tracking_url?: string; shipping_method?: string; estimated_delivery?: string; shipping_cost?: number; weight_kg?: number; packages_count?: number; status?: string }) => {
+      if (!orgId) throw new Error("Organization not found");
       const { id, ...fields } = update;
-      const { error } = await supabase.from("delivery_notes" as any).update({ ...fields, updated_at: new Date().toISOString() } as any).eq("id", id);
+      const { error } = await supabase.from("delivery_notes" as any).update({ ...fields, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery-notes"] }); toast.success("Shipping details updated"); },

@@ -15,6 +15,7 @@ import { Plus, Layers, CheckCircle, Archive, Search, Trash2, MoreHorizontal, Eye
 import { useBOMs, useCreateBOM, useBOMLines, useBOMCostRollup, useUpdateBOMStatus, useDeleteBOM, BOM } from "@/hooks/useManufacturing";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -90,6 +91,8 @@ function BOMDetailDialog({ bom, open, onClose }: { bom: BOM; open: boolean; onCl
 }
 
 export default function BillOfMaterials() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: boms = [], isLoading } = useBOMs();
   const createBOM = useCreateBOM();
   const updateStatus = useUpdateBOMStatus();
@@ -130,9 +133,10 @@ export default function BillOfMaterials() {
 
   const handleSaveEdit = async () => {
     if (!editingBom || !editForm.product_name.trim()) return;
+    if (!orgId) { toast.error("Organization not found"); return; }
     setSavingEdit(true);
     try {
-      const { error } = await supabase.from("bill_of_materials" as any).update({ product_name: editForm.product_name.trim(), notes: editForm.notes || null, updated_at: new Date().toISOString() } as any).eq("id", editingBom.id);
+      const { error } = await supabase.from("bill_of_materials" as any).update({ product_name: editForm.product_name.trim(), notes: editForm.notes || null, updated_at: new Date().toISOString() } as any).eq("id", editingBom.id).eq("organization_id", orgId);
       if (error) throw error;
       // Delete old lines and re-insert
       await supabase.from("bom_lines" as any).delete().eq("bom_id", editingBom.id);

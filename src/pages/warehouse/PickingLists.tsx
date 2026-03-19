@@ -19,6 +19,7 @@ import {
 import { useWarehouses, useItems } from "@/hooks/useInventory";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -121,6 +122,8 @@ function PickListFormInner({ dialogOpen, setDialogOpen, warehouses, allItems, wa
 }
 
 export default function PickingLists() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: lists = [], isLoading } = usePickingLists();
   const { data: warehouses = [] } = useWarehouses();
   const { data: items = [] } = useItems();
@@ -168,8 +171,9 @@ export default function PickingLists() {
 
   const handleSaveEdit = async () => {
     if (!editList) return;
+    if (!orgId) { toast.error("Organization not found"); return; }
     try {
-      const { error } = await (supabase as any).from("picking_lists").update({ notes: editNotes }).eq("id", editList.id);
+      const { error } = await (supabase as any).from("picking_lists").update({ notes: editNotes }).eq("id", editList.id).eq("organization_id", orgId);
       if (error) throw error;
       toast.success("Picking list updated");
       await qc.invalidateQueries({ queryKey: ["picking-lists"] });
@@ -180,9 +184,10 @@ export default function PickingLists() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!orgId) { toast.error("Organization not found"); return; }
     try {
       await supabase.from("picking_list_items" as any).delete().eq("picking_list_id", id);
-      const { error } = await (supabase as any).from("picking_lists").delete().eq("id", id);
+      const { error } = await (supabase as any).from("picking_lists").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
       toast.success("Picking list deleted");
       await qc.invalidateQueries({ queryKey: ["picking-lists"] });

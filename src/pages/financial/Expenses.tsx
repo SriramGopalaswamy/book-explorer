@@ -28,6 +28,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { useExpensesBulkUpload } from "@/hooks/useBulkUpload";
@@ -57,6 +58,8 @@ const statusLabels: Record<string, string> = {
 export default function Expenses() {
   const { data: currentRole, isLoading: isCheckingRole } = useCurrentRole();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -74,29 +77,31 @@ export default function Expenses() {
 
   // All org expenses (finance/admin view)
   const { data: allExpenses = [], isLoading: isLoadingAll, error: allError } = useQuery({
-    queryKey: ["expenses-all"],
+    queryKey: ["expenses-all", orgId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
       const { data, error } = await supabase
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
+        .eq("organization_id", orgId)
         .eq("is_deleted", false)
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
       return (data || []) as Expense[];
     },
-    enabled: !!user && isFinanceOrAdmin,
+    enabled: !!user && !!orgId && isFinanceOrAdmin,
   });
 
   // Employee's own expenses
   const { data: myExpenses = [], isLoading: isLoadingMy, error: myError } = useQuery({
-    queryKey: ["expenses-my", user?.id],
+    queryKey: ["expenses-my", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
       const { data, error } = await supabase
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
+        .eq("organization_id", orgId)
         .eq("user_id", user.id)
         .eq("is_deleted", false)
         .order("expense_date", { ascending: false })
@@ -104,7 +109,7 @@ export default function Expenses() {
       if (error) throw error;
       return (data || []) as Expense[];
     },
-    enabled: !!user && !isFinanceOrAdmin,
+    enabled: !!user && !!orgId && !isFinanceOrAdmin,
   });
 
   // Log any query errors for debugging
@@ -115,19 +120,20 @@ export default function Expenses() {
   const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const markPaidMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
       // Update expense status to paid
-      const { error } = await supabase.from("expenses").update({ status: "paid", reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await supabase.from("expenses").update({ status: "paid", reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
 
       // Fetch the expense details to create a financial_records entry
-      const { data: expense, error: fetchErr } = await supabase.from("expenses").select("*").eq("id", id).single();
+      const { data: expense, error: fetchErr } = await supabase.from("expenses").select("*").eq("id", id).eq("organization_id", orgId).single();
       if (fetchErr || !expense) {
         console.warn("Could not fetch expense to sync to financial_records:", fetchErr);
         return;
@@ -141,6 +147,7 @@ export default function Expenses() {
         description: expense.description || `Expense: ${expense.category}`,
         record_date: expense.expense_date,
         user_id: user!.id,
+        organization_id: orgId,
       });
       if (frError) console.warn("Failed to sync expense to financial_records:", frError);
 
@@ -154,6 +161,7 @@ export default function Expenses() {
         reference: id.slice(0, 8),
         category: expense.category,
         date: expense.expense_date,
+        organizationId: orgId,
       });
     },
     onSuccess: () => {
@@ -173,6 +181,7 @@ export default function Expenses() {
   const createExpenseMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       if (!newCategory) throw new Error("Category is required");
       if (!newAmount || Number(newAmount) <= 0) throw new Error("Valid amount is required");
       if (!receiptFile) throw new Error("Receipt/bill upload is mandatory");

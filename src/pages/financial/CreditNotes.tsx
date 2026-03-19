@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface Customer { id: string; name: string; }
 interface CreditNote {
@@ -101,6 +102,8 @@ const StatusStepper = ({ status }: { status: string }) => {
 export default function CreditNotes() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -116,25 +119,25 @@ export default function CreditNotes() {
   const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
 
   const { data: creditNotes = [], isLoading } = useQuery({
-    queryKey: ["credit-notes", user?.id],
+    queryKey: ["credit-notes", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("credit_notes").select("*").order("created_at", { ascending: false });
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("credit_notes").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as CreditNote[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers", user?.id],
+    queryKey: ["customers", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("customers").select("id,name").eq("status", "active");
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("customers").select("id,name").eq("organization_id", orgId).eq("status", "active");
       if (error) throw error;
       return data as Customer[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const resetForm = () => {
@@ -145,12 +148,14 @@ export default function CreditNotes() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       if (!selectedCustomerId) throw new Error("Please select a customer.");
       if (!form.amount || Number(form.amount) <= 0) throw new Error("Please enter a valid amount.");
       const customer = customers.find((c) => c.id === selectedCustomerId);
       if (!customer) throw new Error("Selected customer not found.");
       const { error } = await supabase.from("credit_notes").insert({
         user_id: user.id,
+        organization_id: orgId,
         credit_note_number: `CN-${Date.now().toString().slice(-6)}`,
         client_name: customer.name,
         customer_id: selectedCustomerId,
@@ -172,7 +177,8 @@ export default function CreditNotes() {
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("credit_notes").update({ status }).eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("credit_notes").update({ status }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Status Updated" }); },
@@ -191,6 +197,7 @@ export default function CreditNotes() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingCreditNote) throw new Error("No credit note selected");
+      if (!orgId) throw new Error("Organization not found");
       if (!editCustomerId) throw new Error("Please select a customer.");
       if (!editForm.amount || Number(editForm.amount) <= 0) throw new Error("Please enter a valid amount.");
       const customer = customers.find((c) => c.id === editCustomerId);
@@ -202,7 +209,7 @@ export default function CreditNotes() {
         reason: editForm.reason || null,
         issue_date: editForm.issue_date,
         status: editForm.status,
-      }).eq("id", editingCreditNote.id);
+      }).eq("id", editingCreditNote.id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -216,7 +223,7 @@ export default function CreditNotes() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("credit_notes").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("credit_notes").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Credit Note Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

@@ -80,7 +80,7 @@ export function usePayrollRuns() {
       if (error) throw error;
       return (data ?? []) as PayrollRun[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
     refetchInterval: 15_000,
@@ -332,8 +332,8 @@ export function useGeneratePayroll() {
       const entries = structures.map((s: any) => {
         const components = s.compensation_components || [];
         const lwpDays = lwpMap.get(s.profile_id) || 0;
-        const paidDays = workingDays - lwpDays;
-        const payRatio = paidDays / workingDays;
+        const paidDays = Math.max(0, workingDays - lwpDays);
+        const payRatio = workingDays > 0 ? paidDays / workingDays : 1;
 
         const earningsBreakdown: any[] = [];
         const deductionsBreakdown: any[] = [];
@@ -419,7 +419,8 @@ export function useGeneratePayroll() {
           }
         }
 
-        const lwpDeduction = lwpDays > 0 ? Math.round((grossEarnings / paidDays) * lwpDays * (paidDays < workingDays ? 0 : 1)) : 0;
+        const perDaySalary = workingDays > 0 ? Math.round(grossEarnings / workingDays) : 0;
+        const lwpDeduction = lwpDays > 0 ? perDaySalary * lwpDays : 0;
 
         // Ensure net pay is never negative — cap deductions at gross
         const rawNetPay = grossEarnings - totalDeductions;
@@ -635,14 +636,11 @@ export function useUpdateEntryLWP() {
       if (allEntries) {
         // Apply the current update to the entry we just changed
         const totals = allEntries.reduce(
-          (acc, e) => {
-            const isUpdated = false; // already committed above
-            return {
-              gross: acc.gross + Number(e.gross_earnings),
-              ded: acc.ded + Number(e.total_deductions),
-              net: acc.net + Number(e.net_pay),
-            };
-          },
+          (acc, e) => ({
+            gross: acc.gross + Number(e.gross_earnings),
+            ded: acc.ded + Number(e.total_deductions),
+            net: acc.net + Number(e.net_pay),
+          }),
           { gross: 0, ded: 0, net: 0 }
         );
 
@@ -708,6 +706,14 @@ export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
     "Working Days", "Paid Days", "Net Pay",
   ];
 
+  const escapeCSV = (val: string | number): string => {
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const rows = entries.map((e) => [
     e.profiles?.full_name || "",
     e.profiles?.department || "",
@@ -722,7 +728,7 @@ export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
     e.net_pay,
   ]);
 
-  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const csv = [headers.map(escapeCSV).join(","), ...rows.map((r) => r.map(escapeCSV).join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

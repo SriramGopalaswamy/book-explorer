@@ -29,6 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useConvertQuoteToSO } from "@/hooks/useDocumentChains";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 // ─── Types ───────────────────────────────────────────────────
 interface Customer { id: string; name: string; email: string | null; }
@@ -128,6 +129,8 @@ async function downloadQuotePdf(quoteId: string) {
 export default function Quotes() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -151,33 +154,32 @@ export default function Quotes() {
 
   // ── Data queries ──
   const { data: quotes = [], isLoading } = useQuery({
-    queryKey: ["quotes", user?.id],
+    queryKey: ["quotes", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("quotes").select("*, quote_items(*)").order("created_at", { ascending: false });
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("quotes").select("*, quote_items(*)").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as Quote[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers", user?.id],
+    queryKey: ["customers", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("customers").select("id,name,email").eq("status", "active").order("name");
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("customers").select("id,name,email").eq("organization_id", orgId).eq("status", "active").order("name");
       if (error) throw error;
       return data as Customer[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   // ── Mutations ──
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found");
+      if (!orgId) throw new Error("Organization not found");
       const customer = customers.find((c) => c.id === selectedCustomerId);
       if (!customer) throw new Error("Please select a customer.");
       if (!formMeta.dueDate) throw new Error("Valid Until date is required.");
@@ -195,7 +197,7 @@ export default function Quotes() {
         payment_terms: formMeta.paymentTerms || "Due on Receipt",
         customer_gstin: formMeta.customerGstin || null,
         subtotal, cgst_total: cgstTotal, sgst_total: sgstTotal, igst_total: 0, total_amount: total,
-        organization_id: profile.organization_id,
+        organization_id: orgId,
       }).select().single();
       if (error) throw error;
 
@@ -208,6 +210,7 @@ export default function Quotes() {
             hsn_sac: c.hsn_sac || null,
             cgst_rate: parseFloat(c.cgst_rate) || 0, sgst_rate: parseFloat(c.sgst_rate) || 0, igst_rate: 0,
             cgst_amount: c.cgstAmt, sgst_amount: c.sgstAmt, igst_amount: 0,
+            organization_id: orgId,
           }))
         );
         if (itemsError) throw itemsError;
@@ -225,6 +228,7 @@ export default function Quotes() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!user || !editingQuote) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       const customer = customers.find((c) => c.id === editSelectedCustomerId);
       if (!customer) throw new Error("Please select a customer.");
       if (!editFormMeta.dueDate || editLineItems.some(i => !i.rate)) throw new Error("Please fill in all required fields.");
@@ -238,7 +242,7 @@ export default function Quotes() {
         payment_terms: editFormMeta.paymentTerms || "Due on Receipt",
         customer_gstin: editFormMeta.customerGstin || null,
         subtotal, cgst_total: cgstTotal, sgst_total: sgstTotal, igst_total: 0, total_amount: total,
-      }).eq("id", editingQuote.id);
+      }).eq("id", editingQuote.id).eq("organization_id", orgId);
       if (updateError) throw updateError;
 
       // Delete-reinsert items
@@ -252,6 +256,7 @@ export default function Quotes() {
             hsn_sac: c.hsn_sac || null,
             cgst_rate: parseFloat(c.cgst_rate) || 0, sgst_rate: parseFloat(c.sgst_rate) || 0, igst_rate: 0,
             cgst_amount: c.cgstAmt, sgst_amount: c.sgstAmt, igst_amount: 0,
+            organization_id: orgId,
           }))
         );
         if (itemsError) throw itemsError;
@@ -268,7 +273,8 @@ export default function Quotes() {
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("quotes").update({ status }).eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("quotes").update({ status }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["quotes"] }); toast({ title: "Status Updated" }); },
@@ -280,8 +286,7 @@ export default function Quotes() {
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
       if (!user) throw new Error("Not authenticated");
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found");
+      if (!orgId) throw new Error("Organization not found");
       const invoiceNum = `INV-${Date.now().toString().slice(-8)}`;
       const { data: inv, error } = await supabase.from("invoices").insert({
         user_id: user.id, invoice_number: invoiceNum, client_name: quote.client_name,
@@ -296,7 +301,7 @@ export default function Quotes() {
         igst_total: quote.igst_total || 0,
         total_amount: quote.total_amount || quote.amount,
         notes: quote.notes || null,
-        organization_id: profile.organization_id,
+        organization_id: orgId,
       }).select().single();
       if (error) throw error;
 
@@ -307,9 +312,10 @@ export default function Quotes() {
           hsn_sac: i.hsn_sac || null,
           cgst_rate: i.cgst_rate || 0, sgst_rate: i.sgst_rate || 0, igst_rate: i.igst_rate || 0,
           cgst_amount: i.cgst_amount || 0, sgst_amount: i.sgst_amount || 0, igst_amount: i.igst_amount || 0,
+          organization_id: orgId,
         })));
       }
-      await supabase.from("quotes").update({ status: "converted", converted_invoice_id: inv.id }).eq("id", quote.id);
+      await supabase.from("quotes").update({ status: "converted", converted_invoice_id: inv.id }).eq("id", quote.id).eq("organization_id", orgId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
@@ -321,7 +327,7 @@ export default function Quotes() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("quotes").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["quotes"] }); toast({ title: "Quote Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

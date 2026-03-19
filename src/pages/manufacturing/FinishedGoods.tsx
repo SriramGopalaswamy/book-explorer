@@ -10,6 +10,7 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { PackageCheck, Package, AlertTriangle, IndianRupee, Plus } from "lucide-react";
 import { usePostFinishedGoods } from "@/hooks/useManufacturing";
 import { useWorkOrders } from "@/hooks/useManufacturing";
@@ -29,13 +30,18 @@ interface FinishedGoodsEntry {
 }
 
 export default function FinishedGoods() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["finished-goods"],
+    queryKey: ["finished-goods", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("finished_goods_entries" as any).select("*").order("posted_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("finished_goods_entries" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as FinishedGoodsEntry[];
     },
+    enabled: !!orgId,
   });
   const { data: workOrders = [] } = useWorkOrders();
   const { data: warehouses = [] } = useWarehouses();

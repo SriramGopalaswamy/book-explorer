@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { Badge } from "@/components/ui/badge";
 import { Flame, Package, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
@@ -18,13 +19,18 @@ interface MaterialConsumption {
 }
 
 export default function MaterialConsumptionPage() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
   const { data: records = [], isLoading } = useQuery({
-    queryKey: ["material-consumption"],
+    queryKey: ["material-consumption", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("material_consumption" as any).select("*").order("consumed_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("material_consumption" as any).select("*").eq("organization_id", orgId).order("consumed_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as MaterialConsumption[];
     },
+    enabled: !!orgId,
   });
 
   const totalPlanned = records.reduce((s, r) => s + Number(r.planned_quantity), 0);

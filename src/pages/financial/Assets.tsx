@@ -62,6 +62,7 @@ import {
 import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/BulkUploadDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -108,6 +109,8 @@ export default function Assets() {
   const deleteAsset = useDeleteAsset();
   const runDepreciation = useRunDepreciation();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
 
   const bulkUploadConfig: BulkUploadConfig = {
@@ -138,6 +141,7 @@ AST-001,Dell Latitude 5540,IT Equipment,2025-01-15,85000,36,5000,straight_line,S
 AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,straight_line,HM98765,AER-B,Herman Miller,Floor 3 - Open Area,HR,excellent,,Ergonomic office chair`,
     onUpload: async (rows) => {
       if (!user) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       let success = 0;
       const errors: string[] = [];
 
@@ -146,6 +150,7 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
         try {
           const { error } = await supabase.from("assets").insert({
             user_id: user.id,
+            organization_id: orgId,
             asset_tag: row.asset_tag,
             name: row.name,
             category: row.category || "Other",
@@ -170,7 +175,7 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["assets", orgId] });
       return { success, errors, created: success };
     },
   };

@@ -165,15 +165,18 @@ function validateAssetCreate(asset: Partial<AssetInsert>): void {
 export function useCreateAsset() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useMutation({
     mutationFn: async (asset: Partial<AssetInsert>) => {
       if (!user) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       validateAssetCreate(asset);
 
       const { data, error } = await supabase
         .from("assets")
-        .insert({ ...asset, user_id: user.id } as any)
+        .insert({ ...asset, user_id: user.id, organization_id: orgId } as any)
         .select()
         .single();
       if (error) throw error;
@@ -394,7 +397,8 @@ export function useRunDepreciation() {
           accumulated_depreciation: accumAfter,
           current_book_value: bvAfter,
         } as any)
-        .eq("id", assetId);
+        .eq("id", assetId)
+        .eq("organization_id", callerProfile.organization_id);
       if (updateErr) throw updateErr;
 
       // Post to GL (non-critical — don't fail the depreciation if GL posting fails)

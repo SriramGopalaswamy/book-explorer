@@ -26,6 +26,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 
@@ -44,6 +45,8 @@ const emptyForm = {
 export default function Customers() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -85,20 +88,21 @@ export default function Customers() {
   }, [form.phone, form.tax_number, form.country, form.email]);
 
   const { data: customers = [], isLoading } = useQuery({
-    queryKey: ["customers", user?.id],
+    queryKey: ["customers", orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      if (!orgId) return [];
+      const { data, error } = await supabase.from("customers").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as Customer[];
     },
-    enabled: !!user,
+    enabled: !!orgId,
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: typeof emptyForm) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("customers").insert({ ...values, user_id: user.id });
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("customers").insert({ ...values, user_id: user.id, organization_id: orgId });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Added" }); setIsDialogOpen(false); setForm(emptyForm); },
@@ -107,7 +111,8 @@ export default function Customers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: typeof emptyForm }) => {
-      const { error } = await supabase.from("customers").update(values).eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("customers").update(values).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
 
       // Propagate updated GSTIN to all draft invoices for this customer
@@ -116,6 +121,7 @@ export default function Customers() {
           .from("invoices")
           .update({ customer_gstin: values.tax_number || null } as any)
           .eq("customer_id", id)
+          .eq("organization_id", orgId)
           .eq("status", "draft");
       }
     },
@@ -125,18 +131,19 @@ export default function Customers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
       // Check for linked invoices, credit notes, or quotes before deleting
       const [invoiceCheck, creditNoteCheck, quoteCheck] = await Promise.all([
-        supabase.from("invoices").select("id").eq("customer_id", id).limit(1),
-        supabase.from("credit_notes").select("id").eq("customer_id", id).limit(1),
-        supabase.from("quotes").select("id").eq("customer_id", id).limit(1),
+        supabase.from("invoices").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("credit_notes").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("quotes").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
       ]);
       if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0 || (quoteCheck.data?.length ?? 0) > 0) {
         throw new Error("Cannot delete this customer because they have linked invoices, quotes, or credit notes. Mark them as inactive instead.");
       }
       // Delete AI profile if exists (no user-facing data)
       await supabase.from("ai_customer_profiles").delete().eq("customer_id", id);
-      const { error } = await supabase.from("customers").delete().eq("id", id);
+      const { error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Removed" }); },
@@ -145,8 +152,9 @@ export default function Customers() {
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
+      if (!orgId) throw new Error("Organization not found");
       const newStatus = currentStatus === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("customers").update({ status: newStatus }).eq("id", id);
+      const { error } = await supabase.from("customers").update({ status: newStatus }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
       return newStatus;
     },

@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStockTransfers, useCreateStockTransfer, useUpdateTransferStatus, StockTransfer, useBinLocations } from "@/hooks/useWarehouse";
 import { useWarehouses, useItems } from "@/hooks/useInventory";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -27,6 +28,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function StockTransfers() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: transfers = [], isLoading } = useStockTransfers();
   const { data: warehouses = [] } = useWarehouses();
   const { data: itemMaster = [] } = useItems();
@@ -99,8 +102,9 @@ export default function StockTransfers() {
   const qc = useQueryClient();
   const handleSaveEdit = async () => {
     if (!editingTransfer) return;
+    if (!orgId) { toast.error("Organization not found"); return; }
     try {
-      const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id);
+      const { error } = await (supabase as any).from("stock_transfers").update({ notes: editForm.notes, transfer_date: editForm.transfer_date }).eq("id", editingTransfer.id).eq("organization_id", orgId);
       if (error) throw error;
       toast.success("Transfer updated");
       await qc.invalidateQueries({ queryKey: ["stock-transfers"] });
