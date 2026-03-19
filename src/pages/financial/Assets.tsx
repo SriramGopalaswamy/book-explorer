@@ -425,7 +425,7 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-xs font-semibold text-primary">{a.asset_tag}</span>
           {a.tag_verified && (
-            <span className="text-emerald-400" title={`Tagged${a.last_tagged_date ? ` on ${format(new Date(a.last_tagged_date), "dd MMM yyyy")}` : ""}`}><Tag className="h-3.5 w-3.5" /></span>
+            <span className="text-emerald-500 dark:text-emerald-400" title={`Tagged${a.last_tagged_date ? ` on ${format(new Date(a.last_tagged_date), "dd MMM yyyy")}` : ""}`}><CheckCircle className="h-3.5 w-3.5" /></span>
           )}
         </div>
       ),
@@ -480,6 +480,22 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
         <span className={`text-sm capitalize ${conditionColors[a.condition] || ""}`}>
           {a.condition}
         </span>
+      ),
+    },
+    {
+      key: "tag_status" as any,
+      header: "Tag Status",
+      render: (a) => a.tag_verified ? (
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400">
+            <Tag className="h-3 w-3 mr-1" /> Verified
+          </Badge>
+          {a.last_tagged_date && (
+            <span className="text-xs text-muted-foreground">{format(new Date(a.last_tagged_date), "dd MMM")}</span>
+          )}
+        </div>
+      ) : (
+        <Badge variant="outline" className="text-muted-foreground border-muted">Untagged</Badge>
       ),
     },
     {
