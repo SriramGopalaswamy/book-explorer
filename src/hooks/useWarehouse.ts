@@ -117,7 +117,7 @@ export function useCreateStockTransfer() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string }[] }) => {
+    mutationFn: async (t: { from_warehouse_id: string; to_warehouse_id: string; transfer_date: string; notes?: string; items: { item_name: string; quantity: number; item_id?: string; from_bin_id?: string; to_bin_id?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
 
       // ── Validation: prevent self-transfers ──
