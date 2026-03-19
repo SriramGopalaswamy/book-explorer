@@ -82,6 +82,7 @@ export default function SalesOrders() {
 
   const stats = {
     total: orders.length,
+    active: orders.filter((o) => !["draft", "cancelled", "returned"].includes(o.status)).length,
     draft: orders.filter((o) => o.status === "draft").length,
     confirmed: orders.filter((o) => o.status === "confirmed").length,
     cancelled: orders.filter((o) => o.status === "cancelled").length,
