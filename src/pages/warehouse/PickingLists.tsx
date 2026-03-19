@@ -203,37 +203,37 @@ export default function PickingLists() {
                         <Badge className={statusColors[list.status] || ""}>{list.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground max-w-[250px] break-words whitespace-normal">{list.notes || "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openView(list)}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openView(list); }}>
                               <Eye className="h-4 w-4 mr-2" /> View Details
                             </DropdownMenuItem>
                             {(list.status === "pending" || list.status === "draft") && (
-                              <DropdownMenuItem onClick={() => openEdit(list)}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(list); }}>
                                 <Pencil className="h-4 w-4 mr-2" /> Edit
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("in_progress") && (
-                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: list.id, status: "in_progress" })}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: list.id, status: "in_progress" }); }}>
                                 <PlayCircle className="h-4 w-4 mr-2" /> In Progress
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("completed") && (
-                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: list.id, status: "completed" })}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: list.id, status: "completed" }); }}>
                                 <CheckCircle className="h-4 w-4 mr-2" /> Completed
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("cancelled") && (
-                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: list.id, status: "cancelled" })}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: list.id, status: "cancelled" }); }}>
                                 <XCircle className="h-4 w-4 mr-2" /> Cancelled
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDelete(list.id)} className="text-destructive">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(list.id); }} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
