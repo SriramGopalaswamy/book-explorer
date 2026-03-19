@@ -14,7 +14,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { ClipboardList, PlayCircle, CheckCircle, XCircle, Plus, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search } from "lucide-react";
 import {
-  usePickingLists, useGeneratePickingList, useUpdatePickingListStatus, PickingList,
+  usePickingLists, useGeneratePickingList, useUpdatePickingListStatus, PickingList, useBinLocations,
 } from "@/hooks/useWarehouse";
 import { useWarehouses, useItems } from "@/hooks/useInventory";
 import { useQueryClient } from "@tanstack/react-query";
