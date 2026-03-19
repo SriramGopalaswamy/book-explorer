@@ -11,6 +11,18 @@
  *   1. Get current step from workflow_steps
  *   2. Execute based on step_type: delay | condition | action
  *   3. Advance to next step or complete/fail the run
+ *
+ * Action types supported:
+ *   - send_email    → backward-compatible; internally maps to send_message(channel="email")
+ *   - send_message  → new channel-agnostic action (channel: "email" | "whatsapp")
+ *   - update_invoice_status
+ *   - notify_internal
+ *
+ * Condition fields supported:
+ *   - invoice.<column>         (e.g. invoice.status)
+ *   - last_message.channel     (channel of the last message for this entity)
+ *   - last_message.status      (delivery status of the last message)
+ *   - last_message.created_at  (ISO timestamp of the last message)
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -131,10 +143,11 @@ async function evaluateCondition(supabase: any, config: any, entityType: string,
   const { field, operator, value } = config;
   if (!field || !operator) return true;
 
-  // Resolve field value — currently supports invoice fields
+  // Resolve field value
   let actualValue: any = null;
 
   if (field.startsWith("invoice.")) {
+    // ── invoice.<column> ──────────────────────────────────────────────────────
     const col = field.replace("invoice.", "");
     const { data: invoice } = await supabase
       .from("invoices")
@@ -142,6 +155,23 @@ async function evaluateCondition(supabase: any, config: any, entityType: string,
       .eq("id", entityId)
       .maybeSingle();
     actualValue = invoice?.[col];
+
+  } else if (field.startsWith("last_message.")) {
+    // ── last_message.<field> ──────────────────────────────────────────────────
+    // Fetches the most recent messages row for this entity.
+    const subField = field.replace("last_message.", "");
+    const { data: lastMsg } = await supabase
+      .from("messages")
+      .select("channel, status, created_at, classification")
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastMsg) {
+      actualValue = lastMsg[subField] ?? null;
+    }
   }
 
   // Evaluate operator
@@ -152,12 +182,64 @@ async function evaluateCondition(supabase: any, config: any, entityType: string,
     case "!=":
       return String(actualValue) !== String(value);
     case ">":
+      // Support ISO date comparison as well as numeric
+      if (field === "last_message.created_at") {
+        return new Date(actualValue).getTime() > new Date(value).getTime();
+      }
       return Number(actualValue) > Number(value);
     case "<":
+      if (field === "last_message.created_at") {
+        return new Date(actualValue).getTime() < new Date(value).getTime();
+      }
       return Number(actualValue) < Number(value);
     default:
       return true;
   }
+}
+
+// ─── Messaging helper: resolves invoice details for templates ─────────────────
+
+async function buildInvoiceEmailContent(
+  supabase: any,
+  entityId: string,
+  template: string
+): Promise<{ heading: string; htmlBody: string; toEmail: string | null; clientName: string } | null> {
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("invoice_number, client_name, client_email, amount, total_amount, due_date")
+    .eq("id", entityId)
+    .maybeSingle();
+
+  if (!invoice) return null;
+
+  const isReminder2 = template === "reminder_2";
+  const amountStr = `₹${Number(invoice.total_amount || invoice.amount || 0).toLocaleString("en-IN")}`;
+  const dueDateStr = invoice.due_date
+    ? new Date(invoice.due_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "N/A";
+
+  const heading = isReminder2
+    ? `Final Reminder: Invoice ${invoice.invoice_number}`
+    : `Reminder: Invoice ${invoice.invoice_number}`;
+
+  const bodyHtml = `
+    <p style="color:#333; font-size:15px;">Dear <strong>${invoice.client_name}</strong>,</p>
+    <p style="color:#555;">We wanted to ${isReminder2 ? "send a final reminder" : "follow up"} regarding Invoice <strong>${invoice.invoice_number}</strong> which remains unpaid.</p>
+    <table style="width:100%; border-collapse:collapse; font-size:14px; margin:16px 0;">
+      <tr><td style="padding:8px 0; color:#666; width:160px;">Invoice Number</td><td style="color:#333; font-weight:600;">${invoice.invoice_number}</td></tr>
+      <tr><td style="padding:8px 0; color:#666;">Amount Due</td><td style="color:#333; font-weight:600;">${amountStr}</td></tr>
+      <tr><td style="padding:8px 0; color:#666;">Due Date</td><td style="color:#e74c3c; font-weight:600;">${dueDateStr}</td></tr>
+    </table>
+    <p style="color:#555;">Please arrange payment at your earliest convenience. If you have any questions, please don't hesitate to contact us.</p>
+    ${isReminder2 ? '<p style="color:#e74c3c; font-weight:600;">⚠️ This is a final reminder before escalation.</p>' : ""}
+  `;
+
+  return {
+    heading,
+    htmlBody: emailHtml(heading, bodyHtml),
+    toEmail: invoice.client_email,
+    clientName: invoice.client_name,
+  };
 }
 
 // ─── Action executor ──────────────────────────────────────────────────────────
@@ -170,62 +252,78 @@ async function executeAction(
 ): Promise<void> {
   const { action_type } = config;
 
-  if (action_type === "send_email") {
-    // Get invoice + client email
-    const { data: invoice } = await supabase
-      .from("invoices")
-      .select("invoice_number, client_name, client_email, amount, total_amount, due_date")
-      .eq("id", run.entity_id)
-      .maybeSingle();
-
-    if (!invoice) {
-      console.warn("[workflow-engine] Invoice not found for email action:", run.entity_id);
-      return;
-    }
-
+  // ── send_message: channel-agnostic new action ─────────────────────────────
+  // ── send_email: backward-compatible; internally maps to send_message(channel="email")
+  if (action_type === "send_message" || action_type === "send_email") {
+    const channel = action_type === "send_email" ? "email" : (config.channel || "email");
     const template = config.template || "reminder_1";
-    const isReminder2 = template === "reminder_2";
-    const amountStr = `₹${Number(invoice.total_amount || invoice.amount || 0).toLocaleString("en-IN")}`;
-    const dueDateStr = invoice.due_date
-      ? new Date(invoice.due_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-      : "N/A";
 
-    const heading = isReminder2
-      ? `Final Reminder: Invoice ${invoice.invoice_number}`
-      : `Reminder: Invoice ${invoice.invoice_number}`;
+    if (channel === "email") {
+      // Build email content from invoice + template (same logic as before)
+      const built = await buildInvoiceEmailContent(supabase, run.entity_id, template);
 
-    const bodyHtml = `
-      <p style="color:#333; font-size:15px;">Dear <strong>${invoice.client_name}</strong>,</p>
-      <p style="color:#555;">We wanted to ${isReminder2 ? "send a final reminder" : "follow up"} regarding Invoice <strong>${invoice.invoice_number}</strong> which remains unpaid.</p>
-      <table style="width:100%; border-collapse:collapse; font-size:14px; margin:16px 0;">
-        <tr><td style="padding:8px 0; color:#666; width:160px;">Invoice Number</td><td style="color:#333; font-weight:600;">${invoice.invoice_number}</td></tr>
-        <tr><td style="padding:8px 0; color:#666;">Amount Due</td><td style="color:#333; font-weight:600;">${amountStr}</td></tr>
-        <tr><td style="padding:8px 0; color:#666;">Due Date</td><td style="color:#e74c3c; font-weight:600;">${dueDateStr}</td></tr>
-      </table>
-      <p style="color:#555;">Please arrange payment at your earliest convenience. If you have any questions, please don't hesitate to contact us.</p>
-      ${isReminder2 ? '<p style="color:#e74c3c; font-weight:600;">⚠️ This is a final reminder before escalation.</p>' : ""}
-    `;
+      if (!built) {
+        console.warn("[workflow-engine] Invoice not found for email action:", run.entity_id);
+        return;
+      }
 
-    const toEmail = config.to === "client_email" ? invoice.client_email : config.to;
-    if (toEmail) {
-      const sent = await sendEmail(
-        supabase,
-        organizationId,
-        [{ email: toEmail, name: invoice.client_name }],
-        heading,
-        emailHtml(heading, bodyHtml)
-      );
+      const toEmail = config.to === "client_email" || !config.to
+        ? built.toEmail
+        : config.to;
 
-      // Log outbound email
-      await supabase.from("email_logs").insert({
-        organization_id: organizationId,
-        invoice_id: run.entity_id,
+      if (toEmail) {
+        const sent = await sendEmail(
+          supabase,
+          organizationId,
+          [{ email: toEmail, name: built.clientName }],
+          built.heading,
+          built.htmlBody
+        );
+
+        const msgStatus = sent ? "sent" : "failed";
+
+        // Log to legacy email_logs (unchanged — backward compatibility)
+        await supabase.from("email_logs").insert({
+          organization_id: organizationId,
+          invoice_id: run.entity_id,
+          direction: "outbound",
+          subject: built.heading,
+          from_email: defaultSenderEmail,
+          to_email: toEmail,
+          body_text: `Reminder email sent for Invoice. Template: ${template}.`,
+          raw_payload: { template, sent, workflow_run_id: run.id },
+        }).catch(() => {/* non-critical */});
+
+        // Log to new messages table (channel-agnostic record)
+        await supabase.from("messages").insert({
+          entity_type: run.entity_type,
+          entity_id: run.entity_id,
+          channel: "email",
+          direction: "outbound",
+          recipient: toEmail,
+          subject: built.heading,
+          content: `Reminder email. Template: ${template}.`,
+          template,
+          status: msgStatus,
+          organization_id: organizationId,
+          metadata: { workflow_run_id: run.id, action_type },
+        }).catch(() => {/* non-critical */});
+      }
+
+    } else if (channel === "whatsapp") {
+      // TODO: WhatsApp integration — for now log stub row to messages table
+      console.log(`[workflow-engine] [WhatsApp STUB] Would send whatsapp for entity ${run.entity_id}`);
+      await supabase.from("messages").insert({
+        entity_type: run.entity_type,
+        entity_id: run.entity_id,
+        channel: "whatsapp",
         direction: "outbound",
-        subject: heading,
-        from_email: "admin@grx10.com",
-        to_email: toEmail,
-        body_text: `Reminder email sent for Invoice ${invoice.invoice_number} to ${invoice.client_name}. Template: ${template}.`,
-        raw_payload: { template, sent, workflow_run_id: run.id },
+        recipient: config.to || null,
+        content: config.content || `Reminder. Template: ${template}.`,
+        template,
+        status: "pending",
+        organization_id: organizationId,
+        metadata: { workflow_run_id: run.id, action_type, todo: "WhatsApp API not yet integrated" },
       }).catch(() => {/* non-critical */});
     }
 
