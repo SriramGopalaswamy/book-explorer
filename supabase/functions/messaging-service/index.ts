@@ -5,9 +5,9 @@
  *
  * This service is the ONLY place that knows how to route a message to the
  * correct channel provider. It does NOT implement any transport directly —
- * it delegates to existing edge functions:
- *   - email  → send-notification-email (type="raw_email")
- *   - whatsapp → stub (TODO: WhatsApp Business API)
+ * it delegates to channel-specific providers:
+ *   - email    → send-notification-email (type="raw_email")
+ *   - whatsapp → WhatsApp Business API (Meta Cloud API / Twilio / Gupshup)
  *
  * POST body:
  * {
@@ -42,12 +42,283 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// ─── WhatsApp stub ────────────────────────────────────────────────────────────
+// ─── WhatsApp Provider ───────────────────────────────────────────────────────
+// Decoupled provider abstraction. Supports:
+//   1. Meta Cloud API (WhatsApp Business API direct)
+//   2. Twilio WhatsApp
+//   3. Gupshup
+// Provider is selected via WHATSAPP_PROVIDER env var (default: "meta").
 
-async function sendWhatsAppStub(to: string, content: string): Promise<{ sent: boolean }> {
-  // TODO: Integrate WhatsApp Business API (Meta Cloud API or Twilio)
-  console.log(`[messaging-service] [WhatsApp STUB] Would send to ${to}: ${content.slice(0, 80)}`);
-  return { sent: false };
+interface WhatsAppSendResult {
+  sent: boolean;
+  externalId: string | null;
+  error: string | null;
+}
+
+async function resolveWhatsAppTemplate(
+  supabase: any,
+  organizationId: string,
+  templateName: string
+): Promise<{ template_name: string; variables: Record<string, string>; language: string } | null> {
+  const { data } = await supabase
+    .from("whatsapp_templates")
+    .select("template_name, variables, language")
+    .eq("organization_id", organizationId)
+    .eq("name", templateName)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return data || null;
+}
+
+function normalizePhoneE164(phone: string): string {
+  const digits = phone.replace(/[^0-9+]/g, "");
+  if (digits.startsWith("+")) return digits;
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
+}
+
+async function sendWhatsAppMessage(
+  to: string,
+  content: string,
+  templateConfig: { template_name: string; variables: Record<string, string>; language: string } | null,
+  variableValues: Record<string, any> | null
+): Promise<WhatsAppSendResult> {
+  const provider = Deno.env.get("WHATSAPP_PROVIDER") || "meta";
+  const phone = normalizePhoneE164(to);
+
+  if (provider === "meta") {
+    return sendViaMeta(phone, content, templateConfig, variableValues);
+  } else if (provider === "twilio") {
+    return sendViaTwilio(phone, content, templateConfig, variableValues);
+  } else if (provider === "gupshup") {
+    return sendViaGupshup(phone, content, templateConfig, variableValues);
+  }
+
+  console.warn(`[messaging-service] Unknown WHATSAPP_PROVIDER: ${provider}`);
+  return { sent: false, externalId: null, error: `Unknown provider: ${provider}` };
+}
+
+// ── Meta Cloud API (WhatsApp Business API) ──────────────────────────────────
+
+async function sendViaMeta(
+  phone: string,
+  content: string,
+  templateConfig: { template_name: string; variables: Record<string, string>; language: string } | null,
+  variableValues: Record<string, any> | null
+): Promise<WhatsAppSendResult> {
+  const token = Deno.env.get("WHATSAPP_META_ACCESS_TOKEN");
+  const phoneNumberId = Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
+
+  if (!token || !phoneNumberId) {
+    console.warn("[messaging-service] WHATSAPP_META_ACCESS_TOKEN or WHATSAPP_META_PHONE_NUMBER_ID not set");
+    return { sent: false, externalId: null, error: "WhatsApp Meta credentials not configured" };
+  }
+
+  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const recipient = phone.replace("+", "");
+
+  let body: any;
+
+  if (templateConfig) {
+    // Send template message (HSM) — required for business-initiated conversations
+    const components: any[] = [];
+    if (variableValues && Object.keys(templateConfig.variables).length > 0) {
+      const parameters = Object.entries(templateConfig.variables)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([_idx, fieldName]) => ({
+          type: "text",
+          text: String(variableValues[fieldName] || ""),
+        }));
+
+      if (parameters.length > 0) {
+        components.push({ type: "body", parameters });
+      }
+    }
+
+    body = {
+      messaging_product: "whatsapp",
+      to: recipient,
+      type: "template",
+      template: {
+        name: templateConfig.template_name,
+        language: { code: templateConfig.language },
+        ...(components.length > 0 ? { components } : {}),
+      },
+    };
+  } else {
+    // Send free-form text message (only works within 24h customer-service window)
+    body = {
+      messaging_product: "whatsapp",
+      to: recipient,
+      type: "text",
+      text: { body: content || "Message from GRX10" },
+    };
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`[messaging-service] Meta WhatsApp API error ${res.status}:`, errText);
+      return { sent: false, externalId: null, error: `Meta API ${res.status}: ${errText.slice(0, 200)}` };
+    }
+
+    const data = await res.json();
+    const messageId = data?.messages?.[0]?.id || null;
+    return { sent: true, externalId: messageId, error: null };
+  } catch (err: any) {
+    console.warn("[messaging-service] Meta WhatsApp API exception:", err);
+    return { sent: false, externalId: null, error: err.message };
+  }
+}
+
+// ── Twilio WhatsApp ─────────────────────────────────────────────────────────
+
+async function sendViaTwilio(
+  phone: string,
+  content: string,
+  templateConfig: { template_name: string; variables: Record<string, string>; language: string } | null,
+  variableValues: Record<string, any> | null
+): Promise<WhatsAppSendResult> {
+  const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const fromNumber = Deno.env.get("TWILIO_WHATSAPP_FROM");
+
+  if (!accountSid || !authToken || !fromNumber) {
+    console.warn("[messaging-service] Twilio credentials not configured");
+    return { sent: false, externalId: null, error: "Twilio credentials not configured" };
+  }
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+
+  // Build message body — for templates, Twilio uses content SID or content variables
+  let messageBody = content || "Message from GRX10";
+  const params = new URLSearchParams();
+  params.append("From", `whatsapp:${fromNumber}`);
+  params.append("To", `whatsapp:${phone}`);
+
+  if (templateConfig) {
+    // Twilio Content API template
+    const contentSid = Deno.env.get(`TWILIO_CONTENT_SID_${templateConfig.template_name.toUpperCase()}`);
+    if (contentSid) {
+      params.append("ContentSid", contentSid);
+      if (variableValues) {
+        const contentVars: Record<string, string> = {};
+        Object.entries(templateConfig.variables).forEach(([idx, field]) => {
+          contentVars[idx] = String(variableValues[field] || "");
+        });
+        params.append("ContentVariables", JSON.stringify(contentVars));
+      }
+    } else {
+      params.append("Body", messageBody);
+    }
+  } else {
+    params.append("Body", messageBody);
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      console.warn(`[messaging-service] Twilio API error ${res.status}:`, data);
+      return { sent: false, externalId: null, error: `Twilio ${res.status}: ${data.message || ""}` };
+    }
+
+    return { sent: true, externalId: data.sid || null, error: null };
+  } catch (err: any) {
+    console.warn("[messaging-service] Twilio API exception:", err);
+    return { sent: false, externalId: null, error: err.message };
+  }
+}
+
+// ── Gupshup WhatsApp ────────────────────────────────────────────────────────
+
+async function sendViaGupshup(
+  phone: string,
+  content: string,
+  templateConfig: { template_name: string; variables: Record<string, string>; language: string } | null,
+  variableValues: Record<string, any> | null
+): Promise<WhatsAppSendResult> {
+  const apiKey = Deno.env.get("GUPSHUP_API_KEY");
+  const appName = Deno.env.get("GUPSHUP_APP_NAME");
+  const sourcePhone = Deno.env.get("GUPSHUP_SOURCE_PHONE");
+
+  if (!apiKey || !appName || !sourcePhone) {
+    console.warn("[messaging-service] Gupshup credentials not configured");
+    return { sent: false, externalId: null, error: "Gupshup credentials not configured" };
+  }
+
+  const url = "https://api.gupshup.io/wa/api/v1/msg";
+  const destination = phone.replace("+", "");
+
+  let messagePayload: any;
+
+  if (templateConfig) {
+    const params = variableValues
+      ? Object.entries(templateConfig.variables)
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([_idx, field]) => String(variableValues[field] || ""))
+      : [];
+
+    messagePayload = {
+      type: "template",
+      template: {
+        id: templateConfig.template_name,
+        params,
+      },
+    };
+  } else {
+    messagePayload = {
+      type: "text",
+      text: content || "Message from GRX10",
+    };
+  }
+
+  const params = new URLSearchParams();
+  params.append("channel", "whatsapp");
+  params.append("source", sourcePhone);
+  params.append("destination", destination);
+  params.append("src.name", appName);
+  params.append("message", JSON.stringify(messagePayload));
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        apikey: apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.status === "error") {
+      console.warn(`[messaging-service] Gupshup API error:`, data);
+      return { sent: false, externalId: null, error: `Gupshup: ${data.message || "unknown error"}` };
+    }
+
+    return { sent: true, externalId: data.messageId || null, error: null };
+  } catch (err: any) {
+    console.warn("[messaging-service] Gupshup API exception:", err);
+    return { sent: false, externalId: null, error: err.message };
+  }
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -115,6 +386,7 @@ Deno.serve(async (req) => {
   }
 
   let status: "sent" | "failed" | "pending" = "pending";
+  let externalId: string | null = null;
 
   // ── Route by channel ──────────────────────────────────────────────────────────
 
@@ -153,9 +425,22 @@ Deno.serve(async (req) => {
     }
 
   } else if (channel === "whatsapp") {
-    // TODO: WhatsApp Business API integration
-    const { sent } = await sendWhatsAppStub(to, content || "");
-    status = sent ? "sent" : "pending";
+    // Resolve template from whatsapp_templates table if template name provided
+    let templateConfig: { template_name: string; variables: Record<string, string>; language: string } | null = null;
+    if (template) {
+      templateConfig = await resolveWhatsAppTemplate(supabase, organization_id, template);
+      if (!templateConfig) {
+        console.warn(`[messaging-service] WhatsApp template "${template}" not found for org ${organization_id}`);
+      }
+    }
+
+    const result = await sendWhatsAppMessage(to, content || "", templateConfig, variables || null);
+    status = result.sent ? "sent" : "failed";
+    externalId = result.externalId;
+
+    if (!result.sent) {
+      console.warn("[messaging-service] WhatsApp send failed:", result.error);
+    }
 
   } else {
     return new Response(
@@ -178,6 +463,7 @@ Deno.serve(async (req) => {
       content: content || null,
       template: template || null,
       status,
+      external_id: externalId || null,
       thread_id: thread_id || null,
       organization_id,
       metadata: variables ? { variables } : null,
