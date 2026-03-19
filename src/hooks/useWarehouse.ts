@@ -483,6 +483,7 @@ export function useGeneratePickingList() {
         item_name: item.item_name,
         required_quantity: item.quantity,
         picked_quantity: 0,
+        bin_id: item.bin_id || null,
         status: "pending",
       }));
       const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
