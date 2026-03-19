@@ -35,6 +35,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { toast } from "sonner";
 
@@ -366,6 +367,8 @@ export default function Bills() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: isFinance, isLoading: roleLoading } = useIsFinance();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   // List state
   const [search, setSearch] = useState("");
@@ -393,26 +396,28 @@ export default function Bills() {
   // ─── Data ──────────────────────────────────────────────────────────────────
 
   const { data: bills = [], isLoading } = useQuery({
-    queryKey: ["bills"],
+    queryKey: ["bills", orgId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bills")
         .select("*, bill_items(*)")
+        .eq("organization_id", orgId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors-active"],
+    queryKey: ["vendors-active", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city,status").order("name");
+      const { data } = await supabase.from("vendors").select("id,name,tax_number,payment_terms,email,phone,contact_person,address,city,status").eq("organization_id", orgId).order("name");
       return (data ?? []).filter((v: any) => v.status === "active");
     },
+    enabled: !!orgId,
   });
 
   const [vendorSearch, setVendorSearch] = useState("");
@@ -422,6 +427,7 @@ export default function Bills() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!orgId) throw new Error("Organization not found");
       if (!form.vendor_name.trim()) throw new Error("Vendor name is required");
       if (!form.amount) throw new Error("Amount is required");
 
@@ -464,6 +470,7 @@ export default function Bills() {
           .from("bills")
           .update(payload as any)
           .eq("id", editingBillId)
+          .eq("organization_id", orgId)
           .select()
           .single();
         if (error) throw error;
@@ -475,7 +482,7 @@ export default function Bills() {
         // Insert new bill
         const { data: bill, error } = await supabase
           .from("bills")
-          .insert({ ...payload, user_id: user!.id } as any)
+          .insert({ ...payload, user_id: user!.id, organization_id: orgId } as any)
           .select()
           .single();
         if (error) throw error;
@@ -508,11 +515,13 @@ export default function Bills() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
       // Soft delete instead of hard delete
       const { error } = await supabase
         .from("bills")
         .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -525,11 +534,13 @@ export default function Bills() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!orgId) throw new Error("Organization not found");
       // First verify the bill exists and we can read it
       const { data: currentBill, error: readError } = await supabase
         .from("bills")
         .select("id, status, organization_id, bill_number, bill_date")
         .eq("id", id)
+        .eq("organization_id", orgId)
         .single();
 
       if (readError) {
@@ -540,6 +551,7 @@ export default function Bills() {
         .from("bills")
         .update({ status })
         .eq("id", id)
+        .eq("organization_id", orgId)
         .select();
 
       if (error) {

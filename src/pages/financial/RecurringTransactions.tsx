@@ -17,6 +17,8 @@ import {
   useExecuteRecurringTransactions, RecurringTransaction,
 } from "@/hooks/useRecurringTransactions";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/20 text-green-400",
@@ -28,6 +30,8 @@ const statusColors: Record<string, string> = {
 const FREQUENCIES = ["daily", "weekly", "monthly", "quarterly", "yearly"];
 
 export default function RecurringTransactionsPage() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: transactions = [], isLoading } = useRecurringTransactions();
   const createTx = useCreateRecurringTransaction();
   const updateStatus = useUpdateRecurringTransactionStatus();
@@ -56,6 +60,7 @@ export default function RecurringTransactionsPage() {
   };
 
   const handleCreate = () => {
+    if (!orgId) { toast.error("Organization not found"); return; }
     createTx.mutate(
       {
         name: form.name,

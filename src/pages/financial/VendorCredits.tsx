@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface Vendor { id: string; name: string; }
 interface VendorCredit {
@@ -99,6 +100,8 @@ const StatusStepper = ({ status }: { status: string }) => {
 export default function VendorCredits() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -113,25 +116,25 @@ export default function VendorCredits() {
   const [deleteTarget, setDeleteTarget] = useState<VendorCredit | null>(null);
 
   const { data: vendorCredits = [], isLoading } = useQuery({
-    queryKey: ["vendor-credits", user?.id],
+    queryKey: ["vendor-credits", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("vendor_credits").select("*").order("created_at", { ascending: false });
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("vendor_credits").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return data as VendorCredit[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors", user?.id],
+    queryKey: ["vendors", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("vendors").select("id,name").eq("status", "active");
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase.from("vendors").select("id,name").eq("organization_id", orgId).eq("status", "active");
       if (error) throw error;
       return data as Vendor[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 
   const resetForm = () => {
@@ -142,9 +145,10 @@ export default function VendorCredits() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
+      if (!orgId) throw new Error("Organization not found");
       if (!form.vendor_name || !form.amount) throw new Error("Vendor name and amount are required.");
       const { error } = await supabase.from("vendor_credits").insert({
-        user_id: user.id, vendor_credit_number: `VC-${Date.now().toString().slice(-6)}`,
+        user_id: user.id, organization_id: orgId, vendor_credit_number: `VC-${Date.now().toString().slice(-6)}`,
         vendor_name: form.vendor_name, vendor_id: selectedVendorId || null,
         amount: Number(form.amount), reason: form.reason || null, issue_date: form.issue_date,
         status: form.status,
@@ -163,6 +167,7 @@ export default function VendorCredits() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingCredit) throw new Error("No vendor credit selected");
+      if (!orgId) throw new Error("Organization not found");
       if (!editForm.vendor_name || !editForm.amount) throw new Error("Vendor name and amount are required.");
       const { error } = await supabase.from("vendor_credits").update({
         vendor_name: editForm.vendor_name,
@@ -171,7 +176,7 @@ export default function VendorCredits() {
         reason: editForm.reason || null,
         issue_date: editForm.issue_date,
         status: editForm.status,
-      }).eq("id", editingCredit.id);
+      }).eq("id", editingCredit.id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -184,14 +189,15 @@ export default function VendorCredits() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("vendor_credits").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("vendor_credits").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Vendor Credit Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("vendor_credits").update({ status }).eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("vendor_credits").update({ status }).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Status Updated" }); },

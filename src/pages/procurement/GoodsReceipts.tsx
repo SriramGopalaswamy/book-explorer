@@ -15,8 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, ArrowRight, Eye, Trash2, Search } from "lucide-react";
+import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, Eye, Trash2, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
 interface GoodsReceipt {
@@ -39,6 +41,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function GoodsReceipts() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const [showCreate, setShowCreate] = useState(false);
   const [selectedPO, setSelectedPO] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
@@ -50,9 +55,10 @@ export default function GoodsReceipts() {
   const queryClient = useQueryClient();
 
   const { data: receipts = [], isLoading } = useQuery({
-    queryKey: ["goods-receipts"],
+    queryKey: ["goods-receipts", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("goods_receipts" as any).select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("goods_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as GoodsReceipt[];
     },
@@ -67,7 +73,8 @@ export default function GoodsReceipts() {
 
   const deleteGR = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("goods_receipts" as any).delete().eq("id", id);
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase.from("goods_receipts" as any).delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {

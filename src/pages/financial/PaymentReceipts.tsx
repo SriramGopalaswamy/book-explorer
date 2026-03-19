@@ -12,11 +12,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Filter, X } from "lucide-react";
 import { usePaymentReceipts, useCreatePaymentReceipt } from "@/hooks/usePayments";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from "date-fns";
+import { toast } from "sonner";
 
 const METHODS = ["bank_transfer", "cash", "cheque", "upi", "card"];
 
 export default function PaymentReceipts() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: receipts = [], isLoading } = usePaymentReceipts();
   const createReceipt = useCreatePaymentReceipt();
   const [open, setOpen] = useState(false);
@@ -29,6 +33,7 @@ export default function PaymentReceipts() {
 
   const handleCreate = () => {
     if (!form.customer_name || !form.amount) return;
+    if (!orgId) { toast.error("Organization not found"); return; }
     createReceipt.mutate({ ...form, amount: Number(form.amount) }, { onSuccess: () => { setOpen(false); setForm({ customer_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" }); } });
   };
 

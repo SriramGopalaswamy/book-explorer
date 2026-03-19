@@ -178,6 +178,7 @@ export function useVendorPayments() {
       if (error) throw error;
       return (data || []) as unknown as VendorPayment[];
     },
+    enabled: !!orgId,
   });
 }
 

@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useWarehouses } from "@/hooks/useInventory";
 import { useItems } from "@/hooks/useInventory";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -290,6 +291,8 @@ function CountFormDialog({ dialogOpen, setDialogOpen, warehouses, items, warehou
 }
 
 export default function InventoryCounts() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: counts = [], isLoading } = useInventoryCounts();
   const { data: warehouses = [] } = useWarehouses();
   const { data: items = [] } = useItems();
@@ -316,9 +319,10 @@ export default function InventoryCounts() {
   const postCount = usePostInventoryCount();
   const deleteCountMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
       const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
       if (error) console.warn("Lines delete:", error);
-      const { error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id);
+      const { error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id).eq("organization_id", orgId);
       if (e2) throw e2;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inventory-counts"] }); toast.success("Count deleted"); },

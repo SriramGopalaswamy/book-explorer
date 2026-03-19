@@ -17,6 +17,7 @@ import { format, isAfter, isBefore } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   draft: "secondary", submitted: "default", approved: "default", confirmed: "default", processed: "default", cancelled: "destructive",
@@ -28,6 +29,8 @@ export default function PurchaseReturnsPage() {
   const updateStatus = useUpdatePurchaseReturnStatus();
   const createVendorCredit = useCreateVendorCreditFromReturn();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ vendor_name: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
   const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
@@ -40,10 +43,10 @@ export default function PurchaseReturnsPage() {
 
   // Fetch vendors for dropdown
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors-list"],
-    enabled: !!user,
+    queryKey: ["vendors-list", orgId],
+    enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name, is_active").order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name, is_active").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return (data || []).filter((v: any) => v.is_active !== false);
     },

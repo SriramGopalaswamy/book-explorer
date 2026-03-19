@@ -25,6 +25,7 @@ import { Calendar as CalendarIcon, Plus, Pencil, Trash2, ShieldAlert, PartyPoppe
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -48,26 +49,32 @@ export default function Holidays() {
   const [form, setForm] = useState({ name: "", date: "" });
 
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const holidaysBulkConfig = useHolidaysBulkUpload();
   const qc = useQueryClient();
 
   const { data: holidays = [], isLoading } = useQuery({
-    queryKey: ["holidays", selectedYear],
+    queryKey: ["holidays", selectedYear, orgId],
     queryFn: async () => {
+      if (!orgId) return [];
       const { data, error } = await supabase
         .from("holidays")
         .select("*")
+        .eq("organization_id", orgId)
         .eq("year", selectedYear)
         .order("date", { ascending: true });
       if (error) throw error;
       return data as Holiday[];
     },
+    enabled: !!orgId,
   });
 
   const createHoliday = useMutation({
     mutationFn: async (vals: { name: string; date: string }) => {
+      if (!orgId) throw new Error("No organization found");
       const year = new Date(vals.date).getFullYear();
-      const { error } = await supabase.from("holidays").insert({ name: vals.name, date: vals.date, year });
+      const { error } = await supabase.from("holidays").insert({ name: vals.name, date: vals.date, year, organization_id: orgId });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -81,8 +88,9 @@ export default function Holidays() {
 
   const updateHoliday = useMutation({
     mutationFn: async (vals: { id: string; name: string; date: string }) => {
+      if (!orgId) throw new Error("No organization found");
       const year = new Date(vals.date).getFullYear();
-      const { error } = await supabase.from("holidays").update({ name: vals.name, date: vals.date, year }).eq("id", vals.id);
+      const { error } = await supabase.from("holidays").update({ name: vals.name, date: vals.date, year }).eq("id", vals.id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -96,7 +104,8 @@ export default function Holidays() {
 
   const deleteHoliday = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("holidays").delete().eq("id", id);
+      if (!orgId) throw new Error("No organization found");
+      const { error } = await supabase.from("holidays").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {

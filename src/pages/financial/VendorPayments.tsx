@@ -14,11 +14,14 @@ import { Plus, Filter, X } from "lucide-react";
 import { useVendorPayments, useCreateVendorPayment } from "@/hooks/usePayments";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from "date-fns";
 
 const METHODS = ["bank_transfer", "cash", "cheque", "upi"];
 
 export default function VendorPaymentsPage() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: payments = [], isLoading } = useVendorPayments();
   const createPayment = useCreateVendorPayment();
   const [open, setOpen] = useState(false);
@@ -30,11 +33,13 @@ export default function VendorPaymentsPage() {
   const [dateTo, setDateTo] = useState("");
 
   const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors-active"],
+    queryKey: ["vendors-active", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("vendors").select("id, name").eq("status", "active").order("name");
+      if (!orgId) return [];
+      const { data } = await supabase.from("vendors").select("id, name").eq("organization_id", orgId).eq("status", "active").order("name");
       return (data ?? []) as { id: string; name: string }[];
     },
+    enabled: !!orgId,
   });
 
   const handleCreate = () => {

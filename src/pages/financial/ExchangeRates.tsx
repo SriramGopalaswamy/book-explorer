@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
 import { useFinancialRecords } from "@/hooks/useFinancialData";
+import { toast } from "sonner";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 interface UnrealizedFXLine {
@@ -28,6 +30,8 @@ interface UnrealizedFXLine {
 }
 
 export default function ExchangeRatesPage() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const { data: currencies = [], isLoading: curLoading } = useCurrencies();
   const { data: rates = [], isLoading: rateLoading } = useExchangeRates();
   const { data: financialRecords = [] } = useFinancialRecords();
@@ -40,10 +44,12 @@ export default function ExchangeRatesPage() {
 
   const handleCreate = () => {
     if (!form.rate) return;
+    if (!orgId) { toast.error("Organization not found"); return; }
     createRate.mutate({ ...form, rate: Number(form.rate) }, { onSuccess: () => { setOpen(false); setForm({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] }); } });
   };
 
   const fetchLiveRates = useCallback(async () => {
+    if (!orgId) { toast.error("Organization not found"); return; }
     setFetchingLive(true);
     setLiveRateError(null);
     try {
@@ -62,7 +68,7 @@ export default function ExchangeRatesPage() {
     } finally {
       setFetchingLive(false);
     }
-  }, [createRate]);
+  }, [createRate, orgId]);
 
   // IAS 21: Compute unrealized FX gain/loss for foreign-currency financial records
   const unrealizedLines = useMemo<UnrealizedFXLine[]>(() => {
