@@ -251,14 +251,14 @@ async function executeAction(
       }).catch(() => {/* non-critical */});
 
     } else if (channel === "whatsapp") {
-      // Resolve recipient phone number from invoice (client_phone added by migration)
-      const { data: invoiceForPhone } = await supabase
+      // Resolve recipient phone number and invoice data for template variables
+      const { data: invoiceForWA } = await supabase
         .from("invoices")
-        .select("client_phone, client_name")
+        .select("invoice_number, client_name, client_phone, amount, total_amount, due_date")
         .eq("id", run.entity_id)
         .maybeSingle();
 
-      const toPhone = config.to || invoiceForPhone?.client_phone || null;
+      const toPhone = config.to || invoiceForWA?.client_phone || null;
 
       if (!toPhone) {
         console.warn("[workflow-engine] No phone number for WhatsApp action on entity:", run.entity_id);
@@ -278,19 +278,39 @@ async function executeAction(
         return;
       }
 
-      // Delegate to messaging-service (stub path until WhatsApp Business API is integrated)
+      // Build template variable values from invoice data
+      const amountStr = invoiceForWA
+        ? `₹${Number(invoiceForWA.total_amount || invoiceForWA.amount || 0).toLocaleString("en-IN")}`
+        : "N/A";
+      const dueDateStr = invoiceForWA?.due_date
+        ? new Date(invoiceForWA.due_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "N/A";
+
+      const templateVariables = {
+        client_name: invoiceForWA?.client_name || "Customer",
+        invoice_number: invoiceForWA?.invoice_number || "",
+        amount: amountStr,
+        due_date: dueDateStr,
+      };
+
+      // Delegate to messaging-service (which resolves template + sends via provider)
       try {
-        await supabase.functions.invoke("messaging-service", {
+        const { data: msgResult, error: msgErr } = await supabase.functions.invoke("messaging-service", {
           body: {
             channel: "whatsapp",
             to: toPhone,
-            content: config.content || `Reminder. Template: ${template}.`,
+            content: config.content || `Invoice ${invoiceForWA?.invoice_number || ""} reminder. Amount: ${amountStr}. Due: ${dueDateStr}.`,
             template,
+            variables: templateVariables,
             entity_type: run.entity_type,
             entity_id: run.entity_id,
             organization_id: organizationId,
           },
         });
+
+        if (msgErr) {
+          console.warn("[workflow-engine] messaging-service (whatsapp) error:", msgErr);
+        }
       } catch (err) {
         console.warn("[workflow-engine] Failed to invoke messaging-service (whatsapp):", err);
       }
