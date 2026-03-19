@@ -176,9 +176,9 @@ export default function SalesOrders() {
                   <RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned
                 </DropdownMenuItem>
               )}
-              {r.status === "draft" && (
+              {["draft", "confirmed"].includes(r.status) && (
                 <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
-                  Cancel Order
+                  <XCircle className="h-4 w-4 mr-2" /> Cancel Order
                 </DropdownMenuItem>
               )}
               {r.status === "draft" && (
