@@ -46,9 +46,13 @@ const TRIGGER_EVENTS = [
   { value: "invoice_sent", label: "Invoice Sent" },
   { value: "message_received", label: "Message Received (any channel)" },
   { value: "email_received", label: "Email Received (legacy)" },
+  { value: "whatsapp_message_received", label: "WhatsApp Message Received" },
   { value: "invoice_acknowledged", label: "Invoice Acknowledged" },
   { value: "invoice_disputed", label: "Invoice Disputed" },
   { value: "invoice_overdue", label: "Invoice Overdue" },
+  { value: "message_delivery_failed", label: "Message Delivery Failed" },
+  { value: "message_delivered", label: "Message Delivered" },
+  { value: "message_read", label: "Message Read" },
 ];
 
 const ACTION_TYPES = [
@@ -59,6 +63,13 @@ const ACTION_TYPES = [
 ];
 
 const EMAIL_TEMPLATES = [
+  { value: "reminder_1", label: "Reminder #1 (Friendly)" },
+  { value: "reminder_2", label: "Reminder #2 (Final)" },
+];
+
+const WHATSAPP_TEMPLATES = [
+  { value: "invoice_reminder_1", label: "Invoice Reminder #1" },
+  { value: "invoice_reminder_2", label: "Invoice Reminder #2 (Final)" },
   { value: "reminder_1", label: "Reminder #1 (Friendly)" },
   { value: "reminder_2", label: "Reminder #2 (Final)" },
 ];
@@ -164,15 +175,25 @@ function StepEditor({
 
       {/* Condition config */}
       {step.step_type === "condition" && (
+        <div className="space-y-2">
         <div className="grid grid-cols-3 gap-2">
           <div>
             <Label className="text-xs text-muted-foreground">Field</Label>
-            <Input
-              className="h-8 text-sm mt-1"
-              placeholder="invoice.status"
+            <Select
               value={step.config.field ?? ""}
-              onChange={(e) => updateConfig("field", e.target.value)}
-            />
+              onValueChange={(v) => updateConfig("field", v)}
+            >
+              <SelectTrigger className="h-8 text-sm mt-1">
+                <SelectValue placeholder="Select field..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="invoice.status">invoice.status</SelectItem>
+                <SelectItem value="last_message.channel">last_message.channel</SelectItem>
+                <SelectItem value="last_message.status">last_message.status</SelectItem>
+                <SelectItem value="last_message.classification">last_message.classification</SelectItem>
+                <SelectItem value="last_message.created_at">last_message.created_at</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Operator</Label>
@@ -199,6 +220,11 @@ function StepEditor({
               onChange={(e) => updateConfig("value", e.target.value)}
             />
           </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Use <code className="bg-muted px-1 rounded">invoice.status</code> for invoice fields,
+          or <code className="bg-muted px-1 rounded">last_message.*</code> for channel/status/classification checks.
+        </p>
         </div>
       )}
 
@@ -243,14 +269,14 @@ function StepEditor({
                 <div>
                   <Label className="text-xs text-muted-foreground">Template</Label>
                   <Select
-                    value={step.config.template ?? "reminder_1"}
+                    value={step.config.template ?? (step.config.channel === "whatsapp" ? "invoice_reminder_1" : "reminder_1")}
                     onValueChange={(v) => updateConfig("template", v)}
                   >
                     <SelectTrigger className="h-8 text-sm mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {EMAIL_TEMPLATES.map((t) => (
+                      {(step.config.channel === "whatsapp" ? WHATSAPP_TEMPLATES : EMAIL_TEMPLATES).map((t) => (
                         <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                       ))}
                     </SelectContent>

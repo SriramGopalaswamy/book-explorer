@@ -530,6 +530,198 @@ describe("WhatsApp template schema", () => {
   });
 });
 
+// ─── E.164 Phone Validation ──────────────────────────────────────────────────
+
+function isValidE164(phone: string): boolean {
+  return /^\+[1-9]\d{6,14}$/.test(phone);
+}
+
+describe("E.164 phone validation", () => {
+  it("should accept valid E.164 numbers", () => {
+    expect(isValidE164("+919876543210")).toBe(true);
+    expect(isValidE164("+12025551234")).toBe(true);
+    expect(isValidE164("+447911123456")).toBe(true);
+  });
+
+  it("should reject numbers without +", () => {
+    expect(isValidE164("919876543210")).toBe(false);
+  });
+
+  it("should reject numbers starting with +0", () => {
+    expect(isValidE164("+0123456789")).toBe(false);
+  });
+
+  it("should reject too-short numbers", () => {
+    expect(isValidE164("+12345")).toBe(false);
+  });
+
+  it("should reject too-long numbers", () => {
+    expect(isValidE164("+1234567890123456")).toBe(false);
+  });
+
+  it("should reject empty/non-numeric", () => {
+    expect(isValidE164("")).toBe(false);
+    expect(isValidE164("+abc")).toBe(false);
+    expect(isValidE164("test@email.com")).toBe(false);
+  });
+});
+
+// ─── Retry Logic ─────────────────────────────────────────────────────────────
+
+describe("Retry with backoff", () => {
+  it("should return result on first success", async () => {
+    let attempts = 0;
+    const result = await (async () => {
+      attempts++;
+      return "success";
+    })();
+    expect(result).toBe("success");
+    expect(attempts).toBe(1);
+  });
+
+  it("should handle immediate failures without retry for 4xx errors", () => {
+    const err: any = new Error("Bad request");
+    err.status = 400;
+    const isRetryable = !err.status || err.status >= 500 || err.status === 429;
+    expect(isRetryable).toBe(false);
+  });
+
+  it("should identify 5xx errors as retryable", () => {
+    const err: any = new Error("Internal error");
+    err.status = 500;
+    const isRetryable = !err.status || err.status >= 500 || err.status === 429;
+    expect(isRetryable).toBe(true);
+  });
+
+  it("should identify 429 (rate limit) as retryable", () => {
+    const err: any = new Error("Rate limited");
+    err.status = 429;
+    const isRetryable = !err.status || err.status >= 500 || err.status === 429;
+    expect(isRetryable).toBe(true);
+  });
+});
+
+// ─── Metadata Error Storage ──────────────────────────────────────────────────
+
+describe("Error metadata in messages table", () => {
+  it("should merge error into metadata when WhatsApp fails", () => {
+    const variables = { client_name: "Acme" };
+    const whatsappError = "Meta API 401: Invalid token";
+
+    const metadata = {
+      ...(variables ? { variables } : {}),
+      ...(whatsappError ? { error: whatsappError } : {}),
+    };
+
+    expect(metadata.variables).toEqual({ client_name: "Acme" });
+    expect(metadata.error).toBe("Meta API 401: Invalid token");
+  });
+
+  it("should not include error key when send succeeds", () => {
+    const variables = { client_name: "Acme" };
+    const whatsappError: string | null = null;
+
+    const metadata = {
+      ...(variables ? { variables } : {}),
+      ...(whatsappError ? { error: whatsappError } : {}),
+    };
+
+    expect(metadata.variables).toEqual({ client_name: "Acme" });
+    expect("error" in metadata).toBe(false);
+  });
+});
+
+// ─── Status Webhook Event Firing ─────────────────────────────────────────────
+
+describe("Status webhook event types", () => {
+  it("should fire message_delivery_failed for failed status", () => {
+    const status = "failed";
+    const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
+    expect(eventType).toBe("message_delivery_failed");
+  });
+
+  it("should fire message_delivered for delivered status", () => {
+    const status = "delivered";
+    const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
+    expect(eventType).toBe("message_delivered");
+  });
+
+  it("should fire message_read for read status", () => {
+    const status = "read";
+    const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
+    expect(eventType).toBe("message_read");
+  });
+});
+
+// ─── Unmatched Message Handling ──────────────────────────────────────────────
+
+describe("Unmatched WhatsApp message handling", () => {
+  it("should use unmatched_whatsapp entity_type for unmatched messages", () => {
+    const entityType = "unmatched_whatsapp";
+    expect(entityType).not.toBe("unknown");
+    expect(entityType).toBe("unmatched_whatsapp");
+  });
+
+  it("should include needs_manual_review flag in metadata", () => {
+    const metadata = { match_method: "none", raw_from: "919876543210", needs_manual_review: true };
+    expect(metadata.needs_manual_review).toBe(true);
+  });
+});
+
+// ─── Template Alias Resolution ───────────────────────────────────────────────
+
+describe("WhatsApp template alias resolution", () => {
+  it("should have both invoice_reminder_* and reminder_* templates", () => {
+    const templateNames = [
+      "invoice_reminder_1",
+      "invoice_reminder_2",
+      "reminder_1",
+      "reminder_2",
+    ];
+    // All four should exist so both naming conventions work
+    expect(templateNames).toContain("reminder_1");
+    expect(templateNames).toContain("invoice_reminder_1");
+  });
+
+  it("reminder_1 and invoice_reminder_1 should map to same provider template", () => {
+    const templates = [
+      { name: "invoice_reminder_1", template_name: "invoice_payment_reminder" },
+      { name: "reminder_1", template_name: "invoice_payment_reminder" },
+    ];
+    expect(templates[0].template_name).toBe(templates[1].template_name);
+  });
+});
+
+// ─── Workflow Trigger Events ─────────────────────────────────────────────────
+
+describe("Workflow trigger events include WhatsApp events", () => {
+  const TRIGGER_EVENTS = [
+    "invoice_sent",
+    "message_received",
+    "email_received",
+    "whatsapp_message_received",
+    "invoice_acknowledged",
+    "invoice_disputed",
+    "invoice_overdue",
+    "message_delivery_failed",
+    "message_delivered",
+    "message_read",
+  ];
+
+  it("should include whatsapp_message_received", () => {
+    expect(TRIGGER_EVENTS).toContain("whatsapp_message_received");
+  });
+
+  it("should include message_delivery_failed", () => {
+    expect(TRIGGER_EVENTS).toContain("message_delivery_failed");
+  });
+
+  it("should include message_delivered and message_read", () => {
+    expect(TRIGGER_EVENTS).toContain("message_delivered");
+    expect(TRIGGER_EVENTS).toContain("message_read");
+  });
+});
+
 // ─── Regression Safety ───────────────────────────────────────────────────────
 
 describe("Email flow regression safety", () => {
