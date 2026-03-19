@@ -155,8 +155,9 @@ export default function SalesReturnsPage() {
                 {pagination.paginatedItems.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-foreground">{r.return_number}</TableCell>
-                    <TableCell className="text-foreground">{r.customer_name}</TableCell>
-                    <TableCell className="text-foreground">{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
+                     <TableCell className="text-foreground">{r.customer_name}</TableCell>
+                     <TableCell className="text-foreground text-sm">{r.reason || "—"}</TableCell>
+                     <TableCell className="text-foreground">{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.total_amount).toLocaleString()}</TableCell>
                     <TableCell><Badge variant={statusColors[r.status] || "secondary"}>{r.status}</Badge></TableCell>
                     <TableCell>
