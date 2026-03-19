@@ -361,6 +361,25 @@ Deno.serve(async (req) => {
     });
   }
 
+  // 12. If disputed → fire invoice_disputed event (NEW)
+  if (classification === "dispute") {
+    await fireWorkflowEvent(
+      supabase,
+      "invoice_disputed",
+      "invoice",
+      invoice.id,
+      organizationId,
+      {
+        from: fromEmail,
+        classification,
+        reason,
+        invoice_number: invoice.invoice_number,
+        email_log_id: emailLog?.id,
+        message_id: messageRow?.id ?? null,
+      }
+    );
+  }
+
   return new Response(
     JSON.stringify({
       success: true,

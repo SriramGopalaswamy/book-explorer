@@ -44,13 +44,16 @@ interface Workflow {
 
 const TRIGGER_EVENTS = [
   { value: "invoice_sent", label: "Invoice Sent" },
-  { value: "email_received", label: "Email Received" },
+  { value: "message_received", label: "Message Received (any channel)" },
+  { value: "email_received", label: "Email Received (legacy)" },
   { value: "invoice_acknowledged", label: "Invoice Acknowledged" },
+  { value: "invoice_disputed", label: "Invoice Disputed" },
   { value: "invoice_overdue", label: "Invoice Overdue" },
 ];
 
 const ACTION_TYPES = [
-  { value: "send_email", label: "Send Email" },
+  { value: "send_message", label: "Send Message (Email or WhatsApp)" },
+  { value: "send_email", label: "Send Email (legacy)" },
   { value: "update_invoice_status", label: "Update Invoice Status" },
   { value: "notify_internal", label: "Notify Internal Team" },
 ];
@@ -90,6 +93,10 @@ function stepLabel(step: WorkflowStep): string {
   }
   if (step.step_type === "action") {
     const at = step.config.action_type;
+    if (at === "send_message") {
+      const ch = step.config.channel ?? "email";
+      return `Send ${ch} message (${step.config.template ?? "template"})`;
+    }
     if (at === "send_email") return `Send email (${step.config.template ?? "template"})`;
     if (at === "update_invoice_status") return `Update status → ${step.config.status ?? "?"}`;
     if (at === "notify_internal") return `Notify team: ${step.config.message ?? ""}`;
@@ -214,6 +221,55 @@ function StepEditor({
               </SelectContent>
             </Select>
           </div>
+
+          {step.config.action_type === "send_message" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Channel</Label>
+                  <Select
+                    value={step.config.channel ?? "email"}
+                    onValueChange={(v) => updateConfig("channel", v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Template</Label>
+                  <Select
+                    value={step.config.template ?? "reminder_1"}
+                    onValueChange={(v) => updateConfig("template", v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMAIL_TEMPLATES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  To {step.config.channel === "whatsapp" ? "(phone / client_phone)" : "(email / client_email)"}
+                </Label>
+                <Input
+                  className="h-8 text-sm mt-1"
+                  placeholder={step.config.channel === "whatsapp" ? "client_phone" : "client_email"}
+                  value={step.config.to ?? (step.config.channel === "whatsapp" ? "client_phone" : "client_email")}
+                  onChange={(e) => updateConfig("to", e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {step.config.action_type === "send_email" && (
             <div className="grid grid-cols-2 gap-2">

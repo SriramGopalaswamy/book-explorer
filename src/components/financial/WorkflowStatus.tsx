@@ -148,7 +148,7 @@ export function WorkflowStatus({ invoiceId, organizationId }: WorkflowStatusProp
             </div>
             <div className="flex items-center gap-3 shrink-0 ml-2">
               <span className="text-xs text-muted-foreground hidden sm:block">
-                Step {run.current_step}
+                Step {run.current_step + 1}
               </span>
               {expandedRunId === run.id
                 ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -164,7 +164,7 @@ export function WorkflowStatus({ invoiceId, organizationId }: WorkflowStatusProp
                 <div>
                   <p className="text-xs text-muted-foreground">Current Step</p>
                   <p className="font-medium flex items-center gap-1">
-                    <Zap className="h-3.5 w-3.5 text-primary" /> Step {run.current_step}
+                    <Zap className="h-3.5 w-3.5 text-primary" /> Step {run.current_step + 1}
                   </p>
                 </div>
                 {run.next_run_at && run.status === "running" && (

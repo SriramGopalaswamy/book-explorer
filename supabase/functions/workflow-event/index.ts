@@ -78,21 +78,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Create a workflow_run for each matching workflow
+    // 3. Create a workflow_run for each matching workflow — skip if one is already running
+    //    for the same (workflow_id, entity_id) pair to prevent duplicate runs on re-sends.
     const now = new Date().toISOString();
-    const runs = workflows.map((wf) => ({
-      workflow_id: wf.id,
-      organization_id,
-      entity_type: entity_type || "unknown",
-      entity_id,
-      status: "running",
-      current_step: 0,
-      next_run_at: now,
-    }));
+
+    // Fetch already-running runs for this entity to avoid duplicates
+    const workflowIds = workflows.map((wf) => wf.id);
+    const { data: existingRuns } = await supabase
+      .from("workflow_runs")
+      .select("workflow_id")
+      .eq("entity_id", entity_id)
+      .eq("status", "running")
+      .in("workflow_id", workflowIds);
+
+    const alreadyRunning = new Set((existingRuns ?? []).map((r: any) => r.workflow_id));
+
+    const runsToCreate = workflows
+      .filter((wf) => !alreadyRunning.has(wf.id))
+      .map((wf) => ({
+        workflow_id: wf.id,
+        organization_id,
+        entity_type: entity_type || "unknown",
+        entity_id,
+        status: "running",
+        current_step: 0,
+        next_run_at: now,
+      }));
+
+    if (runsToCreate.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, runs_created: 0, message: "Workflow(s) already running for this entity" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { data: createdRuns, error: runErr } = await supabase
       .from("workflow_runs")
-      .insert(runs)
+      .insert(runsToCreate)
       .select("id, workflow_id");
 
     if (runErr) throw runErr;

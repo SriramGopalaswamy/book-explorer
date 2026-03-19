@@ -251,12 +251,39 @@ async function executeAction(
       }).catch(() => {/* non-critical */});
 
     } else if (channel === "whatsapp") {
-      // Delegate to messaging-service (stub path)
+      // Resolve recipient phone number from invoice (client_phone added by migration)
+      const { data: invoiceForPhone } = await supabase
+        .from("invoices")
+        .select("client_phone, client_name")
+        .eq("id", run.entity_id)
+        .maybeSingle();
+
+      const toPhone = config.to || invoiceForPhone?.client_phone || null;
+
+      if (!toPhone) {
+        console.warn("[workflow-engine] No phone number for WhatsApp action on entity:", run.entity_id);
+        // Log a failed message row so the gap is visible in the dashboard
+        await supabase.from("messages").insert({
+          entity_type: run.entity_type,
+          entity_id: run.entity_id,
+          channel: "whatsapp",
+          direction: "outbound",
+          recipient: null,
+          content: config.content || `Reminder. Template: ${template}.`,
+          template,
+          status: "failed",
+          organization_id: organizationId,
+          metadata: { workflow_run_id: run.id, action_type, error: "No client_phone on invoice" },
+        }).catch(() => {});
+        return;
+      }
+
+      // Delegate to messaging-service (stub path until WhatsApp Business API is integrated)
       try {
         await supabase.functions.invoke("messaging-service", {
           body: {
             channel: "whatsapp",
-            to: config.to || null,
+            to: toPhone,
             content: config.content || `Reminder. Template: ${template}.`,
             template,
             entity_type: run.entity_type,
@@ -281,9 +308,11 @@ async function executeAction(
   } else if (action_type === "notify_internal") {
     const { message = "Invoice pending acknowledgement" } = config;
 
+    // Insert in-app notifications for all finance/admin users in this org only
     const { data: finUsers } = await supabase
       .from("user_roles")
       .select("user_id")
+      .eq("organization_id", organizationId)
       .in("role", ["finance", "admin"]);
 
     const { data: invoice } = await supabase

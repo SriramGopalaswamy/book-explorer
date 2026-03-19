@@ -167,8 +167,8 @@ Deno.serve(async (req) => {
 
   let invoiceUpdated = false;
 
-  // 3. Update invoice status if classification == "acknowledged" and entity is an invoice
-  if (entity_type === "invoice" && classification === "acknowledged") {
+  // 3. Update invoice status based on classification
+  if (entity_type === "invoice") {
     const { data: invoice } = await supabase
       .from("invoices")
       .select("id, status")
@@ -176,11 +176,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (invoice && invoice.status === "sent") {
-      await supabase
-        .from("invoices")
-        .update({ status: "acknowledged", updated_at: new Date().toISOString() })
-        .eq("id", entity_id);
-      invoiceUpdated = true;
+      if (classification === "acknowledged") {
+        await supabase
+          .from("invoices")
+          .update({ status: "acknowledged", updated_at: new Date().toISOString() })
+          .eq("id", entity_id);
+        invoiceUpdated = true;
+      } else if (classification === "dispute") {
+        // Mark as disputed so reminders stop and finance team is alerted
+        await supabase
+          .from("invoices")
+          .update({ status: "dispute", updated_at: new Date().toISOString() })
+          .eq("id", entity_id);
+        invoiceUpdated = true;
+      }
     }
   }
 
