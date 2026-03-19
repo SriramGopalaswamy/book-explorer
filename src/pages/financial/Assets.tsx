@@ -483,6 +483,22 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
       ),
     },
     {
+      key: "tag_status" as any,
+      header: "Tag Status",
+      render: (a) => a.tag_verified ? (
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400">
+            <Tag className="h-3 w-3 mr-1" /> Verified
+          </Badge>
+          {a.last_tagged_date && (
+            <span className="text-xs text-muted-foreground">{format(new Date(a.last_tagged_date), "dd MMM")}</span>
+          )}
+        </div>
+      ) : (
+        <Badge variant="outline" className="text-muted-foreground border-muted">Untagged</Badge>
+      ),
+    },
+    {
       key: "location",
       header: "Location",
       render: (a) => <span className="text-sm text-muted-foreground">{a.location || "—"}</span>,
