@@ -208,13 +208,25 @@ async function executeAction(
 
     const toEmail = config.to === "client_email" ? invoice.client_email : config.to;
     if (toEmail) {
-      await sendEmail(
+      const sent = await sendEmail(
         supabase,
         organizationId,
         [{ email: toEmail, name: invoice.client_name }],
         heading,
         emailHtml(heading, bodyHtml)
       );
+
+      // Log outbound email
+      await supabase.from("email_logs").insert({
+        organization_id: organizationId,
+        invoice_id: run.entity_id,
+        direction: "outbound",
+        subject: heading,
+        from_email: "admin@grx10.com",
+        to_email: toEmail,
+        body_text: `Reminder email sent for Invoice ${invoice.invoice_number} to ${invoice.client_name}. Template: ${template}.`,
+        raw_payload: { template, sent, workflow_run_id: run.id },
+      }).catch(() => {/* non-critical */});
     }
 
   } else if (action_type === "update_invoice_status") {
