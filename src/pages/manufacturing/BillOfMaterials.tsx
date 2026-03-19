@@ -112,10 +112,8 @@ export default function BillOfMaterials() {
 
   const addEditLine = () => setEditLines([...editLines, { material_name: "", quantity: 1, uom: "pcs", wastage_pct: 0, est_cost: 0 }]);
   const removeEditLine = (i: number) => setEditLines(editLines.filter((_, idx) => idx !== i));
-  const updateEditLine = (i: number, field: string, value: any) => {
-    const updated = [...editLines];
-    (updated[i] as any)[field] = value;
-    setEditLines(updated);
+  const updateEditLine = (i: number, field: string, value: string | number) => {
+    setEditLines(editLines.map((line, idx) => idx === i ? { ...line, [field]: value } : line));
   };
 
   const openEditBom = async (r: BOM) => {

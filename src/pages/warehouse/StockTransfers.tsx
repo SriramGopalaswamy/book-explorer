@@ -69,7 +69,7 @@ export default function StockTransfers() {
 
   const addItem = () => setItems([...items, { item_name: "", quantity: 1 }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: string, value: any) => { const u = [...items]; (u[i] as any)[field] = value; setItems(u); };
+  const updateItem = (i: number, field: string, value: string | number) => setItems(items.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
 
   const handleCreate = () => {
     if (!form.from_warehouse_id || !form.to_warehouse_id || items.some((i) => !i.item_name)) return;

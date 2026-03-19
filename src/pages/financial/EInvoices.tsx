@@ -155,7 +155,9 @@ export default function EInvoices() {
       });
       setShowCreate(false);
       setWizardStep(0);
-    } catch {}
+    } catch (err) {
+      toast.error(`E-Invoice creation failed: ${(err as Error).message}`);
+    }
   }
 
   async function handleCancel() {
@@ -166,6 +168,7 @@ export default function EInvoices() {
   }
 
   function downloadEInvoicePDF(inv: any) {
+    const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const isInter = inv.seller_state_code && inv.buyer_state_code && inv.seller_state_code !== inv.buyer_state_code;
     const lineItems = (inv.items || []) as EInvoiceItem[];
     const html = `
@@ -201,37 +204,37 @@ export default function EInvoices() {
         <div class="header">
           <div>
             <h1>E-Invoice</h1>
-            <span class="badge badge-${inv.status}">${inv.status}</span>
+            <span class="badge badge-${esc(inv.status)}">${esc(inv.status)}</span>
           </div>
           <div style="text-align:right">
-            <div style="font-size:14px;font-weight:700">${inv.doc_number}</div>
-            <div style="font-size:10px;color:#666">${DOC_TYPES.find(d => d.value === inv.doc_type)?.label || inv.doc_type}</div>
+            <div style="font-size:14px;font-weight:700">${esc(inv.doc_number)}</div>
+            <div style="font-size:10px;color:#666">${esc(DOC_TYPES.find(d => d.value === inv.doc_type)?.label || inv.doc_type)}</div>
           </div>
         </div>
         <div class="meta-grid">
-          <div><div class="lbl">Document Date</div><div class="val">${inv.doc_date || format(new Date(inv.created_at), "dd MMM yyyy")}</div></div>
-          <div><div class="lbl">Supply Type</div><div class="val">${inv.supply_type}</div></div>
+          <div><div class="lbl">Document Date</div><div class="val">${esc(inv.doc_date || format(new Date(inv.created_at), "dd MMM yyyy"))}</div></div>
+          <div><div class="lbl">Supply Type</div><div class="val">${esc(inv.supply_type)}</div></div>
           <div><div class="lbl">Tax Type</div><div class="val">${isInter ? "IGST (Inter-State)" : "CGST + SGST (Intra-State)"}</div></div>
           <div><div class="lbl">Items</div><div class="val">${lineItems.length}</div></div>
         </div>
         <div class="parties">
           <div class="party-box">
             <h3>Seller</h3>
-            <div class="name">${inv.seller_legal_name || "—"}</div>
-            ${inv.seller_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${inv.seller_trade_name}</div>` : ""}
-            ${inv.seller_gstin ? `<div class="gstin">${inv.seller_gstin}</div>` : ""}
-            ${inv.seller_address ? `<div style="font-size:10px;margin-top:4px">${inv.seller_address}</div>` : ""}
-            ${inv.seller_location ? `<div style="font-size:10px">${inv.seller_location}</div>` : ""}
-            ${inv.seller_state_code ? `<div style="font-size:10px">${INDIAN_STATES[inv.seller_state_code] || ""}${inv.seller_pincode ? ` — ${inv.seller_pincode}` : ""}</div>` : ""}
+            <div class="name">${esc(inv.seller_legal_name) || "—"}</div>
+            ${inv.seller_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${esc(inv.seller_trade_name)}</div>` : ""}
+            ${inv.seller_gstin ? `<div class="gstin">${esc(inv.seller_gstin)}</div>` : ""}
+            ${inv.seller_address ? `<div style="font-size:10px;margin-top:4px">${esc(inv.seller_address)}</div>` : ""}
+            ${inv.seller_location ? `<div style="font-size:10px">${esc(inv.seller_location)}</div>` : ""}
+            ${inv.seller_state_code ? `<div style="font-size:10px">${esc(INDIAN_STATES[inv.seller_state_code] || "")}${inv.seller_pincode ? ` — ${esc(inv.seller_pincode)}` : ""}</div>` : ""}
           </div>
           <div class="party-box">
             <h3>Buyer</h3>
-            <div class="name">${inv.buyer_legal_name || "—"}</div>
-            ${inv.buyer_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${inv.buyer_trade_name}</div>` : ""}
-            ${inv.buyer_gstin ? `<div class="gstin">${inv.buyer_gstin}</div>` : ""}
-            ${inv.buyer_address ? `<div style="font-size:10px;margin-top:4px">${inv.buyer_address}</div>` : ""}
-            ${inv.buyer_location ? `<div style="font-size:10px">${inv.buyer_location}</div>` : ""}
-            ${inv.buyer_state_code ? `<div style="font-size:10px">${INDIAN_STATES[inv.buyer_state_code] || ""}${inv.buyer_pincode ? ` — ${inv.buyer_pincode}` : ""}</div>` : ""}
+            <div class="name">${esc(inv.buyer_legal_name) || "—"}</div>
+            ${inv.buyer_trade_name ? `<div style="font-size:10px;color:#666">Trade: ${esc(inv.buyer_trade_name)}</div>` : ""}
+            ${inv.buyer_gstin ? `<div class="gstin">${esc(inv.buyer_gstin)}</div>` : ""}
+            ${inv.buyer_address ? `<div style="font-size:10px;margin-top:4px">${esc(inv.buyer_address)}</div>` : ""}
+            ${inv.buyer_location ? `<div style="font-size:10px">${esc(inv.buyer_location)}</div>` : ""}
+            ${inv.buyer_state_code ? `<div style="font-size:10px">${esc(INDIAN_STATES[inv.buyer_state_code] || "")}${inv.buyer_pincode ? ` — ${esc(inv.buyer_pincode)}` : ""}</div>` : ""}
           </div>
         </div>
         ${lineItems.length > 0 ? `
@@ -244,8 +247,8 @@ export default function EInvoices() {
           <tbody>${lineItems.map((it) => {
             const tax = it.igst_amount > 0 ? it.igst_amount : (it.cgst_amount + it.sgst_amount);
             return `<tr>
-              <td>${it.sl_no}</td><td>${it.product_description}</td><td style="font-family:monospace">${it.hsn_code}</td>
-              <td class="text-right">${it.quantity}</td><td>${it.unit}</td>
+              <td>${it.sl_no}</td><td>${esc(it.product_description)}</td><td style="font-family:monospace">${esc(it.hsn_code)}</td>
+              <td class="text-right">${it.quantity}</td><td>${esc(it.unit)}</td>
               <td class="text-right">${Number(it.unit_price).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
               <td class="text-right">${Number(it.discount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
               <td class="text-right">${Number(it.assessable_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
@@ -263,8 +266,8 @@ export default function EInvoices() {
           ${Number(inv.total_cess || 0) > 0 ? `<div class="row"><span>Cess</span><span>₹${Number(inv.total_cess).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
           <div class="row grand"><span>Total Invoice Value</span><span>₹${Number(inv.total_invoice_value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
         </div>
-        ${inv.irn ? `<div class="irn-box"><div class="lbl">Invoice Reference Number (IRN)</div><div class="val">${inv.irn}</div>${inv.ack_number ? `<div style="margin-top:4px"><span class="lbl">Ack #:</span> ${inv.ack_number}</div>` : ""}${inv.ack_date ? `<div><span class="lbl">Ack Date:</span> ${inv.ack_date}</div>` : ""}</div>` : ""}
-        ${inv.status === "cancelled" && inv.cancel_reason ? `<div style="margin-top:12px;padding:8px;border:1px solid #f87171;border-radius:6px;background:#fef2f2"><div style="font-size:10px;color:#991b1b;font-weight:600">CANCELLED</div><div style="font-size:10px">Reason: ${inv.cancel_reason}</div>${inv.cancel_remark ? `<div style="font-size:10px;color:#666">${inv.cancel_remark}</div>` : ""}</div>` : ""}
+        ${inv.irn ? `<div class="irn-box"><div class="lbl">Invoice Reference Number (IRN)</div><div class="val">${esc(inv.irn)}</div>${inv.ack_number ? `<div style="margin-top:4px"><span class="lbl">Ack #:</span> ${esc(inv.ack_number)}</div>` : ""}${inv.ack_date ? `<div><span class="lbl">Ack Date:</span> ${esc(inv.ack_date)}</div>` : ""}</div>` : ""}
+        ${inv.status === "cancelled" && inv.cancel_reason ? `<div style="margin-top:12px;padding:8px;border:1px solid #f87171;border-radius:6px;background:#fef2f2"><div style="font-size:10px;color:#991b1b;font-weight:600">CANCELLED</div><div style="font-size:10px">Reason: ${esc(inv.cancel_reason)}</div>${inv.cancel_remark ? `<div style="font-size:10px;color:#666">${esc(inv.cancel_remark)}</div>` : ""}</div>` : ""}
         <div class="footer">Generated from GRX10 Business Suite · E-Invoice as per GST Rule 48(4)</div>
       </body></html>
     `;
@@ -285,7 +288,7 @@ export default function EInvoices() {
       html2pdf()
         .set({
           margin: [10, 10, 20, 10],
-          filename: `E-Invoice-${inv.doc_number}.pdf`,
+          filename: `E-Invoice-${String(inv.doc_number).replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
           html2canvas: { scale: 2, logging: false, useCORS: true, scrollY: 0, windowWidth: 794, onclone: (clonedDoc: Document) => { clonedDoc.body.style.visibility = "visible"; } },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })

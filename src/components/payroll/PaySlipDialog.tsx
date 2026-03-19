@@ -80,13 +80,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const department = DOMPurify.sanitize(record.profiles?.department || "—");
   const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
-  const employeeId = r.employee_id || "—";
-  const panNumber = r.pan_number || "—";
-  const bankName = r.bank_name || "—";
-  const bankAccountNumber = r.bank_account_number || "—";
-  const bankIfsc = r.bank_ifsc || "—";
-  const uanNumber = r.uan_number || "—";
-  const dateOfJoining = r.date_of_joining || "—";
+  const employeeId = DOMPurify.sanitize(r.employee_id || "—");
+  const panNumber = DOMPurify.sanitize(r.pan_number || "—");
+  const bankName = DOMPurify.sanitize(r.bank_name || "—");
+  const bankAccountNumber = DOMPurify.sanitize(r.bank_account_number || "—");
+  const bankIfsc = DOMPurify.sanitize(r.bank_ifsc || "—");
+  const uanNumber = DOMPurify.sanitize(r.uan_number || "—");
+  const dateOfJoining = DOMPurify.sanitize(r.date_of_joining || "—");
   const period = periodLabel(record.pay_period);
   const processedDate = record.processed_at
     ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
@@ -101,12 +101,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const buildHTML = () => {
     const bc = brandColor;
+    const esc = (v: unknown) => DOMPurify.sanitize(String(v ?? ""));
     const eRows = paddedEarnings.map((e, i) => {
       const d = paddedDeductions[i];
       return `<tr>
-        <td class="cell">${e ? e.label : ''}</td>
+        <td class="cell">${e ? esc(e.label) : ''}</td>
         <td class="cell r">${e && e.amount > 0 ? fmtFull(e.amount) : e ? '--' : ''}</td>
-        <td class="cell">${d ? d.label : ''}</td>
+        <td class="cell">${d ? esc(d.label) : ''}</td>
         <td class="cell r">${d && d.amount > 0 ? fmtFull(d.amount) : d ? '--' : ''}</td>
       </tr>`;
     }).join("");
@@ -233,7 +234,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
    <div class="footer">
     <div>${processedDate ? `Processed on: ${processedDate}` : 'Not yet processed'}</div>
-    <div class="sig">${signatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${signatoryName}</span>` : ''}<span class="line">Authorised Signatory</span></div>
+    <div class="sig">${signatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${DOMPurify.sanitize(signatoryName)}</span>` : ''}<span class="line">Authorised Signatory</span></div>
   </div>
 </body></html>`;
   };

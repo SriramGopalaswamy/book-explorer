@@ -19,15 +19,21 @@ export function PlatformOrgBanner() {
         const parsed = JSON.parse(stored);
         setOrgId(parsed.id);
         setOrgName(parsed.name);
-      } catch {}
+      } catch {
+        sessionStorage.removeItem("platform_active_org");
+      }
     }
 
     const handler = () => {
       const stored = sessionStorage.getItem("platform_active_org");
       if (stored) {
-        const parsed = JSON.parse(stored);
-        setOrgId(parsed.id);
-        setOrgName(parsed.name);
+        try {
+          const parsed = JSON.parse(stored);
+          setOrgId(parsed.id);
+          setOrgName(parsed.name);
+        } catch {
+          sessionStorage.removeItem("platform_active_org");
+        }
       } else {
         setOrgId(null);
         setOrgName(null);
