@@ -347,13 +347,15 @@ export function useUpdateInvoiceStatus() {
       // (paid, acknowledged, dispute, cancelled) to prevent further reminder emails.
       const terminalStatuses = ["paid", "acknowledged", "dispute", "cancelled"];
       if (terminalStatuses.includes(status)) {
-        await supabase
-          .from("workflow_runs")
-          .update({ status: "cancelled", updated_at: new Date().toISOString() })
-          .eq("entity_type", "invoice")
-          .eq("entity_id", id)
-          .eq("status", "running")
-          .catch((err: any) => console.warn("Failed to cancel workflow runs:", err));
+        try {
+          await (supabase.from as any)("workflow_runs")
+            .update({ status: "cancelled", updated_at: new Date().toISOString() })
+            .eq("entity_type", "invoice")
+            .eq("entity_id", id)
+            .eq("status", "running");
+        } catch (err: any) {
+          console.warn("Failed to cancel workflow runs:", err);
+        }
       }
 
       return data;

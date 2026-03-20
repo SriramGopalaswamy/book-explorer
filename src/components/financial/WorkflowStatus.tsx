@@ -68,8 +68,7 @@ export function WorkflowStatus({ invoiceId, organizationId }: WorkflowStatusProp
     enabled: !!invoiceId,
     refetchInterval: 30000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflow_runs")
+      const { data, error } = await (supabase.from as any)("workflow_runs")
         .select("*, workflows(name, trigger_event)")
         .eq("entity_type", "invoice")
         .eq("entity_id", invoiceId)
@@ -84,8 +83,7 @@ export function WorkflowStatus({ invoiceId, organizationId }: WorkflowStatusProp
     queryKey: ["workflow-events-run", expandedRunId],
     enabled: !!expandedRunId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflow_events")
+      const { data, error } = await (supabase.from as any)("workflow_events")
         .select("*")
         .eq("workflow_run_id", expandedRunId!)
         .order("created_at", { ascending: true });

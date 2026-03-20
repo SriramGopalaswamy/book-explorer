@@ -6,6 +6,6 @@
   },
   "nodeModulesDir": "auto",
   "imports": {
-    "npm:@lovable.dev/email-js": "npm:@lovable.dev/email-js@latest"
+    "npm:@lovable.dev/email-js": "npm:@lovable.dev/email-js@0.0.3"
   }
 }

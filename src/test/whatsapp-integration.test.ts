@@ -634,19 +634,19 @@ describe("Error metadata in messages table", () => {
 
 describe("Status webhook event types", () => {
   it("should fire message_delivery_failed for failed status", () => {
-    const status = "failed";
+    const status: string = "failed";
     const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
     expect(eventType).toBe("message_delivery_failed");
   });
 
   it("should fire message_delivered for delivered status", () => {
-    const status = "delivered";
+    const status: string = "delivered";
     const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
     expect(eventType).toBe("message_delivered");
   });
 
   it("should fire message_read for read status", () => {
-    const status = "read";
+    const status: string = "read";
     const eventType = status === "failed" ? "message_delivery_failed" : `message_${status}`;
     expect(eventType).toBe("message_read");
   });
