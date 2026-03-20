@@ -91,39 +91,36 @@ const CONDITION_OPERATORS = [
 // ─── Step Visual Cards ────────────────────────────────────────────────────────
 
 function StepCard({ step, index }: { step: WorkflowStep; index: number }) {
-  const getStepStyle = () => {
+  const getStepInfo = () => {
     if (step.step_type === "delay") return {
-      icon: <Clock className="h-4 w-4" />,
       bg: "bg-blue-500/10 border-blue-500/20",
       iconBg: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
-      label: `Wait ${step.config.duration_hours ?? 24} hours`,
+      label: "Wait " + (step.config.duration_hours ?? 24) + " hours",
       emoji: "🕒",
     };
     if (step.step_type === "condition") return {
-      icon: <GitBranch className="h-4 w-4" />,
       bg: "bg-amber-500/10 border-amber-500/20",
       iconBg: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
-      label: `If ${step.config.field ?? "field"} ${step.config.operator ?? "!="} "${step.config.value ?? ""}"`,
+      label: "If " + (step.config.field ?? "field") + " " + (step.config.operator ?? "!=") + ' "' + (step.config.value ?? "") + '"',
       emoji: "🔀",
     };
     const at = step.config.action_type;
     const ch = step.config.channel ?? "email";
-    let label = step.step_type;
+    let label = "Action";
     let emoji = "📩";
     if (at === "send_message") {
-      label = `Send ${ch} message (${step.config.template ?? "template"})`;
+      label = "Send " + ch + " message (" + (step.config.template ?? "template") + ")";
       emoji = ch === "whatsapp" ? "📱" : "📩";
     } else if (at === "send_email") {
-      label = `Send email (${step.config.template ?? "template"})`;
+      label = "Send email (" + (step.config.template ?? "template") + ")";
     } else if (at === "update_invoice_status") {
-      label = `Update status → ${step.config.status ?? "?"}`;
+      label = "Update status → " + (step.config.status ?? "?");
       emoji = "🔄";
     } else if (at === "notify_internal") {
-      label = `Notify team: ${step.config.message ?? ""}`;
+      label = "Notify team: " + (step.config.message ?? "");
       emoji = "🔔";
     }
     return {
-      icon: <Zap className="h-4 w-4" />,
       bg: "bg-emerald-500/10 border-emerald-500/20",
       iconBg: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
       label,
@@ -131,7 +128,7 @@ function StepCard({ step, index }: { step: WorkflowStep; index: number }) {
     };
   };
 
-  const style = getStepStyle();
+  const style = getStepInfo();
 
   return (
     <div className={`rounded-lg border p-3 ${style.bg} flex items-center gap-3`}>
