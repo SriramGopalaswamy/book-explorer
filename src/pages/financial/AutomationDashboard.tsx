@@ -108,8 +108,7 @@ function RunDetailDialog({
     queryKey: ["workflow-events", run?.id],
     enabled: !!run,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflow_events")
+      const { data, error } = await (supabase.from as any)("workflow_events")
         .select("*")
         .eq("workflow_run_id", run!.id)
         .order("created_at", { ascending: true });
