@@ -499,7 +499,7 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout title="Workflow Automation">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

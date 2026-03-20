@@ -298,7 +298,7 @@ export default function AutomationDashboard() {
   const activeRuns = runs.filter((r) => r.status === "running");
 
   return (
-    <MainLayout>
+    <MainLayout title="Automation Dashboard">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

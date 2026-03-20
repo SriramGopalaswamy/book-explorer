@@ -30,5 +30,5 @@ export function orgScopedInsert(
   data: Record<string, any>,
   orgId: string
 ) {
-  return supabase.from(table).insert({ ...data, organization_id: orgId });
+  return (supabase.from as any)(table).insert({ ...data, organization_id: orgId });
 }
