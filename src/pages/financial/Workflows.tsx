@@ -401,8 +401,7 @@ export default function WorkflowsPage() {
       if (!newName.trim()) throw new Error("Workflow name is required");
       if (newSteps.length === 0) throw new Error("At least one step is required");
 
-      const { data: wf, error: wfErr } = await supabase
-        .from("workflows")
+      const { data: wf, error: wfErr } = await (supabase.from as any)("workflows")
         .insert({
           organization_id: organizationId,
           name: newName.trim(),
