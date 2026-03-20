@@ -489,7 +489,7 @@ export default function WorkflowsPage() {
 
   if (currentRole && !["admin", "finance"].includes(currentRole)) {
     return (
-      <MainLayout>
+      <MainLayout title="Workflows">
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
           <AlertCircle className="h-10 w-10" />
           <p className="text-lg font-medium">Finance access required</p>
