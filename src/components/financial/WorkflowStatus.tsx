@@ -68,8 +68,7 @@ export function WorkflowStatus({ invoiceId, organizationId }: WorkflowStatusProp
     enabled: !!invoiceId,
     refetchInterval: 30000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflow_runs")
+      const { data, error } = await (supabase.from as any)("workflow_runs")
         .select("*, workflows(name, trigger_event)")
         .eq("entity_type", "invoice")
         .eq("entity_id", invoiceId)
