@@ -218,8 +218,7 @@ export default function AutomationDashboard() {
     enabled: !!organizationId,
     refetchInterval: 30000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflow_runs")
+      const { data, error } = await (supabase.from as any)("workflow_runs")
         .select("*, workflows(name, trigger_event)")
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false })
