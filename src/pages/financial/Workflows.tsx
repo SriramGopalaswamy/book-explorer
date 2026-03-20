@@ -457,7 +457,7 @@ export default function WorkflowsPage() {
   // Delete workflow
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("workflows").delete().eq("id", id);
+      const { error } = await (supabase.from as any)("workflows").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
