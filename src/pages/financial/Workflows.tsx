@@ -419,7 +419,7 @@ export default function WorkflowsPage() {
         step_type: s.step_type,
         config: s.config,
       }));
-      const { error: stepErr } = await supabase.from("workflow_steps").insert(steps);
+      const { error: stepErr } = await (supabase.from as any)("workflow_steps").insert(steps);
       if (stepErr) throw stepErr;
 
       return wf.id;
