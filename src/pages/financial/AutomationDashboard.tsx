@@ -11,16 +11,21 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   LayoutDashboard, RefreshCw, Clock, CheckCircle2, XCircle,
   AlertCircle, Play, Zap, ChevronRight, Calendar,
-  Activity, CheckCircle,
+  Activity, CheckCircle, Mail, MessageCircle, Send,
+  Eye, Bug, Info, Bell,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useCurrentRole } from "@/hooks/useRoles";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, differenceInDays } from "date-fns";
+import { MessageDebugPanel } from "@/components/financial/MessageDebugPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +52,7 @@ interface InvoiceInfo {
   id: string;
   invoice_number: string;
   client_name: string;
+  total_amount: number;
   status: string;
   created_at: string;
   sent_at?: string;
@@ -65,10 +71,10 @@ interface MessageEnrichment {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  running: "bg-blue-500/15 text-blue-700 border-blue-200",
-  completed: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
-  failed: "bg-red-500/15 text-red-700 border-red-200",
-  cancelled: "bg-gray-500/15 text-gray-600 border-gray-200",
+  running: "bg-blue-500/15 text-blue-700 border-blue-200 dark:text-blue-400",
+  completed: "bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-400",
+  failed: "bg-red-500/15 text-red-700 border-red-200 dark:text-red-400",
+  cancelled: "bg-muted text-muted-foreground border-border",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -78,8 +84,23 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   cancelled: <AlertCircle className="h-3 w-3" />,
 };
 
-function daysSince(dateStr: string): number {
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+const INVOICE_STATUS_STYLES: Record<string, string> = {
+  acknowledged: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
+  paid: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
+  sent: "bg-amber-500/15 text-amber-700 border-amber-200",
+  pending: "bg-amber-500/15 text-amber-700 border-amber-200",
+  draft: "bg-muted text-muted-foreground",
+  overdue: "bg-red-500/15 text-red-700 border-red-200",
+  dispute: "bg-red-500/15 text-red-700 border-red-200",
+  cancelled: "bg-muted text-muted-foreground",
+};
+
+function urgencyClass(createdAt: string, status: string): string {
+  if (status === "completed" || status === "cancelled") return "";
+  const days = differenceInDays(new Date(), new Date(createdAt));
+  if (days > 3) return "border-l-4 border-l-red-500";
+  if (days > 1) return "border-l-4 border-l-amber-500";
+  return "border-l-4 border-l-emerald-500";
 }
 
 function stepLabel(eventType: string): string {
@@ -87,21 +108,44 @@ function stepLabel(eventType: string): string {
     run_created: "Workflow started",
     run_completed: "Workflow completed",
     run_failed: "Workflow failed",
-    step_delay_executed: "Delay step",
-    step_condition_executed: "Condition check",
+    step_delay_executed: "Delay step executed",
+    step_condition_executed: "Condition evaluated",
     step_action_executed: "Action executed",
     condition_false_stopped: "Stopped (condition not met)",
   };
   return labels[eventType] ?? eventType.replace(/_/g, " ");
 }
 
+function channelIcon(channel: string | null) {
+  if (channel === "whatsapp") return <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />;
+  if (channel === "email") return <Mail className="h-3.5 w-3.5 text-blue-600" />;
+  return null;
+}
+
+function messageStatusBadge(status: string | null) {
+  if (!status) return null;
+  const styles: Record<string, string> = {
+    sent: "bg-blue-500/10 text-blue-700 border-blue-200",
+    delivered: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
+    read: "bg-emerald-500/15 text-emerald-700 border-emerald-300",
+    failed: "bg-red-500/10 text-red-700 border-red-200",
+  };
+  return (
+    <Badge variant="outline" className={`text-[10px] py-0 h-4 ${styles[status] ?? ""}`}>
+      {status}
+    </Badge>
+  );
+}
+
 // ─── Run Detail Dialog ────────────────────────────────────────────────────────
 
 function RunDetailDialog({
   run,
+  invoice,
   onClose,
 }: {
   run: WorkflowRun | null;
+  invoice?: InvoiceInfo;
   onClose: () => void;
 }) {
   const { data: events = [], isLoading } = useQuery({
@@ -130,6 +174,22 @@ function RunDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Invoice info */}
+          {invoice && (
+            <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm font-semibold">{invoice.invoice_number}</span>
+                <Badge variant="outline" className={INVOICE_STATUS_STYLES[invoice.status] ?? ""}>
+                  {invoice.status}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{invoice.client_name}</p>
+              {invoice.total_amount != null && (
+                <p className="text-sm font-medium">₹{invoice.total_amount.toLocaleString()}</p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Workflow</p>
@@ -140,10 +200,6 @@ function RunDetailDialog({
               <Badge className={`text-xs gap-1 ${STATUS_STYLES[run.status]}`}>
                 {STATUS_ICONS[run.status]} {run.status}
               </Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Entity</p>
-              <p className="font-medium font-mono text-xs">{run.entity_id.slice(0, 12)}…</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Current Step</p>
@@ -165,10 +221,10 @@ function RunDetailDialog({
             </div>
           </div>
 
-          {/* Event timeline */}
+          {/* Visual Timeline */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-              Event History
+              Workflow Timeline
             </p>
             {isLoading ? (
               <div className="space-y-2">
@@ -177,23 +233,39 @@ function RunDetailDialog({
                 ))}
               </div>
             ) : events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No events recorded yet.</p>
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
+                <Clock className="h-5 w-5 mx-auto mb-2 opacity-40" />
+                No events recorded yet.
+              </div>
             ) : (
-              <div className="space-y-2">
-                {events.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/40 text-sm"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium">{stepLabel(ev.event_type)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(ev.created_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="relative pl-6">
+                {/* Vertical connector line */}
+                <div className="absolute left-[9px] top-2 bottom-2 w-px bg-border" />
+                <div className="space-y-3">
+                  {events.map((ev, idx) => {
+                    const isLast = idx === events.length - 1;
+                    const isCompleted = ev.event_type === "run_completed";
+                    const isFailed = ev.event_type === "run_failed" || ev.event_type === "condition_false_stopped";
+                    return (
+                      <div key={ev.id} className="relative flex items-start gap-3 text-sm">
+                        <div className={`absolute -left-6 w-4 h-4 rounded-full border-2 flex items-center justify-center
+                          ${isCompleted ? "bg-emerald-500 border-emerald-500" : 
+                            isFailed ? "bg-red-500 border-red-500" :
+                            isLast ? "bg-primary border-primary animate-pulse" : 
+                            "bg-background border-muted-foreground/40"}`}>
+                          {isCompleted && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
+                          {isFailed && <XCircle className="h-2.5 w-2.5 text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <p className="font-medium">{stepLabel(ev.event_type)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(ev.created_at), "dd MMM HH:mm")} · {formatDistanceToNow(new Date(ev.created_at), { addSuffix: true })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -208,11 +280,13 @@ function RunDetailDialog({
 export default function AutomationDashboard() {
   const { data: orgData } = useUserOrganization();
   const { data: currentRole } = useCurrentRole();
+  const queryClient = useQueryClient();
   const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const organizationId = orgData?.organizationId;
 
-  // Fetch workflow runs with workflow name + invoice info
+  // Fetch workflow runs
   const { data: runs = [], isLoading, refetch } = useQuery({
     queryKey: ["workflow-runs", organizationId],
     enabled: !!organizationId,
@@ -228,7 +302,7 @@ export default function AutomationDashboard() {
     },
   });
 
-  // Fetch invoice data for entity_id resolution
+  // Fetch invoice data
   const invoiceIds = [...new Set(runs.filter((r) => r.entity_type === "invoice").map((r) => r.entity_id))];
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-runs", invoiceIds.join(",")],
@@ -236,7 +310,7 @@ export default function AutomationDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, client_name, status, created_at")
+        .select("id, invoice_number, client_name, total_amount, status, created_at")
         .in("id", invoiceIds);
       if (error) throw error;
       return (data ?? []) as InvoiceInfo[];
@@ -245,7 +319,7 @@ export default function AutomationDashboard() {
 
   const invoiceMap = Object.fromEntries(invoices.map((inv) => [inv.id, inv]));
 
-  // Fetch message enrichment data for all invoice entities in view
+  // Fetch message enrichment
   const { data: enrichmentList = [] } = useQuery({
     queryKey: ["message-enrichment", organizationId, invoiceIds.join(",")],
     enabled: !!organizationId && invoiceIds.length > 0,
@@ -261,7 +335,7 @@ export default function AutomationDashboard() {
     enrichmentList.map((e) => [e.invoice_id, e])
   );
 
-  // Manually trigger engine run
+  // Trigger engine
   const triggerEngine = useMutation({
     mutationFn: async () => {
       const res = await supabase.functions.invoke("workflow-engine");
@@ -269,11 +343,54 @@ export default function AutomationDashboard() {
       return res.data;
     },
     onSuccess: (data) => {
-      toast({ title: `Engine ran: ${data?.processed ?? 0} run(s) processed` });
+      toast({ title: "Engine executed", description: `${data?.processed ?? 0} run(s) processed` });
       refetch();
     },
     onError: (err: any) => {
       toast({ title: "Engine error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Send manual reminder
+  const sendReminder = useMutation({
+    mutationFn: async ({ invoiceId, channel }: { invoiceId: string; channel: string }) => {
+      const res = await supabase.functions.invoke("messaging-service", {
+        body: {
+          organization_id: organizationId,
+          entity_type: "invoice",
+          entity_id: invoiceId,
+          channel,
+          template: "reminder_1",
+        },
+      });
+      if (res.error) throw res.error;
+      return res.data;
+    },
+    onSuccess: (_, vars) => {
+      toast({ title: `Reminder sent via ${vars.channel}`, description: "Message queued for delivery." });
+      queryClient.invalidateQueries({ queryKey: ["message-enrichment"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Send failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Mark acknowledged
+  const markAcknowledged = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ status: "acknowledged" })
+        .eq("id", invoiceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Invoice marked acknowledged" });
+      queryClient.invalidateQueries({ queryKey: ["invoices-for-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-runs"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -288,32 +405,37 @@ export default function AutomationDashboard() {
     );
   }
 
-  // Stat counts
+  // Stats
   const running = runs.filter((r) => r.status === "running").length;
   const completed = runs.filter((r) => r.status === "completed").length;
   const failed = runs.filter((r) => r.status === "failed").length;
-  const total = runs.length;
-
-  // Active runs (running only)
-  const activeRuns = runs.filter((r) => r.status === "running");
+  const noResponse = runs.filter((r) => r.status === "running" && differenceInDays(new Date(), new Date(r.created_at)) > 3).length;
 
   return (
     <MainLayout title="Automation Dashboard">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
+            <div className="p-2.5 rounded-xl bg-primary/10">
               <LayoutDashboard className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Automation Dashboard</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Automation Dashboard</h1>
               <p className="text-sm text-muted-foreground">
-                Monitor active invoice workflows and automation runs
+                Track invoice workflows, messaging, and follow-up automation
               </p>
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDebug(!showDebug)}
+              className="gap-2"
+            >
+              <Bug className="h-4 w-4" /> {showDebug ? "Hide" : "Show"} Debug
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -335,183 +457,220 @@ export default function AutomationDashboard() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Runs" value={String(total)} icon={<Activity className="h-4 w-4" />} />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <StatCard title="Total Runs" value={String(runs.length)} icon={<Activity className="h-4 w-4" />} />
           <StatCard title="Active" value={String(running)} icon={<Play className="h-4 w-4" />} />
           <StatCard title="Completed" value={String(completed)} icon={<CheckCircle className="h-4 w-4" />} />
           <StatCard title="Failed" value={String(failed)} icon={<AlertCircle className="h-4 w-4" />} />
+          <StatCard title="No Response >3d" value={String(noResponse)} icon={<Bell className="h-4 w-4" />} />
         </div>
 
         {/* Active workflow runs table */}
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-xl border bg-card shadow-sm">
           <div className="px-6 py-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold">Active Invoice Workflows</h2>
-            <Badge variant="secondary">{activeRuns.length} running</Badge>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Days Since Sent</TableHead>
-                <TableHead>Last Message</TableHead>
-                <TableHead>Msgs Sent / Replies</TableHead>
-                <TableHead>Workflow Step</TableHead>
-                <TableHead>Next Action</TableHead>
-                <TableHead className="text-right">Details</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}><Skeleton className="h-4 w-20" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : activeRuns.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                    No active workflow runs. Send an invoice to start a workflow.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                activeRuns.map((run) => {
-                  const inv = invoiceMap[run.entity_id];
-                  const enrich = enrichmentMap[run.entity_id];
-                  return (
-                    <TableRow key={run.id}>
-                      <TableCell className="font-mono text-sm font-medium">
-                        {inv?.invoice_number ?? run.entity_id.slice(0, 8) + "…"}
-                      </TableCell>
-                      <TableCell>{inv?.client_name ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge className={`text-xs gap-1 ${STATUS_STYLES[run.status] ?? ""}`}>
-                          {STATUS_ICONS[run.status]} {run.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {daysSince(run.created_at)} days
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {enrich?.last_message_at ? (
-                          <div className="text-xs space-y-0.5">
-                            <div className="flex items-center gap-1">
-                              <Badge variant="outline" className="text-xs py-0 h-4">
-                                {enrich.last_message_channel ?? "—"}
-                              </Badge>
-                              <span className="text-muted-foreground">{enrich.last_message_status ?? "—"}</span>
-                            </div>
-                            <div className="text-muted-foreground">
-                              {formatDistanceToNow(new Date(enrich.last_message_at), { addSuffix: true })}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">No messages</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {enrich
-                          ? `${enrich.total_messages_sent} / ${enrich.total_replies}`
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Zap className="h-3.5 w-3.5" /> Step {run.current_step + 1}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {run.next_run_at ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                            {formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true })}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setSelectedRun(run)}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* All runs history */}
-        {runs.length > 0 && (
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-4 border-b">
-              <h2 className="font-semibold">All Runs History</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold">Invoice Workflow Tracker</h2>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs text-xs">
+                  Shows all invoices under active workflows. Red border = no response for 3+ days.
+                  Yellow = pending. Green = recently contacted.
+                </TooltipContent>
+              </Tooltip>
             </div>
+            <Badge variant="secondary">{runs.length} total</Badge>
+          </div>
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Workflow</TableHead>
                   <TableHead>Invoice</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Step</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead className="text-right">Details</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      Invoice Status
+                      <Tooltip>
+                        <TooltipTrigger><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          Acknowledged = client confirmed receipt. Pending = awaiting response.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableHead>
+                  <TableHead>Last Message</TableHead>
+                  <TableHead>Last Contacted</TableHead>
+                  <TableHead>
+                    <div className="flex items-center gap-1">
+                      Workflow Step
+                      <Tooltip>
+                        <TooltipTrigger><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          Current step in the automation flow. Each step can be a delay, condition check, or action.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableHead>
+                  <TableHead>Next Action</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {runs.map((run) => {
-                  const inv = invoiceMap[run.entity_id];
-                  return (
-                    <TableRow key={run.id}>
-                      <TableCell className="font-medium text-sm">
-                        {run.workflows?.name ?? "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {inv?.invoice_number ?? run.entity_id.slice(0, 8) + "…"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`text-xs gap-1 ${STATUS_STYLES[run.status] ?? ""}`}>
-                          {STATUS_ICONS[run.status]} {run.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {run.current_step + 1}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setSelectedRun(run)}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 9 }).map((_, j) => (
+                        <TableCell key={j}><Skeleton className="h-4 w-20" /></TableCell>
+                      ))}
                     </TableRow>
-                  );
-                })}
+                  ))
+                ) : runs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-16">
+                      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                        <Zap className="h-8 w-8 opacity-30" />
+                        <div>
+                          <p className="font-medium">No active workflows yet</p>
+                          <p className="text-sm">Send an invoice to trigger a workflow automatically.</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  runs.map((run) => {
+                    const inv = invoiceMap[run.entity_id];
+                    const enrich = enrichmentMap[run.entity_id];
+                    return (
+                      <TableRow key={run.id} className={urgencyClass(run.created_at, run.status)}>
+                        <TableCell className="font-mono text-sm font-medium">
+                          {inv?.invoice_number ?? run.entity_id.slice(0, 8) + "…"}
+                        </TableCell>
+                        <TableCell className="text-sm">{inv?.client_name ?? "—"}</TableCell>
+                        <TableCell className="text-sm font-medium">
+                          {inv?.total_amount != null ? `₹${inv.total_amount.toLocaleString()}` : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${INVOICE_STATUS_STYLES[inv?.status ?? ""] ?? ""}`}>
+                            {inv?.status ?? run.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {enrich?.last_message_at ? (
+                            <div className="flex items-center gap-1.5">
+                              {channelIcon(enrich.last_message_channel)}
+                              {messageStatusBadge(enrich.last_message_status)}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No messages</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {enrich?.last_contacted_at
+                            ? formatDistanceToNow(new Date(enrich.last_contacted_at), { addSuffix: true })
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <Badge className={`text-xs gap-1 ${STATUS_STYLES[run.status]}`}>
+                              {STATUS_ICONS[run.status]} Step {run.current_step + 1}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {run.next_run_at && run.status === "running" ? (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Clock className="h-3.5 w-3.5" />
+                              {formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true })}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            {run.status === "running" && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "email" })}
+                                      disabled={sendReminder.isPending}
+                                    >
+                                      <Mail className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Send Email Reminder</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "whatsapp" })}
+                                      disabled={sendReminder.isPending}
+                                    >
+                                      <MessageCircle className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Send WhatsApp Reminder</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => markAcknowledged.mutate(run.entity_id)}
+                                      disabled={markAcknowledged.isPending}
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Mark Acknowledged</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => setSelectedRun(run)}
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View Details</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
+        </div>
+
+        {/* Debug Panel */}
+        {showDebug && organizationId && (
+          <MessageDebugPanel organizationId={organizationId} />
         )}
       </div>
 
-      <RunDetailDialog run={selectedRun} onClose={() => setSelectedRun(null)} />
+      <RunDetailDialog
+        run={selectedRun}
+        invoice={selectedRun ? invoiceMap[selectedRun.entity_id] : undefined}
+        onClose={() => setSelectedRun(null)}
+      />
     </MainLayout>
   );
 }

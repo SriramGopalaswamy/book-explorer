@@ -5,9 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -15,8 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Plus, Trash2, ChevronDown, ChevronUp, Play, Pause, Workflow,
-  Clock, GitBranch, Zap, AlertCircle,
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Plus, Trash2, Play, Pause, Workflow,
+  Clock, GitBranch, Zap, AlertCircle, ArrowDown,
+  Mail, MessageCircle, Info,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,7 +34,7 @@ interface WorkflowStep {
   config: Record<string, any>;
 }
 
-interface Workflow {
+interface WorkflowDef {
   id: string;
   name: string;
   trigger_event: string;
@@ -87,32 +88,109 @@ const CONDITION_OPERATORS = [
   { value: "<", label: "is less than" },
 ];
 
-// ─── Step Icon ────────────────────────────────────────────────────────────────
+// ─── Step Visual Cards ────────────────────────────────────────────────────────
 
-function StepIcon({ type }: { type: string }) {
-  if (type === "delay") return <Clock className="h-4 w-4 text-blue-500" />;
-  if (type === "condition") return <GitBranch className="h-4 w-4 text-amber-500" />;
-  return <Zap className="h-4 w-4 text-emerald-500" />;
+function StepCard({ step, index }: { step: WorkflowStep; index: number }) {
+  const getStepStyle = () => {
+    if (step.step_type === "delay") return {
+      icon: <Clock className="h-4 w-4" />,
+      bg: "bg-blue-500/10 border-blue-500/20",
+      iconBg: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
+      label: `Wait ${step.config.duration_hours ?? 24} hours`,
+      emoji: "🕒",
+    };
+    if (step.step_type === "condition") return {
+      icon: <GitBranch className="h-4 w-4" />,
+      bg: "bg-amber-500/10 border-amber-500/20",
+      iconBg: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
+      label: `If ${step.config.field ?? "field"} ${step.config.operator ?? "!="} "${step.config.value ?? ""}"`,
+      emoji: "🔀",
+    };
+    const at = step.config.action_type;
+    const ch = step.config.channel ?? "email";
+    let label = step.step_type;
+    let emoji = "📩";
+    if (at === "send_message") {
+      label = `Send ${ch} message (${step.config.template ?? "template"})`;
+      emoji = ch === "whatsapp" ? "📱" : "📩";
+    } else if (at === "send_email") {
+      label = `Send email (${step.config.template ?? "template"})`;
+    } else if (at === "update_invoice_status") {
+      label = `Update status → ${step.config.status ?? "?"}`;
+      emoji = "🔄";
+    } else if (at === "notify_internal") {
+      label = `Notify team: ${step.config.message ?? ""}`;
+      emoji = "🔔";
+    }
+    return {
+      icon: <Zap className="h-4 w-4" />,
+      bg: "bg-emerald-500/10 border-emerald-500/20",
+      iconBg: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
+      label,
+      emoji,
+    };
+  };
+
+  const style = getStepStyle();
+
+  return (
+    <div className={`rounded-lg border p-3 ${style.bg} flex items-center gap-3`}>
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${style.iconBg}`}>
+        {style.emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Step {index + 1} · {step.step_type}
+        </p>
+        <p className="text-sm font-medium truncate">{style.label}</p>
+      </div>
+    </div>
+  );
 }
 
-function stepLabel(step: WorkflowStep): string {
-  if (step.step_type === "delay") {
-    return `Wait ${step.config.duration_hours ?? 24} hour(s)`;
-  }
-  if (step.step_type === "condition") {
-    return `If ${step.config.field ?? "field"} ${step.config.operator ?? "!="} "${step.config.value ?? ""}"`;
-  }
-  if (step.step_type === "action") {
-    const at = step.config.action_type;
-    if (at === "send_message") {
-      const ch = step.config.channel ?? "email";
-      return `Send ${ch} message (${step.config.template ?? "template"})`;
+function WorkflowFlowView({ steps }: { steps: WorkflowStep[] }) {
+  const sorted = [...steps].sort((a, b) => a.step_order - b.step_order);
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="space-y-1">
+      {sorted.map((step, i) => (
+        <React.Fragment key={i}>
+          <StepCard step={step} index={i} />
+          {i < sorted.length - 1 && (
+            <div className="flex justify-center py-0.5">
+              <ArrowDown className="h-4 w-4 text-muted-foreground/50" />
+            </div>
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function humanReadableSummary(trigger: string, steps: WorkflowStep[]): string {
+  const triggerLabel = TRIGGER_EVENTS.find((e) => e.value === trigger)?.label ?? trigger;
+  const parts = [`When "${triggerLabel}"`];
+  const sorted = [...steps].sort((a, b) => a.step_order - b.step_order);
+  for (const step of sorted) {
+    if (step.step_type === "delay") {
+      parts.push(`→ wait ${step.config.duration_hours ?? 24}h`);
+    } else if (step.step_type === "condition") {
+      parts.push(`→ if ${step.config.field ?? "field"} ${step.config.operator ?? "!="} "${step.config.value ?? ""}"`);
+    } else if (step.step_type === "action") {
+      const at = step.config.action_type;
+      if (at === "send_message") {
+        parts.push(`→ send ${step.config.channel ?? "email"} reminder`);
+      } else if (at === "send_email") {
+        parts.push(`→ send email`);
+      } else if (at === "update_invoice_status") {
+        parts.push(`→ update status to ${step.config.status ?? "?"}`);
+      } else if (at === "notify_internal") {
+        parts.push(`→ notify team`);
+      }
     }
-    if (at === "send_email") return `Send email (${step.config.template ?? "template"})`;
-    if (at === "update_invoice_status") return `Update status → ${step.config.status ?? "?"}`;
-    if (at === "notify_internal") return `Notify team: ${step.config.message ?? ""}`;
   }
-  return step.step_type;
+  return parts.join(" ");
 }
 
 // ─── Step Editor ──────────────────────────────────────────────────────────────
@@ -131,14 +209,15 @@ function StepEditor({
   const updateConfig = (key: string, val: any) =>
     onChange({ ...step, config: { ...step.config, [key]: val } });
 
+  const stepEmoji = step.step_type === "delay" ? "🕒" : step.step_type === "condition" ? "🔀" : "📩";
+
   return (
     <div className="border rounded-lg p-4 space-y-3 bg-card">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
-            {index + 1}
+          <span className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center text-sm">
+            {stepEmoji}
           </span>
-          <StepIcon type={step.step_type} />
           <Select
             value={step.step_type}
             onValueChange={(v: any) => onChange({ ...step, step_type: v, config: {} })}
@@ -147,9 +226,9 @@ function StepEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="delay">Delay</SelectItem>
-              <SelectItem value="condition">Condition</SelectItem>
-              <SelectItem value="action">Action</SelectItem>
+              <SelectItem value="delay">🕒 Delay</SelectItem>
+              <SelectItem value="condition">🔀 Condition</SelectItem>
+              <SelectItem value="action">📩 Action</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -158,7 +237,6 @@ function StepEditor({
         </Button>
       </div>
 
-      {/* Delay config */}
       {step.step_type === "delay" && (
         <div className="flex items-center gap-2">
           <Label className="text-sm text-muted-foreground whitespace-nowrap">Wait</Label>
@@ -173,73 +251,51 @@ function StepEditor({
         </div>
       )}
 
-      {/* Condition config */}
       {step.step_type === "condition" && (
         <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <Label className="text-xs text-muted-foreground">Field</Label>
-            <Select
-              value={step.config.field ?? ""}
-              onValueChange={(v) => updateConfig("field", v)}
-            >
-              <SelectTrigger className="h-8 text-sm mt-1">
-                <SelectValue placeholder="Select field..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="invoice.status">invoice.status</SelectItem>
-                <SelectItem value="last_message.channel">last_message.channel</SelectItem>
-                <SelectItem value="last_message.status">last_message.status</SelectItem>
-                <SelectItem value="last_message.classification">last_message.classification</SelectItem>
-                <SelectItem value="last_message.created_at">last_message.created_at</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">Field</Label>
+              <Select value={step.config.field ?? ""} onValueChange={(v) => updateConfig("field", v)}>
+                <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select field..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="invoice.status">invoice.status</SelectItem>
+                  <SelectItem value="last_message.channel">last_message.channel</SelectItem>
+                  <SelectItem value="last_message.status">last_message.status</SelectItem>
+                  <SelectItem value="last_message.classification">last_message.classification</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Operator</Label>
+              <Select value={step.config.operator ?? "!="} onValueChange={(v) => updateConfig("operator", v)}>
+                <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CONDITION_OPERATORS.map((op) => (
+                    <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Value</Label>
+              <Input
+                className="h-8 text-sm mt-1"
+                placeholder="acknowledged"
+                value={step.config.value ?? ""}
+                onChange={(e) => updateConfig("value", e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Operator</Label>
-            <Select
-              value={step.config.operator ?? "!="}
-              onValueChange={(v) => updateConfig("operator", v)}
-            >
-              <SelectTrigger className="h-8 text-sm mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONDITION_OPERATORS.map((op) => (
-                  <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Value</Label>
-            <Input
-              className="h-8 text-sm mt-1"
-              placeholder="acknowledged"
-              value={step.config.value ?? ""}
-              onChange={(e) => updateConfig("value", e.target.value)}
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Use <code className="bg-muted px-1 rounded">invoice.status</code> for invoice fields,
-          or <code className="bg-muted px-1 rounded">last_message.*</code> for channel/status/classification checks.
-        </p>
         </div>
       )}
 
-      {/* Action config */}
       {step.step_type === "action" && (
         <div className="space-y-2">
           <div>
             <Label className="text-xs text-muted-foreground">Action Type</Label>
-            <Select
-              value={step.config.action_type ?? ""}
-              onValueChange={(v) => onChange({ ...step, config: { action_type: v } })}
-            >
-              <SelectTrigger className="h-8 text-sm mt-1">
-                <SelectValue placeholder="Select action…" />
-              </SelectTrigger>
+            <Select value={step.config.action_type ?? ""} onValueChange={(v) => onChange({ ...step, config: { action_type: v } })}>
+              <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select action…" /></SelectTrigger>
               <SelectContent>
                 {ACTION_TYPES.map((a) => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
@@ -253,16 +309,11 @@ function StepEditor({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs text-muted-foreground">Channel</Label>
-                  <Select
-                    value={step.config.channel ?? "email"}
-                    onValueChange={(v) => updateConfig("channel", v)}
-                  >
-                    <SelectTrigger className="h-8 text-sm mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={step.config.channel ?? "email"} onValueChange={(v) => updateConfig("channel", v)}>
+                    <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="email">📩 Email</SelectItem>
+                      <SelectItem value="whatsapp">📱 WhatsApp</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -272,9 +323,7 @@ function StepEditor({
                     value={step.config.template ?? (step.config.channel === "whatsapp" ? "invoice_reminder_1" : "reminder_1")}
                     onValueChange={(v) => updateConfig("template", v)}
                   >
-                    <SelectTrigger className="h-8 text-sm mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(step.config.channel === "whatsapp" ? WHATSAPP_TEMPLATES : EMAIL_TEMPLATES).map((t) => (
                         <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -301,13 +350,8 @@ function StepEditor({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs text-muted-foreground">Template</Label>
-                <Select
-                  value={step.config.template ?? "reminder_1"}
-                  onValueChange={(v) => updateConfig("template", v)}
-                >
-                  <SelectTrigger className="h-8 text-sm mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={step.config.template ?? "reminder_1"} onValueChange={(v) => updateConfig("template", v)}>
+                  <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EMAIL_TEMPLATES.map((t) => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -317,12 +361,7 @@ function StepEditor({
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">To</Label>
-                <Input
-                  className="h-8 text-sm mt-1"
-                  placeholder="client_email"
-                  value={step.config.to ?? "client_email"}
-                  onChange={(e) => updateConfig("to", e.target.value)}
-                />
+                <Input className="h-8 text-sm mt-1" placeholder="client_email" value={step.config.to ?? "client_email"} onChange={(e) => updateConfig("to", e.target.value)} />
               </div>
             </div>
           )}
@@ -330,13 +369,8 @@ function StepEditor({
           {step.config.action_type === "update_invoice_status" && (
             <div>
               <Label className="text-xs text-muted-foreground">Set Status To</Label>
-              <Select
-                value={step.config.status ?? ""}
-                onValueChange={(v) => updateConfig("status", v)}
-              >
-                <SelectTrigger className="h-8 text-sm mt-1">
-                  <SelectValue placeholder="Select status…" />
-                </SelectTrigger>
+              <Select value={step.config.status ?? ""} onValueChange={(v) => updateConfig("status", v)}>
+                <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select status…" /></SelectTrigger>
                 <SelectContent>
                   {INVOICE_STATUSES.map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -349,12 +383,7 @@ function StepEditor({
           {step.config.action_type === "notify_internal" && (
             <div>
               <Label className="text-xs text-muted-foreground">Message</Label>
-              <Input
-                className="h-8 text-sm mt-1"
-                placeholder="Invoice pending acknowledgement"
-                value={step.config.message ?? ""}
-                onChange={(e) => updateConfig("message", e.target.value)}
-              />
+              <Input className="h-8 text-sm mt-1" placeholder="Invoice pending acknowledgement" value={step.config.message ?? ""} onChange={(e) => updateConfig("message", e.target.value)} />
             </div>
           )}
         </div>
@@ -381,7 +410,6 @@ export default function WorkflowsPage() {
 
   const organizationId = orgData?.organizationId;
 
-  // Fetch workflows
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ["workflows", organizationId],
     enabled: !!organizationId,
@@ -391,11 +419,10 @@ export default function WorkflowsPage() {
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Workflow[];
+      return (data ?? []) as WorkflowDef[];
     },
   });
 
-  // Create workflow mutation
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!newName.trim()) throw new Error("Workflow name is required");
@@ -426,7 +453,7 @@ export default function WorkflowsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows", organizationId] });
-      toast({ title: "Workflow created" });
+      toast({ title: "Workflow created successfully" });
       setCreateOpen(false);
       setNewName("");
       setNewTrigger("invoice_sent");
@@ -437,7 +464,6 @@ export default function WorkflowsPage() {
     },
   });
 
-  // Toggle active
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await (supabase.from as any)("workflows")
@@ -454,7 +480,6 @@ export default function WorkflowsPage() {
     },
   });
 
-  // Delete workflow
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase.from as any)("workflows").delete().eq("id", id);
@@ -502,15 +527,15 @@ export default function WorkflowsPage() {
     <MainLayout title="Workflow Automation">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
+            <div className="p-2.5 rounded-xl bg-primary/10">
               <Workflow className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Workflow Automation</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Workflow Builder</h1>
               <p className="text-sm text-muted-foreground">
-                Automate invoice follow-ups, reminders, and notifications
+                Automate invoice follow-ups with multi-channel messaging
               </p>
             </div>
           </div>
@@ -519,120 +544,104 @@ export default function WorkflowsPage() {
           </Button>
         </div>
 
-        {/* Workflow list */}
-        <div className="rounded-xl border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead>Steps</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <TableCell key={j}><Skeleton className="h-4 w-24" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : workflows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    No workflows yet. Create your first workflow to automate invoice follow-ups.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                workflows.map((wf) => (
-                  <React.Fragment key={wf.id}>
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setExpandedId(expandedId === wf.id ? null : wf.id)}
-                    >
-                      <TableCell className="font-medium flex items-center gap-2">
-                        {expandedId === wf.id
-                          ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                        {wf.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {triggerLabel(wf.trigger_event)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {wf.workflow_steps?.length ?? 0} steps
-                      </TableCell>
-                      <TableCell>
+        {/* Workflow Cards */}
+        {isLoading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : workflows.length === 0 ? (
+          <div className="rounded-xl border-2 border-dashed p-12 text-center">
+            <Workflow className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+            <p className="font-medium text-muted-foreground">No workflows yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create your first workflow to automate invoice follow-ups.
+            </p>
+            <Button className="mt-4 gap-2" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> Create Workflow
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {workflows.map((wf) => (
+              <div key={wf.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                {/* Workflow header */}
+                <div
+                  className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setExpandedId(expandedId === wf.id ? null : wf.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={`p-2 rounded-lg ${wf.is_active ? "bg-emerald-500/10" : "bg-muted"}`}>
+                      <Workflow className={`h-4 w-4 ${wf.is_active ? "text-emerald-600" : "text-muted-foreground"}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold truncate">{wf.name}</p>
                         <Badge
                           variant={wf.is_active ? "default" : "secondary"}
-                          className={wf.is_active ? "bg-emerald-500/20 text-emerald-700 border-emerald-200" : ""}
+                          className={`text-[10px] h-5 ${wf.is_active ? "bg-emerald-500/20 text-emerald-700 border-emerald-200" : ""}`}
                         >
                           {wf.is_active ? "Active" : "Paused"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(wf.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title={wf.is_active ? "Pause" : "Activate"}
-                            onClick={() => toggleMutation.mutate({ id: wf.id, is_active: wf.is_active })}
-                          >
-                            {wf.is_active
-                              ? <Pause className="h-4 w-4 text-amber-500" />
-                              : <Play className="h-4 w-4 text-emerald-500" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => deleteMutation.mutate(wf.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Trigger: {triggerLabel(wf.trigger_event)} · {wf.workflow_steps?.length ?? 0} steps
+                      </p>
+                    </div>
+                  </div>
 
-                    {/* Expanded steps view */}
-                    {expandedId === wf.id && (
-                      <TableRow key={`${wf.id}-steps`}>
-                        <TableCell colSpan={6} className="bg-muted/30 px-8 py-4">
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                              Steps
-                            </p>
-                            {(wf.workflow_steps ?? [])
-                              .sort((a, b) => a.step_order - b.step_order)
-                              .map((step, i) => (
-                                <div key={i} className="flex items-center gap-3 text-sm py-1.5">
-                                  <span className="w-5 h-5 rounded-full bg-muted border flex items-center justify-center text-xs text-muted-foreground font-medium">
-                                    {step.step_order}
-                                  </span>
-                                  <StepIcon type={step.step_type} />
-                                  <span className="text-foreground">{stepLabel(step)}</span>
-                                </div>
-                              ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </React.Fragment>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => toggleMutation.mutate({ id: wf.id, is_active: wf.is_active })}
+                        >
+                          {wf.is_active
+                            ? <Pause className="h-4 w-4 text-amber-500" />
+                            : <Play className="h-4 w-4 text-emerald-500" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{wf.is_active ? "Pause workflow" : "Activate workflow"}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteMutation.mutate(wf.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete workflow</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+
+                {/* Expanded flow view */}
+                {expandedId === wf.id && (
+                  <div className="border-t bg-muted/20 px-5 py-4 space-y-4">
+                    {/* Human-readable summary */}
+                    <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Flow Summary</p>
+                      <p className="text-sm font-medium">
+                        {humanReadableSummary(wf.trigger_event, wf.workflow_steps ?? [])}
+                      </p>
+                    </div>
+
+                    {/* Flow view */}
+                    <WorkflowFlowView steps={wf.workflow_steps ?? []} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Create Workflow Dialog */}
@@ -645,35 +654,32 @@ export default function WorkflowsPage() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
-            {/* Name */}
             <div className="space-y-1.5">
               <Label>Workflow Name</Label>
-              <Input
-                placeholder="e.g. Invoice Follow-up"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
+              <Input placeholder="e.g. Invoice Follow-up" value={newName} onChange={(e) => setNewName(e.target.value)} />
             </div>
 
-            {/* Trigger */}
             <div className="space-y-1.5">
               <Label>Trigger Event</Label>
               <Select value={newTrigger} onValueChange={setNewTrigger}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TRIGGER_EVENTS.map((e) => (
                     <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                The workflow will start whenever this event occurs.
-              </p>
+              <p className="text-xs text-muted-foreground">The workflow starts when this event fires.</p>
             </div>
 
-            {/* Steps */}
+            {/* Live preview of the flow */}
+            {newSteps.length > 0 && (
+              <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Preview</p>
+                <p className="text-sm">{humanReadableSummary(newTrigger, newSteps)}</p>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Steps</Label>
@@ -683,13 +689,19 @@ export default function WorkflowsPage() {
               </div>
               <div className="space-y-3">
                 {newSteps.map((step, i) => (
-                  <StepEditor
-                    key={i}
-                    index={i}
-                    step={step}
-                    onChange={(s) => updateStep(i, s)}
-                    onRemove={() => removeStep(i)}
-                  />
+                  <React.Fragment key={i}>
+                    <StepEditor
+                      index={i}
+                      step={step}
+                      onChange={(s) => updateStep(i, s)}
+                      onRemove={() => removeStep(i)}
+                    />
+                    {i < newSteps.length - 1 && (
+                      <div className="flex justify-center">
+                        <ArrowDown className="h-4 w-4 text-muted-foreground/40" />
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
                 {newSteps.length === 0 && (
                   <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-lg">
