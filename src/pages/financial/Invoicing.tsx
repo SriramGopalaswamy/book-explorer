@@ -1054,10 +1054,14 @@ export default function Invoicing() {
                   </div>
                 )}
 
-                {/* Workflow Status Section */}
-                {viewingInvoice && (viewingInvoice.status === "sent" || viewingInvoice.status === "overdue") && (viewingInvoice as any).organization_id && (
-                  <div className="pt-2 border-t">
+                {/* Workflow Status & Message Thread */}
+                {viewingInvoice && (viewingInvoice as any).organization_id && (
+                  <div className="pt-2 border-t space-y-4">
                     <WorkflowStatus
+                      invoiceId={viewingInvoice.id}
+                      organizationId={(viewingInvoice as any).organization_id}
+                    />
+                    <InvoiceMessageThread
                       invoiceId={viewingInvoice.id}
                       organizationId={(viewingInvoice as any).organization_id}
                     />
