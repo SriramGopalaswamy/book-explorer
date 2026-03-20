@@ -440,8 +440,7 @@ export default function WorkflowsPage() {
   // Toggle active
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from("workflows")
+      const { error } = await (supabase.from as any)("workflows")
         .update({ is_active: !is_active })
         .eq("id", id);
       if (error) throw error;
