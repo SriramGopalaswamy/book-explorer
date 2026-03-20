@@ -386,8 +386,7 @@ export default function WorkflowsPage() {
     queryKey: ["workflows", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workflows")
+      const { data, error } = await (supabase.from as any)("workflows")
         .select("*, workflow_steps(*)")
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false });
