@@ -10506,6 +10506,187 @@ export type Database = {
           },
         ]
       }
+      workflow_events: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          id: string
+          organization_id: string
+          payload: Json
+          workflow_run_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          id?: string
+          organization_id: string
+          payload?: Json
+          workflow_run_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          workflow_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_workflow_run_id_fkey"
+            columns: ["workflow_run_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_runs: {
+        Row: {
+          created_at: string
+          current_step: number
+          entity_id: string
+          entity_type: string
+          id: string
+          next_run_at: string
+          organization_id: string
+          status: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_step?: number
+          entity_id: string
+          entity_type: string
+          id?: string
+          next_run_at?: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string
+          current_step?: number
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          next_run_at?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_steps: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          step_order: number
+          step_type: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          step_order: number
+          step_type: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          step_order?: number
+          step_type?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_steps_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          trigger_event?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       ledger_base: {
@@ -10657,6 +10838,27 @@ export type Database = {
       check_org_access: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
+      }
+      claim_workflow_runs: {
+        Args: { p_claim_until: string; p_limit?: number; p_now: string }
+        Returns: {
+          created_at: string
+          current_step: number
+          entity_id: string
+          entity_type: string
+          id: string
+          next_run_at: string
+          organization_id: string
+          status: string
+          updated_at: string
+          workflow_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "workflow_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       cleanup_stale_sessions: { Args: never; Returns: undefined }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
@@ -63,7 +63,6 @@ import ManagerInbox from "./pages/hrms/ManagerInbox";
 import Reimbursements from "./pages/hrms/Reimbursements";
 import MyExpenses from "./pages/hrms/MyExpenses";
 import ReimbursementsFinance from "./pages/financial/ReimbursementsFinance";
-import WorkflowsPage from "./pages/financial/Workflows";
 import AutomationDashboard from "./pages/financial/AutomationDashboard";
 
 // Performance OS
@@ -188,7 +187,7 @@ const App = () => (
                 <Route path="/financial/eway-bills" element={<Guarded><FinanceRoute><EwayBills /></FinanceRoute></Guarded>} />
                 <Route path="/financial/e-invoices" element={<Guarded><FinanceRoute><EInvoices /></FinanceRoute></Guarded>} />
                 <Route path="/financial/recurring" element={<Guarded><FinanceRoute><RecurringTransactionsPage /></FinanceRoute></Guarded>} />
-                <Route path="/financial/workflows" element={<Guarded><FinanceRoute><WorkflowsPage /></FinanceRoute></Guarded>} />
+                <Route path="/financial/workflows" element={<Navigate to="/financial/automation" replace />} />
                 <Route path="/financial/automation" element={<Guarded><FinanceRoute><AutomationDashboard /></FinanceRoute></Guarded>} />
 
                 {/* Inventory */}
