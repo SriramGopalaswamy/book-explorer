@@ -112,6 +112,8 @@ const financialNav: NavItem[] = [
   { name: "Recurring", path: "/financial/recurring", icon: RefreshCw, module: "financial" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, module: "financial" },
+  { name: "Automation", path: "/financial/automation", icon: RefreshCw, module: "financial" },
+  { name: "Workflows", path: "/financial/workflows", icon: Layers, module: "financial" },
 ];
 
 const hrmsNav: NavItem[] = [
