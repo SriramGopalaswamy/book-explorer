@@ -852,12 +852,31 @@ export default function AutomationDashboard() {
                           <TableCell>{invoice?.client_name ?? <span className="text-destructive">Missing invoice</span>}</TableCell>
                           <TableCell>{invoice ? `₹${invoice.total_amount.toLocaleString()}` : "—"}</TableCell>
                           <TableCell><Badge variant="outline" className={INVOICE_STATUS_STYLES[invoice?.status ?? run.status] ?? "bg-muted text-muted-foreground border-border"}>{invoice?.status ?? run.status}</Badge></TableCell>
-                          <TableCell>{channelBadge(enrichment?.last_message_channel ?? null)}</TableCell>
-                          <TableCell>{messageStatusBadge(enrichment?.last_message_status ?? null)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              {channelBadge(enrichment?.last_message_channel ?? null)}
+                              {enrichment?.last_message_status && messageStatusBadge(enrichment.last_message_status)}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{enrichment?.last_contacted_at ? formatDistanceToNow(new Date(enrichment.last_contacted_at), { addSuffix: true }) : "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className={RUN_STATUS_STYLES[run.status] ?? "bg-muted text-muted-foreground border-border"}>Step {run.current_step + 1}</Badge></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{run.next_run_at && run.status === "running" ? formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true }) : "—"}</TableCell>
-                          <TableCell><div className="flex items-center justify-end gap-1">{run.status === "running" && <><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "email" })} disabled={sendReminder.isPending}><Mail className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "whatsapp" })} disabled={sendReminder.isPending}><MessageCircle className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAcknowledged.mutate(run.entity_id)} disabled={markAcknowledged.isPending}><CheckCircle2 className="h-4 w-4" /></Button></>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedRun(run)}><Eye className="h-4 w-4" /></Button></div></TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className={RUN_STATUS_STYLES[run.status] ?? "bg-muted text-muted-foreground border-border"}>Step {run.current_step + 1}</Badge>
+                              {run.next_run_at && run.status === "running" && <span className="text-[10px] text-muted-foreground">Next: {formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true })}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              {run.status === "running" && (
+                                <>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "email" })} disabled={sendReminder.isPending}><Mail className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Send Email Reminder</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "whatsapp" })} disabled={sendReminder.isPending}><MessageCircle className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Send WhatsApp Reminder</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAcknowledged.mutate(run.entity_id)} disabled={markAcknowledged.isPending}><CheckCircle2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Mark Acknowledged</TooltipContent></Tooltip>
+                                </>
+                              )}
+                              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedRun(run)}><Eye className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>View Details</TooltipContent></Tooltip>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
