@@ -248,9 +248,9 @@ function workflowEventLabel(eventType: string) {
 function urgencyClass(createdAt: string, status: string) {
   if (status === "completed" || status === "cancelled") return "";
   const days = differenceInDays(new Date(), new Date(createdAt));
-  if (days > 3) return "border-l-4 border-l-destructive";
-  if (days > 1) return "border-l-4 border-l-warning";
-  return "border-l-4 border-l-success";
+  if (days > 3) return "border-l-4 border-l-red-500";
+  if (days > 1) return "border-l-4 border-l-amber-500";
+  return "border-l-4 border-l-emerald-500";
 }
 
 function channelBadge(channel: string | null) {
