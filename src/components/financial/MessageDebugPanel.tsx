@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -113,9 +113,8 @@ export function MessageDebugPanel({ organizationId }: MessageDebugPanelProps) {
               </TableRow>
             ) : (
               messages.map((msg) => (
-                <>
+                <React.Fragment key={msg.id}>
                   <TableRow
-                    key={msg.id}
                     className={`text-xs cursor-pointer hover:bg-muted/50 transition-colors ${msg.status === "failed" ? "bg-red-500/5" : ""}`}
                     onClick={() => setExpandedId(expandedId === msg.id ? null : msg.id)}
                   >
@@ -159,7 +158,7 @@ export function MessageDebugPanel({ organizationId }: MessageDebugPanelProps) {
                   </TableRow>
 
                   {expandedId === msg.id && (
-                    <TableRow key={`${msg.id}-detail`}>
+                    <TableRow>
                       <TableCell colSpan={8} className="bg-muted/30 p-4">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                           <div>
@@ -212,7 +211,7 @@ export function MessageDebugPanel({ organizationId }: MessageDebugPanelProps) {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))
             )}
           </TableBody>

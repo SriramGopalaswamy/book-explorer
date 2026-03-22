@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -248,9 +249,9 @@ function workflowEventLabel(eventType: string) {
 function urgencyClass(createdAt: string, status: string) {
   if (status === "completed" || status === "cancelled") return "";
   const days = differenceInDays(new Date(), new Date(createdAt));
-  if (days > 3) return "border-l-4 border-l-destructive";
-  if (days > 1) return "border-l-4 border-l-warning";
-  return "border-l-4 border-l-success";
+  if (days > 3) return "border-l-4 border-l-red-500";
+  if (days > 1) return "border-l-4 border-l-amber-500";
+  return "border-l-4 border-l-emerald-500";
 }
 
 function channelBadge(channel: string | null) {
@@ -839,10 +840,10 @@ export default function AutomationDashboard() {
               <div className="flex items-center justify-between border-b px-6 py-4"><div><h2 className="font-semibold">Live Automation Tracker</h2><p className="text-sm text-muted-foreground">Every invoice run, its latest message, and the next action.</p></div><Badge variant="outline" className="bg-muted text-muted-foreground border-border">{runs.length} runs</Badge></div>
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Client</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Last Channel</TableHead><TableHead>Last Message Status</TableHead><TableHead>Last Contacted</TableHead><TableHead>Workflow Step</TableHead><TableHead>Next Action</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Client</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Last Message</TableHead><TableHead>Last Contacted</TableHead><TableHead>Progress</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {runsLoading ? Array.from({ length: 5 }).map((_, rowIndex) => <TableRow key={rowIndex}>{Array.from({ length: 10 }).map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton className="h-4 w-20" /></TableCell>)}</TableRow>) : runs.length === 0 ? (
-                      <TableRow><TableCell colSpan={10} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-muted-foreground"><Send className="h-8 w-8 opacity-40" /><div><p className="font-medium">No active workflows yet</p><p className="text-sm">Create a workflow above and send an invoice to trigger it.</p></div></div></TableCell></TableRow>
+                     {runsLoading ? Array.from({ length: 5 }).map((_, rowIndex) => <TableRow key={rowIndex}>{Array.from({ length: 8 }).map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton className="h-4 w-20" /></TableCell>)}</TableRow>) : runs.length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-muted-foreground"><Send className="h-8 w-8 opacity-40" /><div><p className="font-medium">No active workflows yet</p><p className="text-sm">Create a workflow above and send an invoice to trigger it.</p></div></div></TableCell></TableRow>
                     ) : runs.map((run) => {
                       const invoice = invoiceMap[run.entity_id];
                       const enrichment = enrichmentMap[run.entity_id];
@@ -852,12 +853,31 @@ export default function AutomationDashboard() {
                           <TableCell>{invoice?.client_name ?? <span className="text-destructive">Missing invoice</span>}</TableCell>
                           <TableCell>{invoice ? `₹${invoice.total_amount.toLocaleString()}` : "—"}</TableCell>
                           <TableCell><Badge variant="outline" className={INVOICE_STATUS_STYLES[invoice?.status ?? run.status] ?? "bg-muted text-muted-foreground border-border"}>{invoice?.status ?? run.status}</Badge></TableCell>
-                          <TableCell>{channelBadge(enrichment?.last_message_channel ?? null)}</TableCell>
-                          <TableCell>{messageStatusBadge(enrichment?.last_message_status ?? null)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              {channelBadge(enrichment?.last_message_channel ?? null)}
+                              {enrichment?.last_message_status && messageStatusBadge(enrichment.last_message_status)}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{enrichment?.last_contacted_at ? formatDistanceToNow(new Date(enrichment.last_contacted_at), { addSuffix: true }) : "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className={RUN_STATUS_STYLES[run.status] ?? "bg-muted text-muted-foreground border-border"}>Step {run.current_step + 1}</Badge></TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{run.next_run_at && run.status === "running" ? formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true }) : "—"}</TableCell>
-                          <TableCell><div className="flex items-center justify-end gap-1">{run.status === "running" && <><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "email" })} disabled={sendReminder.isPending}><Mail className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "whatsapp" })} disabled={sendReminder.isPending}><MessageCircle className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAcknowledged.mutate(run.entity_id)} disabled={markAcknowledged.isPending}><CheckCircle2 className="h-4 w-4" /></Button></>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedRun(run)}><Eye className="h-4 w-4" /></Button></div></TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className={RUN_STATUS_STYLES[run.status] ?? "bg-muted text-muted-foreground border-border"}>Step {run.current_step + 1}</Badge>
+                              {run.next_run_at && run.status === "running" && <span className="text-[10px] text-muted-foreground">Next: {formatDistanceToNow(new Date(run.next_run_at), { addSuffix: true })}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              {run.status === "running" && (
+                                <>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "email" })} disabled={sendReminder.isPending}><Mail className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Send Email Reminder</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendReminder.mutate({ invoiceId: run.entity_id, channel: "whatsapp" })} disabled={sendReminder.isPending}><MessageCircle className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Send WhatsApp Reminder</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAcknowledged.mutate(run.entity_id)} disabled={markAcknowledged.isPending}><CheckCircle2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Mark Acknowledged</TooltipContent></Tooltip>
+                                </>
+                              )}
+                              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedRun(run)}><Eye className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>View Details</TooltipContent></Tooltip>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}

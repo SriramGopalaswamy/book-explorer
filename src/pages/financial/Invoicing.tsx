@@ -76,6 +76,7 @@ import { getInvoicePdfSignedUrl } from "@/hooks/useAadhaarSign";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
 import { InvoiceMessageThread } from "@/components/financial/InvoiceMessageThread";
 
@@ -165,6 +166,7 @@ export default function Invoicing() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  const { data: orgData } = useUserOrganization();
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
@@ -1055,15 +1057,15 @@ export default function Invoicing() {
                 )}
 
                 {/* Workflow Status & Message Thread */}
-                {viewingInvoice && (viewingInvoice as any).organization_id && (
+                {viewingInvoice && orgData?.organizationId && (
                   <div className="pt-2 border-t space-y-4">
                     <WorkflowStatus
                       invoiceId={viewingInvoice.id}
-                      organizationId={(viewingInvoice as any).organization_id}
+                      organizationId={orgData.organizationId}
                     />
                     <InvoiceMessageThread
                       invoiceId={viewingInvoice.id}
-                      organizationId={(viewingInvoice as any).organization_id}
+                      organizationId={orgData.organizationId}
                     />
                   </div>
                 )}
