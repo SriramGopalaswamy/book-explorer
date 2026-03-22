@@ -1057,15 +1057,15 @@ export default function Invoicing() {
                 )}
 
                 {/* Workflow Status & Message Thread */}
-                {viewingInvoice && (viewingInvoice as any).organization_id && (
+                {viewingInvoice && orgData?.organizationId && (
                   <div className="pt-2 border-t space-y-4">
                     <WorkflowStatus
                       invoiceId={viewingInvoice.id}
-                      organizationId={(viewingInvoice as any).organization_id}
+                      organizationId={orgData.organizationId}
                     />
                     <InvoiceMessageThread
                       invoiceId={viewingInvoice.id}
-                      organizationId={(viewingInvoice as any).organization_id}
+                      organizationId={orgData.organizationId}
                     />
                   </div>
                 )}
