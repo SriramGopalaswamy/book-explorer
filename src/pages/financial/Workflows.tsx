@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -526,9 +526,8 @@ export default function WorkflowsPage() {
                 </TableRow>
               ) : (
                 workflows.map((wf) => (
-                  <>
+                  <Fragment key={wf.id}>
                     <TableRow
-                      key={wf.id}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => setExpandedId(expandedId === wf.id ? null : wf.id)}
                     >
@@ -605,7 +604,7 @@ export default function WorkflowsPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))
               )}
             </TableBody>

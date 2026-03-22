@@ -20,6 +20,7 @@ export interface Invoice {
   status: "draft" | "sent" | "paid" | "overdue" | "cancelled" | "acknowledged" | "dispute";
   created_at: string;
   updated_at: string;
+  client_phone?: string | null;
   place_of_supply?: string | null;
   payment_terms?: string | null;
   subtotal?: number;
@@ -73,6 +74,7 @@ export interface CreateInvoiceData {
   total_amount?: number;
   notes?: string;
   customer_gstin?: string;
+  client_phone?: string;
   items: {
     description: string;
     quantity: number;
@@ -202,6 +204,7 @@ export function useCreateInvoice() {
           total_amount: data.total_amount || data.amount,
           notes: data.notes || null,
           customer_gstin: data.customer_gstin || null,
+          client_phone: data.client_phone || null,
         } as any)
         .select()
         .single();
@@ -451,6 +454,7 @@ export function useUpdateInvoice() {
         total_amount: data.total_amount || data.amount,
         notes: data.notes || null,
         customer_gstin: data.customer_gstin || null,
+        client_phone: data.client_phone || null,
       };
 
       const { data: updateResult, error: invoiceError } = await (supabase as any)

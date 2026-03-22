@@ -375,7 +375,7 @@ export default function AutomationDashboard() {
                 ))
               ) : activeRuns.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     No active workflow runs. Send an invoice to start a workflow.
                   </TableCell>
                 </TableRow>
