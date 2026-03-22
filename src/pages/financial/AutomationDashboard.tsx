@@ -841,8 +841,8 @@ export default function AutomationDashboard() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Client</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Last Message</TableHead><TableHead>Last Contacted</TableHead><TableHead>Progress</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {runsLoading ? Array.from({ length: 5 }).map((_, rowIndex) => <TableRow key={rowIndex}>{Array.from({ length: 10 }).map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton className="h-4 w-20" /></TableCell>)}</TableRow>) : runs.length === 0 ? (
-                      <TableRow><TableCell colSpan={10} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-muted-foreground"><Send className="h-8 w-8 opacity-40" /><div><p className="font-medium">No active workflows yet</p><p className="text-sm">Create a workflow above and send an invoice to trigger it.</p></div></div></TableCell></TableRow>
+                     {runsLoading ? Array.from({ length: 5 }).map((_, rowIndex) => <TableRow key={rowIndex}>{Array.from({ length: 8 }).map((_, cellIndex) => <TableCell key={cellIndex}><Skeleton className="h-4 w-20" /></TableCell>)}</TableRow>) : runs.length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-muted-foreground"><Send className="h-8 w-8 opacity-40" /><div><p className="font-medium">No active workflows yet</p><p className="text-sm">Create a workflow above and send an invoice to trigger it.</p></div></div></TableCell></TableRow>
                     ) : runs.map((run) => {
                       const invoice = invoiceMap[run.entity_id];
                       const enrichment = enrichmentMap[run.entity_id];
