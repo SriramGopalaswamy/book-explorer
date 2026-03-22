@@ -166,6 +166,7 @@ export default function Invoicing() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  const { data: orgData } = useUserOrganization();
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
