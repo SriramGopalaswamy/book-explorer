@@ -39,6 +39,7 @@ export default function Items() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({ ...emptyForm });
 
   // Edit dialog state
@@ -58,7 +59,10 @@ export default function Items() {
       (stockFilter === "low_stock" && Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0) ||
       (stockFilter === "in_stock" && Number(i.current_stock) > Number(i.reorder_level)) ||
       (stockFilter === "out_of_stock" && Number(i.current_stock) === 0);
-    return matchSearch && matchStock;
+    const matchStatus = statusFilter === "all" ||
+      (statusFilter === "active" && i.is_active !== false) ||
+      (statusFilter === "inactive" && i.is_active === false);
+    return matchSearch && matchStock && matchStatus;
   });
   const pagination = usePagination(filtered, 10);
 
@@ -176,6 +180,14 @@ export default function Items() {
                 <SelectItem value="low_stock">Low Stock</SelectItem>
                 <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                 <SelectItem value="in_stock">In Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
           </div>

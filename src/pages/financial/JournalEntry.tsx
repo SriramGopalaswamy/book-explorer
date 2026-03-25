@@ -15,7 +15,8 @@ import { useGLAccounts, useJournalEntries, usePostJournal, useReverseJournal, us
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
-import { Plus, Trash2, AlertTriangle, CheckCircle, RotateCcw, Loader2, Search, Filter, Lock, ShieldAlert } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle, RotateCcw, Loader2, Search, Filter, Lock, ShieldAlert, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -139,7 +140,7 @@ export default function JournalEntry() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-foreground">{entries.length}</div><p className="text-sm text-muted-foreground">Total Entries</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-emerald-600">{entries.filter(e => e.status === "posted").length}</div><p className="text-sm text-muted-foreground">Posted</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-amber-600">{entries.filter(e => e.status === "locked").length}</div><p className="text-sm text-muted-foreground">Locked</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-amber-600">{entries.filter(e => e.status === "locked").length}</div><div className="flex items-center gap-1"><p className="text-sm text-muted-foreground">Locked</p><Tooltip><TooltipTrigger asChild><Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs">Entries are locked when their fiscal period is closed. Locked entries cannot be edited or reversed.</TooltipContent></Tooltip></div></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-red-600">{entries.filter(e => e.status === "reversed").length}</div><p className="text-sm text-muted-foreground">Reversed</p></CardContent></Card>
         </div>
 

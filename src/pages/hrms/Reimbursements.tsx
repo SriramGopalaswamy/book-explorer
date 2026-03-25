@@ -317,6 +317,9 @@ export default function Reimbursements() {
   const totalPaid = requests
     .filter((r: any) => r.status === "paid")
     .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
+  const myPendingValue = requests
+    .filter((r: any) => ["pending_manager", "manager_approved", "pending_finance"].includes(r.status))
+    .reduce((sum: number, r: any) => sum + Number(r.amount), 0);
 
   // Filter logic
   const filteredRequests = requests.filter((r: any) => {
@@ -345,10 +348,11 @@ export default function Reimbursements() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: "Total Submitted", value: requests.length, icon: Receipt, color: "text-blue-400" },
             { label: "Pending Approval", value: pendingCount, icon: Clock, color: "text-yellow-400" },
+            { label: "My Pending Value", value: `₹${myPendingValue.toLocaleString()}`, icon: DollarSign, color: "text-purple-400" },
             { label: "Total Reimbursed", value: `₹${totalPaid.toLocaleString()}`, icon: DollarSign, color: "text-green-400" },
           ].map((s) => (
             <Card key={s.label} className="border-border/50 bg-card/60">

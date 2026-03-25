@@ -118,6 +118,7 @@
   [data-theme="dark"] {
     --background: 270 10% 7%;
     --foreground: 0 0% 95%;
+    --gradient-card: linear-gradient(180deg, hsl(270 10% 10%) 0%, hsl(270 10% 12%) 100%);
 
     --card: 270 10% 10%;
     --card-foreground: 0 0% 95%;

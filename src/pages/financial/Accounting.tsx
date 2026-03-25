@@ -143,7 +143,7 @@ function TransactionsTab() {
           icon={<Wallet className="h-4 w-4" />}
         />
         <StatCard
-          title="Total Expenses"
+          title="Total Spending"
           value={formatAmount(totals.expense)}
           icon={<ArrowDownRight className="h-4 w-4" />}
         />

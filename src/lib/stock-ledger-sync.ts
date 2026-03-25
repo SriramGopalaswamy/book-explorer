@@ -271,6 +271,7 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
     const actualQty = plannedQty + wastageQty;
     return {
       work_order_id: workOrderId,
+      organization_id: woOrgId,
       material_name: l.material_name,
       planned_quantity: Math.round(plannedQty * 100) / 100,
       actual_quantity: Math.round(actualQty * 100) / 100,
