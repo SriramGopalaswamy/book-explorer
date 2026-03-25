@@ -289,6 +289,7 @@ export default function EInvoices() {
       if (style) container.appendChild(style.cloneNode(true));
       const bodyContent = document.createElement("div");
       bodyContent.innerHTML = parsed.body.innerHTML;
+      bodyContent.style.padding = "24px 24px 50px";
       container.appendChild(bodyContent);
 
       html2pdf()
