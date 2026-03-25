@@ -244,7 +244,7 @@ export default function Invoicing() {
 
   if (isCheckingRole) {
     return (
-      <MainLayout title="Invoicing">
+      <MainLayout title="Sales Invoices">
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -514,7 +514,7 @@ export default function Invoicing() {
 
   return (
     <MainLayout
-      title="Invoicing"
+      title="Sales Invoices"
       subtitle="Create, send, and track invoices for your clients"
     >
       <div className="space-y-6 animate-fade-in">
