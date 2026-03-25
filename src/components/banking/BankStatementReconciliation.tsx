@@ -96,6 +96,7 @@ export function BankStatementReconciliation({ accounts }: Props) {
   const [step, setStep] = useState<"upload" | "review" | "done">("upload");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [aiFailed, setAiFailed] = useState(false);
 
   // ── CSV parsing ──────────────────────────────────────────────────────────
   const processFile = useCallback((f: File) => {
@@ -186,6 +187,7 @@ export function BankStatementReconciliation({ accounts }: Props) {
       }
 
       toast({ title: `${parsed.length} rows parsed`, description: "Running AI categorisation…" });
+      setAiFailed(false);
       setRows(parsed);
       runAI(parsed);
     };
@@ -232,8 +234,9 @@ export function BankStatementReconciliation({ accounts }: Props) {
       toast({ title: "AI categorisation complete", description: "Review and approve each transaction." });
     } catch (err: unknown) {
       console.error(err);
-      toast({ title: "AI failed", description: "Proceeding without AI suggestions.", variant: "destructive" });
-      setRows((prev) => prev.map((r) => ({ ...r, category: "Other" })));
+      toast({ title: "AI categorisation failed", description: "Could not reach the AI service. You can manually set categories or retry below.", variant: "destructive" });
+      setAiFailed(true);
+      setRows((prev) => prev.map((r) => ({ ...r, category: "Other", confidence: "n/a" })));
     } finally {
       setIsAnalysing(false);
     }
@@ -315,6 +318,7 @@ export function BankStatementReconciliation({ accounts }: Props) {
     setStep("upload");
     setImportResult(null);
     setShowDuplicates(false);
+    setAiFailed(false);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -421,6 +425,11 @@ export function BankStatementReconciliation({ accounts }: Props) {
                       <Loader2 className="h-3 w-3 animate-spin" />
                       AI Analysing…
                     </Badge>
+                  ) : aiFailed ? (
+                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 gap-1">
+                      <XCircle className="h-3 w-3" />
+                      AI Unavailable
+                    </Badge>
                   ) : (
                     <Badge className="bg-success/10 text-success border-success/20 gap-1">
                       <Sparkles className="h-3 w-3" />
@@ -442,6 +451,11 @@ export function BankStatementReconciliation({ accounts }: Props) {
                   <span className="text-xs text-muted-foreground">
                     {approvedCount} approved · {pendingCount} pending
                   </span>
+                  {aiFailed && (
+                    <Button size="sm" variant="outline" onClick={() => { setAiFailed(false); runAI(rows); }} disabled={isAnalysing}>
+                      <Sparkles className="h-4 w-4 mr-1" /> Retry AI
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={approveAll}>Approve All</Button>
                   <Button size="sm" variant="outline" onClick={rejectAll}>Reject All</Button>
                   <Button size="sm" variant="outline" onClick={reset}>
@@ -541,6 +555,8 @@ export function BankStatementReconciliation({ accounts }: Props) {
                             <TableCell>
                               {isAnalysing ? (
                                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                              ) : row.confidence === "n/a" ? (
+                                <span className="text-xs font-medium text-muted-foreground">N/A</span>
                               ) : (
                                 <span className={`text-xs font-medium capitalize ${confidenceColor(row.confidence)}`}>
                                   {row.confidence ?? "—"}

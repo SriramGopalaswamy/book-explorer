@@ -290,6 +290,63 @@ function CountFormDialog({ dialogOpen, setDialogOpen, warehouses, items, warehou
   );
 }
 
+function ViewCountDialog({ count, open, onClose, warehouses }: { count: InventoryCount; open: boolean; onClose: () => void; warehouses: any[] }) {
+  const { data: lines = [], isLoading } = useCountLines(open ? count.id : undefined);
+  const warehouseName = warehouses.find((w: any) => w.id === count.warehouse_id)?.name || count.warehouse_id;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Inventory Count — {count.count_number}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div><span className="text-muted-foreground">Warehouse:</span> <span className="font-medium text-foreground">{warehouseName}</span></div>
+            <div><span className="text-muted-foreground">Date:</span> <span className="text-foreground">{format(new Date(count.count_date), "dd MMM yyyy")}</span></div>
+            <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[count.status] || ""}>{count.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge></div>
+            {count.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> <span className="text-foreground">{count.notes}</span></div>}
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold mb-2">Count Lines</h4>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : lines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No items in this count.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-right">Expected</TableHead>
+                    <TableHead className="text-right">Actual</TableHead>
+                    <TableHead className="text-right">Variance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lines.map((line) => (
+                    <TableRow key={line.id}>
+                      <TableCell className="font-medium">{line.item_name}</TableCell>
+                      <TableCell className="text-right">{line.expected_qty}</TableCell>
+                      <TableCell className="text-right">{line.actual_qty ?? "—"}</TableCell>
+                      <TableCell className={`text-right font-semibold ${Number(line.variance ?? 0) < 0 ? "text-red-400" : Number(line.variance ?? 0) > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                        {line.variance !== null && line.variance !== undefined ? (Number(line.variance) > 0 ? `+${line.variance}` : String(line.variance)) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function InventoryCounts() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
@@ -304,6 +361,7 @@ export default function InventoryCounts() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingCount, setEditingCount] = useState<InventoryCount | null>(null);
+  const [viewingCount, setViewingCount] = useState<InventoryCount | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
@@ -453,7 +511,7 @@ export default function InventoryCounts() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => toggleExpand(count.id)}>
+                                <DropdownMenuItem onClick={() => setViewingCount(count)}>
                                   <Eye className="h-4 w-4 mr-2" /> View Details
                                 </DropdownMenuItem>
                                 {count.status === "draft" && (
@@ -488,6 +546,11 @@ export default function InventoryCounts() {
           )}
         </div>
         <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+
+        {/* View Details Dialog */}
+        {viewingCount && (
+          <ViewCountDialog count={viewingCount} open={!!viewingCount} onClose={() => setViewingCount(null)} warehouses={warehouses} />
+        )}
 
         {/* Approve Dialog */}
         {approveCountId && (
