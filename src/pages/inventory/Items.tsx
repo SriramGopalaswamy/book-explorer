@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Package, Search, Trash2, Archive, ShoppingCart, Boxes, MoreHorizontal, Pencil, Power, PowerOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEM_TYPES = [
@@ -46,6 +47,7 @@ export default function Items() {
 
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deactivateConfirmId, setDeactivateConfirmId] = useState<string | null>(null);
 
   const filtered = (items || []).filter((i: any) =>
     i.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -311,6 +313,31 @@ export default function Items() {
         </DialogContent>
       </Dialog>
 
+      {/* Deactivate Instead Dialog (shown when item has stock movements) */}
+      <AlertDialog open={!!deactivateConfirmId} onOpenChange={(open) => { if (!open) setDeactivateConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cannot Delete Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              This item has existing stock movements and cannot be deleted. Would you like to deactivate it instead?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deactivateConfirmId) {
+                  updateItem.mutate({ id: deactivateConfirmId, is_active: false });
+                  setDeactivateConfirmId(null);
+                }
+              }}
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
         <AlertDialogContent>
@@ -324,7 +351,21 @@ export default function Items() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (deleteConfirmId) { deleteItem.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+              onClick={() => {
+                if (deleteConfirmId) {
+                  const idToDelete = deleteConfirmId;
+                  setDeleteConfirmId(null);
+                  deleteItem.mutate(idToDelete, {
+                    onError: (e: any) => {
+                      if (e.message.includes("existing stock movements")) {
+                        setDeactivateConfirmId(idToDelete);
+                      } else {
+                        toast.error(e.message);
+                      }
+                    },
+                  });
+                }
+              }}
             >
               Delete
             </AlertDialogAction>

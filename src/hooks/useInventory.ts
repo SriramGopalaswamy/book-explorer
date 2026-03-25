@@ -99,7 +99,6 @@ export function useDeleteItem() {
       qc.invalidateQueries({ queryKey: ["items"] });
       toast.success("Item deleted");
     },
-    onError: (e: any) => toast.error(e.message),
   });
 }
 
