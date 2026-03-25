@@ -30,7 +30,9 @@ BEGIN
       )
   LOOP
     BEGIN
-      EXECUTE format('ALTER FUNCTION %s SET search_path = public', func_sig);
+      -- ALTER ROUTINE works for both functions (prokind='f') and procedures (prokind='p')
+      -- and is available on PostgreSQL 11+ (Supabase runs PG 15+).
+      EXECUTE format('ALTER ROUTINE %s SET search_path = public', func_sig);
     EXCEPTION WHEN OTHERS THEN
       RAISE WARNING 'Could not set search_path on %: %', func_sig, SQLERRM;
     END;

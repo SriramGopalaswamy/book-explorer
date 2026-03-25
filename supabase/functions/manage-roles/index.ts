@@ -330,7 +330,28 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId);
       }
 
-      // Soft deactivate: set status inactive + soft delete flags
+      // Remove this org's roles for the user
+      await supabase.from("user_roles").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      // Check whether this user belongs to any OTHER organizations before
+      // performing global operations (profile flag + auth ban).
+      const { data: otherMembershipsDea } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user_id)
+        .neq("organization_id", requestingOrgId);
+
+      if (otherMembershipsDea && otherMembershipsDea.length > 0) {
+        // User is active in other orgs — only revoke their access to THIS org.
+        // Do NOT ban the auth account or touch the shared profile.
+        return new Response(JSON.stringify({ success: true, scope: "org_only" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Soft deactivate: set status inactive + soft delete flags (org-scoped)
       const { error: deactivateError } = await supabase
         .from("profiles")
         .update({
@@ -338,7 +359,8 @@ Deno.serve(async (req) => {
           is_deleted: true,
           deleted_at: new Date().toISOString(),
         })
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
 
       if (deactivateError) {
         console.error("Deactivate error:", deactivateError);
@@ -351,7 +373,7 @@ Deno.serve(async (req) => {
       // Ban user in auth to immediately invalidate future token refreshes (~100 years)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
