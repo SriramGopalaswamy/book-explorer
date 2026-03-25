@@ -331,10 +331,15 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId);
       }
 
+      // Revoke this org's roles in all cases — the user must not retain
+      // privileged access within the org being deactivated, regardless of
+      // whether they belong to other organizations.
+      await supabase.from("user_roles").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
       // Check whether this user belongs to any OTHER organizations before
       // performing global operations (profile flag + auth ban).
-      // Roles are intentionally NOT deleted: deactivation is reversible and
-      // reactivation restores the user to the same role.
       const { data: otherMembershipsDea } = await supabase
         .from("organization_members")
         .select("organization_id")
