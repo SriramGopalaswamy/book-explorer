@@ -66,19 +66,27 @@ export default function StockAdjustments() {
   const deleteAdj = useDeleteAdjustment();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({ adjustment_number: "", warehouse_id: "", reason: "", notes: "" });
 
-  const filtered = (adjustments || []).filter((a: any) =>
-    a.adjustment_number?.toLowerCase().includes(search.toLowerCase()) ||
-    a.reason?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = (adjustments || []).filter((a: any) => {
+    const matchSearch = a.adjustment_number?.toLowerCase().includes(search.toLowerCase()) ||
+      a.reason?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || a.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
   const pagination = usePagination(filtered, 10);
 
   const whName = (id: string) => warehouses?.find((w: any) => w.id === id)?.name || id?.slice(0, 8);
 
-  const statusColor = (s: string) => {
-    const map: Record<string, string> = { draft: "secondary", approved: "default", posted: "default", cancelled: "destructive" };
-    return (map[s] || "secondary") as any;
+  const statusBadgeClass = (s: string) => {
+    const map: Record<string, string> = {
+      draft: "bg-muted text-muted-foreground",
+      approved: "bg-blue-500/20 text-blue-400",
+      posted: "bg-green-500/20 text-green-400",
+      cancelled: "bg-destructive/20 text-destructive",
+    };
+    return map[s] || "bg-muted text-muted-foreground";
   };
 
   const handleCreate = () => {
@@ -115,9 +123,21 @@ export default function StockAdjustments() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search adjustments..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search adjustments..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="posted">Posted</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Adjustment</Button></DialogTrigger>
@@ -170,7 +190,7 @@ export default function StockAdjustments() {
                       <TableCell className="text-muted-foreground">{format(new Date(adj.adjustment_date), "dd MMM yyyy")}</TableCell>
                       <TableCell className="text-foreground">{whName(adj.warehouse_id)}</TableCell>
                       <TableCell className="text-muted-foreground">{adj.reason}</TableCell>
-                      <TableCell><Badge variant={statusColor(adj.status)}>{adj.status}</Badge></TableCell>
+                      <TableCell><Badge className={statusBadgeClass(adj.status)}>{adj.status.charAt(0).toUpperCase() + adj.status.slice(1)}</Badge></TableCell>
                       <TableCell className="text-muted-foreground max-w-[200px] truncate">{adj.notes || "—"}</TableCell>
                       <TableCell>
                         <DropdownMenu>
