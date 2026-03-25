@@ -1,7 +1,8 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { sendLovableEmail, parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js'
-// Webhook verification - inline implementation (package not available in edge runtime)
+// Webhook verification - inline HMAC-SHA256 implementation
+// (Lovable's edge-runtime package is unavailable in Deno; reimplemented using Web Crypto API)
 class WebhookError extends Error {
   code: string
   constructor(code: string, message: string) {
@@ -11,7 +12,45 @@ class WebhookError extends Error {
 }
 
 async function verifyWebhookRequest({ req, secret, parser }: { req: Request; secret: string; parser: (body: any) => any }) {
-  const body = await req.clone().json()
+  const timestamp = req.headers.get('x-lovable-timestamp')
+  const signature = req.headers.get('x-lovable-signature')
+
+  if (!timestamp) throw new WebhookError('missing_timestamp', 'Missing x-lovable-timestamp header')
+
+  const ts = parseInt(timestamp, 10)
+  if (isNaN(ts)) throw new WebhookError('invalid_timestamp', 'Invalid x-lovable-timestamp header')
+
+  // Reject requests older than 5 minutes (anti-replay)
+  const nowSec = Math.floor(Date.now() / 1000)
+  if (Math.abs(nowSec - ts) > 300) throw new WebhookError('stale_timestamp', 'Request timestamp is too old')
+
+  const rawBody = await req.text()
+
+  // Compute expected HMAC-SHA256 signature over "<timestamp>.<body>"
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${rawBody}`))
+  const expected = 'sha256=' + Array.from(new Uint8Array(mac))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  if (!signature || signature !== expected) {
+    throw new WebhookError('invalid_signature', 'Webhook signature verification failed')
+  }
+
+  let body: any
+  try {
+    body = JSON.parse(rawBody)
+  } catch {
+    throw new WebhookError('invalid_json', 'Webhook body is not valid JSON')
+  }
+
   const payload = parser(body)
   return { payload }
 }
