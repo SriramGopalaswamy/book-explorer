@@ -282,8 +282,15 @@ export default function EInvoices() {
       container.style.overflow = "hidden";
       container.style.zIndex = "-9999";
       container.style.pointerEvents = "none";
-      container.innerHTML = html;
       document.body.appendChild(container);
+
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const style = parsed.querySelector("style");
+      if (style) container.appendChild(style.cloneNode(true));
+      const bodyContent = document.createElement("div");
+      bodyContent.innerHTML = parsed.body.innerHTML;
+      container.appendChild(bodyContent);
+
       html2pdf()
         .set({
           margin: [10, 10, 20, 10],
@@ -291,7 +298,7 @@ export default function EInvoices() {
           html2canvas: { scale: 2, logging: false, useCORS: true, scrollY: 0, windowWidth: 794 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
-        .from(container)
+        .from(bodyContent)
         .save()
         .then(() => {
           document.body.removeChild(container);
