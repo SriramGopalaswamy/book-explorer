@@ -193,7 +193,6 @@ export default function BillOfMaterials() {
   const columns: Column<BOM>[] = [
     { key: "bom_code", header: "BOM Code", render: (r) => <span className="font-mono font-semibold text-foreground">{r.bom_code}</span> },
     { key: "product_name", header: "Product" },
-    { key: "version", header: "Version", render: (r) => <span className="text-muted-foreground">v{r.version}</span> },
     { key: "status", header: "Status", render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</Badge> },
     { key: "created_at", header: "Created", render: (r) => format(new Date(r.created_at), "dd MMM yyyy") },
     {

@@ -16,6 +16,7 @@ interface StockEntry {
   reference_id: string;
   notes?: string;
   organization_id?: string;
+  rate?: number;
 }
 
 function deriveTransactionType(e: StockEntry): string {
@@ -30,17 +31,40 @@ function deriveTransactionType(e: StockEntry): string {
 async function postStockEntries(entries: StockEntry[]): Promise<void> {
   if (entries.length === 0) return;
 
-  const rows = entries.map((e) => ({
-    item_id: e.item_id,
-    warehouse_id: e.warehouse_id,
-    quantity: e.entry_type === "out" ? -Math.abs(e.quantity) : Math.abs(e.quantity),
-    transaction_type: deriveTransactionType(e),
-    reference_type: e.reference_type,
-    reference_id: e.reference_id,
-    notes: e.notes || null,
-    posted_at: new Date().toISOString(),
-    ...(e.organization_id ? { organization_id: e.organization_id } : {}),
-  }));
+  // Fetch item rates for all unique items to populate rate/value fields
+  const uniqueItemIds = [...new Set(entries.map((e) => e.item_id).filter(Boolean))];
+  let itemRateMap: Map<string, number> = new Map();
+  if (uniqueItemIds.length > 0) {
+    const { data: itemData } = await supabase
+      .from("items" as any)
+      .select("id, purchase_price, selling_price")
+      .in("id", uniqueItemIds);
+    if (itemData) {
+      for (const item of itemData as any[]) {
+        const rate = Number(item.purchase_price || item.selling_price || 0);
+        if (rate > 0) itemRateMap.set(item.id, rate);
+      }
+    }
+  }
+
+  const rows = entries.map((e) => {
+    const signedQty = e.entry_type === "out" ? -Math.abs(e.quantity) : Math.abs(e.quantity);
+    const rate = e.rate ?? itemRateMap.get(e.item_id) ?? null;
+    const value = rate != null ? Math.abs(signedQty) * rate : null;
+    return {
+      item_id: e.item_id,
+      warehouse_id: e.warehouse_id,
+      quantity: signedQty,
+      transaction_type: deriveTransactionType(e),
+      reference_type: e.reference_type,
+      reference_id: e.reference_id,
+      notes: e.notes || null,
+      posted_at: new Date().toISOString(),
+      ...(e.organization_id ? { organization_id: e.organization_id } : {}),
+      ...(rate != null ? { rate } : {}),
+      ...(value != null ? { value } : {}),
+    };
+  });
 
   const { error } = await supabase.from("stock_ledger" as any).insert(rows as any);
   if (error) throw error;

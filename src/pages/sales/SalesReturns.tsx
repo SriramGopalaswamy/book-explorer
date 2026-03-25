@@ -19,8 +19,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
-const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  draft: "secondary", submitted: "default", approved: "default", confirmed: "default", processed: "default", cancelled: "destructive",
+const statusColors: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  submitted: "bg-yellow-500/20 text-yellow-400",
+  approved: "bg-green-500/20 text-green-400",
+  confirmed: "bg-blue-500/20 text-blue-400",
+  processed: "bg-purple-500/20 text-purple-400",
+  cancelled: "bg-destructive/20 text-destructive",
 };
 
 export default function SalesReturnsPage() {
@@ -162,7 +167,7 @@ export default function SalesReturnsPage() {
                      <TableCell className="text-foreground text-sm">{r.reason || "—"}</TableCell>
                      <TableCell className="text-foreground">{format(new Date(r.return_date), "dd MMM yyyy")}</TableCell>
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.total_amount).toLocaleString()}</TableCell>
-                    <TableCell><Badge variant={statusColors[r.status] || "secondary"}>{r.status}</Badge></TableCell>
+                    <TableCell><Badge className={statusColors[r.status] || "bg-muted text-muted-foreground"}>{r.status}</Badge></TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -195,7 +200,7 @@ export default function SalesReturnsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Customer</p><p className="font-medium">{viewingReturn.customer_name}</p></div>
                   <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{format(new Date(viewingReturn.return_date), "dd MMM yyyy")}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Status</p><Badge variant={statusColors[viewingReturn.status] || "secondary"}>{viewingReturn.status}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">Status</p><Badge className={statusColors[viewingReturn.status] || "bg-muted text-muted-foreground"}>{viewingReturn.status}</Badge></div>
                   <div><p className="text-xs text-muted-foreground">Total</p><p className="font-semibold">₹{Number(viewingReturn.total_amount).toLocaleString()}</p></div>
                 </div>
                 {viewingReturn.reason && <div><p className="text-xs text-muted-foreground">Reason</p><p className="text-sm">{viewingReturn.reason}</p></div>}

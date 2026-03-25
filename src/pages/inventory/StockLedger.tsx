@@ -104,8 +104,8 @@ export default function StockLedger() {
                       <TableCell className="text-muted-foreground">{whName(e.warehouse_id)}</TableCell>
                       <TableCell><Badge variant={txnBadge(e.entry_type || e.transaction_type) as any}>{(e.entry_type || e.transaction_type || "—")?.replace("_", " ")}</Badge></TableCell>
                       <TableCell className={`text-right font-medium ${Number(e.quantity) >= 0 ? "text-emerald-500" : "text-destructive"}`}>{Number(e.quantity) > 0 ? "+" : ""}{Number(e.quantity)}</TableCell>
-                      <TableCell className="text-right text-foreground">₹{Number(e.rate).toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right text-foreground">₹{Number(e.value ?? (Number(e.quantity) * Number(e.rate))).toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right text-foreground">{e.rate != null && Number(e.rate) !== 0 ? `₹${Number(e.rate).toLocaleString("en-IN")}` : "—"}</TableCell>
+                      <TableCell className="text-right text-foreground">{(() => { const v = e.value != null ? Number(e.value) : (e.rate != null && Number(e.rate) !== 0 ? Number(e.quantity) * Number(e.rate) : null); return v != null && v !== 0 ? `₹${v.toLocaleString("en-IN")}` : "—"; })()}</TableCell>
                       <TableCell className="text-right text-foreground">{e.balance_qty != null ? Number(e.balance_qty) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground max-w-[200px] truncate">{e.notes || "—"}</TableCell>
                     </TableRow>

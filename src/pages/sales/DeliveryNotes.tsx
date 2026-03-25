@@ -12,7 +12,7 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Truck, PackageCheck, RotateCcw, ClipboardList, ExternalLink, MapPin, MoreHorizontal, Eye, Search } from "lucide-react";
+import { PackageCheck, RotateCcw, ClipboardList, ExternalLink, MapPin, MoreHorizontal, Eye, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
@@ -141,7 +141,6 @@ export default function DeliveryNotes() {
 
   const stats = {
     total: notes.length,
-    in_transit: notes.filter(n => n.status === "in_transit" || n.status === "dispatched").length,
     delivered: notes.filter(n => n.status === "delivered").length,
     returned: notes.filter(n => n.status === "returned").length,
   };
@@ -179,15 +178,10 @@ export default function DeliveryNotes() {
   ];
 
   return (
-    <MainLayout title="Delivery Notes" subtitle="Track outbound shipments">
+    <MainLayout title="Delivery Notes" subtitle="Track outbound shipments with carrier & logistics details">
       <div className="space-y-6">
-        <div>
-          <p className="text-muted-foreground">Track outbound shipments with carrier & logistics details</p>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ClipboardList className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total DNs</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Truck className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.in_transit}</p><p className="text-xs text-muted-foreground">In Transit</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><PackageCheck className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.delivered}</p><p className="text-xs text-muted-foreground">Delivered</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><RotateCcw className="h-8 w-8 text-destructive" /><div><p className="text-2xl font-bold text-foreground">{stats.returned}</p><p className="text-xs text-muted-foreground">Returned</p></div></div></CardContent></Card>
         </div>
@@ -203,7 +197,6 @@ export default function DeliveryNotes() {
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="dispatched">Dispatched</SelectItem>
-              <SelectItem value="in_transit">In Transit</SelectItem>
               <SelectItem value="delivered">Delivered</SelectItem>
               <SelectItem value="returned">Returned</SelectItem>
             </SelectContent>

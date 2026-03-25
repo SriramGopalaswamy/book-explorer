@@ -467,9 +467,10 @@ export function AICommandCenter() {
             <Button variant="outline" size="sm" onClick={() => {
               queryClient.invalidateQueries({ queryKey: ["rpc-profit-loss"] });
               queryClient.invalidateQueries({ queryKey: ["rpc-balance-sheet"] });
-              queryClient.invalidateQueries({ queryKey: ["hr-analytics"] });
-              queryClient.invalidateQueries({ queryKey: ["payroll-summary"] });
+              queryClient.invalidateQueries({ queryKey: ["hr-analytics-cross"] });
+              queryClient.invalidateQueries({ queryKey: ["payroll-summary-cross"] });
               queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+              queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
             }} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
