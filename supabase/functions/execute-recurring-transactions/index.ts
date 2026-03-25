@@ -36,33 +36,25 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Authenticate caller: must supply the shared CRON_SECRET as a Bearer token.
+  // This prevents anonymous HTTP requests from triggering financial record creation
+  // across all organizations without identity verification.
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const authHeader = req.headers.get("authorization");
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
-    // Support both cron (no auth) and manual invocation (with auth)
-    const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // If called manually with auth, optionally scope to the user's org
-    let scopeOrgId: string | null = null;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
-      const userClient = createClient(supabaseUrl, anonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-      });
-      const {
-        data: { user },
-      } = await userClient.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("organization_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        scopeOrgId = profile?.organization_id ?? null;
-      }
-    }
+    // Cron runs across all organizations (no org scoping needed).
+    const scopeOrgId: string | null = null;
 
     const today = new Date().toISOString().split("T")[0];
 
