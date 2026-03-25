@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockBankAccounts, mockBankTransactions } from "@/lib/mock-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { createBankAccountSchema, createTransactionSchema } from "@/lib/validation-schemas";
 
 export interface BankAccount {
@@ -108,10 +108,10 @@ export function useCreateBankAccount() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      toast({ title: "Account Added", description: "Bank account has been added successfully." });
+      toast.success("Bank account has been added successfully.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -157,7 +157,7 @@ export function useDeleteBankAccount() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -255,10 +255,10 @@ export function useCreateTransaction() {
       queryClient.invalidateQueries({ queryKey: ["cash-flow-data"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast({ title: "Transaction Added", description: "Transaction recorded successfully." });
+      toast.success("Transaction recorded successfully.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }

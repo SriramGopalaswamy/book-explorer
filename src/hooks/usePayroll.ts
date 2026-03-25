@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockPayrollRecords } from "@/lib/mock-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { createPayrollSchema } from "@/lib/validation-schemas";
 
 export interface Profile {
@@ -201,7 +201,7 @@ export function useCreatePayroll() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -278,7 +278,7 @@ export function useUpdatePayroll() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -324,7 +324,7 @@ export function useDeletePayroll() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -334,6 +334,28 @@ export function useProcessPayroll() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
+      // Resolve caller's org — mirrors the server-side guard in process_payroll_batch RPC
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization context required");
+
+      // Verify every supplied ID belongs to the caller's org before hitting the RPC
+      const { data: ownerCheck, error: ownerErr } = await supabase
+        .from("payroll_records")
+        .select("id, organization_id")
+        .in("id", ids);
+      if (ownerErr) throw ownerErr;
+      const crossTenant = (ownerCheck ?? []).filter(
+        (r: { id: string; organization_id: string }) =>
+          r.organization_id !== callerProfile.organization_id
+      );
+      if (crossTenant.length > 0) {
+        throw new Error("Cannot process payroll records from another organization.");
+      }
+
       const { data, error } = await (supabase as any).rpc("process_payroll_batch", {
         p_payroll_ids: ids,
       });
@@ -365,7 +387,7 @@ export function useProcessPayroll() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
