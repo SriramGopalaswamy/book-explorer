@@ -235,6 +235,7 @@ async function executeTool(
   args: Record<string, unknown>,
   orgId: string,
   userId: string,
+  userRoles: string[],
   client: ReturnType<typeof createClient>
 ): Promise<unknown> {
   switch (toolName) {
@@ -471,6 +472,10 @@ async function executeTool(
 
     // ── Phase 3: Write Actions ──────────────────────────────────────────
     case "create_journal_entry": {
+      // Require finance or admin role for write actions on the general ledger
+      if (!userRoles.includes("finance") && !userRoles.includes("admin")) {
+        throw new Error("Insufficient permissions: 'finance' or 'admin' role required to create journal entries.");
+      }
       const lines = args.lines as Array<{ gl_account_id: string; debit: number; credit: number; description?: string }>;
       if (!lines || lines.length < 2) throw new Error("Journal entry requires at least 2 lines.");
 
@@ -516,6 +521,10 @@ async function executeTool(
     }
 
     case "approve_leave_request": {
+      // Require hr, manager, or admin role to approve/reject leave requests
+      if (!userRoles.includes("hr") && !userRoles.includes("manager") && !userRoles.includes("admin")) {
+        throw new Error("Insufficient permissions: 'hr', 'manager', or 'admin' role required to approve leave requests.");
+      }
       const leaveId = args.leave_id as string;
       const action = args.action as string;
 
@@ -674,6 +683,14 @@ serve(async (req) => {
     const orgId = profile.organization_id;
     const userId = user.id;
 
+    // Fetch the user's roles for server-side permission enforcement on write tools
+    const { data: roleRows } = await client
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("organization_id", orgId);
+    const userRoles: string[] = (roleRows || []).map((r: { role: string }) => r.role);
+
     const { messages, stream: shouldStream } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -735,7 +752,7 @@ serve(async (req) => {
           choice.message.tool_calls.map(async (tc: { id: string; function: { name: string; arguments: string } }) => {
             try {
               const toolArgs = JSON.parse(tc.function.arguments || "{}");
-              const result = await executeTool(tc.function.name, toolArgs, orgId, userId, client);
+              const result = await executeTool(tc.function.name, toolArgs, orgId, userId, userRoles, client);
               return {
                 role: "tool",
                 tool_call_id: tc.id,

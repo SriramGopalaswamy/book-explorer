@@ -421,6 +421,30 @@ Deno.serve(async (req) => {
       // Delete user roles scoped to this organization only
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
+      // Remove the user's membership from this org
+      await supabase.from("organization_members").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      // Check whether this user belongs to any OTHER organizations before
+      // performing destructive global actions (profile soft-delete & auth hard-delete).
+      // If they are a member of another org their account must remain intact.
+      const { data: otherMemberships } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user_id)
+        .neq("organization_id", requestingOrgId);
+
+      if (otherMemberships && otherMemberships.length > 0) {
+        // User belongs to other orgs — only org-scoped data was removed above.
+        // Do NOT touch the shared profile or the auth account.
+        return new Response(JSON.stringify({ success: true, scope: "org_only" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // User has no remaining org memberships — safe to perform global cleanup.
+
       // Soft delete profile (prevent_profile_hard_delete trigger blocks actual DELETE)
       await supabase
         .from("profiles")
@@ -429,7 +453,8 @@ Deno.serve(async (req) => {
           is_deleted: true,
           deleted_at: new Date().toISOString(),
         })
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
 
       // Hard delete auth user (removes login ability; profile data is preserved)
       const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
@@ -442,7 +467,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
