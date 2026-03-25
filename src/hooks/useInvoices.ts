@@ -5,7 +5,7 @@ import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockInvoices } from "@/lib/mock-data";
 import { checkApprovalGate, createApprovalRequest } from "@/lib/approval-gate";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export interface Invoice {
   id: string;
@@ -244,17 +244,10 @@ export function useCreateInvoice() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
-      toast({
-        title: "Invoice Created",
-        description: `Invoice ${invoice.invoice_number} has been created.`,
-      });
+      toast.success(`Invoice ${invoice.invoice_number} has been created.`);
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to create invoice: ${error.message}`,
-        variant: "destructive",
-      });
+      toast.error(`Failed to create invoice: ${error.message}`);
     },
   });
 }
@@ -371,7 +364,7 @@ export function useUpdateInvoiceStatus() {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-runs-invoice", variables.id] });
-      toast({ title: "Status Updated", description: `Invoice status changed to ${variables.status}.` });
+      toast.success(`Invoice status changed to ${variables.status}.`);
       // Fire financial notification (only for paid — avoid duplicate comms on sent)
       if (variables.status === "paid") {
         supabase.functions.invoke("send-notification-email", {
@@ -404,7 +397,7 @@ export function useUpdateInvoiceStatus() {
       }
     },
     onError: (error) => {
-      toast({ title: "Error", description: `Failed to update status: ${error.message}`, variant: "destructive" });
+      toast.error(`Failed to update status: ${error.message}`);
     },
   });
 }
@@ -511,10 +504,10 @@ export function useUpdateInvoice() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast({ title: "Invoice Updated", description: `Invoice ${invoice.invoice_number} has been updated.` });
+      toast.success(`Invoice ${invoice.invoice_number} has been updated.`);
     },
     onError: (error) => {
-      toast({ title: "Error", description: `Failed to update invoice: ${error.message}`, variant: "destructive" });
+      toast.error(`Failed to update invoice: ${error.message}`);
     },
   });
 }
@@ -557,10 +550,10 @@ export function useDeleteInvoice() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      toast({ title: "Invoice Deleted", description: "The invoice has been removed." });
+      toast.success("The invoice has been removed.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: `Failed to delete invoice: ${error.message}`, variant: "destructive" });
+      toast.error(`Failed to delete invoice: ${error.message}`);
     },
   });
 }

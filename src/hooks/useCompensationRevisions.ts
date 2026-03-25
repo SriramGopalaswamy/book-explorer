@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export interface CompensationRevisionRequest {
   id: string;
@@ -181,10 +181,10 @@ export function useCreateRevisionRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["compensation-revision-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-team-revision-requests"] });
-      toast({ title: "Revision Request Submitted", description: "Your compensation revision proposal has been sent to Finance for approval." });
+      toast.success("Your compensation revision proposal has been sent to Finance for approval.");
     },
     onError: (e: Error) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast.error(e.message);
     },
   });
 }
@@ -239,15 +239,14 @@ export function useReviewRevisionRequest() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["compensation-revision-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-team-revision-requests"] });
-      toast({
-        title: variables.status === "approved" ? "Revision Approved" : "Revision Rejected",
-        description: variables.status === "approved"
+      toast.success(
+        variables.status === "approved"
           ? "Approved. Create the salary revision from the employee's Compensation tab."
-          : "The revision request has been rejected.",
-      });
+          : "The revision request has been rejected."
+      );
     },
     onError: (e: Error) => {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast.error(e.message);
     },
   });
 }

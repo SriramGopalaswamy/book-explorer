@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockEmployees } from "@/lib/mock-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export interface Employee {
   id: string;
@@ -111,7 +111,8 @@ export function useEmployees() {
           .from("profiles")
           .select("*")
           .eq("organization_id", orgId)
-          .order("full_name", { ascending: true });
+          .order("full_name", { ascending: true })
+          .limit(500);
         if (error) throw error;
         const employees = data as Employee[];
 
@@ -159,7 +160,8 @@ export function useEmployees() {
           .from("profiles_safe" as any)
           .select("*")
           .eq("organization_id", orgId)
-          .order("full_name", { ascending: true });
+          .order("full_name", { ascending: true })
+          .limit(500);
         if (error) throw error;
         return (data as any[]).map((d) => ({
           ...d,
@@ -243,13 +245,10 @@ export function useCreateEmployee() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
-      toast({
-        title: "Employee Added",
-        description: "Account created. The employee can sign in with their email address.",
-      });
+      toast.success("Employee added. They can sign in with their email address.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -295,7 +294,7 @@ export function useUpdateEmployee() {
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -341,7 +340,7 @@ export function useDeleteEmployee() {
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }

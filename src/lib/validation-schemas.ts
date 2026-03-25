@@ -36,7 +36,20 @@ export const updateInvoiceSchema = createInvoiceSchema.extend({
 export const createBankAccountSchema = z.object({
   name: z.string().trim().min(1, "Account name required").max(200),
   account_type: z.enum(["Current", "Savings", "FD", "Credit"]),
-  account_number: z.string().trim().min(1, "Account number required").max(50),
+  // Accepts 6–18 digit account numbers (covers most Indian and international formats)
+  account_number: z
+    .string()
+    .trim()
+    .min(6, "Account number must be at least 6 characters")
+    .max(18, "Account number must be at most 18 characters")
+    .regex(/^[A-Z0-9]+$/i, "Account number must contain only letters and digits"),
+  // IFSC: 4 letters + 0 + 6 alphanumeric (Indian standard); optional for non-Indian accounts
+  ifsc_code: z
+    .string()
+    .trim()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "IFSC must be 11 characters: 4 letters, '0', 6 alphanumeric")
+    .optional()
+    .or(z.literal("")),
   balance: z.number().max(9999999999, "Balance too large"),
   bank_name: z.string().trim().max(200).optional(),
 });

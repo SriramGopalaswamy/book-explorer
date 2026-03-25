@@ -79,6 +79,8 @@ export function useAttendance(date?: string) {
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
+      if (profilesRes.error) throw profilesRes.error;
+      if (leavesRes.error) throw leavesRes.error;
       const records = attendanceRes.data as AttendanceRecord[];
       const activeProfiles = profilesRes.data || [];
       const approvedLeaves = leavesRes.data || [];
@@ -151,6 +153,8 @@ export function useAttendanceStats(date?: string) {
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
+      if (profilesRes.error) throw profilesRes.error;
+      if (leaveRes.error) throw leaveRes.error;
       const data = attendanceRes.data;
       const totalActive = profilesRes.data?.length || 0;
       const approvedLeaves = leaveRes.data || [];
@@ -262,6 +266,8 @@ export function useWeeklyAttendanceStats() {
       ]);
 
       if (attendanceRes.error) throw attendanceRes.error;
+      if (leaveRes.error) throw leaveRes.error;
+      if (profilesRes.error) throw profilesRes.error;
       const data = attendanceRes.data;
       const leaveData = leaveRes.data || [];
       const totalActive = profilesRes.data?.length || 0;
