@@ -257,9 +257,9 @@ export default function CreditNotes() {
           <StatCard title="Total Value" value={formatCurrency(creditNotes.filter((cn) => cn.status === "issued" || cn.status === "applied").reduce((s, cn) => s + Number(cn.amount), 0))} icon={<FileX className="h-4 w-4" />} />
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-between">
+        <div className="flex flex-wrap items-center gap-3 justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-full sm:max-w-xs">
+            <div className="relative min-w-[200px] max-w-xs flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input className="pl-9" placeholder="Search credit notes..." value={search} onChange={(e) => { setSearch(e.target.value); pagination.setPage(1); }} />
             </div>

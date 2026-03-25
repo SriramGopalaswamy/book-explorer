@@ -753,7 +753,7 @@ export default function AutomationDashboard() {
               <div className="rounded-2xl bg-gradient-financial p-3 text-primary-foreground shadow-lg"><Workflow className="h-6 w-6" /></div>
               <div>
                 <div className="mb-2 flex items-center gap-2"><Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Finance only</Badge><Badge variant="outline" className="bg-muted text-muted-foreground border-border">Single workspace</Badge></div>
-                <h1 className="text-3xl font-semibold tracking-tight">Automation Studio</h1>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Automation Studio</h1>
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Create workflows with drag-and-drop steps, monitor live invoice runs, and run the automation engine from the same page.</p>
               </div>
             </div>

@@ -138,6 +138,10 @@ export default function ReimbursementsFinance() {
   const totalPaid = history
     .filter((r: any) => r.status === "paid")
     .reduce((s: number, r: any) => s + Number(r.amount), 0);
+  // Total pending = sum of ALL requests at any pending stage across the org
+  const totalPendingValue = allRequests
+    .filter((r: any) => ["pending_manager", "manager_approved", "pending_finance"].includes(r.status))
+    .reduce((s: number, r: any) => s + Number(r.amount), 0);
 
   const openPreview = async (item: any) => {
     setPreviewItem(item);
@@ -385,7 +389,7 @@ export default function ReimbursementsFinance() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: "Pending Your Approval", value: inbox.length, icon: Clock, color: "text-yellow-400" },
-            { label: "Value Pending", value: `₹${totalInbox.toLocaleString()}`, icon: DollarSign, color: "text-purple-400" },
+            { label: "Total Pending Value", value: `₹${totalPendingValue.toLocaleString()}`, icon: DollarSign, color: "text-purple-400" },
             { label: "Total Paid Out", value: `₹${totalPaid.toLocaleString()}`, icon: CheckCircle2, color: "text-green-400" },
           ].map((s) => (
             <Card key={s.label} className="border-border/50 bg-card/60">

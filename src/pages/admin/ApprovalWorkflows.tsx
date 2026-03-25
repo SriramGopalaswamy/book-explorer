@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, CheckCircle, XCircle, Trash2, ArrowRight, GripVertical } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Trash2, ArrowRight, GripVertical, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApprovalWorkflows, useCreateApprovalWorkflow, useToggleWorkflow, useApprovalRequests, useApproveRequest, useRejectRequest, useApprovalWorkflowSteps } from "@/hooks/useApprovalWorkflows";
 import { format } from "date-fns";
 
@@ -100,6 +101,14 @@ export default function ApprovalWorkflowsPage() {
   return (
     <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules with chain approvals">
       <div className="space-y-6">
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>How Approval Workflows Work</AlertTitle>
+          <AlertDescription>
+            Workflows trigger automatically when documents (Purchase Orders, Expenses, Bills, etc.) exceed the configured threshold amount. Each approver in the chain receives a pending request and can approve or reject it from the <strong>Pending</strong> tab below. Approvers can also access their queue from the relevant module pages (e.g. Expenses, Bills).
+          </AlertDescription>
+        </Alert>
+
         <div className="flex items-center justify-between">
           <div />
           <Dialog open={open} onOpenChange={setOpen}>

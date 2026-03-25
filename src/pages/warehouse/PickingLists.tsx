@@ -147,6 +147,9 @@ export default function PickingLists() {
   const [viewItems, setViewItems] = useState<any[]>([]);
   const [editList, setEditList] = useState<PickingList | null>(null);
   const [editNotes, setEditNotes] = useState("");
+  const [editWarehouseId, setEditWarehouseId] = useState("");
+  const [editPickItems, setEditPickItems] = useState<PickItemRow[]>([]);
+  const [editItemsLoading, setEditItemsLoading] = useState(false);
 
   const [viewItemsLoading, setViewItemsLoading] = useState(false);
 
@@ -164,22 +167,68 @@ export default function PickingLists() {
     }
   };
 
-  const openEdit = (list: PickingList) => {
+  const openEdit = async (list: PickingList) => {
     setEditList(list);
     setEditNotes(list.notes || "");
+    setEditWarehouseId(list.warehouse_id || "");
+    setEditPickItems([]);
+    setEditItemsLoading(true);
+    try {
+      const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
+      const loaded = ((data as any[]) || []).map((it: any) => ({
+        item_id: it.item_id || undefined,
+        item_name: it.item_name || "",
+        quantity: Number(it.required_quantity || it.quantity || 1),
+        bin_id: it.bin_id || undefined,
+      }));
+      setEditPickItems(loaded.length > 0 ? loaded : [{ item_name: "", quantity: 1 }]);
+    } catch {
+      setEditPickItems([{ item_name: "", quantity: 1 }]);
+    } finally {
+      setEditItemsLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
     if (!editList) return;
     if (!orgId) { toast.error("Organization not found"); return; }
+    if (!editWarehouseId) { toast.error("Please select a warehouse"); return; }
+    const validItems = editPickItems.filter((it) => it.item_name.trim());
+    if (validItems.length === 0) { toast.error("Add at least one item"); return; }
     try {
-      const { error } = await (supabase as any).from("picking_lists").update({ notes: editNotes }).eq("id", editList.id).eq("organization_id", orgId);
+      const { error } = await (supabase as any).from("picking_lists")
+        .update({ notes: editNotes, warehouse_id: editWarehouseId })
+        .eq("id", editList.id).eq("organization_id", orgId);
       if (error) throw error;
+      // Replace items
+      await supabase.from("picking_list_items" as any).delete().eq("picking_list_id", editList.id);
+      await supabase.from("picking_list_items" as any).insert(
+        validItems.map((it) => ({
+          picking_list_id: editList.id,
+          item_id: it.item_id || null,
+          item_name: it.item_name,
+          required_quantity: it.quantity,
+          bin_id: it.bin_id || null,
+          status: "pending",
+        }))
+      );
       toast.success("Picking list updated");
       await qc.invalidateQueries({ queryKey: ["picking-lists"] });
       setEditList(null);
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  const addEditItem = () => setEditPickItems((p) => [...p, { item_name: "", quantity: 1 }]);
+  const removeEditItem = (i: number) => setEditPickItems((p) => p.filter((_, idx) => idx !== i));
+  const updateEditItem = (i: number, field: keyof PickItemRow, val: string | number) =>
+    setEditPickItems((p) => p.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
+  const handleSelectEditItem = (i: number, itemId: string) => {
+    const item = items.find((it: any) => it.id === itemId);
+    if (item) {
+      updateEditItem(i, "item_id", itemId);
+      updateEditItem(i, "item_name", (item as any).name || (item as any).item_name || "");
     }
   };
 
@@ -397,14 +446,55 @@ export default function PickingLists() {
 
         {/* Edit Picking List Dialog */}
         <Dialog open={!!editList} onOpenChange={(v) => { if (!v) setEditList(null); }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-xl">
             <DialogHeader><DialogTitle>Edit Picking List — {editList?.pick_number}</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div><Label>Notes</Label><Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} /></div>
+            <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+              <div>
+                <Label>Warehouse *</Label>
+                <Select value={editWarehouseId} onValueChange={setEditWarehouseId}>
+                  <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Items to Pick *</Label>
+                  <Button size="sm" variant="outline" onClick={addEditItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+                </div>
+                {editItemsLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm py-4 justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading items…
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {editPickItems.map((row, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center rounded-lg border p-3">
+                        <Select value={row.item_id || ""} onValueChange={(v) => handleSelectEditItem(i, v)}>
+                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectContent>
+                            {(items as any[]).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateEditItem(i, "item_name", e.target.value)} />
+                        <Input type="number" value={row.quantity} onChange={(e) => updateEditItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
+                        <Button size="icon" variant="ghost" onClick={() => removeEditItem(i)} disabled={editPickItems.length === 1}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditList(null)}>Cancel</Button>
-              <Button onClick={handleSaveEdit}>Save</Button>
+              <Button onClick={handleSaveEdit}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

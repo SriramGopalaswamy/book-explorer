@@ -369,6 +369,7 @@ export function useUpdateWOStatus() {
       qc.invalidateQueries({ queryKey: ["stock-ledger"] });
       qc.invalidateQueries({ queryKey: ["items"] });
       qc.invalidateQueries({ queryKey: ["finished-goods"] });
+      qc.invalidateQueries({ queryKey: ["material-consumption"] });
       toast.success("Status updated");
     },
     onError: (e: any) => toast.error(e.message),

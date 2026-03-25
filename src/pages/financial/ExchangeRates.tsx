@@ -8,11 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
 import { useFinancialRecords } from "@/hooks/useFinancialData";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
@@ -32,10 +35,19 @@ interface UnrealizedFXLine {
 export default function ExchangeRatesPage() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
+  const queryClient = useQueryClient();
   const { data: currencies = [], isLoading: curLoading } = useCurrencies();
   const { data: rates = [], isLoading: rateLoading } = useExchangeRates();
   const { data: financialRecords = [] } = useFinancialRecords();
   const createRate = useCreateExchangeRate();
+
+  const toggleCurrency = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase.from("currencies" as any).update({ is_active: !is_active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["currencies"] }),
+  });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] });
 
@@ -297,7 +309,7 @@ export default function ExchangeRatesPage() {
                       {unrealizedLines.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                            No open foreign currency monetary items. Foreign-denominated invoices and bills will appear here for IAS 21 revaluation.
+                            No open foreign currency monetary items. Records appear here when financial transactions are created in the Accounting module with a non-INR currency and an exchange rate.
                           </TableCell>
                         </TableRow>
                       )}
@@ -329,7 +341,13 @@ export default function ExchangeRatesPage() {
                         <TableCell className="text-foreground">{c.name}</TableCell>
                         <TableCell className="text-lg text-foreground">{c.symbol}</TableCell>
                         <TableCell className="text-foreground">{c.decimal_places}</TableCell>
-                        <TableCell><Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Active" : "Inactive"}</Badge></TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={c.is_active}
+                            onCheckedChange={() => toggleCurrency.mutate({ id: c.id, is_active: c.is_active })}
+                            disabled={toggleCurrency.isPending}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
