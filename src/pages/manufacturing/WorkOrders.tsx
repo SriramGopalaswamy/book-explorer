@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil } from "lucide-react";
+import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil, Eye } from "lucide-react";
 import {
   useWorkOrders, useCreateWorkOrder, useUpdateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
   useBOMs, useBOMCostRollup, WorkOrder,
@@ -112,6 +112,9 @@ export default function WorkOrders() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
   const [editForm, setEditForm] = useState({ product_name: "", planned_quantity: 1, priority: "normal", planned_start: "", planned_end: "", notes: "", bom_id: "" });
+
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewingWO, setViewingWO] = useState<WorkOrder | null>(null);
 
   const openEditWO = (wo: WorkOrder) => {
     setEditingWO(wo);
@@ -223,6 +226,9 @@ export default function WorkOrders() {
         const allowed = VALID_TRANSITIONS[r.status] ?? [];
         return (
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setViewingWO(r); setViewDialogOpen(true); }}>
+              <Eye className="h-3.5 w-3.5 mr-1" /> View
+            </Button>
             {r.status === "draft" && (
               <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
                 <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -402,6 +408,40 @@ export default function WorkOrders() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Work Order Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Work Order — {viewingWO?.wo_number}</DialogTitle></DialogHeader>
+          {viewingWO && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product</p><p className="font-semibold text-foreground">{viewingWO.product_name}</p></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
+                  <Badge className={statusColors[viewingWO.status] || ""}>{viewingWO.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Priority</p>
+                  <Badge className={priorityColors[viewingWO.priority] || ""}>{viewingWO.priority.charAt(0).toUpperCase() + viewingWO.priority.slice(1)}</Badge>
+                </div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planned Qty</p><p className="font-semibold text-foreground">{viewingWO.planned_quantity}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Completed Qty</p><p className="font-semibold text-foreground">{viewingWO.completed_quantity ?? 0}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Rejected Qty</p><p className="font-semibold text-foreground">{viewingWO.rejected_quantity ?? 0}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planned Start</p><p className="text-foreground">{viewingWO.planned_start ? format(new Date(viewingWO.planned_start), "dd MMM yyyy") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planned End</p><p className="text-foreground">{viewingWO.planned_end ? format(new Date(viewingWO.planned_end), "dd MMM yyyy") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Actual Start</p><p className="text-foreground">{viewingWO.actual_start ? format(new Date(viewingWO.actual_start), "dd MMM yyyy") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Actual End</p><p className="text-foreground">{viewingWO.actual_end ? format(new Date(viewingWO.actual_end), "dd MMM yyyy") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Created</p><p className="text-foreground">{viewingWO.created_at ? format(new Date(viewingWO.created_at), "dd MMM yyyy") : "—"}</p></div>
+              </div>
+              {viewingWO.notes && (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="text-foreground whitespace-pre-wrap">{viewingWO.notes}</p></div>
+              )}
+              {viewingWO.bom_id && <BOMPreview bomId={viewingWO.bom_id} />}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
