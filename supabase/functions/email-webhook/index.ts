@@ -154,6 +154,19 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verify the shared webhook secret supplied as a query-parameter token.
+  // Email providers (e.g. Microsoft Graph subscriptions, forwarding services)
+  // should be configured to include ?token=<EMAIL_WEBHOOK_SECRET> in the
+  // webhook URL.  Fail-secure: reject if the secret env var is not configured.
+  const emailWebhookSecret = Deno.env.get("EMAIL_WEBHOOK_SECRET");
+  const providedToken = new URL(req.url).searchParams.get("token");
+  if (!emailWebhookSecret || providedToken !== emailWebhookSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {

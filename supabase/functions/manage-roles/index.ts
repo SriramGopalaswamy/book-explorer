@@ -152,10 +152,11 @@ Deno.serve(async (req) => {
       // Delete existing roles for the user (scoped)
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
-      // Insert new role
+      // Insert new role — always include organization_id so org-scoped role queries work
       const { error: insertError } = await supabase.from("user_roles").insert({
         user_id,
         role,
+        organization_id: requestingOrgId,
       });
 
       if (insertError) {
@@ -258,7 +259,7 @@ Deno.serve(async (req) => {
 
       // Upsert role (replace any existing)
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
-      await supabase.from("user_roles").insert({ user_id, role: assignedRole });
+      await supabase.from("user_roles").insert({ user_id, role: assignedRole, organization_id: requestingOrgId });
 
       // Unban in auth if previously banned
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
@@ -330,7 +331,30 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId);
       }
 
-      // Soft deactivate: set status inactive + soft delete flags
+      // Revoke this org's roles in all cases — the user must not retain
+      // privileged access within the org being deactivated, regardless of
+      // whether they belong to other organizations.
+      await supabase.from("user_roles").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      // Check whether this user belongs to any OTHER organizations before
+      // performing global operations (profile flag + auth ban).
+      const { data: otherMembershipsDea } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user_id)
+        .neq("organization_id", requestingOrgId);
+
+      if (otherMembershipsDea && otherMembershipsDea.length > 0) {
+        // User is active in other orgs — only revoke their access to THIS org.
+        // Do NOT ban the auth account or touch the shared profile.
+        return new Response(JSON.stringify({ success: true, scope: "org_only" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Soft deactivate: set status inactive + soft delete flags (org-scoped)
       const { error: deactivateError } = await supabase
         .from("profiles")
         .update({
@@ -338,7 +362,8 @@ Deno.serve(async (req) => {
           is_deleted: true,
           deleted_at: new Date().toISOString(),
         })
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
 
       if (deactivateError) {
         console.error("Deactivate error:", deactivateError);
@@ -351,7 +376,7 @@ Deno.serve(async (req) => {
       // Ban user in auth to immediately invalidate future token refreshes (~100 years)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -421,6 +446,30 @@ Deno.serve(async (req) => {
       // Delete user roles scoped to this organization only
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
+      // Remove the user's membership from this org
+      await supabase.from("organization_members").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      // Check whether this user belongs to any OTHER organizations before
+      // performing destructive global actions (profile soft-delete & auth hard-delete).
+      // If they are a member of another org their account must remain intact.
+      const { data: otherMemberships } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user_id)
+        .neq("organization_id", requestingOrgId);
+
+      if (otherMemberships && otherMemberships.length > 0) {
+        // User belongs to other orgs — only org-scoped data was removed above.
+        // Do NOT touch the shared profile or the auth account.
+        return new Response(JSON.stringify({ success: true, scope: "org_only" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // User has no remaining org memberships — safe to perform global cleanup.
+
       // Soft delete profile (prevent_profile_hard_delete trigger blocks actual DELETE)
       await supabase
         .from("profiles")
@@ -429,7 +478,8 @@ Deno.serve(async (req) => {
           is_deleted: true,
           deleted_at: new Date().toISOString(),
         })
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
 
       // Hard delete auth user (removes login ability; profile data is preserved)
       const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
@@ -442,7 +492,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -640,8 +690,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Assign role
-      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
+      // Assign role — always include organization_id so org-scoped role queries work
+      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole, organization_id: requestingOrgId });
 
       // Ensure org membership (required for org-scoped security checks)
       await supabase.from("organization_members").upsert(
