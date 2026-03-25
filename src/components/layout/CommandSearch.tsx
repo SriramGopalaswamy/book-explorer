@@ -61,6 +61,7 @@ import {
   Database,
   Activity,
   Cpu,
+  Zap,
 } from "lucide-react";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
