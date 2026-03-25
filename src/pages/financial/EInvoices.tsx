@@ -17,7 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban, MoreHorizontal, Eye, Download, IndianRupee } from "lucide-react";
+import { FileText, Plus, QrCode, Search, Shield, Loader2, CheckCircle2, XCircle, Clock, Ban, MoreHorizontal, Eye, Download } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEInvoices, EInvoiceItem } from "@/hooks/useEInvoices";
 import { format } from "date-fns";
@@ -345,23 +345,15 @@ export default function EInvoices() {
   return (
     <MainLayout title="E-Invoices" subtitle="GST E-Invoice Generation & IRN Management (NIC/IRP)">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total E-Invoices</p>
               <p className="text-2xl font-bold">{statusCounts.total}</p>
+              <p className="text-xs text-muted-foreground">₹{totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <FileText className="h-8 w-8 text-primary opacity-50" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-xl font-bold truncate" title={`₹${totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>₹{totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            </div>
-            <IndianRupee className="h-8 w-8 text-primary opacity-50" />
           </CardContent>
         </Card>
         <Card>
