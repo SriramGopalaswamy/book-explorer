@@ -38,6 +38,7 @@ export default function Items() {
   const deleteItem = useDeleteItem();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState("all");
   const [form, setForm] = useState({ ...emptyForm });
 
   // Edit dialog state
@@ -49,15 +50,21 @@ export default function Items() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deactivateConfirmId, setDeactivateConfirmId] = useState<string | null>(null);
 
-  const filtered = (items || []).filter((i: any) =>
-    i.name?.toLowerCase().includes(search.toLowerCase()) ||
-    i.sku?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = (items || []).filter((i: any) => {
+    const matchSearch = i.name?.toLowerCase().includes(search.toLowerCase()) ||
+      i.sku?.toLowerCase().includes(search.toLowerCase()) ||
+      String(i.current_stock ?? "").includes(search);
+    const matchStock = stockFilter === "all" ||
+      (stockFilter === "low_stock" && Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0) ||
+      (stockFilter === "in_stock" && Number(i.current_stock) > Number(i.reorder_level)) ||
+      (stockFilter === "out_of_stock" && Number(i.current_stock) === 0);
+    return matchSearch && matchStock;
+  });
   const pagination = usePagination(filtered, 10);
 
   const totalItems = items?.length || 0;
   const lowStock = (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
-  const totalValue = (items || []).filter((i: any) => i.is_active !== false).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.selling_price || 0)), 0);
+  const totalValue = (items || []).filter((i: any) => i.is_active !== false).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.purchase_price || 0)), 0);
 
   const handleCreate = () => {
     createItem.mutate({
@@ -157,9 +164,20 @@ export default function Items() {
 
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search items..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name, SKU or stock qty..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={stockFilter} onValueChange={setStockFilter}>
+              <SelectTrigger className="w-36"><SelectValue placeholder="Stock" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Items</SelectItem>
+                <SelectItem value="low_stock">Low Stock</SelectItem>
+                <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                <SelectItem value="in_stock">In Stock</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>

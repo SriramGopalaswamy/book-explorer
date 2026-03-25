@@ -16,6 +16,9 @@ import {
   useBOMs, useBOMCostRollup, WorkOrder,
 } from "@/hooks/useManufacturing";
 import { format } from "date-fns";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -84,6 +87,23 @@ export default function WorkOrders() {
   const updateStatus = useUpdateWOStatus();
   const recordProduction = useRecordProduction();
   const postFinishedGoods = usePostFinishedGoods();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const queryClient = useQueryClient();
+
+  // Track which WOs already have finished goods posted
+  const { data: postedWOIds = [] } = useQuery({
+    queryKey: ["fg-posted-wo-ids", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("finished_goods_entries" as any)
+        .select("work_order_id")
+        .eq("organization_id", orgId);
+      if (error) return [];
+      return (data || []).map((d: any) => d.work_order_id).filter(Boolean) as string[];
+    },
+  });
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -203,7 +223,12 @@ export default function WorkOrders() {
         warehouse_id: fgWO.warehouse_id,
         notes: fgForm.notes || undefined,
       },
-      { onSuccess: () => setFgDialogOpen(false) }
+      {
+        onSuccess: () => {
+          setFgDialogOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["fg-posted-wo-ids", orgId] });
+        }
+      }
     );
   };
 
@@ -240,9 +265,15 @@ export default function WorkOrders() {
               </Button>
             )}
             {r.status === "completed" && (
-              <Button variant="outline" size="sm" onClick={() => openFgDialog(r)}>
-                <PackageCheck className="h-3.5 w-3.5 mr-1" /> Post FG
-              </Button>
+              postedWOIds.includes(r.id) ? (
+                <Button variant="outline" size="sm" disabled title="Finished goods already posted">
+                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> FG Posted
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => openFgDialog(r)}>
+                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> Post FG
+                </Button>
+              )
             )}
             {allowed.length > 0 ? (
               <Select value="" onValueChange={(v) => { if (v && v !== r.status) updateStatus.mutate({ id: r.id, status: v }); }}>
@@ -267,7 +298,7 @@ export default function WorkOrders() {
   return (
     <MainLayout title="Work Orders" subtitle="Manage production scheduling and tracking">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-end">
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New Work Order</Button>

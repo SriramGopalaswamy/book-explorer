@@ -22,11 +22,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   submitted: "bg-blue-500/20 text-blue-400",
-  approved: "bg-blue-500/20 text-blue-400",
-  ordered: "bg-yellow-500/20 text-yellow-400",
+  approved: "bg-green-500/20 text-green-400",
   partially_received: "bg-orange-500/20 text-orange-400",
-  received: "bg-green-500/20 text-green-400",
-  invoiced: "bg-purple-500/20 text-purple-400",
+  received: "bg-emerald-500/20 text-emerald-400",
   cancelled: "bg-destructive/20 text-destructive",
   closed: "bg-muted text-muted-foreground",
 };
@@ -37,6 +35,8 @@ const PO_TRANSITIONS: Record<string, string[]> = {
   approved: ["partially_received", "received", "cancelled"],
   partially_received: ["received", "closed"],
   received: ["closed"],
+  cancelled: [],
+  closed: [],
 };
 
 export default function PurchaseOrders() {
@@ -79,7 +79,7 @@ export default function PurchaseOrders() {
   const stats = {
     total: orders.length,
     draft: orders.filter((o) => o.status === "draft").length,
-    pending: orders.filter((o) => ["submitted", "approved", "ordered", "partially_received"].includes(o.status)).length,
+    submitted: orders.filter((o) => o.status === "submitted").length,
     received: orders.filter((o) => o.status === "received").length,
   };
 
@@ -278,7 +278,7 @@ export default function PurchaseOrders() {
   return (
     <MainLayout title="Purchase Orders" subtitle="Manage procurement lifecycle">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-end">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New PO</Button>
@@ -312,7 +312,7 @@ export default function PurchaseOrders() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><ShoppingCart className="h-8 w-8 text-primary" /><div><p className="text-2xl font-bold text-foreground">{stats.total}</p><p className="text-xs text-muted-foreground">Total POs</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Clock className="h-8 w-8 text-yellow-500" /><div><p className="text-2xl font-bold text-foreground">{stats.draft}</p><p className="text-xs text-muted-foreground">Drafts</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Package className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.pending}</p><p className="text-xs text-muted-foreground">Active</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><Package className="h-8 w-8 text-blue-500" /><div><p className="text-2xl font-bold text-foreground">{stats.submitted}</p><p className="text-xs text-muted-foreground">Submitted</p></div></div></CardContent></Card>
           <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><CheckCircle className="h-8 w-8 text-green-500" /><div><p className="text-2xl font-bold text-foreground">{stats.received}</p><p className="text-xs text-muted-foreground">Received</p></div></div></CardContent></Card>
         </div>
 
@@ -328,10 +328,8 @@ export default function PurchaseOrders() {
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="ordered">Ordered</SelectItem>
               <SelectItem value="partially_received">Partially Received</SelectItem>
               <SelectItem value="received">Received</SelectItem>
-              <SelectItem value="invoiced">Invoiced</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>

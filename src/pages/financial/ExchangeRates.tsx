@@ -53,18 +53,38 @@ export default function ExchangeRatesPage() {
     setFetchingLive(true);
     setLiveRateError(null);
     try {
-      const res = await fetch("https://api.frankfurter.app/latest?base=USD");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      let res: Response;
+      try {
+        res = await fetch("https://api.frankfurter.app/latest?base=USD", { signal: controller.signal });
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        if (fetchErr.name === "AbortError") throw new Error("Request timed out. Please check your internet connection and try again.");
+        throw new Error("Network error: Unable to reach the exchange rate service. Please check your connection.");
+      }
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`Exchange rate service returned an error (HTTP ${res.status}). Please try again later.`);
       const json = await res.json();
+      if (!json.rates) throw new Error("Invalid response from exchange rate service.");
       const today = new Date().toISOString().split("T")[0];
-      // Post USD→INR and USD→EUR if available
       const toCodes = Object.keys(json.rates);
       const interesting = toCodes.filter((c) => ["INR", "EUR", "GBP", "JPY", "AED", "SGD"].includes(c));
+      if (interesting.length === 0) throw new Error("No relevant currencies found in the live rate response.");
+      let saved = 0;
       for (const to of interesting) {
-        createRate.mutate({ from_currency: "USD", to_currency: to, rate: json.rates[to], effective_date: today });
+        await new Promise<void>((resolve, reject) => {
+          createRate.mutate(
+            { from_currency: "USD", to_currency: to, rate: json.rates[to], effective_date: today },
+            { onSuccess: () => { saved++; resolve(); }, onError: (e: any) => reject(e) }
+          );
+        });
       }
+      toast.success(`Fetched live rates for ${saved} currencies (USD base) as of today.`);
     } catch (e: any) {
-      setLiveRateError(e.message || "Failed to fetch live rates");
+      const msg = e.message || "Failed to fetch live rates. Please try again.";
+      setLiveRateError(msg);
+      toast.error(msg);
     } finally {
       setFetchingLive(false);
     }

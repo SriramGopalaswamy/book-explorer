@@ -36,15 +36,20 @@ export default function Warehouses() {
   const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", contact_phone: "", is_active: true });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({
     name: "", code: "", address: "", city: "", state: "", pincode: "",
     contact_person: "", contact_phone: "", contact_email: "",
   });
 
-  const filtered = (warehouses || []).filter((w: any) =>
-    w.name?.toLowerCase().includes(search.toLowerCase()) ||
-    w.code?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = (warehouses || []).filter((w: any) => {
+    const matchSearch = w.name?.toLowerCase().includes(search.toLowerCase()) ||
+      w.code?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" ||
+      (statusFilter === "active" && w.is_active) ||
+      (statusFilter === "inactive" && !w.is_active);
+    return matchSearch && matchStatus;
+  });
   const pagination = usePagination(filtered, 10);
 
   const handleCreate = () => {
@@ -80,9 +85,19 @@ export default function Warehouses() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search warehouses..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search warehouses..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Warehouse</Button></DialogTrigger>
