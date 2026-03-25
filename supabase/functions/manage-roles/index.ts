@@ -152,10 +152,11 @@ Deno.serve(async (req) => {
       // Delete existing roles for the user (scoped)
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
 
-      // Insert new role
+      // Insert new role — always include organization_id so org-scoped role queries work
       const { error: insertError } = await supabase.from("user_roles").insert({
         user_id,
         role,
+        organization_id: requestingOrgId,
       });
 
       if (insertError) {
@@ -258,7 +259,7 @@ Deno.serve(async (req) => {
 
       // Upsert role (replace any existing)
       await supabase.from("user_roles").delete().eq("user_id", user_id).eq("organization_id", requestingOrgId);
-      await supabase.from("user_roles").insert({ user_id, role: assignedRole });
+      await supabase.from("user_roles").insert({ user_id, role: assignedRole, organization_id: requestingOrgId });
 
       // Unban in auth if previously banned
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
@@ -330,13 +331,10 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId);
       }
 
-      // Remove this org's roles for the user
-      await supabase.from("user_roles").delete()
-        .eq("user_id", user_id)
-        .eq("organization_id", requestingOrgId);
-
       // Check whether this user belongs to any OTHER organizations before
       // performing global operations (profile flag + auth ban).
+      // Roles are intentionally NOT deleted: deactivation is reversible and
+      // reactivation restores the user to the same role.
       const { data: otherMembershipsDea } = await supabase
         .from("organization_members")
         .select("organization_id")
@@ -687,8 +685,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Assign role
-      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
+      // Assign role — always include organization_id so org-scoped role queries work
+      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole, organization_id: requestingOrgId });
 
       // Ensure org membership (required for org-scoped security checks)
       await supabase.from("organization_members").upsert(

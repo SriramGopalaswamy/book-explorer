@@ -304,6 +304,7 @@ Deno.serve(async (req) => {
           await supabase.from("user_roles").insert({
             user_id: existingUser.id,
             role,
+            organization_id: DEFAULT_ORG_ID,
           });
         }
       } else {
@@ -372,6 +373,7 @@ Deno.serve(async (req) => {
         await supabase.from("user_roles").insert({
           user_id: newUser.user!.id,
           role,
+          organization_id: DEFAULT_ORG_ID,
         });
 
         // Determine status: admins are active immediately, everyone else is pending approval
