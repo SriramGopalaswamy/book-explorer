@@ -87,7 +87,7 @@ const ALL_ITEMS: SearchItem[] = [
   { name: "Ledger Explorer", path: "/financial/ledger", icon: BookMarked, section: "Financial", keywords: "ledger accounts transactions" },
   { name: "Customers", path: "/financial/customers", icon: UserCheck, section: "Financial", keywords: "clients contacts receivables" },
   { name: "Vendors", path: "/financial/vendors", icon: Truck, section: "Financial", keywords: "suppliers payables" },
-  { name: "Invoicing", path: "/financial/invoicing", icon: FileText, section: "Financial", keywords: "invoice create billing" },
+  { name: "Sales Invoices", path: "/financial/invoicing", icon: FileText, section: "Financial", keywords: "invoice create billing sales" },
   { name: "Quotes", path: "/financial/quotes", icon: Quote, section: "Financial", keywords: "estimates proposals quotations" },
   { name: "Expenses", path: "/financial/expenses", icon: Wallet, section: "Financial", keywords: "spending costs expenditure" },
   { name: "Bills", path: "/financial/bills", icon: ScanLine, section: "Financial", keywords: "payables purchase bills" },
