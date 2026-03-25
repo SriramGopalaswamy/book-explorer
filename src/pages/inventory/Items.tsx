@@ -27,7 +27,7 @@ const ITEM_TYPES = [
 const emptyForm = {
   name: "", sku: "", category: "general", item_type: "product",
   purchase_price: "", selling_price: "", hsn_code: "", reorder_level: "",
-  opening_stock: "", description: "", barcode: "",
+  opening_stock: "", current_stock: "", description: "", barcode: "",
 };
 
 export default function Items() {
@@ -91,6 +91,7 @@ export default function Items() {
       hsn_code: item.hsn_code || "",
       reorder_level: String(item.reorder_level ?? ""),
       opening_stock: String(item.opening_stock ?? ""),
+      current_stock: String(item.current_stock ?? ""),
       description: item.description || "",
       barcode: item.barcode || "",
     });
@@ -110,6 +111,7 @@ export default function Items() {
       hsn_code: editForm.hsn_code || null,
       reorder_level: Number(editForm.reorder_level) || 0,
       opening_stock: Number(editForm.opening_stock) || 0,
+      current_stock: Number(editForm.current_stock) || 0,
       description: editForm.description || null,
       barcode: editForm.barcode || null,
     }, {
@@ -300,6 +302,9 @@ export default function Items() {
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Reorder Level</Label><Input type="number" value={editForm.reorder_level} onChange={e => setEditForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
               <div><Label>Opening Stock</Label><Input type="number" value={editForm.opening_stock} onChange={e => setEditForm(f => ({ ...f, opening_stock: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Current Stock</Label><Input type="number" value={editForm.current_stock} onChange={e => setEditForm(f => ({ ...f, current_stock: e.target.value }))} /></div>
             </div>
             <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
             <Button onClick={handleEdit} disabled={!editForm.name || !editForm.sku || updateItem.isPending}>
