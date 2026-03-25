@@ -25,7 +25,7 @@ const DN_TRANSITIONS: Record<string, string[]> = {
   draft: ["dispatched", "cancelled"],
   dispatched: ["in_transit", "delivered"],
   in_transit: ["delivered", "returned"],
-  delivered: [],   // terminal
+  delivered: ["returned"],
   returned: [],    // terminal
   cancelled: [],   // terminal
 };
@@ -419,10 +419,12 @@ export function useUpdateDNStatus() {
         }
       }
 
-      // Auto-update SO status when DN is delivered (org-scoped)
+      // Auto-update SO status when DN is delivered or returned (org-scoped)
       const soId = (current as any)?.sales_order_id;
       if (status === "delivered" && soId) {
         await supabase.from("sales_orders" as any).update({ status: "delivered" } as any).eq("id", soId).eq("organization_id", callerOrgId);
+      } else if (status === "returned" && soId) {
+        await supabase.from("sales_orders" as any).update({ status: "returned" } as any).eq("id", soId).eq("organization_id", callerOrgId);
       } else if (status === "dispatched" && soId) {
         const { data: so } = await supabase.from("sales_orders" as any).select("status").eq("id", soId).eq("organization_id", callerOrgId).maybeSingle();
         if ((so as any)?.status === "processing" || (so as any)?.status === "confirmed") {
