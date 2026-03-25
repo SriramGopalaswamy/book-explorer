@@ -73,13 +73,14 @@ export default function ExchangeRatesPage() {
       if (interesting.length === 0) throw new Error("No relevant currencies found in the live rate response.");
       let saved = 0;
       for (const to of interesting) {
-        await new Promise<void>((resolve, reject) => {
-          createRate.mutate(
-            { from_currency: "USD", to_currency: to, rate: json.rates[to], effective_date: today },
-            { onSuccess: () => { saved++; resolve(); }, onError: (e: any) => reject(e) }
-          );
-        });
+        try {
+          await createRate.mutateAsync({ from_currency: "USD", to_currency: to, rate: json.rates[to], effective_date: today });
+          saved++;
+        } catch {
+          // skip individual currency failures, continue with rest
+        }
       }
+      if (saved === 0) throw new Error("Failed to save any live rates. Please try again.");
       toast.success(`Fetched live rates for ${saved} currencies (USD base) as of today.`);
     } catch (e: any) {
       const msg = e.message || "Failed to fetch live rates. Please try again.";

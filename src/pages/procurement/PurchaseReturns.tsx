@@ -49,6 +49,7 @@ export default function PurchaseReturnsPage() {
   const [viewItems, setViewItems] = useState<any[]>([]);
   const [editingReturn, setEditingReturn] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({ vendor_name: "", return_date: "", reason: "", notes: "" });
   const [editItems, setEditItems] = useState<{ description: string; quantity: number; unit_price: number; tax_rate: number; reason: string }[]>([]);
 
@@ -102,38 +103,45 @@ export default function PurchaseReturnsPage() {
   };
 
   const handleEditSave = async () => {
-    if (!editingReturn || !orgId) return;
-    const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-    const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
-    const { error } = await supabase.from("purchase_returns" as any).update({
-      vendor_name: editForm.vendor_name,
-      return_date: editForm.return_date,
-      reason: editForm.reason || null,
-      notes: editForm.notes || null,
-      subtotal,
-      tax_amount: taxAmount,
-      total_amount: subtotal + taxAmount,
-    } as any).eq("id", editingReturn.id).eq("organization_id", orgId);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("purchase_return_items" as any).delete().eq("purchase_return_id", editingReturn.id);
-    const valid = editItems.filter(i => i.description.trim());
-    if (valid.length > 0) {
-      await supabase.from("purchase_return_items" as any).insert(
-        valid.map(i => ({
-          purchase_return_id: editingReturn.id,
-          description: i.description,
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-          tax_rate: i.tax_rate,
-          amount: i.quantity * i.unit_price * (1 + i.tax_rate / 100),
-          reason: i.reason || null,
-        }))
-      );
+    if (!editingReturn || !orgId || editSaving) return;
+    setEditSaving(true);
+    try {
+      const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
+      const { error } = await supabase.from("purchase_returns" as any).update({
+        vendor_name: editForm.vendor_name,
+        return_date: editForm.return_date,
+        reason: editForm.reason || null,
+        notes: editForm.notes || null,
+        subtotal,
+        tax_amount: taxAmount,
+        total_amount: subtotal + taxAmount,
+      } as any).eq("id", editingReturn.id).eq("organization_id", orgId);
+      if (error) { toast.error(error.message); return; }
+      await supabase.from("purchase_return_items" as any).delete().eq("purchase_return_id", editingReturn.id);
+      const valid = editItems.filter(i => i.description.trim());
+      if (valid.length > 0) {
+        await supabase.from("purchase_return_items" as any).insert(
+          valid.map(i => ({
+            purchase_return_id: editingReturn.id,
+            description: i.description,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            tax_rate: i.tax_rate,
+            amount: i.quantity * i.unit_price * (1 + i.tax_rate / 100),
+            reason: i.reason || null,
+          }))
+        );
+      }
+      await queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
+      toast.success("Purchase return updated");
+      setEditOpen(false);
+      setEditingReturn(null);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save changes");
+    } finally {
+      setEditSaving(false);
     }
-    await queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
-    toast.success("Purchase return updated");
-    setEditOpen(false);
-    setEditingReturn(null);
   };
 
   if (isLoading) return <MainLayout title="Purchase Returns"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
@@ -309,8 +317,8 @@ export default function PurchaseReturnsPage() {
                 ))}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => { setEditOpen(false); setEditingReturn(null); }}>Cancel</Button>
-                <Button className="flex-1" onClick={handleEditSave}>Save Changes</Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setEditOpen(false); setEditingReturn(null); }} disabled={editSaving}>Cancel</Button>
+                <Button className="flex-1" onClick={handleEditSave} disabled={editSaving}>{editSaving ? "Saving..." : "Save Changes"}</Button>
               </div>
             </div>
           </DialogContent>
