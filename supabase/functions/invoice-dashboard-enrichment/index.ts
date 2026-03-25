@@ -46,28 +46,53 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Authenticate the caller: require a valid user JWT.
+  // The organization_id is derived server-side from the user's profile, not
+  // from the request body, to prevent cross-org data access.
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Authorization required" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // Verify JWT and derive the caller's organization server-side
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: "Invalid token" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const organization_id = profile?.organization_id;
+
+  if (!organization_id) {
+    return new Response(
+      JSON.stringify({ error: "No organization found for user" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   let body: any = {};
   try {
     body = await req.json();
   } catch {
-    // allow empty body — fall through to query-param fallback
-  }
-
-  const organization_id =
-    body.organization_id ??
-    new URL(req.url).searchParams.get("organization_id");
-
-  if (!organization_id) {
-    return new Response(
-      JSON.stringify({ error: "organization_id is required" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // allow empty body
   }
 
   // invoice_ids is optional; null means "all invoices for this org"

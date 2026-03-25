@@ -199,8 +199,8 @@ Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"d
 async function verifyMetaSignature(req: Request, rawBody: string): Promise<boolean> {
   const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
   if (!appSecret) {
-    console.warn("[whatsapp-webhook] WHATSAPP_APP_SECRET not set — skipping signature verification");
-    return true; // Allow through in dev; in prod, set the secret
+    console.error("[whatsapp-webhook] WHATSAPP_APP_SECRET not set — rejecting request (fail-secure)");
+    return false; // Must be configured; fail-secure rather than fail-open
   }
 
   const signature = req.headers.get("x-hub-signature-256");

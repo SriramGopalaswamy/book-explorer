@@ -85,8 +85,8 @@ function parseMetaStatuses(body: any): Array<{
 async function verifyMetaSignature(req: Request, rawBody: string): Promise<boolean> {
   const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
   if (!appSecret) {
-    console.warn("[whatsapp-status] WHATSAPP_APP_SECRET not set — skipping signature verification");
-    return true;
+    console.error("[whatsapp-status] WHATSAPP_APP_SECRET not set — rejecting request (fail-secure)");
+    return false;
   }
 
   const signature = req.headers.get("x-hub-signature-256");
