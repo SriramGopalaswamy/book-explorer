@@ -276,20 +276,19 @@ export default function EInvoices() {
       const html2pdf = html2pdfModule.default;
       const container = document.createElement("div");
       container.style.position = "fixed";
-      container.style.left = "0";
+      container.style.left = "-9999px";
       container.style.top = "0";
       container.style.width = "794px";
       container.style.overflow = "hidden";
       container.style.zIndex = "-9999";
       container.style.pointerEvents = "none";
-      container.style.opacity = "0";
       container.innerHTML = html;
       document.body.appendChild(container);
       html2pdf()
         .set({
           margin: [10, 10, 20, 10],
           filename: `E-Invoice-${String(inv.doc_number).replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
-          html2canvas: { scale: 2, logging: false, useCORS: true, scrollY: 0, windowWidth: 794, onclone: (clonedDoc: Document) => { clonedDoc.body.style.visibility = "visible"; } },
+          html2canvas: { scale: 2, logging: false, useCORS: true, scrollY: 0, windowWidth: 794 },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
         .from(container)
