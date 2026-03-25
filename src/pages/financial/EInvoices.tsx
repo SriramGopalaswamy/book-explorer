@@ -359,7 +359,7 @@ export default function EInvoices() {
           <CardContent className="pt-4 pb-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold">₹{totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xl font-bold truncate" title={`₹${totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>₹{totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <IndianRupee className="h-8 w-8 text-primary opacity-50" />
           </CardContent>
