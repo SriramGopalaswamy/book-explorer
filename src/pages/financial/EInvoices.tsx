@@ -323,10 +323,15 @@ export default function EInvoices() {
   const pagination = usePagination(filtered, 10);
 
   const statusCounts = {
+    total: eInvoices.length,
     pending: eInvoices.filter(e => e.status === "pending").length,
     generated: eInvoices.filter(e => e.status === "generated").length,
     cancelled: eInvoices.filter(e => e.status === "cancelled").length,
   };
+
+  const totalInvoiceValue = eInvoices
+    .filter(e => e.status !== "cancelled")
+    .reduce((sum, e) => sum + (e.total_invoice_value || 0), 0);
 
   const statusIcon = (s: string) => {
     switch (s) {
@@ -340,7 +345,17 @@ export default function EInvoices() {
   return (
     <MainLayout title="E-Invoices" subtitle="GST E-Invoice Generation & IRN Management (NIC/IRP)">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total E-Invoices</p>
+              <p className="text-2xl font-bold">{statusCounts.total}</p>
+              <p className="text-xs text-muted-foreground">₹{totalInvoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <FileText className="h-8 w-8 text-primary opacity-50" />
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center justify-between">
             <div>
