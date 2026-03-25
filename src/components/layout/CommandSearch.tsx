@@ -106,6 +106,7 @@ const ALL_ITEMS: SearchItem[] = [
   { name: "Recurring Transactions", path: "/financial/recurring", icon: RefreshCw, section: "Financial", keywords: "recurring repeat automatic template schedule" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, section: "Financial", keywords: "chartered accountant dashboard depreciation run" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, section: "Financial", keywords: "audit console chartered accountant" },
+  { name: "Automation Studio", path: "/financial/automation", icon: Zap, section: "Financial", keywords: "automation workflow invoice follow-up email whatsapp studio" },
 
   // Inventory
   { name: "Items", path: "/inventory/items", icon: Package, section: "Inventory", keywords: "products sku catalog master items" },
