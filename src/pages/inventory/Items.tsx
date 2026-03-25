@@ -110,6 +110,7 @@ export default function Items() {
       hsn_code: editForm.hsn_code || null,
       reorder_level: Number(editForm.reorder_level) || 0,
       opening_stock: Number(editForm.opening_stock) || 0,
+      current_stock: Number(editForm.opening_stock) || 0,
       description: editForm.description || null,
       barcode: editForm.barcode || null,
     }, {
