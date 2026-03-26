@@ -46,26 +46,29 @@ export function useDashboardStats() {
       let glQuery = supabase
         .from("gl_accounts")
         .select("id, account_type")
-        .in("account_type", ["revenue", "expense"]);
+        .in("account_type", ["revenue", "expense"])
+        .eq("is_active", true);
       if (orgId) glQuery = glQuery.eq("organization_id", orgId);
       const { data: glAccounts } = await glQuery;
 
       const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
       const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
 
-      // Current month journal lines — org-scoped via journal_entries join
+      // Current month journal lines — org-scoped via journal_entries join, only posted entries
       let curLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, organization_id)")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
+        .eq("journal_entries.is_posted", true)
         .gte("journal_entries.entry_date", currentMonthStart)
         .lte("journal_entries.entry_date", currentMonthEnd);
       if (orgId) curLinesQ = curLinesQ.eq("journal_entries.organization_id", orgId);
       const { data: currentLines } = await curLinesQ;
 
-      // Last month journal lines — org-scoped via journal_entries join
+      // Last month journal lines — org-scoped via journal_entries join, only posted entries
       let lastLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, organization_id)")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
+        .eq("journal_entries.is_posted", true)
         .gte("journal_entries.entry_date", lastMonthStart)
         .lte("journal_entries.entry_date", lastMonthEnd);
       if (orgId) lastLinesQ = lastLinesQ.eq("journal_entries.organization_id", orgId);
