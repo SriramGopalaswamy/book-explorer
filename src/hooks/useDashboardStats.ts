@@ -54,21 +54,23 @@ export function useDashboardStats() {
       const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
       const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
 
-      // Current month journal lines — org-scoped via journal_entries join, only posted entries
+      // Current month journal lines — org-scoped via journal_entries join, only posted & non-deleted entries
       let curLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
         .eq("journal_entries.is_posted", true)
+        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", currentMonthStart)
         .lte("journal_entries.entry_date", currentMonthEnd);
       if (orgId) curLinesQ = curLinesQ.eq("journal_entries.organization_id", orgId);
       const { data: currentLines } = await curLinesQ;
 
-      // Last month journal lines — org-scoped via journal_entries join, only posted entries
+      // Last month journal lines — org-scoped via journal_entries join, only posted & non-deleted entries
       let lastLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
+        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
         .eq("journal_entries.is_posted", true)
+        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", lastMonthStart)
         .lte("journal_entries.entry_date", lastMonthEnd);
       if (orgId) lastLinesQ = lastLinesQ.eq("journal_entries.organization_id", orgId);
@@ -100,8 +102,8 @@ export function useDashboardStats() {
       // Non-financial stats (unchanged)
       // Org-scoped non-financial stats
       let empQ = supabase.from("profiles").select("id").eq("status", "active");
-      let invQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]);
-      let invLastQ = supabase.from("invoices").select("id").in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd);
+      let invQ = supabase.from("invoices").select("id").eq("is_deleted", false).in("status", ["draft", "sent", "overdue"]);
+      let invLastQ = supabase.from("invoices").select("id").eq("is_deleted", false).in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd);
       let goalsQ = supabase.from("goals").select("progress, status");
       if (orgId) {
         empQ = empQ.eq("organization_id", orgId);
