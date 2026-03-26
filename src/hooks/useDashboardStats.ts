@@ -74,8 +74,12 @@ export function useDashboardStats() {
       const calcTotals = (lines: any[]) => {
         let revenue = 0, expenses = 0;
         (lines || []).forEach((l: any) => {
-          if (revenueIds.has(l.gl_account_id)) revenue += Number(l.credit || 0);
-          if (expenseIds.has(l.gl_account_id)) expenses += Number(l.debit || 0);
+          if (revenueIds.has(l.gl_account_id)) {
+            revenue += Number(l.credit || 0) - Number(l.debit || 0);
+          }
+          if (expenseIds.has(l.gl_account_id)) {
+            expenses += Number(l.debit || 0) - Number(l.credit || 0);
+          }
         });
         return { revenue, expenses };
       };
