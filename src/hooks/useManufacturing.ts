@@ -542,7 +542,7 @@ export function usePostFinishedGoods() {
             .select("purchase_price, selling_price, current_stock")
             .eq("id", params.product_item_id)
             .maybeSingle();
-          const rate = params.cost_per_unit ?? Number((itemRow as any)?.purchase_price || (itemRow as any)?.selling_price || 0) || null;
+          const rate = params.cost_per_unit ?? (Number((itemRow as any)?.purchase_price || (itemRow as any)?.selling_price || 0) || null);
           const value = rate ? params.quantity * rate : null;
           // Compute running balance_qty
           const { data: lastEntry } = await supabase
