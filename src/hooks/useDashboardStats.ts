@@ -20,9 +20,16 @@ export interface DashboardStats {
 }
 
 /**
- * Dashboard stats now read from journal_lines + gl_accounts (unified source).
- * Revenue = credits to revenue GL accounts in current month.
- * Expenses = debits to expense GL accounts in current month.
+ * Dashboard stats:
+ * - Revenue  = sum of paid invoices issued in the current calendar month.
+ *              (invoice payments only write to bank_transactions, never to
+ *               journal_lines or financial_records, so invoices is the only
+ *               reliable source of truth for paid revenue.)
+ * - Pending  = invoices with status sent | overdue | acknowledged | dispute.
+ *              draft is excluded (not yet sent); acknowledged/dispute are
+ *              included (sent but not yet paid).
+ * - Expenses = debits to expense GL accounts in current month via journal_lines
+ *              (unchanged — expenses are posted via journal entries).
  */
 export function useDashboardStats() {
   const { user } = useAuth();
@@ -37,105 +44,132 @@ export function useDashboardStats() {
       if (isDevMode) return getEmptyStats();
 
       const now = new Date();
-      const currentMonthStart = startOfMonth(now).toISOString().split("T")[0];
-      const currentMonthEnd = endOfMonth(now).toISOString().split("T")[0];
-      const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
-      const lastMonthEnd = endOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
+      // timestamptz bounds — use exclusive upper bound (start of next month)
+      // so records on the last day of the month are not cut off at midnight.
+      const currentMonthStart = startOfMonth(now).toISOString();
+      const currentMonthExclEnd = startOfMonth(subMonths(now, -1)).toISOString();
+      const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString();
+      const lastMonthExclEnd = startOfMonth(now).toISOString();
+      // DATE bounds for journal_entries.entry_date (DATE column)
+      const currentMonthStartDate = startOfMonth(now).toISOString().split("T")[0];
+      const currentMonthEndDate = endOfMonth(now).toISOString().split("T")[0];
+      const lastMonthStartDate = startOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
+      const lastMonthEndDate = endOfMonth(subMonths(now, 1)).toISOString().split("T")[0];
 
-      // Get GL accounts to identify revenue vs expense — org-scoped
+      // ── Revenue: sum paid invoices for current month (org-scoped) ──────────
+      // Invoices are the source of truth — payments only write to bank_transactions,
+      // not to journal_lines or financial_records.
+      let paidInvCurrQ = supabase
+        .from("invoices")
+        .select("amount")
+        .eq("status", "paid")
+        .gte("created_at", currentMonthStart)
+        .lt("created_at", currentMonthExclEnd);
+      let paidInvLastQ = supabase
+        .from("invoices")
+        .select("amount")
+        .eq("status", "paid")
+        .gte("created_at", lastMonthStart)
+        .lt("created_at", lastMonthExclEnd);
+
+      // ── Expenses: GL-based via journal_lines (org-scoped) ──────────────────
       let glQuery = supabase
         .from("gl_accounts")
         .select("id, account_type")
-        .in("account_type", ["revenue", "expense"])
+        .eq("account_type", "expense")
         .eq("is_active", true);
-      if (orgId) glQuery = glQuery.eq("organization_id", orgId);
-      const { data: glAccounts } = await glQuery;
-
-      const revenueIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "revenue").map((a: any) => a.id));
-      const expenseIds = new Set((glAccounts || []).filter((a: any) => a.account_type === "expense").map((a: any) => a.id));
-
-      // Current month journal lines — org-scoped via journal_entries join, only posted & non-deleted entries
-      let curLinesQ = supabase
+      // Current month journal lines — posted & non-deleted entries only
+      let currLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
         .eq("journal_entries.is_posted", true)
         .eq("journal_entries.is_deleted", false)
-        .gte("journal_entries.entry_date", currentMonthStart)
-        .lte("journal_entries.entry_date", currentMonthEnd);
-      if (orgId) curLinesQ = curLinesQ.eq("journal_entries.organization_id", orgId);
-      const { data: currentLines } = await curLinesQ;
-
-      // Last month journal lines — org-scoped via journal_entries join, only posted & non-deleted entries
+        .gte("journal_entries.entry_date", currentMonthStartDate)
+        .lte("journal_entries.entry_date", currentMonthEndDate);
       let lastLinesQ = supabase
         .from("journal_lines")
-        .select("debit, credit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
         .eq("journal_entries.is_posted", true)
         .eq("journal_entries.is_deleted", false)
-        .gte("journal_entries.entry_date", lastMonthStart)
-        .lte("journal_entries.entry_date", lastMonthEnd);
+        .gte("journal_entries.entry_date", lastMonthStartDate)
+        .lte("journal_entries.entry_date", lastMonthEndDate);
       if (orgId) lastLinesQ = lastLinesQ.eq("journal_entries.organization_id", orgId);
       const { data: lastMonthLines } = await lastLinesQ;
 
-      const calcTotals = (lines: any[]) => {
-        let revenue = 0, expenses = 0;
-        (lines || []).forEach((l: any) => {
-          if (revenueIds.has(l.gl_account_id)) {
-            revenue += Number(l.credit || 0) - Number(l.debit || 0);
-          }
-          if (expenseIds.has(l.gl_account_id)) {
-            expenses += Number(l.debit || 0) - Number(l.credit || 0);
-          }
-        });
-        return { revenue, expenses };
-      };
+      // ── Other stats ────────────────────────────────────────────────────────
+      // Pending = sent to client but not yet paid (excludes draft, includes
+      //           acknowledged and dispute which were added as new statuses)
+      const PENDING_STATUSES = ["sent", "overdue", "acknowledged", "dispute"];
+      let empQ    = supabase.from("profiles").select("id").eq("status", "active");
+      let invPendQ = supabase.from("invoices").select("id").in("status", PENDING_STATUSES);
+      let invPendLastQ = supabase
+        .from("invoices").select("id")
+        .in("status", PENDING_STATUSES)
+        .gte("created_at", lastMonthStart)
+        .lt("created_at", lastMonthExclEnd);
+      let goalsQ  = supabase.from("goals").select("progress, status");
 
-      const current = calcTotals(currentLines || []);
-      const lastMonth = calcTotals(lastMonthLines || []);
-
-      const revenueChange = lastMonth.revenue > 0
-        ? ((current.revenue - lastMonth.revenue) / lastMonth.revenue) * 100
-        : 0;
-      const expenseChange = lastMonth.expenses > 0
-        ? ((current.expenses - lastMonth.expenses) / lastMonth.expenses) * 100
-        : 0;
-
-      // Non-financial stats (unchanged)
-      // Org-scoped non-financial stats
-      let empQ = supabase.from("profiles").select("id").eq("status", "active");
-      let invQ = supabase.from("invoices").select("id").eq("is_deleted", false).in("status", ["draft", "sent", "overdue"]);
-      let invLastQ = supabase.from("invoices").select("id").eq("is_deleted", false).in("status", ["draft", "sent", "overdue"]).gte("created_at", lastMonthStart).lte("created_at", lastMonthEnd);
-      let goalsQ = supabase.from("goals").select("progress, status");
       if (orgId) {
-        empQ = empQ.eq("organization_id", orgId);
-        invQ = invQ.eq("organization_id", orgId);
-        invLastQ = invLastQ.eq("organization_id", orgId);
-        goalsQ = goalsQ.eq("organization_id", orgId);
+        paidInvCurrQ  = paidInvCurrQ.eq("organization_id", orgId);
+        paidInvLastQ  = paidInvLastQ.eq("organization_id", orgId);
+        glQuery       = glQuery.eq("organization_id", orgId);
+        empQ          = empQ.eq("organization_id", orgId);
+        invPendQ      = invPendQ.eq("organization_id", orgId);
+        invPendLastQ  = invPendLastQ.eq("organization_id", orgId);
+        goalsQ        = goalsQ.eq("organization_id", orgId);
       }
-      const [employeesResult, pendingInvoicesResult, lastMonthInvoicesResult, goalsResult] = await Promise.all([
-        empQ, invQ, invLastQ, goalsQ,
+
+      const [
+        paidCurrRes, paidLastRes,
+        glRes,
+        currLinesRes, lastLinesRes,
+        employeesRes, pendingRes, pendingLastRes, goalsRes,
+      ] = await Promise.all([
+        paidInvCurrQ, paidInvLastQ,
+        glQuery,
+        currLinesQ, lastLinesQ,
+        empQ, invPendQ, invPendLastQ, goalsQ,
       ]);
 
-      const activeEmployees = employeesResult.data?.length || 0;
-      const pendingInvoices = pendingInvoicesResult.data?.length || 0;
-      const lastMonthPendingInvoices = lastMonthInvoicesResult.data?.length || 0;
+      // Revenue from paid invoices
+      const currentRevenue  = (paidCurrRes.data  || []).reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
+      const lastRevenue     = (paidLastRes.data   || []).reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
+      const revenueChange   = lastRevenue > 0
+        ? ((currentRevenue - lastRevenue) / lastRevenue) * 100 : 0;
 
-      const goals = goalsResult.data || [];
+      // Expenses from journal lines (GL-filtered, org-scoped)
+      const expenseIds = new Set(
+        (glRes.data || []).map((a: any) => a.id)
+      );
+      const sumExpenses = (lines: any[]) =>
+        lines.reduce((s: number, l: any) =>
+          expenseIds.has(l.gl_account_id) ? s + Number(l.debit || 0) : s, 0);
+      const currentExpenses = sumExpenses(currLinesRes.data || []);
+      const lastExpenses    = sumExpenses(lastLinesRes.data || []);
+      const expenseChange   = lastExpenses > 0
+        ? ((currentExpenses - lastExpenses) / lastExpenses) * 100 : 0;
+
+      const activeEmployees       = employeesRes.data?.length  || 0;
+      const pendingInvoices       = pendingRes.data?.length    || 0;
+      const lastMonthPending      = pendingLastRes.data?.length || 0;
+
+      const goals = goalsRes.data || [];
       const avgProgress = goals.length > 0
-        ? Math.round(goals.reduce((sum: number, g: any) => sum + g.progress, 0) / goals.length)
+        ? Math.round(goals.reduce((s: number, g: any) => s + g.progress, 0) / goals.length)
         : 0;
 
       return {
-        totalRevenue: current.revenue,
-        revenueChange: Math.round(revenueChange * 10) / 10,
-        totalExpenses: current.expenses,
-        expenseChange: Math.round(expenseChange * 10) / 10,
-        netIncome: current.revenue - current.expenses,
+        totalRevenue:   currentRevenue,
+        revenueChange:  Math.round(revenueChange * 10) / 10,
+        totalExpenses:  currentExpenses,
+        expenseChange:  Math.round(expenseChange * 10) / 10,
+        netIncome:      currentRevenue - currentExpenses,
         activeEmployees,
         employeeChange: 0,
         pendingInvoices,
-        invoiceChange: pendingInvoices - lastMonthPendingInvoices,
-        goalsAchieved: avgProgress,
-        goalsChange: 0,
+        invoiceChange:  pendingInvoices - lastMonthPending,
+        goalsAchieved:  avgProgress,
+        goalsChange:    0,
       };
     },
     enabled: !!user || isDevMode,
