@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil, Eye } from "lucide-react";
+import { Plus, Wrench, Clock, PlayCircle, CheckCircle, Search, ClipboardCheck, PackageCheck, Pencil, Eye, MoreHorizontal, XCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   useWorkOrders, useCreateWorkOrder, useUpdateWorkOrder, useUpdateWOStatus, useRecordProduction, usePostFinishedGoods,
   useBOMs, useBOMCostRollup, WorkOrder,
@@ -245,54 +246,61 @@ export default function WorkOrders() {
       ),
     },
     { key: "priority", header: "Priority", render: (r) => <Badge className={priorityColors[r.priority] || ""}>{r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</Badge> },
+    { key: "planned_start", header: "Start", render: (r) => r.planned_start ? format(new Date(r.planned_start), "dd MMM") : <span className="text-muted-foreground">—</span> },
+    {
+      key: "status", header: "Status",
+      render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>,
+    },
     {
       key: "id" as any, header: "Actions",
       render: (r) => {
         const allowed = VALID_TRANSITIONS[r.status] ?? [];
+        const fgPosted = postedWOIds.includes(r.id);
         return (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setViewingWO(r); setViewDialogOpen(true); }}>
-              <Eye className="h-3.5 w-3.5 mr-1" /> View
-            </Button>
-            {r.status === "draft" && (
-              <Button variant="outline" size="sm" onClick={() => openEditWO(r)}>
-                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            )}
-            {r.status === "in_progress" && (
-              <Button variant="outline" size="sm" onClick={() => openProdDialog(r)}>
-                <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Record
-              </Button>
-            )}
-            {r.status === "completed" && (
-              postedWOIds.includes(r.id) ? (
-                <Button variant="outline" size="sm" disabled title="Finished goods already posted">
-                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> FG Posted
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => openFgDialog(r)}>
-                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> Post FG
-                </Button>
-              )
-            )}
-            {allowed.length > 0 ? (
-              <Select value="" onValueChange={(v) => { if (v && v !== r.status) updateStatus.mutate({ id: r.id, status: v }); }}>
-                <SelectTrigger className="w-[130px] h-8">
-                  <span>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  {allowed.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ")}</Badge>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setViewingWO(r); setViewDialogOpen(true); }}>
+                <Eye className="h-4 w-4 mr-2" /> View
+              </DropdownMenuItem>
+              {r.status === "draft" && (
+                <DropdownMenuItem onClick={() => openEditWO(r)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                </DropdownMenuItem>
+              )}
+              {r.status === "in_progress" && (
+                <DropdownMenuItem onClick={() => openProdDialog(r)}>
+                  <ClipboardCheck className="h-4 w-4 mr-2" /> Record Production
+                </DropdownMenuItem>
+              )}
+              {r.status === "completed" && (
+                fgPosted ? (
+                  <DropdownMenuItem disabled className="text-muted-foreground">
+                    <PackageCheck className="h-4 w-4 mr-2" /> FG Already Posted
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => openFgDialog(r)}>
+                    <PackageCheck className="h-4 w-4 mr-2" /> Post Finished Goods
+                  </DropdownMenuItem>
+                )
+              )}
+              {allowed.length > 0 && <DropdownMenuSeparator />}
+              {allowed.map((s) => (
+                <DropdownMenuItem key={s} onClick={() => updateStatus.mutate({ id: r.id, status: s })}
+                  className={s === "cancelled" ? "text-destructive" : ""}>
+                  {s === "cancelled" ? <XCircle className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                  {s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
-    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[120px] block">{r.notes || "—"}</span> },
-    { key: "planned_start", header: "Start", render: (r) => r.planned_start ? format(new Date(r.planned_start), "dd MMM") : <span className="text-muted-foreground">—</span> },
   ];
 
   return (

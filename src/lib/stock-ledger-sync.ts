@@ -47,10 +47,30 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     }
   }
 
+  // Fetch current balance_qty per item+warehouse to compute running balance
+  const balanceMap: Map<string, number> = new Map();
+  const uniquePairs = [...new Set(entries.map((e) => `${e.item_id}__${e.warehouse_id}`))];
+  for (const pair of uniquePairs) {
+    const [itemId, warehouseId] = pair.split("__");
+    const { data: lastEntry } = await supabase
+      .from("stock_ledger" as any)
+      .select("balance_qty")
+      .eq("item_id", itemId)
+      .eq("warehouse_id", warehouseId)
+      .order("posted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    balanceMap.set(pair, Number((lastEntry as any)?.balance_qty ?? 0));
+  }
+
   const rows = entries.map((e) => {
     const signedQty = e.entry_type === "out" ? -Math.abs(e.quantity) : Math.abs(e.quantity);
     const rate = e.rate ?? itemRateMap.get(e.item_id) ?? null;
     const value = rate != null ? Math.abs(signedQty) * rate : null;
+    const pair = `${e.item_id}__${e.warehouse_id}`;
+    const prevBalance = balanceMap.get(pair) ?? 0;
+    const newBalance = prevBalance + signedQty;
+    balanceMap.set(pair, newBalance);
     return {
       item_id: e.item_id,
       warehouse_id: e.warehouse_id,
@@ -60,6 +80,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
       reference_id: e.reference_id,
       notes: e.notes || null,
       posted_at: new Date().toISOString(),
+      balance_qty: newBalance,
       ...(e.organization_id ? { organization_id: e.organization_id } : {}),
       ...(rate != null ? { rate } : {}),
       ...(value != null ? { value } : {}),
@@ -68,6 +89,27 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
 
   const { error } = await supabase.from("stock_ledger" as any).insert(rows as any);
   if (error) throw error;
+
+  // Update items.current_stock to reflect actual ledger balance (per item across all warehouses)
+  const itemStockDeltas: Map<string, number> = new Map();
+  for (const e of entries) {
+    const signedQty = e.entry_type === "out" ? -Math.abs(e.quantity) : Math.abs(e.quantity);
+    itemStockDeltas.set(e.item_id, (itemStockDeltas.get(e.item_id) ?? 0) + signedQty);
+  }
+  for (const [itemId, delta] of itemStockDeltas) {
+    if (delta === 0) continue;
+    // Fetch current stock and add delta
+    const { data: itemRow } = await supabase
+      .from("items" as any)
+      .select("current_stock")
+      .eq("id", itemId)
+      .maybeSingle();
+    const currentStock = Number((itemRow as any)?.current_stock ?? 0);
+    await supabase
+      .from("items" as any)
+      .update({ current_stock: currentStock + delta } as any)
+      .eq("id", itemId);
+  }
 }
 
 /**
@@ -281,6 +323,13 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
   });
 
   if (consumptionRecords.length > 0) {
+    // Delete any existing consumption records for this WO first (prevents duplicates
+    // when both useRecordProduction and consumeBOMForWorkOrder are called)
+    await supabase
+      .from("material_consumption" as any)
+      .delete()
+      .eq("work_order_id", workOrderId)
+      .eq("organization_id", woOrgId);
     await supabase.from("material_consumption" as any).insert(consumptionRecords as any);
   }
 }

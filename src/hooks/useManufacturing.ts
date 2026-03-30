@@ -536,16 +536,46 @@ export function usePostFinishedGoods() {
           warehouseId = (defaultWh as any)?.[0]?.id ?? null;
         }
         if (warehouseId) {
+          // Fetch item rate for rate/value fields
+          const { data: itemRow } = await supabase
+            .from("items" as any)
+            .select("purchase_price, selling_price, current_stock")
+            .eq("id", params.product_item_id)
+            .maybeSingle();
+          const rate = params.cost_per_unit ?? Number((itemRow as any)?.purchase_price || (itemRow as any)?.selling_price || 0) || null;
+          const value = rate ? params.quantity * rate : null;
+          // Compute running balance_qty
+          const { data: lastEntry } = await supabase
+            .from("stock_ledger" as any)
+            .select("balance_qty")
+            .eq("item_id", params.product_item_id)
+            .eq("warehouse_id", warehouseId)
+            .order("posted_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const prevBalance = Number((lastEntry as any)?.balance_qty ?? 0);
+          const newBalance = prevBalance + params.quantity;
           await supabase.from("stock_ledger" as any).insert({
             item_id: params.product_item_id,
             warehouse_id: warehouseId,
             quantity: params.quantity,
             entry_type: "in",
+            transaction_type: "production_in",
             reference_type: "finished_goods",
             reference_id: (fgEntry as any).id,
             notes: `Finished goods receipt: ${params.product_name}`,
             posted_at: new Date().toISOString(),
+            organization_id: callerProfile.organization_id,
+            balance_qty: newBalance,
+            ...(rate != null ? { rate } : {}),
+            ...(value != null ? { value } : {}),
           } as any);
+          // Update items.current_stock
+          const currentStock = Number((itemRow as any)?.current_stock ?? 0);
+          await supabase
+            .from("items" as any)
+            .update({ current_stock: currentStock + params.quantity } as any)
+            .eq("id", params.product_item_id);
         }
       }
 

@@ -107,18 +107,26 @@ export default function StockAdjustments() {
   return (
     <MainLayout title="Stock Adjustments" subtitle="Create and manage inventory adjustments">
       <div className="space-y-6 animate-fade-in">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-primary/10"><ClipboardList className="h-6 w-6 text-primary" /></div>
-            <div><p className="text-sm text-muted-foreground">Total Adjustments</p><p className="text-2xl font-bold text-foreground">{adjustments?.length || 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Total</p><p className="text-2xl font-bold text-foreground">{adjustments?.length || 0}</p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-accent/20"><ClipboardList className="h-6 w-6 text-accent-foreground" /></div>
+            <div className="p-3 rounded-xl bg-muted"><ClipboardList className="h-6 w-6 text-muted-foreground" /></div>
+            <div><p className="text-sm text-muted-foreground">Draft</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "draft").length}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-blue-500/10"><ClipboardList className="h-6 w-6 text-blue-500" /></div>
             <div><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "approved").length}</p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-secondary/50"><ClipboardList className="h-6 w-6 text-secondary-foreground" /></div>
+            <div className="p-3 rounded-xl bg-green-500/10"><ClipboardList className="h-6 w-6 text-green-500" /></div>
             <div><p className="text-sm text-muted-foreground">Posted</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "posted").length}</p></div>
+          </CardContent></Card>
+          <Card><CardContent className="pt-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-destructive/10"><ClipboardList className="h-6 w-6 text-destructive" /></div>
+            <div><p className="text-sm text-muted-foreground">Cancelled</p><p className="text-2xl font-bold text-foreground">{(adjustments || []).filter((a: any) => a.status === "cancelled").length}</p></div>
           </CardContent></Card>
         </div>
 
