@@ -147,54 +147,54 @@ export default function SalesOrders() {
     {
       key: "id" as any, header: "Actions",
       render: (r) => (
-        <div className="flex items-center gap-1">
-          {r.status === "draft" && (
-            <Button variant="outline" size="sm" onClick={() => openEditSO(r)}>
-              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-            </Button>
-          )}
-          {r.status !== "draft" && (
-            <Button variant="outline" size="sm" onClick={() => { setViewingSO(r); setViewDialogOpen(true); }}>
-              <Eye className="h-3.5 w-3.5 mr-1" /> View
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {r.status === "draft" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}><CheckCircle className="h-4 w-4 mr-2" /> Confirm</DropdownMenuItem>}
-              {["confirmed", "processing"].includes(r.status) && !hasDN(r.id) && (
-                <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
-                  <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
-                </DropdownMenuItem>
-              )}
-              {["confirmed", "processing"].includes(r.status) && hasDN(r.id) && (
-                <DropdownMenuItem disabled className="text-muted-foreground">
-                  <PackageCheck className="h-4 w-4 mr-2" /> DN Already Created
-                </DropdownMenuItem>
-              )}
-              {["delivered", "shipped"].includes(r.status) && (
-                <DropdownMenuItem onClick={() => convertToInvoice.mutate(r)}>
-                  <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
-                </DropdownMenuItem>
-              )}
-              {r.status === "delivered" && (
-                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "returned" })}>
-                  <RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned
-                </DropdownMenuItem>
-              )}
-              {["draft", "confirmed"].includes(r.status) && (
-                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
-                  <XCircle className="h-4 w-4 mr-2" /> Cancel Order
-                </DropdownMenuItem>
-              )}
-              {r.status === "draft" && (
-                <DropdownMenuItem onClick={() => deleteSO.mutate(r.id)} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => { setViewingSO(r); setViewDialogOpen(true); }}>
+              <Eye className="h-4 w-4 mr-2" /> View
+            </DropdownMenuItem>
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => openEditSO(r)}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "confirmed" })}>
+                <CheckCircle className="h-4 w-4 mr-2" /> Confirm
+              </DropdownMenuItem>
+            )}
+            {["confirmed", "processing"].includes(r.status) && !hasDN(r.id) && (
+              <DropdownMenuItem onClick={() => createDN.mutate({ sales_order_id: r.id, delivery_date: new Date().toISOString().split("T")[0] })}>
+                <PackageCheck className="h-4 w-4 mr-2" /> Create Delivery Note
+              </DropdownMenuItem>
+            )}
+            {["confirmed", "processing"].includes(r.status) && hasDN(r.id) && (
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                <PackageCheck className="h-4 w-4 mr-2" /> DN Already Created
+              </DropdownMenuItem>
+            )}
+            {["delivered", "shipped"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => convertToInvoice.mutate(r)}>
+                <FileText className="h-4 w-4 mr-2" /> Convert to Invoice
+              </DropdownMenuItem>
+            )}
+            {r.status === "delivered" && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "returned" })}>
+                <RotateCcw className="h-4 w-4 mr-2" /> Mark as Returned
+              </DropdownMenuItem>
+            )}
+            {["draft", "confirmed"].includes(r.status) && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: r.id, status: "cancelled" })} className="text-destructive">
+                <XCircle className="h-4 w-4 mr-2" /> Cancel Order
+              </DropdownMenuItem>
+            )}
+            {r.status === "draft" && (
+              <DropdownMenuItem onClick={() => deleteSO.mutate(r.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];

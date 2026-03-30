@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
 import { useFinancialRecords } from "@/hooks/useFinancialData";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
@@ -37,6 +37,15 @@ export default function ExchangeRatesPage() {
   const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
   const { data: currencies = [], isLoading: curLoading } = useCurrencies();
+  // Load ALL currencies (including inactive) specifically for the currencies management tab
+  const { data: allCurrencies = [], isLoading: allCurLoading } = useQuery({
+    queryKey: ["currencies-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("currencies" as any).select("*").order("code");
+      if (error) throw error;
+      return (data || []) as unknown as import("@/hooks/useCurrencyAndFiling").Currency[];
+    },
+  });
   const { data: rates = [], isLoading: rateLoading } = useExchangeRates();
   const { data: financialRecords = [] } = useFinancialRecords();
   const createRate = useCreateExchangeRate();
@@ -46,7 +55,10 @@ export default function ExchangeRatesPage() {
       const { error } = await supabase.from("currencies" as any).update({ is_active: !is_active }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["currencies"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currencies"] });
+      queryClient.invalidateQueries({ queryKey: ["currencies-all"] });
+    },
   });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ from_currency: "USD", to_currency: "INR", rate: "", effective_date: new Date().toISOString().split("T")[0] });
@@ -142,7 +154,7 @@ export default function ExchangeRatesPage() {
 
   const totalUnrealizedGL = unrealizedLines.reduce((sum, l) => sum + l.unrealizedGainLoss, 0);
 
-  const isLoading = curLoading || rateLoading;
+  const isLoading = curLoading || rateLoading || allCurLoading;
   if (isLoading) return <MainLayout title="Exchange Rates"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
 
   return (
@@ -336,7 +348,7 @@ export default function ExchangeRatesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currencies.map(c => (
+                    {allCurrencies.map(c => (
                       <TableRow key={c.id}>
                         <TableCell className="font-mono font-semibold text-foreground">{c.code}</TableCell>
                         <TableCell className="text-foreground">{c.name}</TableCell>

@@ -89,14 +89,20 @@ export default function GoodsReceipts() {
 
     const { data: poItems } = await supabase
       .from("purchase_order_items" as any)
-      .select("item_id, description, quantity, received_quantity")
+      .select("item_id, description, quantity, received_quantity, unit_price")
       .eq("purchase_order_id", selectedPO);
 
-    const items = ((poItems as any[]) || []).map((i: any) => ({
-      item_id: i.item_id || undefined,
-      description: i.description,
-      quantity_received: Number(i.quantity) - Number(i.received_quantity || 0),
-    })).filter(i => i.quantity_received > 0);
+    const items = ((poItems as any[]) || []).map((i: any) => {
+      const qty = Number(i.quantity) - Number(i.received_quantity || 0);
+      const unitPrice = Number(i.unit_price || 0);
+      return {
+        item_id: i.item_id || undefined,
+        description: i.description,
+        quantity_received: qty,
+        unit_price: unitPrice || undefined,
+        amount: unitPrice ? qty * unitPrice : undefined,
+      };
+    }).filter(i => i.quantity_received > 0);
 
     if (items.length === 0) { toast.error("All items already received for this PO"); return; }
 

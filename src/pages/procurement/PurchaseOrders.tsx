@@ -197,18 +197,11 @@ export default function PurchaseOrders() {
     { key: "notes", header: "Notes", render: (r) => r.notes ? <span className="text-muted-foreground text-xs max-w-[200px] block" title={r.notes}>{r.notes}</span> : <span className="text-muted-foreground text-xs">—</span> },
     {
       key: "status", header: "Status",
-      render: (r) => {
-        const nextStatuses = PO_TRANSITIONS[r.status] || [];
-        return (
-          <Select value={r.status} onValueChange={(v) => updateStatus.mutate({ id: r.id, status: v })}>
-            <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={r.status}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>
-              {nextStatuses.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        );
-      },
+      render: (r) => (
+        <Badge className={statusColors[r.status] || "bg-muted text-muted-foreground"}>
+          {r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+        </Badge>
+      ),
     },
     {
       key: "id", header: "Actions",
