@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Plus, ArrowRightLeft, Globe, TrendingUp, TrendingDown, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useCurrencies, useExchangeRates, useCreateExchangeRate } from "@/hooks/useCurrencyAndFiling";
 import { useFinancialRecords } from "@/hooks/useFinancialData";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
