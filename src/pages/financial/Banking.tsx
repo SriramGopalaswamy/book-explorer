@@ -41,7 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Upload } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const staggerContainer = {
@@ -64,6 +64,10 @@ import {
 } from "@/hooks/useBanking";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/BulkUploadDialog";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -75,6 +79,9 @@ const formatCurrency = (value: number) => {
 export default function Banking() {
   // Role-based access control
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const queryClient = useQueryClient();
   
   const { data: accounts = [], isLoading: accountsLoading } = useBankAccounts();
   const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
@@ -280,6 +287,49 @@ export default function Banking() {
             <CardDescription>Connected bank accounts and balances</CardDescription>
           </div>
           <div className="flex gap-2">
+            {/* Bulk Upload Accounts */}
+            {orgId && (() => {
+              const bulkConfig: BulkUploadConfig = {
+                title: "Bulk Upload Bank Accounts",
+                description: "Upload multiple bank accounts at once using a CSV file.",
+                module: "banking",
+                columns: [
+                  { key: "name", label: "Account Name", required: true },
+                  { key: "bank_name", label: "Bank Name" },
+                  { key: "account_number", label: "Account Number", required: true },
+                  { key: "account_type", label: "Account Type (Current/Savings/OD/CC)", required: true },
+                  { key: "balance", label: "Opening Balance", required: true },
+                ],
+                templateFileName: "bank_accounts_template.csv",
+                templateContent: "name,bank_name,account_number,account_type,balance\nHDFC Current Account,HDFC Bank,1234567890,Current,50000\nSBI Savings,State Bank of India,9876543210,Savings,25000",
+                onUpload: async (rows) => {
+                  let success = 0;
+                  const errors: string[] = [];
+                  for (const row of rows) {
+                    const bal = parseFloat(row.balance);
+                    if (!row.name || !row.account_number || isNaN(bal)) {
+                      errors.push(`Row ${rows.indexOf(row) + 2}: Missing required fields`);
+                      continue;
+                    }
+                    const validTypes = ["Current", "Savings", "OD", "CC"];
+                    const acType = validTypes.includes(row.account_type) ? row.account_type : "Current";
+                    const { error } = await supabase.from("bank_accounts").insert({
+                      name: row.name,
+                      bank_name: row.bank_name || null,
+                      account_number: row.account_number,
+                      account_type: acType as BankAccount["account_type"],
+                      balance: bal,
+                      organization_id: orgId,
+                    } as any);
+                    if (error) errors.push(`Row ${rows.indexOf(row) + 2}: ${error.message}`);
+                    else success++;
+                  }
+                  queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+                  return { success, errors };
+                },
+              };
+              return <BulkUploadDialog config={bulkConfig} />;
+            })()}
             <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">

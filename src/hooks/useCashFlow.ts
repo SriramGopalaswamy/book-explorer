@@ -100,8 +100,10 @@ export function useUpdatePaymentStatus() {
       if (!validStatuses.includes(status)) throw new Error("Invalid payment status");
 
       // ── Lifecycle state-machine ───────────────────────────────
+      // scheduled → completed (direct) is allowed so users can mark a payment
+      // done in one step without having to first move it to "pending".
       const SP_TRANSITIONS: Record<string, string[]> = {
-        scheduled: ["pending", "cancelled"],
+        scheduled: ["pending", "completed", "cancelled"],
         pending: ["completed", "cancelled"],
         completed: [],   // terminal
         cancelled: [],   // terminal

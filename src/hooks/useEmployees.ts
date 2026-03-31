@@ -338,6 +338,7 @@ export function useDeleteEmployee() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
+      toast.success("Employee deleted. Their profile and login access have been permanently removed.");
     },
     onError: (error) => {
       toast.error(error.message);

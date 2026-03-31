@@ -121,7 +121,7 @@ export default function MCPToolExplorer() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: "Total Tools", value: MCP_TOTAL_TOOLS, icon: "🔧" },
-            { label: "Modules", value: MCP_MODULES.length, icon: "📦" },
+            { label: "Tool-Enabled Modules", value: MCP_MODULES.length, icon: "📦" },
             { label: "Server Version", value: MCP_VERSION, icon: "🚀" },
             { label: "Transport", value: "stdio", icon: "⚡" },
           ].map(({ label, value, icon }) => (

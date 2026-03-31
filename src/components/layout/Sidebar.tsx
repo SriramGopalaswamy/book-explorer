@@ -110,11 +110,9 @@ const financialNav: NavItem[] = [
   { name: "E-Invoices", path: "/financial/e-invoices", icon: FileText, module: "financial" },
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
   { name: "Recurring", path: "/financial/recurring", icon: RefreshCw, module: "financial" },
-  { name: "Workflows", path: "/financial/workflows", icon: GitBranch, module: "financial" },
   { name: "Automation", path: "/financial/automation", icon: Zap, module: "financial" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, module: "financial" },
-  { name: "Automation Studio", path: "/financial/automation", icon: Zap, module: "financial" },
 ];
 
 const hrmsNav: NavItem[] = [
