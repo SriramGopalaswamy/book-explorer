@@ -327,11 +327,13 @@ Deno.serve(async (req) => {
   if (invoiceRef) {
     // Escape SQL LIKE wildcards to prevent unintended matches
     const escapedRef = invoiceRef.replace(/%/g, "\\%").replace(/_/g, "\\_");
-    const { data: invByRef } = await supabase
+    let refQ = supabase
       .from("invoices")
       .select("id, invoice_number, organization_id, client_name, client_email, client_phone, status")
-      .ilike("invoice_number", `%${escapedRef}%`)
-      .maybeSingle();
+      .ilike("invoice_number", `%${escapedRef}%`);
+    // Scope to the sending org when available (prevents cross-tenant match)
+    if (providedOrgId) refQ = refQ.eq("organization_id", providedOrgId);
+    const { data: invByRef } = await refQ.maybeSingle();
 
     if (invByRef) {
       invoice = invByRef;
@@ -343,14 +345,16 @@ Deno.serve(async (req) => {
   if (!invoice) {
     const phoneVariants = [normalizedPhone, fromPhone, normalizedPhone.replace("+", "")];
     for (const variant of phoneVariants) {
-      const { data: invByPhone } = await supabase
+      let phoneQ = supabase
         .from("invoices")
         .select("id, invoice_number, organization_id, client_name, client_email, client_phone, status")
         .eq("client_phone", variant)
         .in("status", ["sent", "overdue"])
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      // Scope to the sending org to prevent cross-tenant phone collisions
+      if (providedOrgId) phoneQ = phoneQ.eq("organization_id", providedOrgId);
+      const { data: invByPhone } = await phoneQ.maybeSingle();
 
       if (invByPhone) {
         invoice = invByPhone;

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { verifyPdfSignature } from "@/lib/pdfSignatureVerifier";
 
 // Storage bucket — uses the existing invoice-assets bucket (private, finance/admin upload policy).
@@ -22,11 +22,9 @@ let _migrationWarningShown = false;
 function warnMigrationNeeded() {
   if (_migrationWarningShown) return;
   _migrationWarningShown = true;
-  toast({
-    title: "Database migration pending",
+  toast("Database migration pending", {
     description:
       "Apply migration 20260317200000_add_aadhaar_esign.sql in the Supabase SQL Editor to enable full signing status tracking.",
-    variant: "default",
   });
 }
 
@@ -135,11 +133,7 @@ export function useInitiateAadhaarSign() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Could not initiate signing",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     },
   });
 }
@@ -252,11 +246,7 @@ export function useUploadSignedPdf() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     },
   });
 }

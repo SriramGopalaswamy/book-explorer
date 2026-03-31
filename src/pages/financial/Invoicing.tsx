@@ -60,6 +60,7 @@ import {
   Filter,
   PenLine,
   ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -99,6 +100,10 @@ const getStatusConfig = (status: Invoice["status"]) => {
       return { label: "Draft", variant: "outline" as const, icon: Clock, className: "" };
     case "cancelled":
       return { label: "Cancelled", variant: "outline" as const, icon: XCircle, className: "text-muted-foreground" };
+    case "acknowledged":
+      return { label: "Acknowledged", variant: "default" as const, icon: CheckCircle2, className: "bg-blue-500/15 text-blue-700 border-blue-200" };
+    case "dispute":
+      return { label: "Disputed", variant: "destructive" as const, icon: AlertCircle, className: "bg-amber-500/15 text-amber-700 border-amber-200" };
     default:
       return { label: status, variant: "outline" as const, icon: Clock, className: "" };
   }
@@ -199,7 +204,7 @@ export default function Invoicing() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, email, tax_number")
+        .select("id, name, email, tax_number, phone")
         .eq("status", "active")
         .order("name");
       if (error) throw error;
@@ -219,11 +224,11 @@ export default function Invoicing() {
   // Create form state
   const [createStatus, setCreateStatus] = useState<"draft" | "sent">("draft");
   const [lineItems, setLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
+  const [formMeta, setFormMeta] = useState({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", client_phone: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   // Edit form state
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
-  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
+  const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", client_phone: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
   const { totalOutstanding, totalPaid, overdueCount, draftCount } = useMemo(() => {
     let outstanding = 0;
@@ -314,6 +319,7 @@ export default function Invoicing() {
         total_amount: total,
         notes: formMeta.notes,
         customer_gstin: formMeta.customerGstin,
+        client_phone: formMeta.client_phone || undefined,
         items: computed.map(c => ({
           description: c.description || "Services",
           quantity: parseInt(c.quantity) || 1,
@@ -332,7 +338,7 @@ export default function Invoicing() {
         onSuccess: () => {
           setSelectedCustomerId("");
           setLineItems([{ ...emptyLineItem }]);
-          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", revenueRecognition: "point_in_time", performanceObligation: "" });
+          setFormMeta({ invoiceDate: new Date().toISOString().split("T")[0], dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", client_phone: "", revenueRecognition: "point_in_time", performanceObligation: "" });
           setCreateStatus("draft");
           setIsDialogOpen(false);
         },
@@ -365,6 +371,7 @@ export default function Invoicing() {
       placeOfSupply: (invoice as any).place_of_supply || "",
       paymentTerms: (invoice as any).payment_terms || "Due on Receipt",
       customerGstin: (invoice as any).customer_gstin || "",
+      client_phone: (invoice as any).client_phone || "",
       revenueRecognition: (invoice as any).revenue_recognition || "point_in_time",
       performanceObligation: (invoice as any).performance_obligation || "",
     });
@@ -402,6 +409,7 @@ export default function Invoicing() {
         total_amount: total,
         notes: editFormMeta.notes,
         customer_gstin: editFormMeta.customerGstin,
+        client_phone: editFormMeta.client_phone || undefined,
         items: computed.map(c => ({
           description: c.description || "Services",
           quantity: parseInt(c.quantity) || 1,
@@ -550,6 +558,8 @@ export default function Invoicing() {
                 <SelectItem value="sent">Sent</SelectItem>
                 <SelectItem value="overdue">Overdue</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                <SelectItem value="dispute">Disputed</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -590,6 +600,7 @@ export default function Invoicing() {
                           if (cust?.tax_number) {
                             setFormMeta(prev => ({ ...prev, customerGstin: cust.tax_number || "" }));
                           }
+                          setFormMeta(prev => ({ ...prev, client_phone: (cust as any)?.phone || "" }));
                         }}>
                           <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                           <SelectContent>
@@ -637,6 +648,10 @@ export default function Invoicing() {
                         <Label>Customer GSTIN</Label>
                         <Input placeholder="Customer's GST number" value={formMeta.customerGstin} onChange={e => setFormMeta(prev => ({ ...prev, customerGstin: e.target.value }))} />
                       </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Client Phone (WhatsApp)</Label>
+                      <Input placeholder="+91 98765 43210" value={formMeta.client_phone} onChange={e => setFormMeta(prev => ({ ...prev, client_phone: e.target.value }))} />
                     </div>
 
                     {/* Ind AS 115 Revenue Recognition */}
@@ -728,6 +743,10 @@ export default function Invoicing() {
                         <Label>Customer GSTIN</Label>
                         <Input value={editFormMeta.customerGstin} onChange={e => setEditFormMeta(prev => ({ ...prev, customerGstin: e.target.value }))} />
                       </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Client Phone (WhatsApp)</Label>
+                      <Input placeholder="+91 98765 43210" value={editFormMeta.client_phone} onChange={e => setEditFormMeta(prev => ({ ...prev, client_phone: e.target.value }))} />
                     </div>
 
                     {/* Ind AS 115 Revenue Recognition */}
@@ -948,6 +967,9 @@ export default function Invoicing() {
                     <p className="text-xs text-muted-foreground">Client</p>
                     <p className="font-medium">{viewingInvoice.client_name}</p>
                     <p className="text-sm text-muted-foreground">{viewingInvoice.client_email}</p>
+                    {(viewingInvoice as any).client_phone && (
+                      <p className="text-sm text-muted-foreground">{(viewingInvoice as any).client_phone}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Invoice Date</p>
@@ -1057,7 +1079,7 @@ export default function Invoicing() {
                 )}
 
                 {/* Workflow Status & Message Thread */}
-                {viewingInvoice && orgData?.organizationId && (
+                {viewingInvoice && ["sent", "overdue", "acknowledged", "dispute"].includes(viewingInvoice.status) && orgData?.organizationId && (
                   <div className="pt-2 border-t space-y-4">
                     <WorkflowStatus
                       invoiceId={viewingInvoice.id}

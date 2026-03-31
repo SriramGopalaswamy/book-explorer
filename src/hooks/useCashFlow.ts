@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { mockScheduledPayments } from "@/lib/mock-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { createScheduledPaymentSchema } from "@/lib/validation-schemas";
 import { createBankTransaction } from "@/lib/bank-transaction-sync";
 
@@ -81,10 +81,10 @@ export function useCreateScheduledPayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduled-payments"] });
-      toast({ title: "Payment Scheduled", description: "Payment has been scheduled successfully." });
+      toast.success("Payment has been scheduled successfully.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -155,10 +155,10 @@ export function useUpdatePaymentStatus() {
       queryClient.invalidateQueries({ queryKey: ["cash-flow-summary"] });
       queryClient.invalidateQueries({ queryKey: ["cash-flow-data"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-      toast({ title: "Status Updated", description: "Payment marked as completed and cash flow updated." });
+      toast.success("Payment marked as completed and cash flow updated.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
@@ -191,10 +191,10 @@ export function useDeleteScheduledPayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduled-payments"] });
-      toast({ title: "Payment Deleted", description: "Scheduled payment has been removed." });
+      toast.success("Scheduled payment has been removed.");
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 }
