@@ -117,18 +117,16 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
           <Section title="III. Liabilities (Non-Current + Current)" items={bs.liabilities} total={bs.totalLiabilities} totalLabel="Total Liabilities" color="bg-amber-500/10 border border-amber-500/20 text-amber-600" type="liability" />
         </div>
         
-        {/* Accounting Equation */}
-        <div className="mt-6 p-4 rounded-xl bg-muted/50 border flex items-center justify-center gap-4 text-sm">
+        {/* Summary totals */}
+        <div className="mt-6 p-4 rounded-xl bg-muted/50 border flex items-center justify-center gap-8 text-sm">
           <div className="text-center">
             <p className="text-muted-foreground">Assets</p>
             <p className="text-lg font-bold">{formatCurrency(bs.totalAssets)}</p>
           </div>
-          <span className="text-2xl text-muted-foreground">=</span>
           <div className="text-center">
             <p className="text-muted-foreground">Liabilities</p>
             <p className="text-lg font-bold">{formatCurrency(bs.totalLiabilities)}</p>
           </div>
-          <span className="text-2xl text-muted-foreground">+</span>
           <div className="text-center">
             <p className="text-muted-foreground">Equity</p>
             <p className="text-lg font-bold">{formatCurrency(bs.totalEquity)}</p>
