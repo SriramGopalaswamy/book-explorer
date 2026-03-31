@@ -112,7 +112,28 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
 
       const { data, error, count } = await query;
       if (error) throw error;
-      return { logs: (data ?? []) as unknown as AuditLog[], total: count ?? 0 };
+
+      // Count distinct actors across ALL filtered logs (not just current page)
+      let actorsQuery = supabase
+        .from("audit_logs" as any)
+        .select("actor_id")
+        .eq("organization_id", orgId);
+      if (filters.entityType) actorsQuery = actorsQuery.eq("entity_type", filters.entityType);
+      if (filters.action)     actorsQuery = actorsQuery.eq("action", filters.action);
+      if (filters.from)       actorsQuery = actorsQuery.gte("created_at", filters.from);
+      if (filters.to)         actorsQuery = actorsQuery.lte("created_at", filters.to + "T23:59:59");
+      if (filters.search) {
+        const safeSearch = filters.search.replace(/[%_\\]/g, "").trim().slice(0, 200);
+        if (safeSearch) {
+          actorsQuery = actorsQuery.or(
+            `actor_name.ilike.%${safeSearch}%,target_name.ilike.%${safeSearch}%,action.ilike.%${safeSearch}%`
+          );
+        }
+      }
+      const { data: actorRows } = await actorsQuery;
+      const uniqueActors = new Set((actorRows ?? []).map((r: any) => r.actor_id)).size;
+
+      return { logs: (data ?? []) as unknown as AuditLog[], total: count ?? 0, uniqueActors };
     },
     enabled: !!user && !!orgId,
   });

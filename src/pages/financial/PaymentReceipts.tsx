@@ -10,13 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Filter, X } from "lucide-react";
+import { Plus, Filter, X, Eye } from "lucide-react";
 import { usePaymentReceipts, useCreatePaymentReceipt } from "@/hooks/usePayments";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
 
 const METHODS = ["bank_transfer", "cash", "cheque", "upi", "card"];
+
+type PaymentReceipt = ReturnType<typeof usePaymentReceipts>["data"] extends (infer T)[] | undefined ? T : never;
 
 export default function PaymentReceipts() {
   const { data: orgData } = useUserOrganization();
@@ -24,7 +28,24 @@ export default function PaymentReceipts() {
   const { data: receipts = [], isLoading } = usePaymentReceipts();
   const createReceipt = useCreatePaymentReceipt();
   const [open, setOpen] = useState(false);
+  const [viewReceipt, setViewReceipt] = useState<PaymentReceipt | null>(null);
   const [form, setForm] = useState({ customer_name: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" });
+
+  // Fetch active customers for dropdown
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers-active", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data } = await supabase
+        .from("customers")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    enabled: !!orgId,
+  });
 
   // Filters
   const [methodFilter, setMethodFilter] = useState("all");
@@ -81,7 +102,19 @@ export default function PaymentReceipts() {
             <DialogContent>
               <DialogHeader><DialogTitle>Record Payment Receipt</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div><Label>Customer Name</Label><Input value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} /></div>
+                <div>
+                  <Label>Customer</Label>
+                  {customers.length > 0 ? (
+                    <Select value={form.customer_name} onValueChange={v => setForm(p => ({ ...p, customer_name: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select active customer" /></SelectTrigger>
+                      <SelectContent>
+                        {customers.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} placeholder="Enter customer name" />
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Payment Date</Label><Input type="date" value={form.payment_date} onChange={e => setForm(p => ({ ...p, payment_date: e.target.value }))} /></div>
                   <div><Label>Amount</Label><Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} /></div>
@@ -118,6 +151,7 @@ export default function PaymentReceipts() {
                   <TableHead>Method</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,15 +163,50 @@ export default function PaymentReceipts() {
                     <TableCell className="text-foreground capitalize">{r.payment_method.replace("_", " ")}</TableCell>
                     <TableCell className="text-right font-medium text-foreground">₹{Number(r.amount).toLocaleString()}</TableCell>
                     <TableCell><Badge variant={r.status === "received" ? "default" : "secondary"}>{r.status}</Badge></TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewReceipt(r)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
-                {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No receipts match filters" : "No payment receipts yet"}</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No receipts match filters" : "No payment receipts yet"}</TableCell></TableRow>}
               </TableBody>
             </Table>
             <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
           </CardContent>
         </Card>
       </div>
+
+      {/* View Receipt Dialog */}
+      <Dialog open={!!viewReceipt} onOpenChange={(o) => !o && setViewReceipt(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Receipt Details</DialogTitle></DialogHeader>
+          {viewReceipt && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Receipt #</p><p className="font-mono font-medium">{viewReceipt.receipt_number}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p><Badge variant={viewReceipt.status === "received" ? "default" : "secondary"}>{viewReceipt.status}</Badge></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Customer</p><p className="font-medium">{viewReceipt.customer_name}</p></div>
+                <div><p className="text-xs text-muted-foreground">Date</p><p>{format(new Date(viewReceipt.payment_date), "dd MMM yyyy")}</p></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Amount</p><p className="text-lg font-semibold">₹{Number(viewReceipt.amount).toLocaleString()}</p></div>
+                <div><p className="text-xs text-muted-foreground">Method</p><p className="capitalize">{viewReceipt.payment_method.replace(/_/g, " ")}</p></div>
+              </div>
+              {viewReceipt.reference_number && (
+                <div><p className="text-xs text-muted-foreground">Reference #</p><p className="font-mono">{viewReceipt.reference_number}</p></div>
+              )}
+              {viewReceipt.notes && (
+                <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{viewReceipt.notes}</p></div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end"><Button variant="outline" onClick={() => setViewReceipt(null)}>Close</Button></div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

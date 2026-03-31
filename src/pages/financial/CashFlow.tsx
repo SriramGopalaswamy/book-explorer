@@ -389,7 +389,7 @@ export default function CashFlow() {
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
-                        {payment.status === "scheduled" && (
+                        {(payment.status === "scheduled" || payment.status === "pending") && (
                           <DropdownMenuItem onClick={() => updateStatus.mutate({ id: payment.id, status: "completed" })}>
                             <Check className="mr-2 h-4 w-4" />
                             Mark Completed

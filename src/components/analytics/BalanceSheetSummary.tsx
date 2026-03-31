@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, ChevronRight, FileText } from "lucide-react";
+import { Download, ChevronRight, FileText, Loader2 } from "lucide-react";
 import { useBalanceSheet } from "@/hooks/useAnalytics";
 import { exportReportAsPDF } from "@/lib/pdf-export";
 import { exportScheduleIIIBalanceSheet } from "@/lib/schedule-iii-export";
 import { BSDrillDownDialog } from "./BSDrillDownDialog";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -22,6 +23,7 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
   const bs = useBalanceSheet();
 
   const [drillDown, setDrillDown] = useState<{ name: string; code: string; type: "asset" | "liability" | "equity"; balance: number } | null>(null);
+  const [scheduleIIIExporting, setScheduleIIIExporting] = useState(false);
 
   const Section = ({ title, items, total, totalLabel, color, type }: {
     title: string;
@@ -96,18 +98,32 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
         })}>
           <Download className="h-4 w-4 mr-1" /> Export PDF
         </Button>
-        <Button variant="outline" size="sm" onClick={() => exportScheduleIIIBalanceSheet({
-          companyName: "Organization",
-          cin: "",
-          asOfDate: asOfDate ? format(asOfDate, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
-          assets: bs.assets,
-          liabilities: bs.liabilities,
-          equity: bs.equity,
-          totalAssets: bs.totalAssets,
-          totalLiabilities: bs.totalLiabilities,
-          totalEquity: bs.totalEquity,
-        })}>
-          <FileText className="h-4 w-4 mr-1" /> Schedule III
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={scheduleIIIExporting}
+          onClick={() => {
+            setScheduleIIIExporting(true);
+            toast.info("Opening Schedule III report. A print dialog will appear — please allow popups if prompted.");
+            try {
+              exportScheduleIIIBalanceSheet({
+                companyName: "Organization",
+                cin: "",
+                asOfDate: asOfDate ? format(asOfDate, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
+                assets: bs.assets,
+                liabilities: bs.liabilities,
+                equity: bs.equity,
+                totalAssets: bs.totalAssets,
+                totalLiabilities: bs.totalLiabilities,
+                totalEquity: bs.totalEquity,
+              });
+            } finally {
+              setTimeout(() => setScheduleIIIExporting(false), 1500);
+            }
+          }}
+        >
+          {scheduleIIIExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+          Schedule III
         </Button>
       </CardHeader>
       <CardContent>

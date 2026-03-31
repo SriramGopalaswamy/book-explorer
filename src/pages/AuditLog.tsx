@@ -130,6 +130,7 @@ export default function AuditLog() {
   const { data, isLoading } = useAuditLogs(filters, page, pageSize);
   const logs = data?.logs ?? [];
   const total = data?.total ?? 0;
+  const uniqueActors = data?.uniqueActors ?? 0;
   const totalPages = Math.ceil(total / pageSize);
 
   function resetFilters() {
@@ -190,10 +191,8 @@ export default function AuditLog() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(logs.map((l) => l.actor_id)).size}
-            </div>
-            <p className="text-xs text-muted-foreground">On this page</p>
+            <div className="text-2xl font-bold">{uniqueActors}</div>
+            <p className="text-xs text-muted-foreground">Distinct "Performed By" users matching filters</p>
           </CardContent>
         </Card>
         <Card>

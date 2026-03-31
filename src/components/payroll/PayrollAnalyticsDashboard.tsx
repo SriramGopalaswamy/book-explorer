@@ -163,7 +163,7 @@ export function PayrollAnalyticsDashboard() {
             <CardTitle className="text-sm">TDS Collected Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.tdsCollectedTrend.length > 0 ? (
+            {data.tdsCollectedTrend.length > 0 && data.tdsCollectedTrend.some((d) => d.tds > 0) ? (
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={data.tdsCollectedTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -185,7 +185,7 @@ export function PayrollAnalyticsDashboard() {
             <CardTitle className="text-sm">PF Contribution Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.pfContributionTrend.length > 0 ? (
+            {data.pfContributionTrend.length > 0 && data.pfContributionTrend.some((d) => d.employee_pf > 0 || d.employer_pf > 0) ? (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.pfContributionTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -198,7 +198,7 @@ export function PayrollAnalyticsDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-sm text-muted-foreground py-16">No PF data yet</p>
+              <p className="text-center text-sm text-muted-foreground py-16">No PF data yet. Process payroll with PF-eligible employees to see contribution trends.</p>
             )}
           </CardContent>
         </Card>
@@ -209,7 +209,7 @@ export function PayrollAnalyticsDashboard() {
             <CardTitle className="text-sm">LWP Impact Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.lwpImpact.length > 0 ? (
+            {data.lwpImpact.length > 0 && data.lwpImpact.some((d) => d.lwp_days > 0 || d.lwp_deduction > 0) ? (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={data.lwpImpact}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

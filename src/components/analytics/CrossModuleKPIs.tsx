@@ -93,10 +93,21 @@ export function CrossModuleKPIs() {
             <Clock className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{attendance?.avgAttendanceRate ?? 0}%</div>
-            <p className="text-xs text-muted-foreground">
-              {attendance?.absentToday ?? 0} absent · {Math.round((attendance?.totalOTMinutesThisMonth ?? 0) / 60)}h OT this month
-            </p>
+            {(attendance?.avgAttendanceRate ?? 0) === 0 && (attendance?.absentToday ?? 0) === 0 ? (
+              <>
+                <div className="text-2xl font-bold text-muted-foreground">—</div>
+                <p className="text-xs text-muted-foreground">
+                  No attendance records for today. Mark attendance in the Attendance module.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{attendance?.avgAttendanceRate ?? 0}%</div>
+                <p className="text-xs text-muted-foreground">
+                  {attendance?.absentToday ?? 0} absent · {Math.round((attendance?.totalOTMinutesThisMonth ?? 0) / 60)}h OT this month
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

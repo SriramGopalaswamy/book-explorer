@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Filter, X } from "lucide-react";
+import { Plus, Filter, X, Eye } from "lucide-react";
 import { useVendorPayments, useCreateVendorPayment } from "@/hooks/usePayments";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,12 +19,15 @@ import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from "date-
 
 const METHODS = ["bank_transfer", "cash", "cheque", "upi"];
 
+type VendorPayment = ReturnType<typeof useVendorPayments>["data"] extends (infer T)[] | undefined ? T : never;
+
 export default function VendorPaymentsPage() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
   const { data: payments = [], isLoading } = useVendorPayments();
   const createPayment = useCreateVendorPayment();
   const [open, setOpen] = useState(false);
+  const [viewPayment, setViewPayment] = useState<VendorPayment | null>(null);
   const [form, setForm] = useState({ vendor_id: "", payment_date: new Date().toISOString().split("T")[0], amount: "", payment_method: "bank_transfer", reference_number: "", notes: "" });
 
   // Filters
@@ -145,6 +148,7 @@ export default function VendorPaymentsPage() {
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -157,6 +161,11 @@ export default function VendorPaymentsPage() {
                     <TableCell className="text-right font-medium text-foreground">₹{Number(p.amount).toLocaleString()}</TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate" title={p.notes || ""}>{p.notes || "—"}</TableCell>
                     <TableCell><Badge variant={p.status === "paid" ? "default" : "secondary"}>{p.status}</Badge></TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewPayment(p)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{hasActiveFilters ? "No payments match filters" : "No vendor payments yet"}</TableCell></TableRow>}
@@ -166,6 +175,36 @@ export default function VendorPaymentsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* View Payment Dialog */}
+      <Dialog open={!!viewPayment} onOpenChange={(o) => !o && setViewPayment(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Payment Details</DialogTitle></DialogHeader>
+          {viewPayment && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Payment #</p><p className="font-mono font-medium">{viewPayment.payment_number}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p><Badge variant={viewPayment.status === "paid" ? "default" : "secondary"}>{viewPayment.status}</Badge></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Vendor</p><p className="font-medium">{viewPayment.vendor_name}</p></div>
+                <div><p className="text-xs text-muted-foreground">Date</p><p>{format(new Date(viewPayment.payment_date), "dd MMM yyyy")}</p></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Amount</p><p className="text-lg font-semibold">₹{Number(viewPayment.amount).toLocaleString()}</p></div>
+                <div><p className="text-xs text-muted-foreground">Method</p><p className="capitalize">{viewPayment.payment_method.replace(/_/g, " ")}</p></div>
+              </div>
+              {viewPayment.reference_number && (
+                <div><p className="text-xs text-muted-foreground">Reference #</p><p className="font-mono">{viewPayment.reference_number}</p></div>
+              )}
+              {viewPayment.notes && (
+                <div><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{viewPayment.notes}</p></div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end"><Button variant="outline" onClick={() => setViewPayment(null)}>Close</Button></div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

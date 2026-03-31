@@ -48,12 +48,33 @@ export function useHRAnalytics() {
     queryFn: async (): Promise<HRAnalytics> => {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, status, department, join_date")
+        .select("id, user_id, status, department, join_date")
         .eq("organization_id", orgId!);
 
       const all = profiles || [];
-      const active = all.filter((p) => p.status === "active");
-      const onLeave = all.filter((p) => p.status === "on_leave");
+
+      // Use approved leave_requests for today to determine on-leave count accurately,
+      // rather than relying on the profile.status field which may be stale.
+      const today = new Date().toISOString().split("T")[0];
+      const { data: activeLeaves } = await supabase
+        .from("leave_requests")
+        .select("user_id, profile_id")
+        .eq("status", "approved")
+        .eq("organization_id", orgId!)
+        .lte("from_date", today)
+        .gte("to_date", today);
+
+      const leaveProfileIds = new Set((activeLeaves || []).map((l) => l.profile_id).filter(Boolean));
+      const leaveUserIds = new Set((activeLeaves || []).map((l) => l.user_id).filter(Boolean));
+
+      const onLeaveCount = all.filter(
+        (p) => leaveProfileIds.has(p.id) || leaveUserIds.has(p.user_id)
+      ).length;
+
+      const nonInactive = all.filter((p) => p.status !== "inactive");
+      const active = nonInactive.filter(
+        (p) => !leaveProfileIds.has(p.id) && !leaveUserIds.has(p.user_id)
+      );
 
       const deptMap = new Map<string, number>();
       active.forEach((p) => {
@@ -81,7 +102,7 @@ export function useHRAnalytics() {
       return {
         totalEmployees: all.length,
         activeEmployees: active.length,
-        onLeave: onLeave.length,
+        onLeave: onLeaveCount,
         departments,
         avgTenureMonths,
         newHiresLast90Days: newHires,
