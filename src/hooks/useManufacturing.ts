@@ -544,12 +544,13 @@ export function usePostFinishedGoods() {
             .maybeSingle();
           const rate = params.cost_per_unit ?? (Number((itemRow as any)?.purchase_price || (itemRow as any)?.selling_price || 0) || null);
           const value = rate ? params.quantity * rate : null;
-          // Compute running balance_qty
+          // Compute running balance_qty (org-scoped to prevent cross-tenant contamination)
           const { data: lastEntry } = await supabase
             .from("stock_ledger" as any)
             .select("balance_qty")
             .eq("item_id", params.product_item_id)
             .eq("warehouse_id", warehouseId)
+            .eq("organization_id", callerProfile.organization_id)
             .order("posted_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -567,8 +568,8 @@ export function usePostFinishedGoods() {
             posted_at: new Date().toISOString(),
             organization_id: callerProfile.organization_id,
             balance_qty: newBalance,
-            ...(rate != null ? { rate } : {}),
-            ...(value != null ? { value } : {}),
+            rate: rate ?? 0,
+            value: value ?? 0,
           } as any);
           // Update items.current_stock
           const currentStock = Number((itemRow as any)?.current_stock ?? 0);
