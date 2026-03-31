@@ -9,11 +9,14 @@ import { financialRecordSchema } from "@/lib/validation-schemas";
 export interface FinancialRecord {
   id: string;
   user_id: string;
+  organization_id?: string;
   type: "revenue" | "expense";
   category: string;
   amount: number;
   description: string | null;
   record_date: string;
+  currency_code?: string | null;
+  exchange_rate?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -274,6 +277,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
 export function useAddFinancialRecord() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
 
   return useMutation({
     mutationFn: async (record: Omit<FinancialRecord, "id" | "user_id" | "created_at" | "updated_at">) => {
@@ -284,6 +288,7 @@ export function useAddFinancialRecord() {
       await validateFiscalPeriod(record.record_date);
 
       const validated = financialRecordSchema.parse(record);
+      const orgId = orgData?.organizationId;
 
       const { data, error } = await supabase
         .from("financial_records")
@@ -294,7 +299,11 @@ export function useAddFinancialRecord() {
           description: validated.description ?? null,
           record_date: validated.record_date,
           user_id: user.id,
-        })
+          ...(orgId ? { organization_id: orgId } : {}),
+          ...(record.currency_code && record.currency_code !== "INR"
+            ? { currency_code: record.currency_code, exchange_rate: record.exchange_rate ?? null }
+            : {}),
+        } as any)
         .select()
         .single();
 

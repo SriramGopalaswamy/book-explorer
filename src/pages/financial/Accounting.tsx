@@ -54,6 +54,7 @@ import {
   useDeleteFinancialRecord,
   type FinancialRecord,
 } from "@/hooks/useFinancialData";
+import { useCurrencies } from "@/hooks/useCurrencyAndFiling";
 
 function formatAmount(amount: number): string {
   if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
@@ -68,6 +69,7 @@ function TransactionsTab() {
   const { data: records = [], isLoading } = useFinancialRecords();
   const addRecord = useAddFinancialRecord();
   const deleteRecord = useDeleteFinancialRecord();
+  const { data: currencies = [] } = useCurrencies();
 
   const [addOpen, setAddOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,6 +78,8 @@ function TransactionsTab() {
     type: "revenue" as "revenue" | "expense",
     category: "",
     amount: "",
+    currency_code: "INR",
+    exchange_rate: "",
     description: "",
     record_date: format(new Date(), "yyyy-MM-dd"),
   });
@@ -85,6 +89,8 @@ function TransactionsTab() {
       type: "revenue",
       category: "",
       amount: "",
+      currency_code: "INR",
+      exchange_rate: "",
       description: "",
       record_date: format(new Date(), "yyyy-MM-dd"),
     });
@@ -96,6 +102,11 @@ function TransactionsTab() {
       toast.error("Please fill in category and a valid amount.");
       return;
     }
+    const isNonINR = formData.currency_code && formData.currency_code !== "INR";
+    if (isNonINR && (!formData.exchange_rate || parseFloat(formData.exchange_rate) <= 0)) {
+      toast.error("Please enter a valid exchange rate for the selected currency.");
+      return;
+    }
     addRecord.mutate(
       {
         type: formData.type,
@@ -103,6 +114,8 @@ function TransactionsTab() {
         amount,
         description: formData.description || null,
         record_date: formData.record_date,
+        currency_code: formData.currency_code || "INR",
+        exchange_rate: isNonINR ? parseFloat(formData.exchange_rate) : null,
       },
       {
         onSuccess: () => {
@@ -317,10 +330,30 @@ function TransactionsTab() {
               <Label>Category *</Label>
               <Input placeholder="e.g. Sales, Rent, Marketing..." value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} />
             </div>
-            <div className="space-y-2">
-              <Label>Amount (₹) *</Label>
-              <Input type="number" placeholder="0.00" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Select value={formData.currency_code} onValueChange={(v) => setFormData({ ...formData, currency_code: v, exchange_rate: "" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INR">INR — Indian Rupee</SelectItem>
+                    {currencies.filter((c) => c.code !== "INR").map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code} — {c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Amount *</Label>
+                <Input type="number" placeholder="0.00" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} />
+              </div>
             </div>
+            {formData.currency_code && formData.currency_code !== "INR" && (
+              <div className="space-y-2">
+                <Label>Exchange Rate (1 {formData.currency_code} = ? INR) *</Label>
+                <Input type="number" placeholder="e.g. 83.50" value={formData.exchange_rate} onChange={(e) => setFormData({ ...formData, exchange_rate: e.target.value })} />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Description</Label>
               <Input placeholder="Optional description..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />

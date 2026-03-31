@@ -91,28 +91,42 @@ export function exportReportAsPDF(options: PDFOptions) {
 </body>
 </html>`;
 
-  const printWindow = window.open("", "_blank");
+  // Use explicit width/height to force a popup window (not a new tab).
+  // Without these, browsers open a new tab and navigation away from the app
+  // makes the main window appear "hung" until the user manually returns.
+  const printWindow = window.open(
+    "",
+    "_blank",
+    "width=900,height=700,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes"
+  );
   if (!printWindow) return;
   printWindow.document.write(html);
   printWindow.document.close();
 
-  // Use a small delay to ensure the document is fully rendered before printing
-  setTimeout(() => {
+  let cleanedUp = false;
+  let pollId: ReturnType<typeof setInterval> | undefined;
+  let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    clearInterval(pollId);
+    clearTimeout(safetyTimer);
+    try { if (!printWindow.closed) printWindow.close(); } catch (_) {}
+    // Restore focus to the main app window
+    setTimeout(() => { try { window.focus(); } catch (_) {} }, 50);
+  };
+
+  // Wait for the document to be ready before printing
+  const doPrint = () => {
     printWindow.focus();
     printWindow.print();
-
-    // Close the popup and refocus main window after print completes or is cancelled
-    const cleanup = () => {
-      try { if (!printWindow.closed) printWindow.close(); } catch (_) {}
-      window.focus();
-      clearInterval(pollId);
-    };
 
     // Primary: onafterprint fires when print dialog closes (print or cancel)
     printWindow.onafterprint = cleanup;
 
     // Fallback: poll for window closure (browsers that don't fire onafterprint)
-    const pollId = setInterval(() => {
+    pollId = setInterval(() => {
       try {
         if (printWindow.closed) cleanup();
       } catch (_) {
@@ -121,6 +135,15 @@ export function exportReportAsPDF(options: PDFOptions) {
     }, 300);
 
     // Safety: cleanup after 5 minutes no matter what
-    setTimeout(cleanup, 300000);
-  }, 250);
+    safetyTimer = setTimeout(cleanup, 300000);
+  };
+
+  // Give the document a moment to render before triggering print
+  if (printWindow.document.readyState === "complete") {
+    setTimeout(doPrint, 100);
+  } else {
+    printWindow.onload = () => setTimeout(doPrint, 100);
+    // Fallback in case onload doesn't fire
+    setTimeout(doPrint, 500);
+  }
 }

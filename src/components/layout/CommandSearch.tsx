@@ -78,7 +78,7 @@ interface SearchItem {
 const ALL_ITEMS: SearchItem[] = [
   // Main
   { name: "Dashboard", path: "/", icon: LayoutDashboard, section: "Main", keywords: "home overview" },
-  { name: "Profile", path: "/profile", icon: User, section: "Main", keywords: "account me" },
+  { name: "Profile", path: "/profile", icon: User, section: "Main", keywords: "account me my profile" },
   { name: "Settings", path: "/settings", icon: Settings, section: "Main", keywords: "preferences config" },
 
   // Financial
@@ -239,7 +239,7 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     // Finance: financial suite + limited HRMS
     const financePaths = new Set([
       "/profile", "/settings",
-      "/hrms/payroll", "/hrms/org-chart",
+      "/hrms/my-attendance", "/hrms/payroll", "/hrms/org-chart",
       "/performance/goals", "/performance/memos",
     ]);
 
@@ -257,8 +257,8 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
       if (isFinance) return item.section === "Financial" || operationsSections.has(item.section) || financePaths.has(item.path);
       // HR: HRMS + performance + admin, no financial
       if (isHR) return item.section !== "Financial" && !operationsSections.has(item.section) && item.path !== "/";
-      // Admin: everything except self-service duplicates and platform
-      if (isAdmin) return item.path !== "/hrms/my-attendance" && item.section !== "Platform";
+      // Admin: everything except platform super-admin items
+      if (isAdmin) return item.section !== "Platform";
       return true;
     });
   }, [currentRole, isSuperAdmin]);
