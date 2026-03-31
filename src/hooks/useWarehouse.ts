@@ -395,23 +395,64 @@ export function usePostInventoryCount() {
 
       // Post stock adjustment ledger entries for variances
       const variantLines = (lines as any[]).filter((l) => l.item_id && Number(l.variance || 0) !== 0);
+
+      // Fetch item rates for all variant items in one query
+      const variantItemIds = [...new Set(variantLines.map((l: any) => l.item_id))];
+      const itemRateMap = new Map<string, number>();
+      if (variantItemIds.length > 0) {
+        const { data: itemData } = await supabase.from("items" as any).select("id, purchase_price, selling_price, current_stock").in("id", variantItemIds);
+        if (itemData) {
+          for (const item of itemData as any[]) {
+            const r = Number(item.purchase_price || item.selling_price || 0);
+            if (r > 0) itemRateMap.set(item.id, r);
+          }
+        }
+      }
+
+      // Build running balance map seeded from the latest ledger entry per item+warehouse
+      const warehouseId = (count as any).warehouse_id;
+      const balanceMap = new Map<string, number>();
+      for (const itemId of variantItemIds) {
+        const { data: lastEntry } = await supabase
+          .from("stock_ledger" as any)
+          .select("balance_qty")
+          .eq("item_id", itemId)
+          .eq("warehouse_id", warehouseId)
+          .eq("organization_id", callerOrgId)
+          .order("posted_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        balanceMap.set(itemId as string, Number((lastEntry as any)?.balance_qty ?? 0));
+      }
+
       for (const line of variantLines) {
         const signedQty = Number(line.variance);
+        const rate = itemRateMap.get(line.item_id) ?? 0;
+        const value = rate > 0 ? Math.abs(signedQty) * rate : 0;
+        const prevBalance = balanceMap.get(line.item_id) ?? 0;
+        const newBalance = prevBalance + signedQty;
+        balanceMap.set(line.item_id, newBalance);
+
         await supabase.from("stock_ledger" as any).insert({
           organization_id: callerOrgId,
           item_id: line.item_id,
-          warehouse_id: (count as any).warehouse_id,
+          warehouse_id: warehouseId,
           quantity: signedQty,
           transaction_type: "adjustment",
           reference_type: "inventory_adjustment",
           reference_id: countId,
-          rate: 0,
-          value: 0,
-          balance_qty: 0,
+          rate,
+          value,
+          balance_qty: newBalance,
           notes: `Inventory count adjustment: ${line.item_name} (variance ${line.variance > 0 ? "+" : ""}${line.variance})`,
           posted_at: new Date().toISOString(),
           posted_by: user.id,
         } as any);
+
+        // Keep items.current_stock in sync
+        const { data: itemRow } = await supabase.from("items" as any).select("current_stock").eq("id", line.item_id).maybeSingle();
+        const currentStock = Number((itemRow as any)?.current_stock ?? 0);
+        await supabase.from("items" as any).update({ current_stock: currentStock + signedQty } as any).eq("id", line.item_id);
       }
 
       // Mark count as posted

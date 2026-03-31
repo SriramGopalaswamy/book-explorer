@@ -50,13 +50,18 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
   // Fetch current balance_qty per item+warehouse to compute running balance
   const balanceMap: Map<string, number> = new Map();
   const uniquePairs = [...new Set(entries.map((e) => `${e.item_id}__${e.warehouse_id}`))];
+  // Derive org from the first entry that carries one (all entries in a batch share the same org)
+  const orgId = entries.find((e) => e.organization_id)?.organization_id;
+
   for (const pair of uniquePairs) {
     const [itemId, warehouseId] = pair.split("__");
-    const { data: lastEntry } = await supabase
+    let q = supabase
       .from("stock_ledger" as any)
       .select("balance_qty")
       .eq("item_id", itemId)
-      .eq("warehouse_id", warehouseId)
+      .eq("warehouse_id", warehouseId);
+    if (orgId) q = (q as any).eq("organization_id", orgId);
+    const { data: lastEntry } = await (q as any)
       .order("posted_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -81,9 +86,9 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
       notes: e.notes || null,
       posted_at: new Date().toISOString(),
       balance_qty: newBalance,
+      rate: rate ?? 0,
+      value: value ?? 0,
       ...(e.organization_id ? { organization_id: e.organization_id } : {}),
-      ...(rate != null ? { rate } : {}),
-      ...(value != null ? { value } : {}),
     };
   });
 
@@ -229,6 +234,14 @@ export async function postStockTransferEntries(
   if (error) throw error;
   if (!items || items.length === 0) return;
 
+  // Fetch organization_id from the transfer record so ledger rows are org-scoped
+  const { data: transfer } = await supabase
+    .from("stock_transfers" as any)
+    .select("organization_id")
+    .eq("id", transferId)
+    .maybeSingle();
+  const transferOrgId = (transfer as any)?.organization_id as string | undefined;
+
   const entries: StockEntry[] = [];
   for (const item of items as any[]) {
     if (!item.item_id) continue;
@@ -240,6 +253,7 @@ export async function postStockTransferEntries(
       reference_type: "stock_transfer",
       reference_id: transferId,
       notes: `Transfer out: ${item.item_name}`,
+      organization_id: transferOrgId,
     });
     entries.push({
       item_id: item.item_id,
@@ -249,6 +263,7 @@ export async function postStockTransferEntries(
       reference_type: "stock_transfer",
       reference_id: transferId,
       notes: `Transfer in: ${item.item_name}`,
+      organization_id: transferOrgId,
     });
   }
 

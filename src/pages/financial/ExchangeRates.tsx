@@ -50,14 +50,21 @@ export default function ExchangeRatesPage() {
   const { data: financialRecords = [] } = useFinancialRecords();
   const createRate = useCreateExchangeRate();
 
+  const [pendingCurrencyIds, setPendingCurrencyIds] = useState<Set<string>>(new Set());
+
   const toggleCurrency = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      setPendingCurrencyIds((prev) => new Set(prev).add(id));
       const { error } = await supabase.from("currencies" as any).update({ is_active: !is_active }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, { id }) => {
+      setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
       queryClient.invalidateQueries({ queryKey: ["currencies-all"] });
+    },
+    onError: (_err, { id }) => {
+      setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     },
   });
   const [open, setOpen] = useState(false);
@@ -358,7 +365,7 @@ export default function ExchangeRatesPage() {
                           <Switch
                             checked={c.is_active}
                             onCheckedChange={() => toggleCurrency.mutate({ id: c.id, is_active: c.is_active })}
-                            disabled={toggleCurrency.isPending}
+                            disabled={pendingCurrencyIds.has(c.id)}
                           />
                         </TableCell>
                       </TableRow>
