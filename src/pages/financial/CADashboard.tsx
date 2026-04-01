@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useSubledgerReconciliation, useReconcileSubledgers, useControlAccountOverrides,
   useJournalEntries, useFiscalPeriods, useCloseFiscalPeriod, useRunDepreciationBatch, useGLAccounts,
@@ -40,6 +42,9 @@ export default function CADashboard() {
 
   const [depnDate, setDepnDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [depnResult, setDepnResult] = useState<{ assets_processed?: number; total_amount?: number; errors?: string[] } | null>(null);
+
+  const periodsPagination = usePagination(periods, 10);
+  const overridesPagination = usePagination(overrides, 10);
 
   if (checkingRole) return <MainLayout title="CA Dashboard"><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-6 w-6 animate-spin" /></div></MainLayout>;
   if (!hasAccess) return <AccessDenied message="Finance Access Required" description="You need finance or admin role." />;
@@ -195,40 +200,58 @@ export default function CADashboard() {
               </div>
             )}
             <div className="rounded-xl border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>End</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {periods.map(p => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-semibold">{p.period_name}</TableCell>
-                      <TableCell>{p.start_date}</TableCell>
-                      <TableCell>{p.end_date}</TableCell>
-                      <TableCell>
-                        <Badge className={p.status === "open" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"}>
-                          {p.status === "open" ? <Calendar className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                          {p.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {p.status === "open" && (
-                          <Button variant="outline" size="sm" onClick={() => closePeriodMutation.mutate(p.id)} disabled={closePeriodMutation.isPending}>
-                            {closePeriodMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3 mr-1" />}
-                            Close Period
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {periods.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">No fiscal periods found.</div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Period</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {periodsPagination.paginatedItems.map(p => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-semibold">{p.period_name}</TableCell>
+                          <TableCell>{p.start_date}</TableCell>
+                          <TableCell>{p.end_date}</TableCell>
+                          <TableCell>
+                            <Badge className={p.status === "open" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"}>
+                              {p.status === "open" ? <Calendar className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                              {p.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {p.status === "open" && (
+                              <Button variant="outline" size="sm" onClick={() => closePeriodMutation.mutate(p.id)} disabled={closePeriodMutation.isPending}>
+                                {closePeriodMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3 mr-1" />}
+                                Close Period
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="p-4">
+                    <TablePagination
+                      page={periodsPagination.page}
+                      totalPages={periodsPagination.totalPages}
+                      totalItems={periodsPagination.totalItems}
+                      from={periodsPagination.from}
+                      to={periodsPagination.to}
+                      pageSize={periodsPagination.pageSize}
+                      onPageChange={periodsPagination.setPage}
+                      onPageSizeChange={(s) => { periodsPagination.setPageSize(s); periodsPagination.setPage(1); }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </TabsContent>
 
@@ -241,26 +264,40 @@ export default function CADashboard() {
               ) : overrides.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">No control account overrides recorded</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Account</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Override By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {overrides.map((o: any) => (
-                      <TableRow key={o.id}>
-                        <TableCell>{format(new Date(o.created_at), "yyyy-MM-dd HH:mm")}</TableCell>
-                        <TableCell className="font-mono text-xs">{o.gl_accounts?.code} — {o.gl_accounts?.name}</TableCell>
-                        <TableCell className="max-w-[300px] truncate">{o.override_reason}</TableCell>
-                        <TableCell className="font-mono text-xs">{o.overridden_by?.slice(0, 8)}…</TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead>Override By</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {overridesPagination.paginatedItems.map((o: any) => (
+                        <TableRow key={o.id}>
+                          <TableCell>{format(new Date(o.created_at), "yyyy-MM-dd HH:mm")}</TableCell>
+                          <TableCell className="font-mono text-xs">{o.gl_accounts?.code} — {o.gl_accounts?.name}</TableCell>
+                          <TableCell className="max-w-[300px] truncate">{o.override_reason}</TableCell>
+                          <TableCell className="font-mono text-xs">{o.overridden_by?.slice(0, 8)}…</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="p-4">
+                    <TablePagination
+                      page={overridesPagination.page}
+                      totalPages={overridesPagination.totalPages}
+                      totalItems={overridesPagination.totalItems}
+                      from={overridesPagination.from}
+                      to={overridesPagination.to}
+                      pageSize={overridesPagination.pageSize}
+                      onPageChange={overridesPagination.setPage}
+                      onPageSizeChange={(s) => { overridesPagination.setPageSize(s); overridesPagination.setPage(1); }}
+                    />
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>
