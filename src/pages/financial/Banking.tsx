@@ -300,12 +300,12 @@ export default function Banking() {
             {orgId && (() => {
               const bulkConfig: BulkUploadConfig = {
                 title: "Bulk Upload Bank Accounts",
-                description: "Upload multiple bank accounts at once using a CSV file. Account numbers vary by bank: most Indian banks use 9–18 digits (e.g. SBI: 11 digits, HDFC: 14 digits, ICICI: 12 digits). Only the last 4 digits are displayed on account cards.",
+                description: "Upload multiple bank accounts at once using a CSV file. Account numbers vary by bank: most Indian banks use 6–18 alphanumeric characters (e.g. SBI: 11 digits, HDFC: 14 digits, ICICI: 12 digits). Only the last 4 digits are displayed on account cards.",
                 module: "banking",
                 columns: [
                   { key: "name", label: "Account Name", required: true },
                   { key: "bank_name", label: "Bank Name" },
-                  { key: "account_number", label: "Account Number (9–18 digits)", required: true },
+                  { key: "account_number", label: "Account Number (6–18 chars)", required: true },
                   { key: "account_type", label: "Account Type (Current/Savings/OD/CC)", required: true },
                   { key: "balance", label: "Opening Balance", required: true },
                 ],
@@ -395,7 +395,7 @@ export default function Banking() {
                     <div className="grid gap-2">
                       <Label>Account Number *</Label>
                       <Input
-                        placeholder="Full account number (9–18 digits)"
+                        placeholder="Full account number (6–18 chars)"
                         maxLength={18}
                         value={accountForm.account_number}
                         onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value.replace(/\s/g, "") })}
