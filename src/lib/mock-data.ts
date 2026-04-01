@@ -144,6 +144,15 @@ export const mockBankTransactions: BankTransaction[] = [
   { id: "bt8", user_id: MOCK_USER_ID, account_id: "ba1", transaction_type: "debit", amount: 35000, description: "Marketing Campaign", category: "Marketing", transaction_date: "2026-01-15", reference: "MKT-JAN", created_at: "2026-01-15" },
 ];
 
+export const mockMonthlyData: MonthlyData[] = [
+  { month: "Oct 2025", revenue: 210000, expenses: 95000 },
+  { month: "Nov 2025", revenue: 245000, expenses: 108000 },
+  { month: "Dec 2025", revenue: 310000, expenses: 132000 },
+  { month: "Jan 2026", revenue: 280000, expenses: 115000 },
+  { month: "Feb 2026", revenue: 98500, expenses: 28300 },
+  { month: "Mar 2026", revenue: 195000, expenses: 88000 },
+];
+
 export const mockScheduledPayments: ScheduledPayment[] = [
   { id: "sp1", user_id: MOCK_USER_ID, name: "Office Rent", amount: 85000, due_date: "2026-03-01", payment_type: "outflow", status: "scheduled", category: "Rent", recurring: true, recurrence_interval: "monthly", created_at: "2026-01-01", updated_at: "2026-01-01" },
   { id: "sp2", user_id: MOCK_USER_ID, name: "AWS Subscription", amount: 25000, due_date: "2026-02-25", payment_type: "outflow", status: "scheduled", category: "Software", recurring: true, recurrence_interval: "monthly", created_at: "2026-01-01", updated_at: "2026-01-01" },

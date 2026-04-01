@@ -284,13 +284,16 @@ export default function EInvoices() {
       container.style.pointerEvents = "none";
       document.body.appendChild(container);
 
+      // Use Shadow DOM so the invoice <style> rules are scoped and cannot
+      // leak into the live page — same pattern used by PaySlipDialog.tsx.
+      const shadow = container.attachShadow({ mode: "open" });
       const parsed = new DOMParser().parseFromString(html, "text/html");
       const style = parsed.querySelector("style");
-      if (style) container.appendChild(style.cloneNode(true));
+      if (style) shadow.appendChild(style.cloneNode(true));
       const bodyContent = document.createElement("div");
       bodyContent.innerHTML = parsed.body.innerHTML;
       bodyContent.style.padding = "24px 24px 50px";
-      container.appendChild(bodyContent);
+      shadow.appendChild(bodyContent);
 
       html2pdf()
         .set({

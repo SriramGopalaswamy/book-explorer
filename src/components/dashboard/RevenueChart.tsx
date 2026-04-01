@@ -22,9 +22,9 @@ interface RevenueChartProps {
 }
 
 export function RevenueChart({ dateRange }: RevenueChartProps) {
-  const { data: revenueData, isLoading } = useMonthlyRevenueData(dateRange);
+  const { data: revenueData, isLoading, isPending } = useMonthlyRevenueData(dateRange);
 
-  if (isLoading) {
+  if (isLoading || isPending) {
     return (
       <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 shadow-lg">
         <Skeleton className="h-6 w-40 mb-4" />

@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
-import { mockFinancialRecords } from "@/lib/mock-data";
+import { mockFinancialRecords, mockMonthlyData } from "@/lib/mock-data";
 import { financialRecordSchema } from "@/lib/validation-schemas";
+import { toast } from "sonner";
 
 export interface FinancialRecord {
   id: string;
@@ -115,6 +116,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   return useQuery({
     queryKey: ["monthly-revenue", user?.id, orgId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<MonthlyData[]> => {
+      if (isDevMode) return mockMonthlyData;
       if (!user || !orgId) return [];
 
       const fromDate = dateRange?.from || (() => {
@@ -315,6 +317,9 @@ export function useAddFinancialRecord() {
       queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
     },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to save transaction. Please try again.");
+    },
   });
 }
 
@@ -356,6 +361,9 @@ export function useUpdateFinancialRecord() {
       queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
     },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update transaction. Please try again.");
+    },
   });
 }
 
@@ -392,6 +400,9 @@ export function useDeleteFinancialRecord() {
       queryClient.invalidateQueries({ queryKey: ["financial-records"] });
       queryClient.invalidateQueries({ queryKey: ["monthly-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["expense-breakdown"] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete transaction. Please try again.");
     },
   });
 }

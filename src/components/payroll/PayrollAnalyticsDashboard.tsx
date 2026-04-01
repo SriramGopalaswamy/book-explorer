@@ -13,12 +13,12 @@ const formatCurrency = (v: number) => `₹${(v / 100000).toFixed(1)}L`;
 const formatK = (v: number) => `₹${(v / 1000).toFixed(0)}K`;
 
 const COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--destructive))",
-  "hsl(142 76% 36%)",
-  "hsl(var(--accent))",
-  "hsl(38 92% 50%)",
-  "hsl(262 83% 58%)",
+  "hsl(221, 83%, 53%)",   // blue
+  "hsl(0, 84%, 60%)",     // red
+  "hsl(142, 76%, 36%)",   // green
+  "hsl(38, 92%, 50%)",    // orange
+  "hsl(262, 83%, 58%)",   // purple
+  "hsl(175, 70%, 41%)",   // teal
 ];
 
 const periodLabel = (p: string) => {
@@ -115,8 +115,8 @@ export function PayrollAnalyticsDashboard() {
                   <YAxis tickFormatter={(v) => `${(v / 100000).toFixed(0)}L`} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Legend />
-                  <Bar dataKey="gross" fill="hsl(var(--primary))" name="Gross" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="deductions" fill="hsl(var(--destructive))" name="Deductions" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gross" fill="hsl(221, 83%, 53%)" name="Gross" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="deductions" fill="hsl(0, 84%, 60%)" name="Deductions" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="net" fill="hsl(142 76% 36%)" name="Net" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -170,7 +170,7 @@ export function PayrollAnalyticsDashboard() {
                   <XAxis dataKey="month" tickFormatter={periodLabel} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
-                  <Line type="monotone" dataKey="tds" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="tds" stroke="hsl(221, 83%, 53%)" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -193,7 +193,7 @@ export function PayrollAnalyticsDashboard() {
                   <YAxis tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
                   <Legend />
-                  <Bar dataKey="employee_pf" fill="hsl(var(--primary))" name="Employee PF" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="employee_pf" fill="hsl(221, 83%, 53%)" name="Employee PF" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="employer_pf" fill="hsl(262 83% 58%)" name="Employer PF" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -219,7 +219,7 @@ export function PayrollAnalyticsDashboard() {
                   <Tooltip {...tooltipStyle} />
                   <Legend />
                   <Bar yAxisId="days" dataKey="lwp_days" fill="hsl(38 92% 50%)" name="LWP Days" radius={[4, 4, 0, 0]} />
-                  <Bar yAxisId="amount" dataKey="lwp_deduction" fill="hsl(var(--destructive))" name="LWP Deduction" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="amount" dataKey="lwp_deduction" fill="hsl(0, 84%, 60%)" name="LWP Deduction" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -241,7 +241,7 @@ export function PayrollAnalyticsDashboard() {
                   <XAxis type="number" tickFormatter={formatK} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <YAxis type="category" dataKey="role" width={100} tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} stroke="hsl(var(--border))" />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
-                  <Bar dataKey="avg_salary" fill="hsl(var(--primary))" name="Avg Salary" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="avg_salary" fill="hsl(221, 83%, 53%)" name="Avg Salary" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

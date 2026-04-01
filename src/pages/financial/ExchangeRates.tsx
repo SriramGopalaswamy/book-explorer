@@ -55,16 +55,25 @@ export default function ExchangeRatesPage() {
   const toggleCurrency = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       setPendingCurrencyIds((prev) => new Set(prev).add(id));
-      const { error } = await supabase.from("currencies" as any).update({ is_active: !is_active }).eq("id", id);
+      const { data, error } = await supabase
+        .from("currencies" as any)
+        .update({ is_active: !is_active })
+        .eq("id", id)
+        .select();
       if (error) throw error;
+      if (!data || (data as any[]).length === 0) {
+        throw new Error("Currency status could not be updated. You may not have permission to modify currencies.");
+      }
     },
     onSuccess: (_data, { id }) => {
       setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
       queryClient.invalidateQueries({ queryKey: ["currencies-all"] });
+      toast.success("Currency status updated.");
     },
-    onError: (_err, { id }) => {
+    onError: (err: Error, { id }) => {
       setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      toast.error(err.message || "Failed to update currency status.");
     },
   });
   const [open, setOpen] = useState(false);
