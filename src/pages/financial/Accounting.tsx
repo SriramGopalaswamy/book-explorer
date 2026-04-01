@@ -96,34 +96,37 @@ function TransactionsTab() {
     });
   };
 
-  const handleAdd = () => {
-    const amount = parseFloat(formData.amount);
-    if (!formData.category || isNaN(amount) || amount <= 0) {
+  const handleAdd = async () => {
+    const amount = Number(formData.amount);
+    if (!formData.category || !Number.isFinite(amount) || amount <= 0) {
       toast.error("Please fill in category and a valid amount.");
       return;
     }
+
     const isNonINR = formData.currency_code && formData.currency_code !== "INR";
-    if (isNonINR && (!formData.exchange_rate || parseFloat(formData.exchange_rate) <= 0)) {
+    const exchangeRate = Number(formData.exchange_rate);
+    if (isNonINR && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
       toast.error("Please enter a valid exchange rate for the selected currency.");
       return;
     }
-    addRecord.mutate(
-      {
+
+    try {
+      await addRecord.mutateAsync({
         type: formData.type,
         category: formData.category,
         amount,
         description: formData.description || null,
         record_date: formData.record_date,
         currency_code: formData.currency_code || "INR",
-        exchange_rate: isNonINR ? parseFloat(formData.exchange_rate) : null,
-      },
-      {
-        onSuccess: () => {
-          setAddOpen(false);
-          resetForm();
-        },
-      }
-    );
+        exchange_rate: isNonINR ? exchangeRate : 1,
+      });
+
+      setAddOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Failed to add transaction:", error);
+      toast.error("Unable to add transaction. Please check the entered values and try again.");
+    }
   };
 
   const filteredRecords = useMemo(() => {

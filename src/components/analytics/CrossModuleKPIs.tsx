@@ -4,18 +4,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Users, Wallet, Clock, TrendingUp, Building2, UserPlus, UserMinus } from "lucide-react";
 import { useHRAnalytics, usePayrollSummary, useAttendanceSummary, useCrossModuleInsights } from "@/hooks/useCrossModuleAnalytics";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
+import { getDistinctColorByIndex, getStableColorByKey } from "@/lib/chart-colors";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
   if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
   return `₹${v.toLocaleString("en-IN")}`;
 };
-
-const DEPT_COLORS = [
-  "hsl(262, 52%, 47%)", "hsl(199, 89%, 48%)", "hsl(38, 92%, 50%)",
-  "hsl(142, 76%, 36%)", "hsl(346, 87%, 43%)", "hsl(222, 47%, 41%)",
-  "hsl(180, 60%, 40%)", "hsl(30, 80%, 55%)",
-];
 
 export function CrossModuleKPIs() {
   const { data: hr, isLoading: hrLoading } = useHRAnalytics();
@@ -137,8 +132,12 @@ export function CrossModuleKPIs() {
                       dataKey="count"
                       nameKey="name"
                     >
-                      {hr.departments.map((_, i) => (
-                        <Cell key={i} fill={DEPT_COLORS[i % DEPT_COLORS.length]} stroke="none" />
+                      {hr.departments.map((department, i) => (
+                        <Cell
+                          key={`${department.name}-${i}`}
+                          fill={department.name ? getStableColorByKey(department.name, i) : getDistinctColorByIndex(i)}
+                          stroke="none"
+                        />
                       ))}
                     </Pie>
                     <Tooltip

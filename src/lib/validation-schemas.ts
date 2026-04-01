@@ -6,10 +6,21 @@ export const financialRecordSchema = z.object({
   category: z.string().trim().min(1, "Category is required").max(100, "Category too long"),
   amount: z.number().positive("Amount must be positive").max(9999999999, "Amount too large"),
   description: z.string().max(500, "Description too long").nullable().optional(),
+  currency_code: z.string().trim().length(3, "Currency must be a 3-letter code").optional(),
+  exchange_rate: z.number().positive("Exchange rate must be positive").optional().nullable(),
   record_date: z.string().refine((d) => {
     const date = new Date(d);
     return !isNaN(date.getTime());
   }, "Invalid date format"),
+}).superRefine((data, ctx) => {
+  const currency = (data.currency_code || "INR").toUpperCase();
+  if (currency !== "INR" && (!data.exchange_rate || data.exchange_rate <= 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["exchange_rate"],
+      message: "Exchange rate is required for non-INR transactions",
+    });
+  }
 });
 
 // Invoice validation

@@ -291,6 +291,12 @@ export function useAddFinancialRecord() {
 
       const validated = financialRecordSchema.parse(record);
       const orgId = orgData?.organizationId;
+      const currencyCode = record.currency_code || "INR";
+      const exchangeRate = currencyCode === "INR"
+        ? 1
+        : (record.exchange_rate && Number.isFinite(record.exchange_rate) && record.exchange_rate > 0
+          ? record.exchange_rate
+          : null);
 
       const { data, error } = await supabase
         .from("financial_records")
@@ -300,11 +306,10 @@ export function useAddFinancialRecord() {
           amount: validated.amount,
           description: validated.description ?? null,
           record_date: validated.record_date,
+          currency_code: currencyCode,
+          exchange_rate: exchangeRate,
           user_id: user.id,
           ...(orgId ? { organization_id: orgId } : {}),
-          ...(record.currency_code && record.currency_code !== "INR"
-            ? { currency_code: record.currency_code, exchange_rate: record.exchange_rate ?? null }
-            : {}),
         } as any)
         .select()
         .single();
