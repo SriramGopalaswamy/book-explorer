@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Plus, CheckCircle, XCircle, Trash2, ArrowRight, GripVertical, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApprovalWorkflows, useCreateApprovalWorkflow, useToggleWorkflow, useApprovalRequests, useApproveRequest, useRejectRequest, useApprovalWorkflowSteps } from "@/hooks/useApprovalWorkflows";
@@ -46,6 +48,8 @@ export default function ApprovalWorkflowsPage() {
   const [steps, setSteps] = useState<{ role: string }[]>([{ role: "manager" }]);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  // Optimistic active-state overrides for workflow toggles
+  const [optimisticWorkflowActive, setOptimisticWorkflowActive] = useState<Record<string, boolean>>({});
 
   const addStep = () => {
     if (steps.length >= 4) return;
@@ -97,6 +101,10 @@ export default function ApprovalWorkflowsPage() {
 
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const processedRequests = requests.filter((r) => r.status !== "pending");
+
+  const workflowsPagination = usePagination(workflows, 10);
+  const pendingPagination = usePagination(pendingRequests, 10);
+  const historyPagination = usePagination(processedRequests, 10);
 
   return (
     <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules with chain approvals">
@@ -234,8 +242,9 @@ export default function ApprovalWorkflowsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {workflows.map((w) => {
+                    {workflowsPagination.paginatedItems.map((w) => {
                       const wfSteps = stepsMap[w.id] || [];
+                      const isActive = w.id in optimisticWorkflowActive ? optimisticWorkflowActive[w.id] : w.is_active;
                       return (
                         <TableRow key={w.id}>
                           <TableCell className="text-foreground capitalize">{w.workflow_type.replace(/_/g, " ")}</TableCell>
@@ -261,7 +270,20 @@ export default function ApprovalWorkflowsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Switch checked={w.is_active} onCheckedChange={(v) => toggleWorkflow.mutate({ id: w.id, is_active: v })} />
+                            <Switch
+                              checked={isActive}
+                              onCheckedChange={(v) => {
+                                // Optimistically flip the switch immediately
+                                setOptimisticWorkflowActive((prev) => ({ ...prev, [w.id]: v }));
+                                toggleWorkflow.mutate(
+                                  { id: w.id, is_active: v },
+                                  {
+                                    onSuccess: () => setOptimisticWorkflowActive((prev) => { const n = { ...prev }; delete n[w.id]; return n; }),
+                                    onError: () => setOptimisticWorkflowActive((prev) => { const n = { ...prev }; delete n[w.id]; return n; }),
+                                  }
+                                );
+                              }}
+                            />
                           </TableCell>
                         </TableRow>
                       );
@@ -275,6 +297,20 @@ export default function ApprovalWorkflowsPage() {
                     )}
                   </TableBody>
                 </Table>
+                {workflows.length > 0 && (
+                  <div className="pt-4">
+                    <TablePagination
+                      page={workflowsPagination.page}
+                      totalPages={workflowsPagination.totalPages}
+                      totalItems={workflowsPagination.totalItems}
+                      from={workflowsPagination.from}
+                      to={workflowsPagination.to}
+                      pageSize={workflowsPagination.pageSize}
+                      onPageChange={workflowsPagination.setPage}
+                      onPageSizeChange={(s) => { workflowsPagination.setPageSize(s); workflowsPagination.setPage(1); }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -297,7 +333,7 @@ export default function ApprovalWorkflowsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingRequests.map((r) => {
+                    {pendingPagination.paginatedItems.map((r) => {
                       const wfSteps = r.workflow_id ? stepsMap[r.workflow_id] || [] : [];
                       const currentStepInfo = wfSteps.find((s) => s.step_order === r.current_step);
                       return (
@@ -366,6 +402,20 @@ export default function ApprovalWorkflowsPage() {
                     )}
                   </TableBody>
                 </Table>
+                {pendingRequests.length > 0 && (
+                  <div className="pt-4">
+                    <TablePagination
+                      page={pendingPagination.page}
+                      totalPages={pendingPagination.totalPages}
+                      totalItems={pendingPagination.totalItems}
+                      from={pendingPagination.from}
+                      to={pendingPagination.to}
+                      pageSize={pendingPagination.pageSize}
+                      onPageChange={pendingPagination.setPage}
+                      onPageSizeChange={(s) => { pendingPagination.setPageSize(s); pendingPagination.setPage(1); }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -388,7 +438,7 @@ export default function ApprovalWorkflowsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {processedRequests.map((r) => (
+                    {historyPagination.paginatedItems.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell className="text-foreground capitalize">{r.document_type.replace(/_/g, " ")}</TableCell>
                         <TableCell className="font-mono text-foreground">{r.document_number || "—"}</TableCell>
@@ -413,6 +463,20 @@ export default function ApprovalWorkflowsPage() {
                     )}
                   </TableBody>
                 </Table>
+                {processedRequests.length > 0 && (
+                  <div className="pt-4">
+                    <TablePagination
+                      page={historyPagination.page}
+                      totalPages={historyPagination.totalPages}
+                      totalItems={historyPagination.totalItems}
+                      from={historyPagination.from}
+                      to={historyPagination.to}
+                      pageSize={historyPagination.pageSize}
+                      onPageChange={historyPagination.setPage}
+                      onPageSizeChange={(s) => { historyPagination.setPageSize(s); historyPagination.setPage(1); }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 
 interface UnrealizedFXLine {
   id: string;
@@ -179,6 +181,8 @@ export default function ExchangeRatesPage() {
 
   const totalUnrealizedGL = unrealizedLines.reduce((sum, l) => sum + l.unrealizedGainLoss, 0);
 
+  const ratesPagination = usePagination(rates, 10);
+
   const isLoading = curLoading || rateLoading || allCurLoading;
   if (isLoading) return <MainLayout title="Exchange Rates"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
 
@@ -250,7 +254,7 @@ export default function ExchangeRatesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rates.map(r => (
+                    {ratesPagination.paginatedItems.map(r => (
                       <TableRow key={r.id}>
                         <TableCell className="font-mono text-foreground">{r.from_currency}</TableCell>
                         <TableCell className="font-mono text-foreground">{r.to_currency}</TableCell>
@@ -262,6 +266,20 @@ export default function ExchangeRatesPage() {
                     {rates.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No exchange rates configured. Add rates for multi-currency transactions.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
+                {rates.length > 0 && (
+                  <div className="pt-4">
+                    <TablePagination
+                      page={ratesPagination.page}
+                      totalPages={ratesPagination.totalPages}
+                      totalItems={ratesPagination.totalItems}
+                      from={ratesPagination.from}
+                      to={ratesPagination.to}
+                      pageSize={ratesPagination.pageSize}
+                      onPageChange={ratesPagination.setPage}
+                      onPageSizeChange={(s) => { ratesPagination.setPageSize(s); ratesPagination.setPage(1); }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -460,6 +460,10 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
         errors.push(`Row missing email`);
         continue;
       }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push(`Row "${email}": Invalid email format`);
+        continue;
+      }
       if (!validRoles.includes(role)) {
         errors.push(`${email}: Invalid role "${row.role}". Must be one of: ${validRoles.join(", ")}`);
         continue;
@@ -536,6 +540,10 @@ export function useEmployeeBulkUpload(): BulkUploadConfig {
 
       if (!full_name || !email) {
         errors.push(`Row "${full_name || email || "?"}": Full name and email are required`);
+        continue;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push(`Row "${full_name}": Invalid email format "${email}"`);
         continue;
       }
 
