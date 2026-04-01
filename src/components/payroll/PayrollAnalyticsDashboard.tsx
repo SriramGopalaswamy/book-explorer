@@ -8,18 +8,15 @@ import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
 } from "recharts";
+import { getDistinctColorByIndex, getStableColorByKey } from "@/lib/chart-colors";
 
 const formatCurrency = (v: number) => `₹${(v / 100000).toFixed(1)}L`;
 const formatK = (v: number) => `₹${(v / 1000).toFixed(0)}K`;
 
-const COLORS = [
-  "hsl(221, 83%, 53%)",   // blue
-  "hsl(0, 84%, 60%)",     // red
-  "hsl(142, 76%, 36%)",   // green
-  "hsl(38, 92%, 50%)",    // orange
-  "hsl(262, 83%, 58%)",   // purple
-  "hsl(175, 70%, 41%)",   // teal
-];
+const getDepartmentColor = (department: string, index: number) => {
+  const stable = getStableColorByKey(department, index);
+  return department ? stable : getDistinctColorByIndex(index);
+};
 
 const periodLabel = (p: string) => {
   const [y, m] = p.split("-");
@@ -144,8 +141,8 @@ export function PayrollAnalyticsDashboard() {
                     outerRadius={80}
                     label={({ department, total }) => `${department}: ${formatK(total)}`}
                   >
-                    {data.departmentCosts.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    {data.departmentCosts.map((entry, i) => (
+                      <Cell key={`${entry.department}-${i}`} fill={getDepartmentColor(entry.department, i)} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(v: number) => formatCurrency(v)} {...tooltipStyle} />
