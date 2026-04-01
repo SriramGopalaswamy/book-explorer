@@ -189,11 +189,20 @@ export default function Banking() {
       toast({ title: "Error", description: "Please fill all required fields", variant: "destructive" });
       return;
     }
+    const accNum = accountForm.account_number.trim();
+    if (accNum.length < 6 || accNum.length > 18) {
+      toast({ title: "Invalid Account Number", description: "Account number must be between 6 and 18 characters", variant: "destructive" });
+      return;
+    }
+    if (!/^[A-Z0-9]+$/i.test(accNum)) {
+      toast({ title: "Invalid Account Number", description: "Account number must contain only letters and digits", variant: "destructive" });
+      return;
+    }
     createAccount.mutate(
       {
         name: accountForm.name,
         account_type: accountForm.account_type,
-        account_number: accountForm.account_number,
+        account_number: accNum,
         balance: parseFloat(accountForm.balance),
         bank_name: accountForm.bank_name || undefined,
       },
@@ -291,17 +300,17 @@ export default function Banking() {
             {orgId && (() => {
               const bulkConfig: BulkUploadConfig = {
                 title: "Bulk Upload Bank Accounts",
-                description: "Upload multiple bank accounts at once using a CSV file.",
+                description: "Upload multiple bank accounts at once using a CSV file. Account numbers vary by bank: most Indian banks use 9–18 digits (e.g. SBI: 11 digits, HDFC: 14 digits, ICICI: 12 digits). Only the last 4 digits are displayed on account cards.",
                 module: "banking",
                 columns: [
                   { key: "name", label: "Account Name", required: true },
                   { key: "bank_name", label: "Bank Name" },
-                  { key: "account_number", label: "Account Number", required: true },
+                  { key: "account_number", label: "Account Number (9–18 digits)", required: true },
                   { key: "account_type", label: "Account Type (Current/Savings/OD/CC)", required: true },
                   { key: "balance", label: "Opening Balance", required: true },
                 ],
                 templateFileName: "bank_accounts_template.csv",
-                templateContent: "name,bank_name,account_number,account_type,balance\nHDFC Current Account,HDFC Bank,1234567890,Current,50000\nSBI Savings,State Bank of India,9876543210,Savings,25000",
+                templateContent: "name,bank_name,account_number,account_type,balance\nHDFC Current Account,HDFC Bank,12345678901234,Current,50000\nSBI Savings,State Bank of India,12345678901,Savings,25000\nICICI OD Account,ICICI Bank,123456789012,OD,10000",
                 onUpload: async (rows) => {
                   let success = 0;
                   const errors: string[] = [];
@@ -311,12 +320,18 @@ export default function Banking() {
                       errors.push(`Row ${rows.indexOf(row) + 2}: Missing required fields`);
                       continue;
                     }
+                    const accNum = String(row.account_number).trim().replace(/\s/g, "");
+                    if (accNum.length < 6 || accNum.length > 18 || !/^[A-Z0-9]+$/i.test(accNum)) {
+                      errors.push(`Row ${rows.indexOf(row) + 2}: Account number must be 6–18 alphanumeric characters`);
+                      continue;
+                    }
                     const validTypes = ["Current", "Savings", "OD", "CC"];
-                    const acType = validTypes.includes(row.account_type) ? row.account_type : "Current";
+                    const acTypeNorm = row.account_type?.trim();
+                    const acType = validTypes.find(t => t.toLowerCase() === acTypeNorm?.toLowerCase()) ?? "Current";
                     const { error } = await supabase.from("bank_accounts").insert({
                       name: row.name,
                       bank_name: row.bank_name || null,
-                      account_number: row.account_number,
+                      account_number: accNum,
                       account_type: acType as BankAccount["account_type"],
                       balance: bal,
                       organization_id: orgId,
@@ -380,10 +395,12 @@ export default function Banking() {
                     <div className="grid gap-2">
                       <Label>Account Number *</Label>
                       <Input
-                        placeholder="Last 4 digits"
+                        placeholder="Full account number (9–18 digits)"
+                        maxLength={18}
                         value={accountForm.account_number}
-                        onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value })}
+                        onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value.replace(/\s/g, "") })}
                       />
+                      <p className="text-xs text-muted-foreground">Only last 4 digits are shown on the card.</p>
                     </div>
                     <div className="grid gap-2">
                       <Label>Current Balance (₹) *</Label>

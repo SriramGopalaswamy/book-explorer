@@ -50,11 +50,12 @@ export default function ExchangeRatesPage() {
   const { data: financialRecords = [] } = useFinancialRecords();
   const createRate = useCreateExchangeRate();
 
+  // Optimistic state: track overridden is_active values per currency id
+  const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, boolean>>({});
   const [pendingCurrencyIds, setPendingCurrencyIds] = useState<Set<string>>(new Set());
 
   const toggleCurrency = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      setPendingCurrencyIds((prev) => new Set(prev).add(id));
       const { data, error } = await supabase
         .from("currencies" as any)
         .update({ is_active: !is_active })
@@ -65,14 +66,22 @@ export default function ExchangeRatesPage() {
         throw new Error("Currency status could not be updated. You may not have permission to modify currencies.");
       }
     },
+    onMutate: ({ id, is_active }) => {
+      // Optimistically flip the switch so the user gets immediate feedback
+      setPendingCurrencyIds((prev) => new Set(prev).add(id));
+      setOptimisticOverrides((prev) => ({ ...prev, [id]: !is_active }));
+    },
     onSuccess: (_data, { id }) => {
       setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      setOptimisticOverrides((prev) => { const next = { ...prev }; delete next[id]; return next; });
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
       queryClient.invalidateQueries({ queryKey: ["currencies-all"] });
       toast.success("Currency status updated.");
     },
     onError: (err: Error, { id }) => {
+      // Roll back the optimistic update on failure
       setPendingCurrencyIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      setOptimisticOverrides((prev) => { const next = { ...prev }; delete next[id]; return next; });
       toast.error(err.message || "Failed to update currency status.");
     },
   });
@@ -360,25 +369,33 @@ export default function ExchangeRatesPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Symbol</TableHead>
                       <TableHead>Decimals</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Active</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allCurrencies.map(c => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-mono font-semibold text-foreground">{c.code}</TableCell>
-                        <TableCell className="text-foreground">{c.name}</TableCell>
-                        <TableCell className="text-lg text-foreground">{c.symbol}</TableCell>
-                        <TableCell className="text-foreground">{c.decimal_places}</TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={c.is_active}
-                            onCheckedChange={() => toggleCurrency.mutate({ id: c.id, is_active: c.is_active })}
-                            disabled={pendingCurrencyIds.has(c.id)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {allCurrencies.map(c => {
+                      const isActive = c.id in optimisticOverrides ? optimisticOverrides[c.id] : c.is_active;
+                      return (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-mono font-semibold text-foreground">{c.code}</TableCell>
+                          <TableCell className="text-foreground">{c.name}</TableCell>
+                          <TableCell className="text-lg text-foreground">{c.symbol}</TableCell>
+                          <TableCell className="text-foreground">{c.decimal_places}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={isActive}
+                                onCheckedChange={() => toggleCurrency.mutate({ id: c.id, is_active: c.is_active })}
+                                disabled={pendingCurrencyIds.has(c.id)}
+                              />
+                              <span className={`text-xs font-medium ${isActive ? "text-emerald-600" : "text-muted-foreground"}`}>
+                                {isActive ? "Active" : "Inactive"}
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

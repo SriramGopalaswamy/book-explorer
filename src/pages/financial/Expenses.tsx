@@ -376,32 +376,30 @@ export default function Expenses() {
           <StatCard title="Paid" value={formatCurrency(paidAmount)} icon={<CircleDollarSign className="h-4 w-4" />} />
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px] h-9 text-sm">
-                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending Approval</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-              </SelectContent>
-            </Select>
-            {(search || statusFilter !== "all") && (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
-                <X className="h-3.5 w-3.5 mr-1" /> Clear
-              </Button>
-            )}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[160px] h-9 text-sm">
+              <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+          {(search || statusFilter !== "all") && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+              <X className="h-3.5 w-3.5 mr-1" /> Clear
+            </Button>
+          )}
+          <div className="ml-auto flex items-center gap-2">
             {isFinanceOrAdmin && <BulkUploadDialog config={expensesBulkConfig} />}
             <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
               <Plus className="h-4 w-4" /> Create Expense

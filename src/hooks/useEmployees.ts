@@ -322,16 +322,19 @@ export function useDeleteEmployee() {
       if (profileErr) throw profileErr;
       if (!profile) throw new Error("Employee not found in your organization.");
 
-      // Delete via edge function (handles auth + roles + profile)
-      const { data: result, error } = await supabase.functions.invoke("manage-roles", {
+      // Delete via edge function (handles auth account + roles cleanup)
+      await supabase.functions.invoke("manage-roles", {
         body: { action: "delete_user", user_id: profile.user_id },
       });
 
-      if (error || result?.error) {
-        // Fallback: just delete the profile row if edge fn fails (e.g. no auth account)
-        const { error: delErr } = await supabase.from("profiles").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
-        if (delErr) throw delErr;
-      }
+      // Always explicitly delete the profile row to ensure it is removed from the UI.
+      // The edge function may only revoke auth/roles and not delete the profile record.
+      const { error: delErr } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id);
+      if (delErr) throw delErr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
