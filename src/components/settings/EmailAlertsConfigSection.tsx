@@ -388,11 +388,11 @@ export function EmailAlertsConfigSection() {
   const [activeTab, setActiveTab] = useState("configure");
 
   useEffect(() => {
-    if (!initialized && savedSettings) {
+    if (!initialized && !isLoading && savedSettings) {
       setLocal(savedSettings);
       setInitialized(true);
     }
-  }, [savedSettings, initialized]);
+  }, [savedSettings, initialized, isLoading]);
 
   const handleRuleChange = (ruleId: string, updated: AlertRuleConfig) => {
     setLocal((prev) => ({

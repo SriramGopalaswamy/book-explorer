@@ -444,7 +444,7 @@ export function useEmailAlertConfig() {
 
   return {
     settings: settings ?? buildDefaultSettings(),
-    isLoading,
+    isLoading: isLoading || !orgId,
     saveSettings,
   };
 }
