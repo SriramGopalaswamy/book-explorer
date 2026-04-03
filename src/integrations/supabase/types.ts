@@ -6947,6 +6947,7 @@ export type Database = {
       }
       organization_settings: {
         Row: {
+          email_alert_config: Json | null
           favicon_url: string | null
           id: string
           logo_url: string | null
@@ -6955,6 +6956,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          email_alert_config?: Json | null
           favicon_url?: string | null
           id?: string
           logo_url?: string | null
@@ -6963,6 +6965,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          email_alert_config?: Json | null
           favicon_url?: string | null
           id?: string
           logo_url?: string | null

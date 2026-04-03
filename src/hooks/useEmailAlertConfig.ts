@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -399,8 +400,8 @@ export function useEmailAlertConfig() {
 
       if (error) throw error;
 
-      // Read the email_alert_config JSON column if it exists
-      const raw = (data as any)?.email_alert_config;
+      // Read the email_alert_config JSON column
+      const raw = data?.email_alert_config as Record<string, any> | null;
       if (raw && typeof raw === "object") {
         // Merge with defaults to pick up any new rules added after the config was saved
         const defaults = buildDefaultSettings();
@@ -427,10 +428,10 @@ export function useEmailAlertConfig() {
         .upsert(
           {
             organization_id: orgId,
-            email_alert_config: newSettings as any,
+            email_alert_config: newSettings as unknown as Json,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
-          } as any,
+          },
           { onConflict: "organization_id" }
         );
 
