@@ -32,8 +32,8 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function ApprovalWorkflowsPage() {
-  const { data: workflows = [], isLoading: wfLoading } = useApprovalWorkflows();
-  const { data: requests = [], isLoading: reqLoading } = useApprovalRequests();
+  const { data: workflows = [], isLoading: wfLoading, error: wfError } = useApprovalWorkflows();
+  const { data: requests = [], isLoading: reqLoading, error: reqError } = useApprovalRequests();
 
   const workflowIds = useMemo(() => workflows.map(w => w.id), [workflows]);
   const { data: allSteps = [] } = useApprovalWorkflowSteps(workflowIds);
@@ -90,11 +90,26 @@ export default function ApprovalWorkflowsPage() {
   }, [allSteps]);
 
   const isLoading = wfLoading || reqLoading;
+  const pageError = wfError || reqError;
+
   if (isLoading)
     return (
       <MainLayout title="Approval Workflows">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </MainLayout>
+    );
+
+  if (pageError)
+    return (
+      <MainLayout title="Approval Workflows">
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <Info className="h-10 w-10 text-destructive" />
+          <p className="text-destructive font-medium">Failed to load approval data</p>
+          <p className="text-sm text-muted-foreground max-w-md text-center">
+            {(pageError as Error).message || "An unexpected error occurred. Please refresh the page or contact your administrator."}
+          </p>
         </div>
       </MainLayout>
     );
