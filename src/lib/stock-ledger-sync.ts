@@ -345,7 +345,10 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
       .delete()
       .eq("work_order_id", workOrderId)
       .eq("organization_id", woOrgId);
-    await supabase.from("material_consumption" as any).insert(consumptionRecords as any);
+    const { error: mcErr } = await supabase
+      .from("material_consumption" as any)
+      .insert(consumptionRecords as any);
+    if (mcErr) throw new Error(`Failed to write consumption records: ${mcErr.message}`);
   }
 }
 

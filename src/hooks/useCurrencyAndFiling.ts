@@ -130,6 +130,7 @@ export function useUpdateFilingStatus() {
           period_year: update.period_year,
           financial_year: update.financial_year,
           status: update.status,
+          organization_id: callerProfile.organization_id,
           arn_number: update.arn_number || null,
           challan_number: update.challan_number || null,
           filed_date: update.filed_date || null,

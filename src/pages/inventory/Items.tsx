@@ -56,9 +56,9 @@ export default function Items() {
       i.sku?.toLowerCase().includes(search.toLowerCase()) ||
       String(i.current_stock ?? "").includes(search);
     const matchStock = stockFilter === "all" ||
-      (stockFilter === "low_stock" && Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0) ||
-      (stockFilter === "in_stock" && Number(i.current_stock) > Number(i.reorder_level)) ||
-      (stockFilter === "out_of_stock" && Number(i.current_stock) === 0);
+      (stockFilter === "out_of_stock" && Number(i.current_stock) === 0) ||
+      (stockFilter === "low_stock" && Number(i.current_stock) > 0 && Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0) ||
+      (stockFilter === "in_stock" && Number(i.current_stock) > Number(i.reorder_level));
     const matchStatus = statusFilter === "all" ||
       (statusFilter === "active" && i.is_active !== false) ||
       (statusFilter === "inactive" && i.is_active === false);

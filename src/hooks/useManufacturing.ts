@@ -356,12 +356,7 @@ export function useUpdateWOStatus() {
       // ── Auto-consume BOM materials on completion ──
       if (status === "completed") {
         const { consumeBOMForWorkOrder } = await import("@/lib/stock-ledger-sync");
-        try {
-          await consumeBOMForWorkOrder(id);
-        } catch (consumeErr: any) {
-          toast.error(`Material consumption warning: ${consumeErr.message}`);
-          // Don't fail the status change, but notify
-        }
+        await consumeBOMForWorkOrder(id);
       }
     },
     onSuccess: () => {
@@ -461,7 +456,7 @@ export function useRecordProduction() {
           const { error: cErr } = await supabase
             .from("material_consumption" as any)
             .insert(consumptionRows as any);
-          if (cErr) console.error("Failed to create consumption records:", cErr);
+          if (cErr) throw new Error(`Failed to create consumption records: ${cErr.message}`);
         }
       }
     },

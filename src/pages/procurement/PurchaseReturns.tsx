@@ -144,35 +144,27 @@ export default function PurchaseReturnsPage() {
     }
   };
 
+  // KPI counts
+  const totalReturns = returns.length;
+  const draftCount = returns.filter(r => r.status === "draft").length;
+  const approvedCount = returns.filter(r => r.status === "approved").length;
+  const cancelledCount = returns.filter(r => r.status === "cancelled").length;
+  const totalValue = returns.reduce((s, r) => s + Number(r.total_amount || 0), 0);
+
   if (isLoading) return <MainLayout title="Purchase Returns"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div></MainLayout>;
 
   return (
     <MainLayout title="Purchase Returns">
       <div className="space-y-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card><CardContent className="pt-4"><p className="text-2xl font-bold text-foreground">{totalReturns}</p><p className="text-xs text-muted-foreground">Total Returns</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-2xl font-bold text-amber-500">{draftCount}</p><p className="text-xs text-muted-foreground">Draft</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-2xl font-bold text-green-500">{approvedCount}</p><p className="text-xs text-muted-foreground">Approved</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-2xl font-bold text-destructive">{cancelledCount}</p><p className="text-xs text-muted-foreground">Cancelled</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-2xl font-bold text-foreground">₹{totalValue.toLocaleString("en-IN")}</p><p className="text-xs text-muted-foreground">Total Value</p></CardContent></Card>
+        </div>
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-44" />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" placeholder="From" />
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" placeholder="To" />
-            {(dateFrom || dateTo) && (
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setDateFrom(""); setDateTo(""); }} title="Clear date filter">
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Return</Button></DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -207,6 +199,29 @@ export default function PurchaseReturnsPage() {
               </div>
             </DialogContent>
           </Dialog>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-44" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36" placeholder="From" />
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36" placeholder="To" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setDateFrom(""); setDateTo(""); }} title="Clear date filter">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <Card>

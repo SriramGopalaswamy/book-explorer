@@ -135,7 +135,7 @@ export default function Dashboard() {
                 index={3}
               />
               <StatCardEnhanced
-                title="Pending Invoices"
+                title="Unpaid Invoices"
                 value={stats?.pendingInvoices || 0}
                 change={{
                   value: String(Math.abs(stats?.invoiceChange || 0)),
@@ -189,7 +189,7 @@ export default function Dashboard() {
               linkTo="/financial/accounting"
               stats={[
                 { label: "Revenue", value: formatIndianCurrency(stats?.totalRevenue || 0), numericValue: stats?.totalRevenue || 0 },
-                { label: "Pending Invoices", value: String(stats?.pendingInvoices || 0), numericValue: stats?.pendingInvoices || 0 },
+                { label: "Unpaid Invoices", value: String(stats?.pendingInvoices || 0), numericValue: stats?.pendingInvoices || 0 },
               ]}
               index={0}
             />

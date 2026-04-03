@@ -760,7 +760,7 @@ export default function AutomationDashboard() {
 
             <div className="flex flex-wrap gap-2">
               {canSeeDebug && <Button variant="outline" className="gap-2" onClick={() => setShowDebug((current) => !current)}><Bug className="h-4 w-4" />{showDebug ? "Hide Debug" : "Show Debug"}</Button>}
-              <Button variant="outline" className="gap-2" onClick={() => refetchRuns()}><RefreshCw className="h-4 w-4" />Refresh</Button>
+              <Button variant="outline" className="gap-2" onClick={() => { refetchRuns(); queryClient.invalidateQueries({ queryKey: ["workflows"] }); queryClient.invalidateQueries({ queryKey: ["message-enrichment"] }); }}><RefreshCw className="h-4 w-4" />Refresh</Button>
               <Button className="gap-2" onClick={() => triggerEngine.mutate()} disabled={triggerEngine.isPending}><Play className="h-4 w-4" />{triggerEngine.isPending ? "Running…" : "Run Engine"}</Button>
             </div>
           </div>

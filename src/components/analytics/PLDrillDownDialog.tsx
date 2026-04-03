@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface PLDrillDownDialogProps {
   open: boolean;
@@ -24,15 +25,18 @@ const formatCurrency = (v: number) => {
 
 export function PLDrillDownDialog({ open, onOpenChange, categoryName, type, from, to }: PLDrillDownDialogProps) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["pl-drilldown", user?.id, categoryName, type, from?.toISOString(), to?.toISOString()],
+    queryKey: ["pl-drilldown", orgId, categoryName, type, from?.toISOString(), to?.toISOString()],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
+      // Scope by organization_id (not user_id) so all org members see the same drill-down
       let query = supabase
         .from("financial_records")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("organization_id", orgId)
         .eq("type", type)
         .order("record_date", { ascending: false });
 
@@ -54,7 +58,7 @@ export function PLDrillDownDialog({ open, onOpenChange, categoryName, type, from
       );
       return fuzzy.length > 0 ? fuzzy : data;
     },
-    enabled: open && !!user,
+    enabled: open && !!user && !!orgId,
   });
 
   const total = transactions.reduce((s, t) => s + Number(t.amount), 0);

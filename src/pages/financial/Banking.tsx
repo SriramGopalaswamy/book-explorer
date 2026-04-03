@@ -320,9 +320,17 @@ export default function Banking() {
                       errors.push(`Row ${rows.indexOf(row) + 2}: Missing required fields`);
                       continue;
                     }
-                    const accNum = String(row.account_number).trim().replace(/\s/g, "");
+                    // Normalize account number: convert Excel scientific notation (e.g. 1.23457E+13)
+                    // back to an integer string before validating length.
+                    let rawAccNum = String(row.account_number).trim().replace(/\s/g, "");
+                    if (/^[0-9.]+[eE][+\-]?\d+$/.test(rawAccNum)) {
+                      // Parse the scientific-notation string as a number and reformat as integer
+                      const asNum = Number(rawAccNum);
+                      if (Number.isFinite(asNum)) rawAccNum = Math.round(asNum).toString();
+                    }
+                    const accNum = rawAccNum;
                     if (accNum.length < 6 || accNum.length > 18 || !/^[A-Z0-9]+$/i.test(accNum)) {
-                      errors.push(`Row ${rows.indexOf(row) + 2}: Account number must be 6–18 alphanumeric characters`);
+                      errors.push(`Row ${rows.indexOf(row) + 2}: Account number must be 6–18 alphanumeric characters (got: "${accNum}")`);
                       continue;
                     }
                     const validTypes = ["Current", "Savings", "OD", "CC"];
@@ -395,12 +403,13 @@ export default function Banking() {
                     <div className="grid gap-2">
                       <Label>Account Number *</Label>
                       <Input
-                        placeholder="Full account number (6–18 chars)"
+                        placeholder="Full account number (e.g. 12345678901)"
                         maxLength={18}
+                        minLength={6}
                         value={accountForm.account_number}
-                        onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value.replace(/\s/g, "") })}
+                        onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value.replace(/\D/g, "") })}
                       />
-                      <p className="text-xs text-muted-foreground">Only last 4 digits are shown on the card.</p>
+                      <p className="text-xs text-muted-foreground">Enter the full account number (6–18 digits). Only the last 4 digits are shown on the card.</p>
                     </div>
                     <div className="grid gap-2">
                       <Label>Current Balance (₹) *</Label>
