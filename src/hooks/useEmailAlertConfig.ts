@@ -366,6 +366,8 @@ function buildDefaultSettings(): EmailAlertSettings {
       id: def.id,
       enabled: true,
       frequency: def.default_frequency,
+      day_of_week: 1, // Monday
+      day_of_month: 1,
       time_of_day: "09:00",
     };
   }
@@ -405,11 +407,21 @@ export function useEmailAlertConfig() {
       if (raw && typeof raw === "object") {
         // Merge with defaults to pick up any new rules added after the config was saved
         const defaults = buildDefaultSettings();
+        const validRuleIds = new Set(ALERT_RULE_DEFINITIONS.map((d) => d.id));
+        const mergedRules = { ...defaults.rules };
+        // Only merge saved rules that still exist in the current definitions
+        if (raw.rules && typeof raw.rules === "object") {
+          for (const [id, rule] of Object.entries(raw.rules)) {
+            if (validRuleIds.has(id)) {
+              mergedRules[id] = rule as AlertRuleConfig;
+            }
+          }
+        }
         return {
           sender_email: raw.sender_email ?? defaults.sender_email,
           sender_name: raw.sender_name ?? defaults.sender_name,
           reply_to_email: raw.reply_to_email ?? defaults.reply_to_email,
-          rules: { ...defaults.rules, ...raw.rules },
+          rules: mergedRules,
         };
       }
 
@@ -444,7 +456,7 @@ export function useEmailAlertConfig() {
 
   return {
     settings: settings ?? buildDefaultSettings(),
-    isLoading,
+    isLoading: isLoading || !orgId,
     saveSettings,
   };
 }

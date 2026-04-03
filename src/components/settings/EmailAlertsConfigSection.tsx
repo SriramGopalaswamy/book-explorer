@@ -10,6 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Mail, Bell, Save, Loader2, Clock, Users, Search,
   ChevronDown, ChevronRight, CheckCircle2, XCircle,
   Target, DollarSign, CalendarCheck, UserCheck, FileText,
@@ -97,9 +101,15 @@ function AlertRuleRow({
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 <Select
                   value={config.frequency}
-                  onValueChange={(v) =>
-                    onChange({ ...config, frequency: v as AlertFrequency })
-                  }
+                  onValueChange={(v) => {
+                    const freq = v as AlertFrequency;
+                    onChange({
+                      ...config,
+                      frequency: freq,
+                      day_of_week: config.day_of_week ?? 1,
+                      day_of_month: config.day_of_month ?? 1,
+                    });
+                  }}
                 >
                   <SelectTrigger className="h-7 text-xs w-[140px]">
                     <SelectValue />
@@ -142,9 +152,11 @@ function AlertRuleRow({
                     min={1}
                     max={28}
                     value={config.day_of_month ?? 1}
-                    onChange={(e) =>
-                      onChange({ ...config, day_of_month: Number(e.target.value) })
-                    }
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (!Number.isFinite(val)) return;
+                      onChange({ ...config, day_of_month: Math.min(28, Math.max(1, val)) });
+                    }}
                     className="h-7 w-16 text-xs"
                   />
                 </div>
@@ -388,11 +400,11 @@ export function EmailAlertsConfigSection() {
   const [activeTab, setActiveTab] = useState("configure");
 
   useEffect(() => {
-    if (!initialized && savedSettings) {
+    if (!initialized && !isLoading && savedSettings) {
       setLocal(savedSettings);
       setInitialized(true);
     }
-  }, [savedSettings, initialized]);
+  }, [savedSettings, initialized, isLoading]);
 
   const handleRuleChange = (ruleId: string, updated: AlertRuleConfig) => {
     setLocal((prev) => ({
@@ -534,15 +546,33 @@ export function EmailAlertsConfigSection() {
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Enable All
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs text-muted-foreground"
-                onClick={handleDisableAll}
-              >
-                <XCircle className="h-3 w-3 mr-1" />
-                Disable All
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                  >
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Disable All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disable all email alerts?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will turn off all {totalRules} email alerts. No automated email notifications
+                      will be sent to any role until you re-enable them. You can still save and undo this before it takes effect.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDisableAll}>
+                      Disable All Alerts
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </CardHeader>
