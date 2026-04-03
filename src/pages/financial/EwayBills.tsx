@@ -154,13 +154,15 @@ export default function EwayBills() {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Info className="h-3.5 w-3.5" />
-              <span>E-Way Bill mandatory for goods movement exceeding ₹{EWAY_BILL_THRESHOLD.toLocaleString("en-IN")} (GST Rule 138)</span>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setShowCreate(true)} className="gap-2">
+                <Plus className="h-4 w-4" /> New E-Way Bill
+              </Button>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3.5 w-3.5" />
+                E-Way Bill mandatory for goods movement exceeding ₹{EWAY_BILL_THRESHOLD.toLocaleString("en-IN")} (GST Rule 138)
+              </span>
             </div>
-            <Button onClick={() => setShowCreate(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> New E-Way Bill
-            </Button>
           </div>
 
           {/* Summary Cards */}

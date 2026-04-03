@@ -84,7 +84,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
   const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["audit-logs", orgId, filters, page, pageSize],
+    queryKey: ["audit-logs", orgId, JSON.stringify(filters), page, pageSize],
     queryFn: async () => {
       let query = supabase
         .from("audit_logs" as any)
