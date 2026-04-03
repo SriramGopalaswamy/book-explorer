@@ -84,16 +84,13 @@ export default function RecurringTransactionsPage() {
   return (
     <MainLayout title="Recurring Transactions" subtitle="Automate repeating journal entries">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div />
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => executeTx.mutate()} disabled={executeTx.isPending}>
-              <Play className="h-4 w-4 mr-2" /> {executeTx.isPending ? "Running…" : "Run Due Now"}
-            </Button>
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> New Recurring
-            </Button>
-          </div>
+        <div className="flex items-center justify-start gap-2">
+          <Button variant="outline" onClick={() => executeTx.mutate()} disabled={executeTx.isPending}>
+            <Play className="h-4 w-4 mr-2" /> {executeTx.isPending ? "Running…" : "Run Due Now"}
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> New Recurring
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

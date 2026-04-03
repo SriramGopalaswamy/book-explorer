@@ -160,7 +160,7 @@ export default function JournalEntry() {
               <SelectItem value="draft">Draft</SelectItem>
             </SelectContent>
           </Select>
-          <Button className="bg-gradient-financial text-white ml-auto" onClick={() => setDialogOpen(true)}>
+          <Button className="bg-gradient-financial text-white" onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> New Journal Entry
           </Button>
         </div>

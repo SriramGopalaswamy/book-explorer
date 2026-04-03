@@ -132,8 +132,7 @@ export default function ApprovalWorkflowsPage() {
           </AlertDescription>
         </Alert>
 
-        <div className="flex items-center justify-between">
-          <div />
+        <div className="flex items-center justify-start">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>

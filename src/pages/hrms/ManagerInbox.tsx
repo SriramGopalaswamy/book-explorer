@@ -105,7 +105,7 @@ function useDirectReportsPendingProfileChanges() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-profile-changes-pending", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-profile-changes-pending", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
@@ -129,7 +129,7 @@ function useDirectReportsLeavesHistory() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-leaves-history", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-leaves-history", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
@@ -152,7 +152,7 @@ function useDirectReportsCorrectionHistory() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-corrections-history", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-corrections-history", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
@@ -175,7 +175,7 @@ function useDirectReportsCorrectionsPending() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-corrections-pending", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-corrections-pending", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
@@ -197,7 +197,7 @@ function useDirectReportsPendingReimbursements() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-reimbursements-pending", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-reimbursements-pending", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase
@@ -2084,7 +2084,7 @@ function useDirectReportsPendingExpenses() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-expenses-pending", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-expenses-pending", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
       const { data, error } = await supabase

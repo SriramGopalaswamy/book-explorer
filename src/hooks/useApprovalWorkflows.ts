@@ -63,7 +63,7 @@ export function useApprovalWorkflows() {
 
 export function useApprovalWorkflowSteps(workflowIds: string[]) {
   return useQuery({
-    queryKey: ["approval-workflow-steps", workflowIds],
+    queryKey: ["approval-workflow-steps", workflowIds.join(",")],
     queryFn: async () => {
       if (workflowIds.length === 0) return [];
       const { data, error } = await supabase

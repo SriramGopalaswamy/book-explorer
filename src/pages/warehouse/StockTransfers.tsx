@@ -157,8 +157,7 @@ export default function StockTransfers() {
   return (
     <MainLayout title="Stock Transfers" subtitle="Move inventory between warehouses">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div></div>
+        <div className="flex items-center justify-start">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Transfer</Button></DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

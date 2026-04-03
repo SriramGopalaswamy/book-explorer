@@ -271,7 +271,7 @@ export default function PurchaseOrders() {
   return (
     <MainLayout title="Purchase Orders" subtitle="Manage procurement lifecycle">
       <div className="space-y-6">
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-start">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />New PO</Button>

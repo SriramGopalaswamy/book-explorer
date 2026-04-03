@@ -63,7 +63,7 @@ export function useDirectReportsAttendance() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-attendance", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-attendance", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
 
@@ -87,7 +87,7 @@ export function useDirectReportsLeaves() {
   const isDevMode = useIsDevModeWithoutAuth();
 
   return useQuery({
-    queryKey: ["direct-reports-leaves", reports.map((r) => r.id), isDevMode],
+    queryKey: ["direct-reports-leaves", reports.map((r) => r.id).join(","), isDevMode],
     queryFn: async () => {
       if (isDevMode || !user || reports.length === 0) return [];
 

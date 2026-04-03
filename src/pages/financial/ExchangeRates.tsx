@@ -189,8 +189,7 @@ export default function ExchangeRatesPage() {
   return (
     <MainLayout title="Exchange Rates">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div></div>
+        <div className="flex items-center justify-start">
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={fetchLiveRates} disabled={fetchingLive}>
               <RefreshCw className={`h-4 w-4 mr-2 ${fetchingLive ? "animate-spin" : ""}`} />
