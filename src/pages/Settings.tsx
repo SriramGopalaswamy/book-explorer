@@ -42,7 +42,7 @@ import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
   Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  UserCog, Clock,
+  UserCog, Clock, Mail,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
@@ -54,6 +54,7 @@ import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { Target } from "lucide-react";
 import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
+import { EmailAlertsConfigSection } from "@/components/settings/EmailAlertsConfigSection";
 
 interface UserWithRole {
   user_id: string;
@@ -1261,7 +1262,7 @@ export default function Settings() {
             <Shield className="h-6 w-6 text-primary" />
             Settings
           </h1>
-          <p className="text-muted-foreground mt-1">Manage your organization's branding, payroll, roles, integrations, and user access</p>
+          <p className="text-muted-foreground mt-1">Manage your organization's branding, payroll, roles, email alerts, integrations, and user access</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1293,6 +1294,10 @@ export default function Settings() {
             <TabsTrigger value="upload-history" className="gap-1.5">
               <History className="h-4 w-4" />
               Upload History
+            </TabsTrigger>
+            <TabsTrigger value="email-alerts" className="gap-1.5">
+              <Mail className="h-4 w-4" />
+              Email Alerts
             </TabsTrigger>
             <TabsTrigger value="privacy" className="gap-1.5">
               <Lock className="h-4 w-4" />
@@ -1326,6 +1331,10 @@ export default function Settings() {
 
           <TabsContent value="upload-history" className="mt-6">
               <BulkUploadHistory />
+          </TabsContent>
+
+          <TabsContent value="email-alerts" className="mt-6">
+            <EmailAlertsConfigSection />
           </TabsContent>
 
           <TabsContent value="privacy" className="mt-6">
