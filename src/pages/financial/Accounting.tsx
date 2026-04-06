@@ -123,9 +123,8 @@ function TransactionsTab() {
 
       setAddOpen(false);
       resetForm();
-    } catch (error) {
-      console.error("Failed to add transaction:", error);
-      toast.error("Unable to add transaction. Please check the entered values and try again.");
+    } catch {
+      // onError in the mutation handles user-facing error toasts
     }
   };
 
