@@ -677,7 +677,6 @@ export default function AutomationDashboard() {
     },
     onSuccess: (data) => {
       toast({ title: "Engine executed", description: `${data?.processed ?? 0} workflow run(s) processed.` });
-      refetchRuns();
       queryClient.invalidateQueries({ queryKey: ["workflow-runs"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-run-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["message-enrichment"] });
