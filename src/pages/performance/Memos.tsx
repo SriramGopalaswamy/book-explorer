@@ -657,14 +657,16 @@ export default function Memos() {
                             <Eye className="h-4 w-4 mr-1" />
                             View
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => deleteMemo.mutate(memo.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {memo.status !== "published" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => deleteMemo.mutate(memo.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
