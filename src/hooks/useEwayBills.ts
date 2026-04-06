@@ -266,12 +266,13 @@ export function useEwayBills() {
       if (!user) throw new Error("Not authenticated");
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
-      const { error } = await (supabase as any)
+      const { error, count } = await (supabase as any)
         .from("eway_bills")
-        .delete()
+        .delete({ count: "exact" })
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+      if (count === 0) throw new Error("Delete failed: record not found or permission denied");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["eway_bills"] });
