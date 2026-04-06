@@ -29,7 +29,7 @@ import { toast } from "@/hooks/use-toast";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { differenceInDays, format, formatDistanceToNow } from "date-fns";
 import {
   Activity,
@@ -523,6 +523,7 @@ export default function AutomationDashboard() {
   const queryClient = useQueryClient();
 
   const organizationId = orgData?.organizationId;
+  const isRefreshing = useIsFetching({ queryKey: ["workflows"] }) > 0 || useIsFetching({ queryKey: ["workflow-runs"] }) > 0;
   const canSeeDebug = !currentRole || ["finance", "admin", "superadmin"].includes(currentRole);
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(NEW_WORKFLOW_ID);
@@ -545,7 +546,7 @@ export default function AutomationDashboard() {
     },
   });
 
-  const { data: runs = [], isLoading: runsLoading, error: runsError, refetch: refetchRuns } = useQuery({
+  const { data: runs = [], isLoading: runsLoading, error: runsError } = useQuery({
     queryKey: ["workflow-runs", organizationId],
     enabled: !!organizationId,
     refetchInterval: 30000,
@@ -761,7 +762,7 @@ export default function AutomationDashboard() {
 
             <div className="flex flex-wrap gap-2">
               {canSeeDebug && <Button variant="outline" className="gap-2" onClick={() => setShowDebug((current) => !current)}><Bug className="h-4 w-4" />{showDebug ? "Hide Debug" : "Show Debug"}</Button>}
-              <Button variant="outline" className="gap-2" onClick={() => { refetchRuns(); queryClient.invalidateQueries({ queryKey: ["workflows"] }); queryClient.invalidateQueries({ queryKey: ["workflow-runs"] }); queryClient.invalidateQueries({ queryKey: ["workflow-run-invoices"] }); queryClient.invalidateQueries({ queryKey: ["message-enrichment"] }); }}><RefreshCw className="h-4 w-4" />Refresh</Button>
+              <Button variant="outline" className="gap-2" disabled={isRefreshing} onClick={() => { queryClient.invalidateQueries({ queryKey: ["workflows", organizationId] }); queryClient.invalidateQueries({ queryKey: ["workflow-runs", organizationId] }); queryClient.invalidateQueries({ queryKey: ["workflow-run-invoices"] }); queryClient.invalidateQueries({ queryKey: ["message-enrichment", organizationId] }); }}><RefreshCw className={`h-4 w-4${isRefreshing ? " animate-spin" : ""}`} />Refresh</Button>
               <Button className="gap-2" onClick={() => triggerEngine.mutate()} disabled={triggerEngine.isPending}><Play className="h-4 w-4" />{triggerEngine.isPending ? "Running…" : "Run Engine"}</Button>
             </div>
           </div>
