@@ -294,7 +294,10 @@ export function useDeleteAsset() {
       toast.success("Asset deleted successfully");
     },
     onError: (error: Error) => {
-      toast.error("Failed to delete asset: " + error.message);
+      const msg = error.message?.includes("row-level security")
+        ? "You don't have permission to delete assets. Contact your administrator."
+        : "Failed to delete asset: " + error.message;
+      toast.error(msg);
     },
   });
 }
