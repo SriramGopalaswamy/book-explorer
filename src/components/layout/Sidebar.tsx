@@ -74,6 +74,7 @@ import grx10Logo from "@/assets/grx10-logo.webp";
 import grx10Icon from "@/assets/grx10-icon.png";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useModuleAccess } from "@/hooks/useModuleAccess";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface NavItem {
   name: string;
@@ -356,10 +357,15 @@ export function Sidebar() {
   const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const { isModuleEnabled } = useModuleAccess();
+  const { data: orgData, isFetched: orgFetched } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
-  // Only treat as loading on initial fetch, not on refetches — prevents scroll reset
-  const isLoading = !isFetched;
+  // Only treat as loading on initial fetch, not on refetches — prevents scroll reset.
+  // IMPORTANT: when orgId is absent (no profile or no org assignment) the role query
+  // is permanently disabled and isFetched stays false forever, making the sidebar
+  // blank indefinitely for those users. Guard: if org data has been fetched and there
+  // is no org, skip the loading gate so the sidebar renders with employee defaults.
+  const isLoading = orgFetched && !orgData ? false : !isFetched;
 
   // Restore sidebar scroll position after remount AND after content has rendered
   // We depend on isLoading so scroll is restored once nav items are actually in the DOM

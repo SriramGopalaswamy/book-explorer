@@ -465,7 +465,7 @@ export default function ApprovalWorkflowsPage() {
                         <TableCell>
                           <Badge variant={r.status === "approved" ? "default" : "destructive"}>{r.status}</Badge>
                         </TableCell>
-                        <TableCell className="text-foreground">{format(new Date(r.approved_at || r.rejected_at || r.created_at), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="text-foreground">{(() => { const d = r.approved_at || r.rejected_at || r.created_at; return d ? format(new Date(d), "dd MMM yyyy") : "—"; })()}</TableCell>
                       </TableRow>
                     ))}
                     {processedRequests.length === 0 && (
