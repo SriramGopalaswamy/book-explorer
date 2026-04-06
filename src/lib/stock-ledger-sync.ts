@@ -110,10 +110,11 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
       .eq("id", itemId)
       .maybeSingle();
     const currentStock = Number((itemRow as any)?.current_stock ?? 0);
-    await supabase
+    const { error: stockUpdateErr } = await supabase
       .from("items" as any)
       .update({ current_stock: currentStock + delta } as any)
       .eq("id", itemId);
+    if (stockUpdateErr) throw new Error(`Failed to update stock count for item ${itemId}: ${stockUpdateErr.message}`);
   }
 }
 
@@ -340,11 +341,12 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
   if (consumptionRecords.length > 0) {
     // Delete any existing consumption records for this WO first (prevents duplicates
     // when both useRecordProduction and consumeBOMForWorkOrder are called)
-    await supabase
+    const { error: delErr } = await supabase
       .from("material_consumption" as any)
       .delete()
       .eq("work_order_id", workOrderId)
       .eq("organization_id", woOrgId);
+    if (delErr) throw new Error(`Failed to clear existing consumption records: ${delErr.message}`);
     const { error: mcErr } = await supabase
       .from("material_consumption" as any)
       .insert(consumptionRecords as any);

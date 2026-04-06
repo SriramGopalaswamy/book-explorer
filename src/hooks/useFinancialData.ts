@@ -344,6 +344,19 @@ export function useUpdateFinancialRecord() {
         throw new Error("Amount must be a positive number");
       }
 
+      // Validate exchange_rate when currency is being changed or rate is being set.
+      // Mirrors the same guard in useAddFinancialRecord — prevents a record from being
+      // updated to a non-INR currency without a valid positive exchange rate.
+      if (record.currency_code !== undefined || record.exchange_rate !== undefined) {
+        const newCurrency = record.currency_code ?? "INR";
+        if (newCurrency !== "INR") {
+          const rate = record.exchange_rate;
+          if (!rate || !Number.isFinite(rate) || rate <= 0) {
+            throw new Error("A valid exchange rate is required for non-INR transactions.");
+          }
+        }
+      }
+
       // Resolve org for tenant isolation
       const { data: callerProfile } = await supabase
         .from("profiles")

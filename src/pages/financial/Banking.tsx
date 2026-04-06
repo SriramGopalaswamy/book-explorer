@@ -337,7 +337,11 @@ export default function Banking() {
                     }
                     const validTypes = ["Current", "Savings", "FD", "Credit"];
                     const acTypeNorm = row.account_type?.trim();
-                    const acType = validTypes.find(t => t.toLowerCase() === acTypeNorm?.toLowerCase()) ?? "Current";
+                    const acType = validTypes.find(t => t.toLowerCase() === acTypeNorm?.toLowerCase());
+                    if (!acType) {
+                      errors.push(`Row ${rows.indexOf(row) + 2}: Invalid or missing account type "${acTypeNorm ?? ""}". Must be one of: ${validTypes.join(", ")}`);
+                      continue;
+                    }
                     const { error } = await supabase.from("bank_accounts").insert({
                       name: row.name,
                       bank_name: row.bank_name || null,
