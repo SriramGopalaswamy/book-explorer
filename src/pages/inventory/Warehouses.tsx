@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Warehouse, Search, Trash2, MoreHorizontal, Edit, Eye, ToggleLeft, ToggleRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -35,6 +36,7 @@ export default function Warehouses() {
   const [editWH, setEditWH] = useState<any>(null);
   const [editForm, setEditForm] = useState({ name: "", code: "", city: "", state: "", contact_person: "", contact_phone: "", is_active: true });
   const [open, setOpen] = useState(false);
+  const [deleteWHId, setDeleteWHId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({
@@ -178,7 +180,7 @@ export default function Warehouses() {
                               {wh.is_active ? <ToggleLeft className="h-4 w-4 mr-2" /> : <ToggleRight className="h-4 w-4 mr-2" />}
                               {wh.is_active ? "Mark Inactive" : "Mark Active"}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => deleteWH.mutate(wh.id)} className="text-destructive">
+                            <DropdownMenuItem onClick={() => setDeleteWHId(wh.id)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -239,6 +241,32 @@ export default function Warehouses() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Warehouse Confirmation */}
+        <AlertDialog open={!!deleteWHId} onOpenChange={(open) => { if (!open) setDeleteWHId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Warehouse?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the warehouse. Warehouses with existing stock entries cannot be deleted — transfer all stock out first before deleting.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (deleteWHId) {
+                    deleteWH.mutate(deleteWHId);
+                    setDeleteWHId(null);
+                  }
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

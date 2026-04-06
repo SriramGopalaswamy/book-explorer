@@ -15,6 +15,7 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { Plus, CheckCircle, XCircle, Trash2, ArrowRight, GripVertical, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useApprovalWorkflows, useCreateApprovalWorkflow, useToggleWorkflow, useApprovalRequests, useApproveRequest, useRejectRequest, useApprovalWorkflowSteps } from "@/hooks/useApprovalWorkflows";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 const ROLE_OPTIONS = [
@@ -32,6 +33,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function ApprovalWorkflowsPage() {
+  const { isLoading: orgLoading } = useUserOrganization();
   const { data: workflows = [], isLoading: wfLoading, error: wfError } = useApprovalWorkflows();
   const { data: requests = [], isLoading: reqLoading, error: reqError } = useApprovalRequests();
 
@@ -89,7 +91,7 @@ export default function ApprovalWorkflowsPage() {
     return map;
   }, [allSteps]);
 
-  const isLoading = wfLoading || reqLoading;
+  const isLoading = orgLoading || wfLoading || reqLoading;
   const pageError = wfError || reqError;
 
   if (isLoading)
@@ -367,7 +369,7 @@ export default function ApprovalWorkflowsPage() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="text-foreground">{format(new Date(r.requested_at), "dd MMM yyyy")}</TableCell>
+                          <TableCell className="text-foreground">{r.requested_at ? format(new Date(r.requested_at), "dd MMM yyyy") : "—"}</TableCell>
                           <TableCell className="flex gap-2">
                             <Button size="sm" variant="default" onClick={() => approveReq.mutate({ id: r.id })}>
                               <CheckCircle className="h-4 w-4 mr-1" />

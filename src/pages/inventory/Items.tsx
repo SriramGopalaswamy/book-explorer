@@ -350,7 +350,7 @@ export default function Items() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cannot Delete Item</AlertDialogTitle>
             <AlertDialogDescription>
-              This item has existing stock movements and cannot be deleted. Would you like to deactivate it instead?
+              The delete was blocked because this item has existing stock movements. Deleting it would create data inconsistencies. You can deactivate it instead to hide it from active use.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
