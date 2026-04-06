@@ -68,6 +68,7 @@ import { BulkUploadDialog, BulkUploadConfig } from "@/components/bulk-upload/Bul
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formatCurrency = (value: number) => {
   if (value >= 100000) {
@@ -82,6 +83,7 @@ export default function Banking() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   const { data: accounts = [], isLoading: accountsLoading } = useBankAccounts();
   const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
@@ -306,11 +308,11 @@ export default function Banking() {
                   { key: "name", label: "Account Name", required: true },
                   { key: "bank_name", label: "Bank Name" },
                   { key: "account_number", label: "Account Number (6–18 chars)", required: true },
-                  { key: "account_type", label: "Account Type (Current/Savings/OD/CC)", required: true },
+                  { key: "account_type", label: "Account Type (Current/Savings/FD/Credit)", required: true },
                   { key: "balance", label: "Opening Balance", required: true },
                 ],
                 templateFileName: "bank_accounts_template.csv",
-                templateContent: "name,bank_name,account_number,account_type,balance\nHDFC Current Account,HDFC Bank,12345678901234,Current,50000\nSBI Savings,State Bank of India,12345678901,Savings,25000\nICICI OD Account,ICICI Bank,123456789012,OD,10000",
+                templateContent: "name,bank_name,account_number,account_type,balance\nHDFC Current Account,HDFC Bank,12345678901234,Current,50000\nSBI Savings,State Bank of India,12345678901,Savings,25000\nICICI FD Account,ICICI Bank,123456789012,FD,10000",
                 onUpload: async (rows) => {
                   let success = 0;
                   const errors: string[] = [];
@@ -333,7 +335,7 @@ export default function Banking() {
                       errors.push(`Row ${rows.indexOf(row) + 2}: Account number must be 6–18 alphanumeric characters (got: "${accNum}")`);
                       continue;
                     }
-                    const validTypes = ["Current", "Savings", "OD", "CC"];
+                    const validTypes = ["Current", "Savings", "FD", "Credit"];
                     const acTypeNorm = row.account_type?.trim();
                     const acType = validTypes.find(t => t.toLowerCase() === acTypeNorm?.toLowerCase()) ?? "Current";
                     const { error } = await supabase.from("bank_accounts").insert({
@@ -343,6 +345,7 @@ export default function Banking() {
                       account_type: acType as BankAccount["account_type"],
                       balance: bal,
                       organization_id: orgId,
+                      user_id: user?.id,
                     } as any);
                     if (error) errors.push(`Row ${rows.indexOf(row) + 2}: ${error.message}`);
                     else success++;

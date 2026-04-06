@@ -292,11 +292,14 @@ export function useAddFinancialRecord() {
       const validated = financialRecordSchema.parse(record);
       const orgId = orgData?.organizationId;
       const currencyCode = record.currency_code || "INR";
-      const exchangeRate = currencyCode === "INR"
-        ? 1
-        : (record.exchange_rate && Number.isFinite(record.exchange_rate) && record.exchange_rate > 0
-          ? record.exchange_rate
-          : null);
+      let exchangeRate: number;
+      if (currencyCode === "INR") {
+        exchangeRate = 1;
+      } else if (record.exchange_rate && Number.isFinite(record.exchange_rate) && record.exchange_rate > 0) {
+        exchangeRate = record.exchange_rate;
+      } else {
+        throw new Error("A valid exchange rate is required for non-INR transactions.");
+      }
 
       const { data, error } = await supabase
         .from("financial_records")
