@@ -356,7 +356,12 @@ export function useUpdateWOStatus() {
       // ── Auto-consume BOM materials on completion ──
       if (status === "completed") {
         const { consumeBOMForWorkOrder } = await import("@/lib/stock-ledger-sync");
-        await consumeBOMForWorkOrder(id);
+        const result = await consumeBOMForWorkOrder(id);
+        if (result === "no_bom") {
+          // Surface the gap to the user immediately — without this they would see
+          // "Status updated" but find the Consumption screen empty with no explanation.
+          toast.warning("Work order completed. No BOM is linked to this work order, so no material consumption records were created. Link a BOM and re-complete to track consumption.");
+        }
       }
     },
     onSuccess: () => {
@@ -566,12 +571,13 @@ export function usePostFinishedGoods() {
             rate: rate ?? 0,
             value: value ?? 0,
           } as any);
-          // Update items.current_stock
+          // Update items.current_stock for the finished product
           const currentStock = Number((itemRow as any)?.current_stock ?? 0);
-          await supabase
+          const { error: stockErr } = await supabase
             .from("items" as any)
             .update({ current_stock: currentStock + params.quantity } as any)
             .eq("id", params.product_item_id);
+          if (stockErr) throw new Error(`Failed to update stock count for finished product: ${stockErr.message}`);
         }
       }
 

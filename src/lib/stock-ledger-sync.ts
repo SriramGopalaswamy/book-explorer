@@ -275,17 +275,20 @@ export async function postStockTransferEntries(
  * Auto-consume BOM materials when a Work Order is completed.
  * Deducts (quantity_per_unit × completed_quantity × (1 + wastage_pct/100))
  * from the WO warehouse (or default warehouse).
+ *
+ * Returns "no_bom" when no BOM is linked (caller should warn the user),
+ * "ok" when consumption records were written successfully.
  */
-export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void> {
+export async function consumeBOMForWorkOrder(workOrderId: string): Promise<"ok" | "no_bom"> {
   // Fetch work order details
   const { data: wo, error: woErr } = await supabase
     .from("work_orders" as any)
     .select("id, bom_id, completed_quantity, warehouse_id")
     .eq("id", workOrderId)
     .single();
-  if (woErr || !wo) return;
+  if (woErr || !wo) return "no_bom";
   const woData = wo as any;
-  if (!woData.bom_id || Number(woData.completed_quantity) <= 0) return;
+  if (!woData.bom_id || Number(woData.completed_quantity) <= 0) return "no_bom";
 
   // Fetch BOM lines
   const { data: lines, error: lErr } = await supabase
@@ -352,6 +355,7 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<void>
       .insert(consumptionRecords as any);
     if (mcErr) throw new Error(`Failed to write consumption records: ${mcErr.message}`);
   }
+  return "ok";
 }
 
 /**
