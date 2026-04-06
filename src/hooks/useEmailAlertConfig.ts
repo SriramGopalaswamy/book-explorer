@@ -403,7 +403,7 @@ export function useEmailAlertConfig() {
       if (error) throw error;
 
       // Read the email_alert_config JSON column
-      const raw = data?.email_alert_config as Record<string, any> | null;
+      const raw = (data as any)?.email_alert_config as Record<string, any> | null;
       if (raw && typeof raw === "object") {
         // Merge with defaults to pick up any new rules added after the config was saved
         const defaults = buildDefaultSettings();
