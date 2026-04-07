@@ -443,7 +443,7 @@ export function useEmailAlertConfig() {
             email_alert_config: newSettings as unknown as Json,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
-          },
+          } as any,
           { onConflict: "organization_id" }
         );
 

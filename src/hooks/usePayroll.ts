@@ -262,7 +262,7 @@ export function useUpdatePayroll() {
 
       const { data: record, error } = await supabase
         .from("payroll_records")
-        .update(updateData)
+        .update(updateData as any)
         .eq("id", id)
         .eq("organization_id", callerOrgId)
         .select("*, profiles!profile_id(full_name, email, department, job_title)")

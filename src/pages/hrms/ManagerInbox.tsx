@@ -471,7 +471,7 @@ function PendingCorrections() {
         if (existingRecord) {
           await supabase
             .from("attendance_records")
-            .update(updateFields)
+            .update(updateFields as any)
             .eq("id", existingRecord.id);
         } else {
           await supabase
@@ -516,7 +516,7 @@ function PendingCorrections() {
           if (existingDaily) {
             await supabase
               .from("attendance_daily")
-              .update(dailyUpdate)
+              .update(dailyUpdate as any)
               .eq("id", existingDaily.id);
           }
         }

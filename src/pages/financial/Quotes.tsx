@@ -218,7 +218,7 @@ export default function Quotes() {
             cgst_rate: parseFloat(c.cgst_rate) || 0, sgst_rate: parseFloat(c.sgst_rate) || 0, igst_rate: 0,
             cgst_amount: c.cgstAmt, sgst_amount: c.sgstAmt, igst_amount: 0,
             organization_id: orgId,
-          }))
+          })) as any
         );
         if (itemsError) throw itemsError;
       }
@@ -264,7 +264,7 @@ export default function Quotes() {
             cgst_rate: parseFloat(c.cgst_rate) || 0, sgst_rate: parseFloat(c.sgst_rate) || 0, igst_rate: 0,
             cgst_amount: c.cgstAmt, sgst_amount: c.sgstAmt, igst_amount: 0,
             organization_id: orgId,
-          }))
+          })) as any
         );
         if (itemsError) throw itemsError;
       }
@@ -320,7 +320,7 @@ export default function Quotes() {
           cgst_rate: i.cgst_rate || 0, sgst_rate: i.sgst_rate || 0, igst_rate: i.igst_rate || 0,
           cgst_amount: i.cgst_amount || 0, sgst_amount: i.sgst_amount || 0, igst_amount: i.igst_amount || 0,
           organization_id: orgId,
-        })));
+        })) as any);
       }
       await supabase.from("quotes").update({ status: "converted", converted_invoice_id: inv.id }).eq("id", quote.id).eq("organization_id", orgId);
     },

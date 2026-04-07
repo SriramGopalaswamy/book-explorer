@@ -170,7 +170,7 @@ function BrandingSection() {
             [type === "logo" ? "logo_url" : "favicon_url"]: url,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
-          },
+          } as any,
           { onConflict: "organization_id" }
         );
       if (dbError) throw dbError;
@@ -189,7 +189,7 @@ function BrandingSection() {
     if (!orgId) return;
     await supabase
       .from("organization_settings")
-      .update({ [type === "logo" ? "logo_url" : "favicon_url"]: null, updated_at: new Date().toISOString() })
+      .update({ [type === "logo" ? "logo_url" : "favicon_url"]: null, updated_at: new Date().toISOString() } as any)
       .eq("organization_id", orgId);
 
     if (type === "logo") setLogoUrl(null);

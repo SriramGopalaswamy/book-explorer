@@ -300,14 +300,14 @@ export default function Profile() {
           const { error } = await supabase
             .from("employee_details")
             .upsert(
-              { profile_id: profileId!, [fieldKey]: newValue },
+              { profile_id: profileId!, [fieldKey]: newValue } as any,
               { onConflict: "profile_id" }
             );
           if (error) throw error;
         } else {
           const { error } = await supabase
             .from("employee_details")
-            .update({ [fieldKey]: newValue })
+            .update({ [fieldKey]: newValue } as any)
             .eq("id", details.id);
           if (error) throw error;
         }
