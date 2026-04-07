@@ -105,8 +105,9 @@ export default function Holidays() {
   const deleteHoliday = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("No organization found");
-      const { error } = await supabase.from("holidays").delete().eq("id", id).eq("organization_id", orgId);
+      const { data: deleted, error } = await supabase.from("holidays").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Holiday not found or could not be deleted.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["holidays"] });

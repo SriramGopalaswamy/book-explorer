@@ -223,7 +223,12 @@ export default function CreditNotes() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("credit_notes").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
+      const { data: deleted, error } = await supabase.from("credit_notes").delete().eq("id", id).eq("organization_id", orgId).select("id");
+      if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Credit note not found or could not be deleted.");
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Credit Note Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

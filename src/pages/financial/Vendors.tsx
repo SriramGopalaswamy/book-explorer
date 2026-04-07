@@ -123,7 +123,12 @@ export default function Vendors() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("vendors").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
+      const { data: deleted, error } = await supabase.from("vendors").delete().eq("id", id).eq("organization_id", orgId).select("id");
+      if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Vendor not found or could not be deleted.");
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

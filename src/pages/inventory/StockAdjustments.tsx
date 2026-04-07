@@ -49,8 +49,10 @@ function useDeleteAdjustment() {
       if (!user) throw new Error("Not authenticated");
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
-      const { error } = await supabase.from("stock_adjustments" as any).delete().eq("id", id).eq("organization_id", orgId);
+      const { data: deleted, error } = await supabase.from("stock_adjustments" as any).delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0)
+        throw new Error("Adjustment not found or could not be deleted. You may not have permission.");
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-adjustments"] }); toast.success("Adjustment deleted"); },
     onError: (e: any) => toast.error(e.message),

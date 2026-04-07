@@ -378,10 +378,15 @@ export default function InventoryCounts() {
   const deleteCountMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      const { error } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
-      if (error) console.warn("Lines delete:", error);
-      const { error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id).eq("organization_id", orgId);
+      // Delete child lines first; surface any error (previously swallowed via console.warn)
+      const { error: linesErr } = await (supabase as any).from("inventory_count_lines").delete().eq("count_id", id);
+      if (linesErr) throw linesErr;
+      // Delete the header and verify the row was actually removed (guards against
+      // silent RLS blocks that return success but delete 0 rows)
+      const { data: deleted, error: e2 } = await (supabase as any).from("inventory_counts").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (e2) throw e2;
+      if (!deleted || deleted.length === 0)
+        throw new Error("Count not found or could not be deleted. You may not have permission.");
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inventory-counts"] }); toast.success("Count deleted"); },
     onError: (e: any) => toast.error(e.message),

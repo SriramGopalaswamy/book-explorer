@@ -141,10 +141,11 @@ export default function Customers() {
       if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0 || (quoteCheck.data?.length ?? 0) > 0) {
         throw new Error("Cannot delete this customer because they have linked invoices, quotes, or credit notes. Mark them as inactive instead.");
       }
-      // Delete AI profile if exists (no user-facing data)
+      // Delete AI profile if exists (no user-facing data — failure is non-critical)
       await supabase.from("ai_customer_profiles").delete().eq("customer_id", id);
-      const { error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", orgId);
+      const { data: deleted, error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Customer not found or could not be deleted.");
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Removed" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
