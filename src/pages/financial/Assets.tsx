@@ -576,7 +576,12 @@ AST-002,Herman Miller Aeron Chair,Furniture & Fixtures,2025-03-01,45000,60,3000,
                 <CheckCircle className="h-4 w-4 mr-2" /> Reactivate
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedAsset(a); setDeleteOpen(true); }}>
+            <DropdownMenuItem
+              className={["disposed", "written_off"].includes(a.status) ? "text-muted-foreground cursor-not-allowed opacity-50" : "text-destructive"}
+              disabled={["disposed", "written_off"].includes(a.status)}
+              title={["disposed", "written_off"].includes(a.status) ? `Cannot delete a ${a.status.replace("_", " ")} asset — retained for audit records` : undefined}
+              onClick={() => { if (!["disposed", "written_off"].includes(a.status)) { setSelectedAsset(a); setDeleteOpen(true); } }}
+            >
               <Trash2 className="h-4 w-4 mr-2" /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>

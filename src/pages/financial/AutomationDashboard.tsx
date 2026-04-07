@@ -523,7 +523,12 @@ export default function AutomationDashboard() {
   const queryClient = useQueryClient();
 
   const organizationId = orgData?.organizationId;
-  const isRefreshing = useIsFetching({ queryKey: ["workflows"] }) > 0 || useIsFetching({ queryKey: ["workflow-runs"] }) > 0;
+  // Both useIsFetching calls must be in separate variables so they are always called
+  // unconditionally (Rules of Hooks — short-circuit `||` would skip the second call
+  // when the first returns > 0, causing hook-count mismatches between renders).
+  const isFetchingWorkflows = useIsFetching({ queryKey: ["workflows"] });
+  const isFetchingRuns = useIsFetching({ queryKey: ["workflow-runs"] });
+  const isRefreshing = isFetchingWorkflows > 0 || isFetchingRuns > 0;
   const canSeeDebug = !currentRole || ["finance", "admin", "superadmin"].includes(currentRole);
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(NEW_WORKFLOW_ID);
@@ -645,8 +650,9 @@ export default function AutomationDashboard() {
 
   const deleteWorkflow = useMutation({
     mutationFn: async (workflowId: string) => {
-      const { error } = await (supabase.from as any)("workflows").delete().eq("id", workflowId);
+      const { data: deleted, error } = await (supabase.from as any)("workflows").delete().eq("id", workflowId).select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Workflow not found or could not be deleted.");
     },
     onSuccess: (_, workflowId) => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });

@@ -334,7 +334,12 @@ export default function Quotes() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
+      const { data: deleted, error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", orgId).select("id");
+      if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Quote not found or could not be deleted.");
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["quotes"] }); toast({ title: "Quote Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

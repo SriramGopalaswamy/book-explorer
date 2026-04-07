@@ -91,6 +91,15 @@ export default function ApprovalWorkflowsPage() {
     return map;
   }, [allSteps]);
 
+  // Derived lists and pagination hooks must be called unconditionally (Rules of Hooks)
+  // — they must not appear after any early return.
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const processedRequests = requests.filter((r) => r.status !== "pending");
+
+  const workflowsPagination = usePagination(workflows, 10);
+  const pendingPagination = usePagination(pendingRequests, 10);
+  const historyPagination = usePagination(processedRequests, 10);
+
   const isLoading = orgLoading || wfLoading || reqLoading;
   const pageError = wfError || reqError;
 
@@ -115,13 +124,6 @@ export default function ApprovalWorkflowsPage() {
         </div>
       </MainLayout>
     );
-
-  const pendingRequests = requests.filter((r) => r.status === "pending");
-  const processedRequests = requests.filter((r) => r.status !== "pending");
-
-  const workflowsPagination = usePagination(workflows, 10);
-  const pendingPagination = usePagination(pendingRequests, 10);
-  const historyPagination = usePagination(processedRequests, 10);
 
   return (
     <MainLayout title="Approval Workflows" subtitle="Configure and manage approval rules with chain approvals">

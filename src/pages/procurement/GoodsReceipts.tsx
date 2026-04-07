@@ -74,8 +74,10 @@ export default function GoodsReceipts() {
   const deleteGR = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("goods_receipts" as any).delete().eq("id", id).eq("organization_id", orgId);
+      const { data: deleted, error } = await supabase.from("goods_receipts" as any).delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0)
+        throw new Error("Receipt not found or could not be deleted. You may not have permission.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goods-receipts"] });
