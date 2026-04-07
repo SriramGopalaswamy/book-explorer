@@ -4357,11 +4357,9 @@ export type Database = {
           category: string
           created_at: string
           credit: number
-          currency_code: string
           debit: number
           deleted_at: string | null
           description: string | null
-          exchange_rate: number
           id: string
           ind_as_category: string | null
           is_deleted: boolean
@@ -4386,11 +4384,9 @@ export type Database = {
           category: string
           created_at?: string
           credit?: number
-          currency_code?: string
           debit?: number
           deleted_at?: string | null
           description?: string | null
-          exchange_rate?: number
           id?: string
           ind_as_category?: string | null
           is_deleted?: boolean
@@ -4415,11 +4411,9 @@ export type Database = {
           category?: string
           created_at?: string
           credit?: number
-          currency_code?: string
           debit?: number
           deleted_at?: string | null
           description?: string | null
-          exchange_rate?: number
           id?: string
           ind_as_category?: string | null
           is_deleted?: boolean
