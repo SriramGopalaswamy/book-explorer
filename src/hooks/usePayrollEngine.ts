@@ -395,19 +395,8 @@ export function useGeneratePayroll() {
           totalDeductions += pfEmployee;
         }
 
-        // ESI: 0.75% employee + 3.25% employer (only if gross ≤ ₹21,000)
-        if (f.esi_applicable && grossEarnings <= 21000) {
-          esiEmployee = Math.round(grossEarnings * 0.0075);
-          esiEmployer = Math.round(grossEarnings * 0.0325);
-          deductionsBreakdown.push({
-            name: "ESI (Employee 0.75%)",
-            annual: esiEmployee * 12,
-            monthly: esiEmployee,
-            is_taxable: false,
-            statutory: true,
-          });
-          totalDeductions += esiEmployee;
-        }
+        // ESI not applicable — no ESI deduction for any employee.
+
 
         // Professional Tax: Karnataka slab (common)
         // Skip if PT is already present via compensation component.
