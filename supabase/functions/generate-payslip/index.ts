@@ -47,11 +47,11 @@ serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await supabaseAuth.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
+    const { data: userData, error: userErr } = await supabaseAuth.auth.getUser(token);
+    if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const userId = claimsData.claims.sub;
+    const userId = userData.user.id;
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -182,9 +182,9 @@ function buildPayslipHTML(data: {
     const d = padD[i];
     return `<tr>
       <td class="cell">${e ? e.name : ''}</td>
-      <td class="cell r">${e && (e.monthly || 0) > 0 ? fmt(e.monthly) : e ? '--' : ''}</td>
+      <td class="cell r">${e ? fmt(e.monthly ?? e.amount ?? 0) : ''}</td>
       <td class="cell">${d ? d.name : ''}</td>
-      <td class="cell r">${d && (d.monthly || 0) > 0 ? fmt(d.monthly) : d ? '--' : ''}</td>
+      <td class="cell r">${d ? fmt(d.monthly ?? d.amount ?? 0) : ''}</td>
     </tr>`;
   }).join("");
 
