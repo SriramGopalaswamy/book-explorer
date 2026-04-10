@@ -99,9 +99,15 @@ export function exportPayrollMasterCSV(entries: PayrollEntry[], payPeriod: strin
   const headers = [
     "Employee Name", "Department", "Job Title", "Annual CTC",
     "Gross Earnings", "PF (Employee)", "PF (Employer)", "TDS",
-    "ESI (Employee)", "Total Deductions", "LWP Days", "Working Days",
+    "ESI (Employee)", "Professional Tax", "Incentive", "Bonus",
+    "Total Deductions", "LWP Days", "Working Days",
     "Paid Days", "Net Pay",
   ];
+
+  const getComp = (breakdown: any[], name: string): number => {
+    const item = (breakdown ?? []).find((c: any) => c.name === name);
+    return item ? Number(item.amount ?? item.monthly ?? 0) : 0;
+  };
 
   const rows = entries.map((e) => [
     e.profiles?.full_name || "",
@@ -113,6 +119,9 @@ export function exportPayrollMasterCSV(entries: PayrollEntry[], payPeriod: strin
     e.pf_employer ?? 0,
     e.tds_amount ?? 0,
     e.esi_employee ?? 0,
+    getComp(e.deductions_breakdown, "Professional Tax"),
+    getComp(e.earnings_breakdown, "Incentive"),
+    getComp(e.earnings_breakdown, "Bonus"),
     e.total_deductions,
     e.lwp_days,
     e.working_days,
