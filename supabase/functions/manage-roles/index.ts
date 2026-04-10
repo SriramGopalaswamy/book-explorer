@@ -52,20 +52,22 @@ Deno.serve(async (req) => {
       .maybeSingle(),
     supabase
       .from("user_roles")
-      .select("id")
+      .select("id, role")
       .eq("user_id", requestingUserId)
-      .eq("role", "admin")
+      .in("role", ["admin", "hr"])
       .maybeSingle(),
   ]);
 
   const requestingOrgId = membershipResult.data?.organization_id;
 
   if (!adminRoleResult.data || !requestingOrgId) {
-    return new Response(JSON.stringify({ error: "Admin access required" }), {
+    return new Response(JSON.stringify({ error: "Admin or HR access required" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  const callerRole: string = adminRoleResult.data.role;
 
   const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "")
     .split(",")
@@ -118,6 +120,13 @@ Deno.serve(async (req) => {
     // set_role — change a user's role
     // ─────────────────────────────────────────────
     if (action === "set_role") {
+      if (callerRole !== "admin") {
+        return new Response(JSON.stringify({ error: "Admin access required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { user_id, role } = body;
 
       if (!user_id || !role) {
@@ -176,6 +185,13 @@ Deno.serve(async (req) => {
     // approve_user — approve a pending user, set status active and assign role
     // ─────────────────────────────────────────────
     if (action === "approve_user") {
+      if (callerRole !== "admin") {
+        return new Response(JSON.stringify({ error: "Admin access required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { user_id, role } = body;
 
       if (!user_id) {

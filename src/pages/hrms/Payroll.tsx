@@ -96,6 +96,16 @@ const periods = () => {
   return result;
 };
 
+const periods24 = () => {
+  const result: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    result.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return result;
+};
+
 const statusStyles: Record<string, string> = {
   locked: "bg-green-500/10 text-green-600 border-green-500/30",
   approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
@@ -449,6 +459,9 @@ export default function Payroll() {
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
   const [paySlipRecord, setPaySlipRecord] = useState<PayrollRecord | null>(null);
   const [activeTab, setActiveTab] = useState("engine");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewPeriod, setReviewPeriod] = useState("all");
+  const [reviewPaySlipRecord, setReviewPaySlipRecord] = useState<PayrollRecord | null>(null);
   const { user } = useAuth();
   const { data: isAdminOrHR, isLoading: roleLoadingHR } = useIsAdminOrHR();
   const { data: isFinance, isLoading: roleLoadingFinance } = useIsFinance();
@@ -461,6 +474,7 @@ export default function Payroll() {
   const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes("hr");
   const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes("finance");
   const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
+  const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords();
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
@@ -530,6 +544,21 @@ export default function Payroll() {
     }), [records, searchQuery, statusFilter]);
 
   const pagination = usePagination(filtered, 10);
+
+  const filteredReview = useMemo(() =>
+    allPayrollRecords
+      .filter((r) => r.status !== "superseded")
+      .filter((r) => {
+        const name = r.profiles?.full_name?.toLowerCase() || "";
+        const q = reviewSearch.toLowerCase();
+        const matchSearch = !q || name.includes(q);
+        const matchPeriod = reviewPeriod === "all" || r.pay_period === reviewPeriod;
+        return matchSearch && matchPeriod;
+      })
+      .sort((a, b) => b.pay_period.localeCompare(a.pay_period)),
+    [allPayrollRecords, reviewSearch, reviewPeriod]);
+
+  const reviewPagination = usePagination(filteredReview, 10);
 
   const toggleSelect = (id: string) =>
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -738,6 +767,9 @@ export default function Payroll() {
               <TabsTrigger value="register">Payroll Register</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="declarations">Tax Declarations</TabsTrigger>
+              {isHRRole && (
+                <TabsTrigger value="payslip-review">Payslip Review</TabsTrigger>
+              )}
               {isHRRole && (
                 <TabsTrigger value="hr-disputes">
                   HR Approvals
@@ -1016,6 +1048,136 @@ export default function Payroll() {
               )}
             </TabsContent>
             {isHRRole && (
+              <TabsContent value="payslip-review">
+                <Card className="glass-card">
+                  <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle className="text-gradient-primary flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        All Employee Payslips
+                      </CardTitle>
+                      <CardDescription>Review payslips across all months for all employees</CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Select value={reviewPeriod} onValueChange={setReviewPeriod}>
+                        <SelectTrigger className="w-44">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          <SelectValue placeholder="All Months" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Months</SelectItem>
+                          {periods24().map((p) => (
+                            <SelectItem key={p} value={p}>{periodLabel(p)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search by employee..."
+                          className="pl-9 w-52"
+                          value={reviewSearch}
+                          onChange={(e) => setReviewSearch(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {allLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                      </div>
+                    ) : filteredReview.length === 0 ? (
+                      <div className="text-center py-12">
+                        <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <p className="mt-3 text-muted-foreground">
+                          {reviewSearch || reviewPeriod !== "all"
+                            ? "No payslips match your filter"
+                            : "No payslip records found"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-[700px]">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Employee</TableHead>
+                              <TableHead>Department</TableHead>
+                              <TableHead>Period</TableHead>
+                              <TableHead className="text-right">Basic</TableHead>
+                              <TableHead className="text-right">Allowances</TableHead>
+                              <TableHead className="text-right">Deductions</TableHead>
+                              <TableHead className="text-right">LOP</TableHead>
+                              <TableHead className="text-right">Net Pay</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="w-20"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {reviewPagination.paginatedItems.map((r) => {
+                              const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
+                              const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
+                              const lopDays = Number(r.lop_days) || 0;
+                              const lopDeduct = Number(r.lop_deduction) || 0;
+                              return (
+                                <TableRow key={r.id} className="hover:bg-primary/5 transition-colors">
+                                  <TableCell>
+                                    <div>
+                                      <p className="font-medium">{r.profiles?.full_name || "Unknown"}</p>
+                                      <p className="text-xs text-muted-foreground">{r.profiles?.job_title || ""}</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
+                                  <TableCell className="font-medium">{periodLabel(r.pay_period)}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
+                                  <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
+                                  <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
+                                  <TableCell className="text-right">
+                                    {lopDays > 0 ? (
+                                      <span className="text-amber-600">{lopDays}d / -{formatCurrency(lopDeduct)}</span>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">{formatCurrency(Number(r.net_pay))}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className={statusStyles[r.status] || statusStyles.draft}>
+                                      {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 gap-1 text-xs"
+                                      onClick={() => setReviewPaySlipRecord(r)}
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                      View
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                        <TablePagination
+                          page={reviewPagination.page}
+                          totalPages={reviewPagination.totalPages}
+                          totalItems={reviewPagination.totalItems}
+                          from={reviewPagination.from}
+                          to={reviewPagination.to}
+                          pageSize={reviewPagination.pageSize}
+                          onPageChange={reviewPagination.setPage}
+                          onPageSizeChange={reviewPagination.setPageSize}
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+            {isHRRole && (
               <TabsContent value="hr-disputes">
                 <Card className="glass-card">
                   <CardHeader>
@@ -1051,11 +1213,18 @@ export default function Payroll() {
         </motion.div>
       </div>
 
-      {/* Pay Slip Dialog */}
+      {/* Pay Slip Dialog — Payroll Register tab */}
       <PaySlipDialog
         record={paySlipRecord}
         open={!!paySlipRecord}
         onOpenChange={(open) => !open && setPaySlipRecord(null)}
+      />
+
+      {/* Pay Slip Dialog — Payslip Review tab */}
+      <PaySlipDialog
+        record={reviewPaySlipRecord}
+        open={!!reviewPaySlipRecord}
+        onOpenChange={(open) => !open && setReviewPaySlipRecord(null)}
       />
 
       {/* Edit Dialog */}
