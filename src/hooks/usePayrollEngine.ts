@@ -353,6 +353,10 @@ export function useGeneratePayroll() {
             if (c.component_type === "earning") {
               earningsBreakdown.push(item);
               grossEarnings += periodAmount;
+            } else if (c.component_type === "employer_contribution") {
+              // Employer contributions (e.g. Employer PF) are part of CTC but NOT
+              // the employee's gross salary — show in breakdown only.
+              earningsBreakdown.push({ ...item, employer_contribution: true });
             } else {
               deductionsBreakdown.push(item);
               totalDeductions += periodAmount;
