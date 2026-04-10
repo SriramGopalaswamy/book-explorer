@@ -7873,6 +7873,7 @@ export type Database = {
           created_at: string
           department: string | null
           email: string | null
+          employee_id: string | null
           esi_eligible: boolean | null
           full_name: string | null
           id: string
@@ -7890,6 +7891,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email?: string | null
+          employee_id?: string | null
           esi_eligible?: boolean | null
           full_name?: string | null
           id?: string
@@ -7907,6 +7909,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email?: string | null
+          employee_id?: string | null
           esi_eligible?: boolean | null
           full_name?: string | null
           id?: string
