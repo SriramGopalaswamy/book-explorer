@@ -42,32 +42,40 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Combined: verify admin role AND get org in parallel
-  const [membershipResult, adminRoleResult] = await Promise.all([
-    supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", requestingUserId)
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("user_roles")
-      .select("id, role")
-      .eq("user_id", requestingUserId)
-      .in("role", ["admin", "hr"])
-      .maybeSingle(),
-  ]);
+  // Step 1: resolve caller's org membership
+  const membershipResult = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", requestingUserId)
+    .limit(1)
+    .maybeSingle();
 
   const requestingOrgId = membershipResult.data?.organization_id;
 
-  if (!adminRoleResult.data || !requestingOrgId) {
+  if (!requestingOrgId) {
+    return new Response(JSON.stringify({ error: "Organization membership required" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Step 2: verify caller has admin or HR role in THAT org (org-scoped, all matching rows)
+  const { data: callerRoleRows } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", requestingUserId)
+    .eq("organization_id", requestingOrgId)
+    .in("role", ["admin", "hr"]);
+
+  if (!callerRoleRows || callerRoleRows.length === 0) {
     return new Response(JSON.stringify({ error: "Admin or HR access required" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const callerRole: string = adminRoleResult.data.role;
+  // Priority: if user holds both admin and hr in this org, treat as admin
+  const callerRole = callerRoleRows.some((r) => r.role === "admin") ? "admin" : "hr";
 
   const protectedEmails = (Deno.env.get("PROTECTED_ADMIN_EMAILS") || "")
     .split(",")
@@ -264,6 +272,7 @@ Deno.serve(async (req) => {
           .from("profiles")
           .select("id")
           .eq("email", approvedProfile.pending_manager_email)
+          .eq("organization_id", requestingOrgId)
           .maybeSingle();
         if (managerProfile?.id) {
           await supabase
@@ -651,18 +660,48 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Check if profile already exists
+      // Check if a profile with this email already exists (globally across all orgs)
       const { data: existingProfile } = await supabase
         .from("profiles")
-        .select("user_id")
+        .select("user_id, organization_id")
         .eq("email", email.toLowerCase().trim())
         .maybeSingle();
 
       if (existingProfile) {
-        return new Response(JSON.stringify({ error: "A user with this email already exists" }), {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        // Check whether this auth account is already enrolled in the requesting org
+        const { data: existingMember } = await supabase
+          .from("organization_members")
+          .select("id")
+          .eq("user_id", existingProfile.user_id)
+          .eq("organization_id", requestingOrgId)
+          .maybeSingle();
+
+        if (existingMember) {
+          return new Response(
+            JSON.stringify({ error: "User is already a member of your organization" }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // User exists in a different org — enroll them here without creating a new auth account.
+        // Supabase Auth enforces global email uniqueness so we must reuse the existing user_id.
+        await supabase.from("organization_members").upsert(
+          { user_id: existingProfile.user_id, organization_id: requestingOrgId },
+          { onConflict: "organization_id,user_id" }
+        );
+        await supabase.from("user_roles").delete()
+          .eq("user_id", existingProfile.user_id)
+          .eq("organization_id", requestingOrgId);
+        await supabase.from("user_roles").insert({
+          user_id: existingProfile.user_id,
+          role: assignedRole,
+          organization_id: requestingOrgId,
         });
+
+        return new Response(
+          JSON.stringify({ success: true, user_id: existingProfile.user_id, enrolled_existing: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // Create auth user with a temporary password; they'll sign in via MS365
@@ -762,7 +801,7 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (existingProfile) {
-            // Verify user belongs to requesting admin's organization
+            // Check whether this auth account is already enrolled in the requesting org
             const { data: member } = await supabase
               .from("organization_members")
               .select("id")
@@ -770,32 +809,44 @@ Deno.serve(async (req) => {
               .eq("organization_id", requestingOrgId)
               .maybeSingle();
 
-            if (!member) {
-              results.push({ email, success: false, error: "User not in your organization" });
-              continue;
+            if (member) {
+              // Already in this org — update their profile attributes and role
+              const updateFields: Record<string, string | null> = {};
+              if (fullName) updateFields.full_name = fullName;
+              if (department !== null) updateFields.department = department;
+              if (jobTitle !== null) updateFields.job_title = jobTitle;
+
+              if (Object.keys(updateFields).length > 0) {
+                await supabase.from("profiles").update(updateFields).eq("user_id", existingProfile.user_id);
+              }
+
+              await supabase.from("user_roles").delete()
+                .eq("user_id", existingProfile.user_id)
+                .eq("organization_id", requestingOrgId);
+              await supabase.from("user_roles").insert({
+                user_id: existingProfile.user_id,
+                role,
+                organization_id: requestingOrgId,
+              });
+
+              results.push({ email, success: true, updated: true });
+            } else {
+              // User exists in a different org — enroll them here without a new auth account
+              await supabase.from("organization_members").upsert(
+                { user_id: existingProfile.user_id, organization_id: requestingOrgId },
+                { onConflict: "organization_id,user_id" }
+              );
+              await supabase.from("user_roles").delete()
+                .eq("user_id", existingProfile.user_id)
+                .eq("organization_id", requestingOrgId);
+              await supabase.from("user_roles").insert({
+                user_id: existingProfile.user_id,
+                role,
+                organization_id: requestingOrgId,
+              });
+
+              results.push({ email, success: true });
             }
-
-            // User exists — update their profile attributes and role
-            const updateFields: Record<string, string | null> = {};
-            if (fullName) updateFields.full_name = fullName;
-            if (department !== null) updateFields.department = department;
-            if (jobTitle !== null) updateFields.job_title = jobTitle;
-
-            if (Object.keys(updateFields).length > 0) {
-              await supabase.from("profiles").update(updateFields).eq("user_id", existingProfile.user_id);
-            }
-
-            // Update role: scoped to requesting org only
-            await supabase.from("user_roles").delete()
-              .eq("user_id", existingProfile.user_id)
-              .eq("organization_id", requestingOrgId);
-            await supabase.from("user_roles").insert({
-              user_id: existingProfile.user_id,
-              role,
-              organization_id: requestingOrgId,
-            });
-
-            results.push({ email, success: true, updated: true });
             continue;
           }
 
