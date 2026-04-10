@@ -421,7 +421,7 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
       {/* Remove overflow-y-auto from DialogContent — it forces overflow-x:auto too
           (CSS spec: non-visible y → computed x becomes auto), which clips the table.
           Instead we use a flex-column layout with a single overflow-auto body div. */}
-      <DialogContent className="max-w-5xl p-0 flex flex-col max-h-[85vh] overflow-hidden">
+      <DialogContent className="max-w-5xl p-0 flex flex-col max-h-[85vh]">
         {/* ── Non-scrolling header ── */}
         <div className="p-6 pb-4 flex-shrink-0 space-y-3">
           <DialogHeader>

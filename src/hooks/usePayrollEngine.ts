@@ -373,7 +373,11 @@ export function useGeneratePayroll() {
         let ptAmount = 0;
 
         // PF: 12% employee + 12% employer on basic (capped at ₹15,000 wage ceiling)
-        if (f.pf_applicable && basicMonthly > 0) {
+        // Skip if a PF/provident deduction is already present via compensation component.
+        const alreadyHasPF = deductionsBreakdown.some(
+          (d: any) => d.name?.toLowerCase().includes("pf") || d.name?.toLowerCase().includes("provident")
+        );
+        if (f.pf_applicable && !alreadyHasPF && basicMonthly > 0) {
           const pfWage = Math.min(basicMonthly, 15000);
           pfEmployee = Math.round(pfWage * 0.12);
           pfEmployer = Math.round(pfWage * 0.12);
@@ -402,7 +406,11 @@ export function useGeneratePayroll() {
         }
 
         // Professional Tax: Karnataka slab (common)
-        if (f.professional_tax_applicable && grossEarnings > 0) {
+        // Skip if PT is already present via compensation component.
+        const alreadyHasPT = deductionsBreakdown.some(
+          (d: any) => d.name?.toLowerCase().includes("professional tax")
+        );
+        if (f.professional_tax_applicable && !alreadyHasPT && grossEarnings > 0) {
           if (grossEarnings > 15000) ptAmount = 200;
           else if (grossEarnings > 10000) ptAmount = 150;
           else ptAmount = 0;
