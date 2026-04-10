@@ -702,7 +702,9 @@ function getWorkingDays(year: number, month: number, holidayDates?: Set<string>,
 export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
   const headers = [
     "Employee Name", "Department", "Job Title", "Annual CTC",
-    "Gross Earnings", "Total Deductions", "LWP Days", "LWP Deduction",
+    "Gross Earnings", "PF (Employee)", "PF (Employer)", "TDS",
+    "Professional Tax", "Incentive", "Bonus",
+    "Total Deductions", "LWP Days", "LWP Deduction",
     "Working Days", "Paid Days", "Net Pay",
   ];
 
@@ -714,12 +716,23 @@ export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
     return str;
   };
 
+  const getComp = (breakdown: any[], name: string): number => {
+    const item = (breakdown ?? []).find((c: any) => c.name === name);
+    return item ? Number(item.amount ?? item.monthly ?? 0) : 0;
+  };
+
   const rows = entries.map((e) => [
     e.profiles?.full_name || "",
     e.profiles?.department || "",
     e.profiles?.job_title || "",
     e.annual_ctc,
     e.gross_earnings,
+    e.pf_employee ?? 0,
+    e.pf_employer ?? 0,
+    e.tds_amount ?? 0,
+    getComp(e.deductions_breakdown, "Professional Tax"),
+    getComp(e.earnings_breakdown, "Incentive"),
+    getComp(e.earnings_breakdown, "Bonus"),
     e.total_deductions,
     e.lwp_days,
     e.lwp_deduction,

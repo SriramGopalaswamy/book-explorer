@@ -29,6 +29,8 @@ import {
   exportPayrollCSV,
   type PayrollRun,
 } from "@/hooks/usePayrollEngine";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useSubmitForReview,
   useApprovePayroll,
@@ -391,11 +393,23 @@ export function PayrollEnginePanel() {
   );
 }
 
+/** Extract a named component's amount from earnings or deductions breakdown */
+function getComponent(breakdown: any[], name: string): number {
+  const item = (breakdown ?? []).find((c: any) => c.name === name);
+  return item ? Number(item.amount ?? item.monthly ?? 0) : 0;
+}
+
+function fmtComp(amount: number) {
+  return amount > 0 ? formatCurrency(amount) : "—";
+}
+
 function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: entries = [], isLoading } = usePayrollRunEntries(run.id);
   const updateLWP = useUpdateEntryLWP();
   const isLocked = run.status === "locked";
   const isEditable = !isLocked && run.status !== "approved";
+
+  const pagination = usePagination(entries, 20);
 
   const handleLWPChange = useCallback((entryId: string, value: string) => {
     const lwpDays = Math.max(0, parseInt(value) || 0);
@@ -404,81 +418,91 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Payroll — {periodLabel(run.pay_period)}
-            <Badge variant="outline" className={statusConfig[run.status]?.class || ""}>
-              {statusConfig[run.status]?.label || run.status}
-            </Badge>
-          </DialogTitle>
-          <DialogDescription>
-            {run.employee_count} employees
-            {isEditable && (
-              <span className="ml-2 text-xs text-amber-600">• LWP days are editable — click to adjust</span>
-            )}
-          </DialogDescription>
-        </DialogHeader>
+      {/* Remove overflow-y-auto from DialogContent — it forces overflow-x:auto too
+          (CSS spec: non-visible y → computed x becomes auto), which clips the table.
+          Instead we use a flex-column layout with a single overflow-auto body div. */}
+      <DialogContent className="max-w-5xl p-0 flex flex-col max-h-[85vh] overflow-hidden">
+        {/* ── Non-scrolling header ── */}
+        <div className="p-6 pb-4 flex-shrink-0 space-y-3">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Payroll — {periodLabel(run.pay_period)}
+              <Badge variant="outline" className={statusConfig[run.status]?.class || ""}>
+                {statusConfig[run.status]?.label || run.status}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription>
+              {run.employee_count} employees
+              {isEditable && (
+                <span className="ml-2 text-xs text-amber-600">• LWP days are editable — click to adjust</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* Approval Timeline */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-          <span>Generated: {new Date(run.created_at).toLocaleDateString("en-IN")}</span>
-          {run.reviewed_at && <span>• Reviewed: {new Date(run.reviewed_at).toLocaleDateString("en-IN")}</span>}
-          {run.approved_at && <span>• Approved: {new Date(run.approved_at).toLocaleDateString("en-IN")}</span>}
-          {run.locked_at && <span>• Locked: {new Date(run.locked_at).toLocaleDateString("en-IN")}</span>}
-        </div>
+          {/* Approval Timeline */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+            <span>Generated: {new Date(run.created_at).toLocaleDateString("en-IN")}</span>
+            {run.reviewed_at && <span>• Reviewed: {new Date(run.reviewed_at).toLocaleDateString("en-IN")}</span>}
+            {run.approved_at && <span>• Approved: {new Date(run.approved_at).toLocaleDateString("en-IN")}</span>}
+            {run.locked_at && <span>• Locked: {new Date(run.locked_at).toLocaleDateString("en-IN")}</span>}
+          </div>
 
-        <Separator />
+          <Separator />
 
-        {/* Leave adjustment info banner */}
-        {isEditable && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
-            <Calendar className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium">Automatic Leave Adjustments Applied</p>
-              <p className="mt-0.5 text-muted-foreground">
-                LWP days are auto-calculated from approved unpaid leaves and attendance absences.
-                You can manually override by editing the LWP column below — net pay will recalculate automatically.
-              </p>
+          {/* Leave adjustment info banner */}
+          {isEditable && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+              <Calendar className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Automatic Leave Adjustments Applied</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  LWP days are auto-calculated from approved unpaid leaves and attendance absences.
+                  You can manually override by editing the LWP column below — net pay will recalculate automatically.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Export buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
-            <Download className="h-4 w-4 mr-1" /> Payroll CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
-          </Button>
-          {isLocked && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
-                <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
-                <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
-              </Button>
-            </>
           )}
+
+          {/* Export buttons */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+              <Download className="h-4 w-4 mr-1" /> Payroll CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
+            </Button>
+            {isLocked && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
+                  <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
+                  <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+        {/* ── Single scroll container (both axes) ── */}
+        <div className="flex-1 min-h-0 overflow-auto px-6">
+          {isLoading ? (
+            <div className="space-y-3 py-4">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : (
+            <Table className="min-w-[1400px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead className="text-right">Annual CTC</TableHead>
                   <TableHead className="text-right">Gross</TableHead>
-                  <TableHead className="text-right">PF</TableHead>
+                  <TableHead className="text-right">PF (EE)</TableHead>
+                  <TableHead className="text-right">PF (ER)</TableHead>
                   <TableHead className="text-right">TDS</TableHead>
+                  <TableHead className="text-right">Incentive</TableHead>
+                  <TableHead className="text-right">Bonus</TableHead>
                   <TableHead className="text-right">Deductions</TableHead>
                   <TableHead className="text-right">Working</TableHead>
                   <TableHead className="text-center">
@@ -490,7 +514,7 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.map((e) => (
+                {pagination.paginatedItems.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell>
                       <div>
@@ -501,8 +525,11 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                     <TableCell className="text-muted-foreground">{e.profiles?.department || "—"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(e.annual_ctc)}</TableCell>
                     <TableCell className="text-right text-green-600">{formatCurrency(e.gross_earnings)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(e.pf_employee ?? 0)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(e.tds_amount ?? 0)}</TableCell>
+                    <TableCell className="text-right">{fmtComp(e.pf_employee ?? 0)}</TableCell>
+                    <TableCell className="text-right">{fmtComp(e.pf_employer ?? 0)}</TableCell>
+                    <TableCell className="text-right">{fmtComp(e.tds_amount ?? 0)}</TableCell>
+                    <TableCell className="text-right">{fmtComp(getComponent(e.earnings_breakdown, "Incentive"))}</TableCell>
+                    <TableCell className="text-right">{fmtComp(getComponent(e.earnings_breakdown, "Bonus"))}</TableCell>
                     <TableCell className="text-right text-destructive">-{formatCurrency(e.total_deductions)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{e.working_days}d</TableCell>
                     <TableCell className="text-center">
@@ -536,29 +563,44 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
                 ))}
               </TableBody>
             </Table>
-          </div>
-        )}
+          )}
+        </div>
 
-        {entries.length > 0 && (
-          <div className="mt-4 rounded-xl border bg-muted/50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Total Gross</p>
-              <p className="font-semibold">{formatCurrency(run.total_gross)}</p>
+        {/* ── Non-scrolling footer: pagination + run totals ── */}
+        <div className="flex-shrink-0 px-6 pb-6 pt-4 space-y-4 border-t">
+          {entries.length > 0 && (
+            <TablePagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              from={pagination.from}
+              to={pagination.to}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+              onPageSizeChange={pagination.setPageSize}
+            />
+          )}
+          {entries.length > 0 && (
+            <div className="rounded-xl border bg-muted/50 p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Gross</p>
+                <p className="font-semibold">{formatCurrency(run.total_gross)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Deductions</p>
+                <p className="font-semibold text-destructive">{formatCurrency(run.total_deductions)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Net</p>
+                <p className="font-bold text-lg">{formatCurrency(run.total_net)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Employees</p>
+                <p className="font-semibold">{run.employee_count}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-muted-foreground">Total Deductions</p>
-              <p className="font-semibold text-destructive">{formatCurrency(run.total_deductions)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Total Net</p>
-              <p className="font-bold text-lg">{formatCurrency(run.total_net)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Employees</p>
-              <p className="font-semibold">{run.employee_count}</p>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
