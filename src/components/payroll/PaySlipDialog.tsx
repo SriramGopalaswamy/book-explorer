@@ -77,8 +77,11 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, workingDays, paidDays } = slip;
 
   const r = record as any; // engine entries may carry extra employee detail fields
-  // employee_details is embedded as a nested object on profiles (1:1 via unique FK)
-  const ed = record.profiles?.employee_details as {
+  // employee_details is embedded as a nested object on profiles (1:1 via unique FK).
+  // PostgREST returns it as a single object when the FK is UNIQUE; guard against
+  // older versions that may return a single-element array.
+  const edRaw = record.profiles?.employee_details;
+  const ed = (Array.isArray(edRaw) ? edRaw[0] : edRaw) as {
     pan_number?: string | null;
     bank_name?: string | null;
     uan_number?: string | null;
