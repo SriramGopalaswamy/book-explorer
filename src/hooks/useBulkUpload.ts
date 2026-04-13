@@ -7,8 +7,8 @@ import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-uploa
 
 // ─── Payroll ───────────────────────────────────────
 const payrollColumns: BulkUploadColumn[] = [
-  { key: "employee_id", label: "Employee ID", required: true },
-  { key: "basic_salary", label: "Basic Salary", required: true },
+  { key: "employee_id", label: "Employee ID", required: true, aliases: ["employee_name", "emp_name", "name", "employee"] },
+  { key: "basic_salary", label: "Basic Salary", required: true, aliases: ["total_annual_ctc_", "total_annual_ctc", "annual_ctc", "ctc", "salary", "gross_salary"] },
   { key: "hra", label: "HRA" },
   { key: "transport_allowance", label: "Transport Allowance" },
   { key: "other_allowances", label: "Other Allowances" },
@@ -62,6 +62,12 @@ Independence Day,2026-08-15
 Christmas,2026-12-25`;
 
 // ─── Hook ──────────────────────────────────────────
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const formatPayPeriod = (p: string) => {
+  const [y, m] = p.split("-");
+  return `${MONTHS[parseInt(m) - 1]} ${y}`;
+};
+
 export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -163,7 +169,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   return {
     module: "payroll",
     title: "Bulk Upload Payroll",
-    description: "Upload salary records for multiple employees at once using a CSV file.",
+    description: `Upload salary records for multiple employees for ${formatPayPeriod(payPeriod)}.`,
     columns: payrollColumns,
     templateFileName: "payroll_template.csv",
     templateContent: payrollTemplate,
