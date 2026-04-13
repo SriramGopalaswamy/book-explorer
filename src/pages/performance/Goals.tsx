@@ -178,7 +178,7 @@ function GoalItemsTable({
     return <p className="text-sm text-muted-foreground text-center py-8">No items in this plan.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/50">
+    <div className="overflow-auto max-h-[60vh] rounded-lg border border-border/50">
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-card">
           <tr className="border-b border-border/50 bg-muted/30">

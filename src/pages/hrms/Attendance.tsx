@@ -254,7 +254,7 @@ export default function Attendance() {
             </div>
           ) : (
             <>
-              <div className="w-full overflow-x-auto">
+              <div className="w-full overflow-auto max-h-[60vh]">
                 <table className="w-full min-w-[700px] text-sm text-card-foreground">
                   <thead className="sticky top-0 z-10 bg-card">
                     <tr className="border-b border-border/50 bg-muted/30">

@@ -888,7 +888,7 @@ export default function Payroll() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div>
                       <Table className="min-w-[600px]">
                         <TableHeader>
                           <TableRow>
@@ -1097,7 +1097,7 @@ export default function Payroll() {
                         </p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div>
                         <Table className="min-w-[700px]">
                           <TableHeader>
                             <TableRow>

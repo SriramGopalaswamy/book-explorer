@@ -158,7 +158,7 @@ export default function MyPayslips() {
                     </div>
                   ) : (
                     <>
-                    <div className="overflow-x-auto">
+                    <div>
                       <Table className="min-w-[600px]">
                           <TableHeader>
                           <TableRow>
