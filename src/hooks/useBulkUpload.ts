@@ -79,6 +79,19 @@ const payrollColumns: BulkUploadColumn[] = [
       "prof_tax",
     ],
   },
+  // "Total Deductions" is present in the template so users can paste data directly.
+  // When the individual PF/PT columns are absent (or zero), this total is used to
+  // derive statutory components via back-calculation.
+  {
+    key: "total_deductions_col",
+    label: "Total Deductions",
+    aliases: [
+      "total_deductions",
+      "deductions",
+      "total_deduction",
+      "deduction_total",
+    ],
+  },
 
   // Variable pay — "no" values are safely treated as 0
   {
@@ -237,8 +250,9 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // All values here must be MONTHLY figures.
       // Annual CTC / Total Annual CTC columns are intentionally NOT mapped — they
       // would produce 12× inflated salary figures on the payslip.
-      const pf_monthly     = parseFloat(row.pf_employee_monthly) || 0;
-      const prof_tax       = parseFloat(row.professional_tax_monthly) || 0;
+      const pf_monthly_raw  = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax_raw    = parseFloat(row.professional_tax_monthly) || 0;
+      const total_ded_file  = parseFloat(row.total_deductions_col) || 0;
       const monthly_gross  = parseFloat(row.monthly_gross) || 0;
       // gross_earnings_monthly includes variable pay; falls back to monthly_gross
       const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
@@ -256,9 +270,9 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 40% of gross
       //   • If no PF data    → default to 40% of monthly gross
       let basic: number;
-      if (pf_monthly > 0 && pf_monthly < 1800) {
-        basic = Math.round(pf_monthly / 0.12);
-      } else if (pf_monthly >= 1800) {
+      if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
+        basic = Math.round(pf_monthly_raw / 0.12);
+      } else if (pf_monthly_raw >= 1800) {
         basic = Math.max(Math.round(monthly_gross * 0.40), 15000);
       } else {
         basic = Math.round(monthly_gross * 0.40);
@@ -270,6 +284,69 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // Other Allowances = balance of fixed monthly gross after Basic + HRA
       // This absorbs Special Allowance, Transport, and other fixed components.
       const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
+
+      // ── Resolve individual deduction components ────────────────────────────
+      // Individual PF/PT columns take precedence. When they are absent (both 0)
+      // but "Total Deductions" was supplied in the file, back-calculate statutory
+      // components so the payslip shows proper named heads instead of a catch-all.
+      let pf_monthly = pf_monthly_raw;
+      let prof_tax   = prof_tax_raw;
+
+      if (pf_monthly === 0 && prof_tax === 0 && total_ded_file > 0) {
+        // Try to split total_ded_file into PF + PT using statutory rules.
+        // Two PF conventions: (a) 12% of actual basic, (b) ₹1,800 ceiling flat.
+        const grossForPT  = gross_earn || monthly_gross;
+        const ptDerived   = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+        const pfActual    = Math.round(Math.min(basic, 15000) * 0.12);
+        const pfCeiling   = 1800;
+
+        for (const pf of [pfActual, pfCeiling]) {
+          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) {
+            pf_monthly = pf;
+            prof_tax   = ptDerived;
+            break;
+          }
+          if (Math.abs(pf - total_ded_file) <= 1) {
+            pf_monthly = pf;
+            break;
+          }
+        }
+        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) {
+          prof_tax = ptDerived;
+        }
+        // If no pattern matched, leave pf_monthly and prof_tax as 0 —
+        // the display layer will still show the correct total via net_pay reconciliation.
+      }
+
+      // ── Deduction consistency checks ───────────────────────────────────────
+      // (1) Component sum check: when both individual columns and Total Deductions
+      //     are provided, their sum must agree within ₹2 (rounding tolerance).
+      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0)) {
+        const componentSum = pf_monthly_raw + prof_tax_raw;
+        if (Math.abs(componentSum - total_ded_file) > 2) {
+          errors.push(
+            `Row ${row.employee_id || row.email_id}: Total Deductions (₹${total_ded_file}) ` +
+            `does not match PF (₹${pf_monthly_raw}) + Professional Tax (₹${prof_tax_raw}) = ₹${componentSum}. ` +
+            `Please fix the deduction values in the file.`
+          );
+          continue;
+        }
+      }
+
+      // (2) Net pay cross-check: when gross, total deductions, and net pay are all
+      //     present, verify gross − total_deductions − lwp_deduction ≈ net_pay.
+      //     A mismatch > ₹5 suggests a data entry error worth flagging.
+      if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwp_ded_val);
+        if (Math.abs(expectedNet - net_from_file) > 5) {
+          errors.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
+            `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file}) − LWP (₹${lwp_ded_val}) = ₹${expectedNet}, ` +
+            `but file says ₹${net_from_file}. Please verify.`
+          );
+          continue;
+        }
+      }
 
       // Variable pay (Incentives + Bonus) stored in transport_allowance field.
       // On the payslip this is labelled "Incentives". The transport_allowance

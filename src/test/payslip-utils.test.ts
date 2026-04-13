@@ -201,9 +201,9 @@ describe("normalizePayslip", () => {
       expect(result.lopDeduction).toBe(0);
     });
 
-    it("shows catch-all deduction line when net_pay implies deductions not in flat columns", () => {
-      // Scenario: bulk-uploaded record where only the final net_pay was captured
-      // from the file but individual deduction columns were not populated.
+    it("resolves implied deductions into PF + PT statutory heads when pattern matches", () => {
+      // Scenario: bulk-uploaded record where only net_pay was captured.
+      // basic=7280 → pfActual=874, but ceiling PF (₹1,800) + PT (₹200) = ₹2,000 matches exactly.
       const record = {
         basic_salary: 7280,
         hra: 2912,
@@ -213,7 +213,7 @@ describe("normalizePayslip", () => {
         tax_deduction: 0,
         other_deductions: 0,
         lop_days: 0,
-        net_pay: 16200, // implies ₹2,000 in deductions (18200 - 16200)
+        net_pay: 16200, // implies ₹2,000 deductions (18200 - 16200)
         working_days: 26,
         paid_days: 26,
       };
@@ -221,13 +221,42 @@ describe("normalizePayslip", () => {
       const result = normalizePayslip(record);
       expect(result.totalEarnings).toBe(18200);
       expect(result.netPay).toBe(16200);
-      // Should have exactly one catch-all deduction row for the ₹2,000 gap
-      expect(result.deductions).toHaveLength(1);
-      expect(result.deductions[0].label).toBe("Salary Deductions");
-      expect(result.deductions[0].amount).toBe(2000);
-      // totalDeductions should now reconcile with net pay
+      // Ceiling PF (₹1,800) + PT (₹200) = ₹2,000 — resolved into named heads
+      expect(result.deductions).toHaveLength(2);
+      expect(result.deductions[0].label).toBe("PF Contribution");
+      expect(result.deductions[0].amount).toBe(1800);
+      expect(result.deductions[0].statutory).toBe(true);
+      expect(result.deductions[1].label).toBe("Professional Tax");
+      expect(result.deductions[1].amount).toBe(200);
+      expect(result.deductions[1].statutory).toBe(true);
       expect(result.totalDeductions).toBe(2000);
       expect(result.totalEarnings - result.totalDeductions).toBe(result.netPay);
+    });
+
+    it("falls back to Salary Deductions when deduction amount does not match any statutory pattern", () => {
+      // Scenario: ₹3,000 deduction that doesn't match PF+PT for this salary level
+      const record = {
+        basic_salary: 20000,
+        hra: 8000,
+        transport_allowance: 0,
+        other_allowances: 2000,
+        pf_deduction: 0,
+        tax_deduction: 0,
+        other_deductions: 0,
+        lop_days: 0,
+        // gross=30000, pfActual=1800, PT=200 → expected statutory=2000, but net implies 3000 deduction
+        net_pay: 27000,
+        working_days: 26,
+        paid_days: 26,
+      };
+
+      const result = normalizePayslip(record);
+      expect(result.totalEarnings).toBe(30000);
+      expect(result.netPay).toBe(27000);
+      expect(result.deductions).toHaveLength(1);
+      expect(result.deductions[0].label).toBe("Salary Deductions");
+      expect(result.deductions[0].amount).toBe(3000);
+      expect(result.totalDeductions).toBe(3000);
     });
 
     it("handles missing/null fields", () => {
