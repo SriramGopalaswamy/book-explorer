@@ -845,7 +845,7 @@ export default function AutomationDashboard() {
 
             <section className="rounded-2xl border bg-card shadow-sm">
               <div className="flex items-center justify-between border-b px-6 py-4"><div><h2 className="font-semibold">Live Automation Tracker</h2><p className="text-sm text-muted-foreground">Every invoice run, its latest message, and the next action.</p></div><Badge variant="outline" className="bg-muted text-muted-foreground border-border">{runs.length} runs</Badge></div>
-              <div className="overflow-x-auto">
+              <div>
                 <Table>
                   <TableHeader><TableRow><TableHead>Invoice ID</TableHead><TableHead>Client</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Last Message</TableHead><TableHead>Last Contacted</TableHead><TableHead>Progress</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>

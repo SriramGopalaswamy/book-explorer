@@ -485,7 +485,8 @@ export default function InventoryCounts() {
           ) : filteredCounts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
-                <table className="w-full text-sm">
+            <div className="overflow-auto max-h-[60vh]">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead className="sticky top-0 z-10 bg-card">
                     <tr className="border-b text-left">
                       <th className="px-4 py-3 font-medium text-muted-foreground">Count #</th>
@@ -548,6 +549,7 @@ export default function InventoryCounts() {
                     ))}
                   </tbody>
                 </table>
+            </div>
           )}
         </div>
         <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />

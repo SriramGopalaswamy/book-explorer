@@ -303,7 +303,7 @@ export default function AuditLog() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div>
                 <Table>
                   <TableHeader>
                     <TableRow>

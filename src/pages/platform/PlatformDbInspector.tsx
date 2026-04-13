@@ -269,7 +269,7 @@ export default function PlatformDbInspector() {
             </div>
 
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
+              <div>
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">

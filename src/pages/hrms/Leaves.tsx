@@ -578,7 +578,7 @@ export default function Leaves() {
                   </div>
                 ) : (
                   <>
-                  <div className="w-full overflow-x-auto">
+                  <div className="w-full overflow-auto max-h-[65vh]">
                     <div className="min-w-[580px]">
                       <div className={`grid border-b border-border/50 bg-muted/30 rounded-t-lg px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 ${isAdminOrHR ? "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_minmax(100px,1.2fr)_90px_80px]" : "grid-cols-[minmax(100px,1.2fr)_minmax(90px,1fr)_minmax(140px,1.5fr)_60px_minmax(100px,1.2fr)_90px]"}`}>
                         <span>Employee</span>

@@ -578,7 +578,7 @@ export default function Quotes() {
               <p className="mt-2 text-sm text-muted-foreground">Create your first quote to get started</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div>
               <Table>
                 <TableHeader>
                   <TableRow>
