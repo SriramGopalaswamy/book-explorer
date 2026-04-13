@@ -51,14 +51,19 @@ function useBrandingInfo(userId: string | undefined) {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
       if (!profile?.organization_id) return;
       const [{ data: compliance }, { data: org }] = await Promise.all([
-        supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name, legal_name, registered_address").eq("organization_id", profile.organization_id).maybeSingle(),
+        supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name, legal_name, registered_address, state, pincode").eq("organization_id", profile.organization_id).maybeSingle(),
         supabase.from("organizations").select("name").eq("id", profile.organization_id).maybeSingle(),
       ]);
       if ((compliance as any)?.brand_color) setColor((compliance as any).brand_color);
       if ((compliance as any)?.authorized_signatory_name) setSignatoryName((compliance as any).authorized_signatory_name);
       // Prefer compliance legal_name, fall back to organizations.name
       setCompanyName((compliance as any)?.legal_name || (org as any)?.name || "");
-      setCompanyAddress((compliance as any)?.registered_address || "");
+      const parts = [
+        (compliance as any)?.registered_address,
+        (compliance as any)?.state,
+        (compliance as any)?.pincode,
+      ].filter(Boolean);
+      setCompanyAddress(parts.join(", "));
     })();
   }, [userId]);
   return { color, signatoryName, companyName, companyAddress };
