@@ -79,7 +79,7 @@ serve(async (req) => {
     const { data: org } = await supabase.from("organizations").select("name").eq("id", run.organization_id).single();
 
     // Fetch branding, signatory, and registered address from organization_compliance
-    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name, legal_name, registered_address").eq("organization_id", run.organization_id).maybeSingle();
+    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name, legal_name, registered_address, state, pincode").eq("organization_id", run.organization_id).maybeSingle();
     const brandColor = compliance?.brand_color || "#e11d74";
     const authorizedSignatoryName = compliance?.authorized_signatory_name || "";
 
@@ -119,7 +119,7 @@ serve(async (req) => {
 
       const html = buildPayslipHTML({
         companyName: compliance?.legal_name || org?.name || "",
-        companyAddress: compliance?.registered_address || "",
+        companyAddress: [compliance?.registered_address, compliance?.state, compliance?.pincode].filter(Boolean).join(", "),
         periodLabel,
         employeeName: profile.full_name || "Employee",
         employeeId: details.employee_id_number || "—",
