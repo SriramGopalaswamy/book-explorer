@@ -212,7 +212,14 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       toast.error("File must have a header row and at least one data row");
       return;
     }
-    const fileHeaders = nonEmptyRows[0].map((h) => String(h ?? "").toLowerCase().replace(/\s+/g, "_"));
+    const fileHeaders = nonEmptyRows[0].map((h) =>
+      String(h ?? "")
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_]/g, "")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "")
+    );
     setHeaders(fileHeaders);
     const dataRows = nonEmptyRows.slice(1).map((cells, idx) => {
       const row: Record<string, string> = {};
@@ -243,7 +250,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       return validateRow(row, idx);
     });
     setParsedRows(dataRows);
-  }, [validateRow]);
+  }, [validateRow, config.columns]);
 
   const processFile = useCallback((file: File) => {
     // Allowlist both extension and MIME type to prevent polyglot file attacks
