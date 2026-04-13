@@ -486,7 +486,7 @@ export default function InventoryCounts() {
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-card">
                     <tr className="border-b text-left">
                       <th className="px-4 py-3 font-medium text-muted-foreground">Count #</th>
                       <th className="px-4 py-3 font-medium text-muted-foreground">Date</th>
