@@ -1035,7 +1035,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (Object.keys(profileUpdate).length > 0) {
         const { error: profileUpdateError } = await supabase
           .from("profiles")
-          .update(profileUpdate)
+          .update(profileUpdate as any)
           .eq("id", profileId)
           .eq("organization_id", callerOrgId ?? profile.organization_id);
         if (profileUpdateError) {
@@ -1065,7 +1065,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (hasDetails) {
         const { error: detailsError } = await supabase
           .from("employee_details")
-          .upsert(detailsPayload, { onConflict: "profile_id" });
+          .upsert(detailsPayload as any, { onConflict: "profile_id" });
         if (detailsError) {
           errors.push(`"${email}": Details update failed — ${detailsError.message}`);
           continue;
