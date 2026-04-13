@@ -314,7 +314,7 @@ export default function PickingLists() {
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching picking lists." : "No picking lists yet. Generate one above."}</div>
           ) : (
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b text-left">
                   <th className="px-4 py-3 font-medium text-muted-foreground">Pick #</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">Created</th>

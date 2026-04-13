@@ -180,7 +180,7 @@ function GoalItemsTable({
   return (
     <div className="overflow-x-auto rounded-lg border border-border/50">
       <table className="w-full text-sm">
-        <thead>
+        <thead className="sticky top-0 z-10 bg-card">
           <tr className="border-b border-border/50 bg-muted/30">
             <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Client</th>
             <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Bucket</th>

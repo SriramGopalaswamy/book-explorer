@@ -256,7 +256,7 @@ export default function Attendance() {
             <>
               <div className="w-full overflow-x-auto">
                 <table className="w-full min-w-[700px] text-sm text-card-foreground">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-card">
                     <tr className="border-b border-border/50 bg-muted/30">
                       <th className="h-11 px-6 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-48">Employee</th>
                       <th className="h-11 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 w-36">Department</th>
