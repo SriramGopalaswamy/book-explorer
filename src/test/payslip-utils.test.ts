@@ -138,8 +138,8 @@ describe("normalizePayslip", () => {
         transport_allowance: 0,
         other_allowances: 0,
         pf_deduction: 3600,
-        tax_deduction: 0,
-        other_deductions: 0,
+        tax_deduction: 0,   // zero — no TDS row expected
+        other_deductions: 0, // zero — no Prof Tax row expected
         lop_days: 2,
         lop_deduction: 3077,
         working_days: 26,
@@ -148,8 +148,10 @@ describe("normalizePayslip", () => {
       };
 
       const result = normalizePayslip(record);
-      expect(result.deductions).toHaveLength(4); // PF, Tax, Other, LOP
-      const lopRow = result.deductions.find(d => d.label.includes("Loss of Pay"));
+      // Only PF and LOP rows — tax_deduction/other_deductions are 0 so they are omitted.
+      // gross=40000, net=33323, implied=6677, known=6677 → no catch-all row added.
+      expect(result.deductions).toHaveLength(2); // PF, LOP
+      const lopRow = result.deductions.find(d => d.label.startsWith("LOP"));
       expect(lopRow).toBeDefined();
       expect(lopRow!.amount).toBe(3077);
       expect(lopRow!.label).toContain("2 days");
@@ -159,22 +161,24 @@ describe("normalizePayslip", () => {
       const record = {
         basic_salary: 30000,
         hra: 10000,
-        transport_allowance: 2000,
+        transport_allowance: 2000, // repurposed for incentives — excluded from LOP base
         other_allowances: 0,
         pf_deduction: 0,
         tax_deduction: 0,
         other_deductions: 0,
         lop_days: 3,
-        lop_deduction: 0, // not stored
+        lop_deduction: 0, // not stored — should be auto-derived
         working_days: 30,
         paid_days: 27,
       };
 
       const result = normalizePayslip(record);
-      // gross = 42000, per_day = 42000/30 = 1400, lop = 1400 * 3 = 4200
-      expect(result.lopDeduction).toBe(4200);
-      const lopRow = result.deductions.find(d => d.label.includes("Loss of Pay"));
-      expect(lopRow!.amount).toBe(4200);
+      // grossFixed (LOP base) = basic + hra + other_allowances = 30000 + 10000 + 0 = 40000
+      // transport_allowance is repurposed for incentives and excluded from the LOP base.
+      // per_day = round(40000/30) * 3 = round(4000) = 4000
+      expect(result.lopDeduction).toBe(4000);
+      const lopRow = result.deductions.find(d => d.label.startsWith("LOP"));
+      expect(lopRow!.amount).toBe(4000);
     });
 
     it("handles zero working_days without division error", () => {
@@ -195,6 +199,35 @@ describe("normalizePayslip", () => {
       // Should not throw - lopDeduction stays 0 when working_days is 0
       const result = normalizePayslip(record);
       expect(result.lopDeduction).toBe(0);
+    });
+
+    it("shows catch-all deduction line when net_pay implies deductions not in flat columns", () => {
+      // Scenario: bulk-uploaded record where only the final net_pay was captured
+      // from the file but individual deduction columns were not populated.
+      const record = {
+        basic_salary: 7280,
+        hra: 2912,
+        transport_allowance: 0,
+        other_allowances: 8008,
+        pf_deduction: 0,
+        tax_deduction: 0,
+        other_deductions: 0,
+        lop_days: 0,
+        net_pay: 16200, // implies ₹2,000 in deductions (18200 - 16200)
+        working_days: 26,
+        paid_days: 26,
+      };
+
+      const result = normalizePayslip(record);
+      expect(result.totalEarnings).toBe(18200);
+      expect(result.netPay).toBe(16200);
+      // Should have exactly one catch-all deduction row for the ₹2,000 gap
+      expect(result.deductions).toHaveLength(1);
+      expect(result.deductions[0].label).toBe("Salary Deductions");
+      expect(result.deductions[0].amount).toBe(2000);
+      // totalDeductions should now reconcile with net pay
+      expect(result.totalDeductions).toBe(2000);
+      expect(result.totalEarnings - result.totalDeductions).toBe(result.netPay);
     });
 
     it("handles missing/null fields", () => {
