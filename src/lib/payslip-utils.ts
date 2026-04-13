@@ -125,7 +125,21 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
   }
 
   const totalEarnings = earnings.reduce((s, e) => s + e.amount, 0);
-  const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
+  let totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
+
+  // If the stored net_pay implies deductions that aren't reflected in the flat
+  // deduction columns (e.g. bulk-uploaded records where only the final net_pay
+  // was captured), add a catch-all line item so the deductions column is never
+  // empty and the displayed total reconciles with the net pay.
+  const storedNetPay = Number(record.net_pay) || 0;
+  if (storedNetPay > 0) {
+    const impliedTotal = totalEarnings - storedNetPay;
+    const undocumented = impliedTotal - totalDeductions;
+    if (undocumented > 1) {
+      deductions.push({ label: "Salary Deductions", amount: undocumented, statutory: false });
+      totalDeductions += undocumented;
+    }
+  }
 
   return {
     earnings,
