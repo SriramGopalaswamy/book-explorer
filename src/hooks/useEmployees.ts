@@ -20,6 +20,7 @@ export interface Employee {
   join_date: string | null;
   date_of_joining: string | null;
   phone: string | null;
+  location: string | null;
   manager_id: string | null;
   created_at: string;
   updated_at: string;
@@ -57,6 +58,7 @@ export interface CreateEmployeeData {
   status?: Employee["status"];
   join_date?: string;
   phone?: string;
+  location?: string;
   manager_id?: string | null;
 }
 
