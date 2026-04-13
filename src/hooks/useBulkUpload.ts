@@ -324,30 +324,42 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         status: "draft",
       };
 
-      // Find an existing non-superseded record for this employee + period.
-      // We cannot use upsert(onConflict) because the unique constraint on
-      // (profile_id, pay_period) was dropped when the is_superseded pattern
-      // was introduced to support dispute-driven payslip revisions.
+      // Find the active (non-superseded) record for this employee + period, if any.
+      // The UNIQUE constraint on (profile_id, pay_period) exists in the DB, so we must
+      // UPDATE existing active records rather than INSERT duplicates.
+      // We also check for ANY record (including superseded) to detect constraint conflicts.
       const { data: existing } = await supabase
         .from("payroll_records")
-        .select("id, status")
+        .select("id, status, is_superseded")
         .eq("profile_id", profile.id)
         .eq("pay_period", payPeriod)
-        .eq("is_superseded", false)
+        .order("is_superseded", { ascending: true }) // false (active) first
+        .limit(1)
         .maybeSingle();
 
       let data: { id: string }[] | null;
       let error: { message: string } | null;
 
-      if (existing) {
-        if (existing.status === "locked") {
+      const activeExisting = existing && existing.is_superseded === false ? existing : null;
+      const supersededExisting = existing && existing.is_superseded === true ? existing : null;
+
+      if (activeExisting) {
+        if (activeExisting.status === "locked") {
           errors.push(`Row ${row.employee_id}: Payslip is locked and cannot be overwritten. Raise a dispute to revise it.`);
           continue;
         }
         ({ data, error } = await supabase
           .from("payroll_records")
           .update(payload)
-          .eq("id", existing.id)
+          .eq("id", activeExisting.id)
+          .select("id") as any);
+      } else if (supersededExisting) {
+        // A superseded record exists — mark it as no longer superseded and update it,
+        // rather than inserting a second row that would violate the unique constraint.
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .update({ ...payload, is_superseded: false })
+          .eq("id", supersededExisting.id)
           .select("id") as any);
       } else {
         ({ data, error } = await supabase
@@ -364,9 +376,13 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
           errors.push("Bulk upload aborted: too many errors. All changes rolled back.");
           return { success: 0, errors };
         }
-      } else {
-        if (data?.[0]?.id) insertedIds.push(data[0].id);
+      } else if (data?.[0]?.id) {
+        insertedIds.push(data[0].id);
         success++;
+      } else {
+        // Insert/update went through but Supabase returned no row — likely an RLS
+        // visibility issue on the RETURNING clause. Count as error so the user knows.
+        errors.push(`Row ${row.employee_id}: record was not saved (possible permission issue — check RLS policies).`);
       }
     }
 
