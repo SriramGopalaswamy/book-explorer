@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -85,7 +85,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   managerName?: string;
   allEmployees?: Employee[];
-  onUpdateEmployee?: (data: { id: string; full_name?: string; email?: string; job_title?: string; department?: string; status?: string; join_date?: string; phone?: string; manager_id?: string | null }) => void;
+  onUpdateEmployee?: (data: { id: string; full_name?: string; email?: string; job_title?: string; department?: string; status?: string; join_date?: string; phone?: string; location?: string; manager_id?: string | null }) => void;
   canEditCompensation?: boolean;
   /** Open directly in edit mode */
   initialEditMode?: boolean;
@@ -105,16 +105,21 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
     status: "active",
     join_date: "",
     phone: "",
+    location: "",
     manager_id: "",
   });
 
+  // Ref so effects can read isEditing without adding it to their dep arrays
+  // (prevents stale closures from capturing an outdated value)
+  const isEditingRef = useRef(false);
+  isEditingRef.current = isEditing;
+
+  // Effect 1: Sync profileForm whenever the employee object changes (background refetches
+  // included), but skip the update while the user is actively editing to preserve their
+  // in-progress changes.
   useEffect(() => {
-    if (details) {
-      setForm({ ...details });
-    } else if (employee) {
-      setForm({ profile_id: employee.id });
-    }
-    if (employee) {
+    if (!employee) return;
+    if (!isEditingRef.current) {
       setProfileForm({
         full_name: employee.full_name || "",
         email: employee.email || "",
@@ -123,12 +128,29 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
         status: employee.status || "active",
         join_date: employee.join_date || "",
         phone: employee.phone || "",
+        location: employee.location || "",
         manager_id: employee.manager_id || "",
       });
     }
-    // Apply initialEditMode when opening
+  }, [employee]);
+
+  // Effect 2: Sync employee_details form when details load/change.
+  useEffect(() => {
+    if (details) {
+      setForm({ ...details });
+    } else if (employee?.id) {
+      setForm({ profile_id: employee.id });
+    }
+  }, [details, employee?.id]);
+
+  // Effect 3: Reset isEditing only when a DIFFERENT employee card is opened (ID changes)
+  // or when initialEditMode is toggled. Background refetches preserve a stable employee?.id,
+  // so they do NOT trigger this effect and cannot interrupt an active editing session.
+  useEffect(() => {
     setIsEditing(initialEditMode);
-  }, [details, employee, initialEditMode]);
+    // employee?.id — intentionally a primitive dep, not the full object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee?.id, initialEditMode]);
 
   if (!employee) return null;
 
@@ -159,6 +181,7 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
               status: profileForm.status || undefined,
               join_date: profileForm.join_date || undefined,
               phone: profileForm.phone || undefined,
+              location: profileForm.location || undefined,
               manager_id: profileForm.manager_id || null,
             });
           }
@@ -301,6 +324,9 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                {renderProfileEditField("Location", "location", "Mumbai")}
+              </div>
               {/* Personal details */}
               <div className="border-t pt-3 mt-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Personal Details</p>
@@ -410,6 +436,7 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
               <div className="grid grid-cols-2 gap-4">
                 {renderField("Email", employee.email, User)}
                 {renderField("Phone", employee.phone, Phone)}
+                {renderField("Location", employee.location, MapPin)}
                 {renderField("Date of Birth", details?.date_of_birth ? new Date(details.date_of_birth).toLocaleDateString("en-IN") : null)}
                 {renderField("Gender", details?.gender)}
                 {renderField("Blood Group", details?.blood_group, Heart)}
