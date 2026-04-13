@@ -8,6 +8,7 @@ import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-uploa
 // ─── Payroll ───────────────────────────────────────
 const payrollColumns: BulkUploadColumn[] = [
   { key: "employee_id", label: "Employee ID", required: true, aliases: ["employee_name", "emp_name", "name", "employee"] },
+  { key: "email_id", label: "Email", aliases: ["email", "email_address", "emp_email", "employee_email", "login_email"] },
   { key: "basic_salary", label: "Basic Salary", required: true, aliases: ["total_annual_ctc_", "total_annual_ctc", "annual_ctc", "ctc", "salary", "gross_salary"] },
   { key: "hra", label: "HRA" },
   { key: "transport_allowance", label: "Transport Allowance" },
@@ -91,7 +92,12 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
-    const findProfile = (empId: string) => {
+    const findProfileByEmail = (email: string) => {
+      if (!profiles || !email) return null;
+      return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
+    };
+
+    const findProfileByName = (empId: string) => {
       if (!profiles || !empId) return null;
       const needle = empId.toLowerCase().trim();
       let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
@@ -125,7 +131,10 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const otherDed = parseFloat(row.other_deductions) || 0;
       const net = basic + hra + transport + otherAllow - pf - tax - otherDed;
 
-      const profile = findProfile(row.employee_id);
+      // Prefer exact email match when an email column is present in the file;
+      // fall back to fuzzy name matching for files without an email column.
+      const profile = (row.email_id ? findProfileByEmail(row.email_id) : null)
+        ?? findProfileByName(row.employee_id);
 
       if (!profile) {
         errors.push(`Row ${row.employee_id}: No matching employee profile found`);
