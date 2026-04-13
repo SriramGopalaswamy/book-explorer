@@ -8,6 +8,7 @@ import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-uploa
 // ─── Payroll ───────────────────────────────────────
 const payrollColumns: BulkUploadColumn[] = [
   { key: "employee_id", label: "Employee ID", required: true, aliases: ["employee_name", "emp_name", "name", "employee"] },
+  { key: "email_id", label: "Email", aliases: ["email", "email_address", "emp_email", "employee_email", "login_email"] },
   { key: "basic_salary", label: "Basic Salary", required: true, aliases: ["total_annual_ctc_", "total_annual_ctc", "annual_ctc", "ctc", "salary", "gross_salary"] },
   { key: "hra", label: "HRA" },
   { key: "transport_allowance", label: "Transport Allowance" },
@@ -91,7 +92,12 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
-    const findProfile = (empId: string) => {
+    const findProfileByEmail = (email: string) => {
+      if (!profiles || !email) return null;
+      return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
+    };
+
+    const findProfileByName = (empId: string) => {
       if (!profiles || !empId) return null;
       const needle = empId.toLowerCase().trim();
       let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
@@ -125,14 +131,25 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const otherDed = parseFloat(row.other_deductions) || 0;
       const net = basic + hra + transport + otherAllow - pf - tax - otherDed;
 
-      const profile = findProfile(row.employee_id);
-
-      if (!profile) {
-        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
-        continue;
+      // When an email is supplied, use exact match only — do NOT fall back to
+      // name matching, since a failed email lookup means the address is wrong
+      // and a name fallback could silently match the wrong employee.
+      let profile;
+      if (row.email_id) {
+        profile = findProfileByEmail(row.email_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          continue;
+        }
+      } else {
+        profile = findProfileByName(row.employee_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+          continue;
+        }
       }
 
-      const { data, error } = await supabase.from("payroll_records").upsert({
+      const payload = {
         user_id: profile.user_id,
         profile_id: profile.id,
         organization_id: orgId || null,
@@ -146,7 +163,39 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         other_deductions: otherDed,
         net_pay: net,
         status: "draft",
-      }, { onConflict: "profile_id,pay_period" }).select("id");
+      };
+
+      // Find an existing non-superseded record for this employee + period.
+      // We cannot use upsert(onConflict) because the unique constraint on
+      // (profile_id, pay_period) was dropped when the is_superseded pattern
+      // was introduced to support dispute-driven payslip revisions.
+      const { data: existing } = await supabase
+        .from("payroll_records")
+        .select("id, status")
+        .eq("profile_id", profile.id)
+        .eq("pay_period", payPeriod)
+        .eq("is_superseded", false)
+        .maybeSingle();
+
+      let data: { id: string }[] | null;
+      let error: { message: string } | null;
+
+      if (existing) {
+        if (existing.status === "locked") {
+          errors.push(`Row ${row.employee_id}: Payslip is locked and cannot be overwritten. Raise a dispute to revise it.`);
+          continue;
+        }
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .update(payload)
+          .eq("id", existing.id)
+          .select("id") as any);
+      } else {
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .insert(payload)
+          .select("id") as any);
+      }
 
       if (error) {
         errors.push(`Row ${row.employee_id}: ${error.message}`);
