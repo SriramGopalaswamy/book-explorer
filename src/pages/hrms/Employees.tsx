@@ -83,7 +83,7 @@ import {
 } from "@/hooks/useEmployees";
 import { EmployeeDetailDialog } from "@/components/employees/EmployeeDetailDialog";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { useEmployeeBulkUpload } from "@/hooks/useBulkUpload";
+import { useEmployeeBulkUpload, useEmployeeDetailsBulkUpload } from "@/hooks/useBulkUpload";
 
 const statusStyles = {
   active: "bg-success/10 text-success border-success/30",
@@ -165,6 +165,7 @@ export default function Employees() {
   const updateEmployee = useUpdateEmployee();
   const deleteEmployee = useDeleteEmployee();
   const employeeBulkConfig = useEmployeeBulkUpload();
+  const employeeDetailsBulkConfig = useEmployeeDetailsBulkUpload();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -328,6 +329,7 @@ export default function Employees() {
               {!isReadOnly && (
                 <div className="flex items-center gap-2">
                   <BulkUploadDialog config={employeeBulkConfig} />
+                  <BulkUploadDialog config={employeeDetailsBulkConfig} />
                   <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                       <Button className="bg-gradient-hrms text-white hover:opacity-90">
