@@ -27,7 +27,7 @@ export interface BulkUploadConfig {
   columns: BulkUploadColumn[];
   templateFileName: string;
   templateContent: string;
-  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; created?: number; updated?: number }>;
+  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
 }
 
 interface ParsedRow {
@@ -148,7 +148,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const [fileName, setFileName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadSummary, setUploadSummary] = useState<{
-    success: number; errors: string[]; created?: number; updated?: number;
+    success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -386,10 +386,15 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
 
       setUploadSummary(result);
 
+      const warnCount = result.warnings?.length ?? 0;
       if (result.success === 0 && result.errors.length > 0) {
         toast.error(`Upload failed: ${result.errors.length} error(s)`);
+      } else if (result.errors.length > 0 && warnCount > 0) {
+        toast.warning(`Uploaded ${result.success} rows — ${result.errors.length} failed, ${warnCount} saved with partial data`);
       } else if (result.errors.length > 0) {
-        toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} errors`);
+        toast.warning(`Uploaded ${result.success} rows with ${result.errors.length} failure(s)`);
+      } else if (warnCount > 0) {
+        toast.success(`Uploaded ${result.success} rows — ${warnCount} saved with partial data`);
       } else {
         toast.success(`Successfully uploaded ${result.success} rows`);
       }
@@ -457,6 +462,17 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
                     {uploadSummary.errors.map((e, i) => <li key={i}>• {e}</li>)}
+                  </ul>
+                </div>
+              )}
+              {(uploadSummary.warnings ?? []).length > 0 && (
+                <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-1">
+                  <p className="text-xs font-medium text-warning flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {uploadSummary.warnings!.length} row{uploadSummary.warnings!.length > 1 ? "s" : ""} saved with partial data
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
+                    {uploadSummary.warnings!.map((w, i) => <li key={i}>• {w}</li>)}
                   </ul>
                 </div>
               )}

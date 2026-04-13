@@ -927,6 +927,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
     let success = 0;
 
     // Resolve the caller's org once — used for tenant isolation on every update.
@@ -950,17 +951,16 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      // ── Validate all fields BEFORE any DB write ──────────
-      // Collect all validation errors for this row up front so we never
-      // do a partial write (profile saved, details rejected).
-      const rowErrors: string[] = [];
+      // ── Field-level validation — invalid fields are skipped, not the row ──
+      // Only email + employee-not-found are hard failures that skip the whole row.
+      const skippedFields: string[] = [];
 
       // PAN
       let pan: string | null = null;
       if (row.pan_number?.trim()) {
         pan = row.pan_number.trim().toUpperCase();
         if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-          rowErrors.push(`Invalid PAN "${pan}" (expected: ABCDE1234F)`);
+          skippedFields.push(`PAN "${pan}" skipped (expected format: ABCDE1234F)`);
           pan = null;
         }
       }
@@ -970,7 +970,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.aadhar_no?.trim()) {
         const digits = row.aadhar_no.trim().replace(/[\s\-]/g, "");
         if (!/^\d{12}$/.test(digits)) {
-          rowErrors.push(`Aadhaar must be 12 digits (got "${row.aadhar_no.trim()}")`);
+          skippedFields.push(`Aadhaar skipped (must be 12 digits)`);
         } else {
           aadhaarLastFour = digits.slice(-4);
         }
@@ -981,7 +981,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.uan?.trim()) {
         uan = row.uan.trim().replace(/\s/g, "");
         if (!/^\d{12}$/.test(uan)) {
-          rowErrors.push(`UAN must be exactly 12 digits`);
+          skippedFields.push(`UAN skipped (must be 12 digits)`);
           uan = null;
         }
       }
@@ -991,14 +991,9 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.ifsc_code?.trim()) {
         ifsc = row.ifsc_code.trim().toUpperCase();
         if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-          rowErrors.push(`Invalid IFSC "${ifsc}" (expected: ABCD0123456)`);
+          skippedFields.push(`IFSC "${ifsc}" skipped (expected format: ABCD0123456)`);
           ifsc = null;
         }
-      }
-
-      if (rowErrors.length > 0) {
-        errors.push(`"${email}": ${rowErrors.join("; ")} — row skipped`);
-        continue;
       }
 
       // ── Resolve the profile by email (org-scoped via RLS) ─
@@ -1073,11 +1068,15 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       }
 
       success++;
+      // Field-level skips go into warnings (row was saved, only these fields were not)
+      if (skippedFields.length > 0) {
+        warnings.push(`"${email}": ${skippedFields.join("; ")}`);
+      }
     }
 
     qc.invalidateQueries({ queryKey: ["employees"] });
     qc.invalidateQueries({ queryKey: ["employee-details"] });
-    return { success, errors };
+    return { success, errors, warnings };
   }, [qc]);
 
   return {
