@@ -717,6 +717,13 @@ export type Database = {
             foreignKeyName: "assets_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -818,6 +825,13 @@ export type Database = {
             foreignKeyName: "attendance_correction_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_correction_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -898,6 +912,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1007,6 +1028,13 @@ export type Database = {
             foreignKeyName: "attendance_punches_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_punches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1065,6 +1093,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2584,6 +2619,13 @@ export type Database = {
             foreignKeyName: "compensation_revision_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2648,6 +2690,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -3743,6 +3792,13 @@ export type Database = {
             foreignKeyName: "employee_code_mappings_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_code_mappings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3858,6 +3914,13 @@ export type Database = {
             foreignKeyName: "employee_details_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: true
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3919,6 +3982,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -3992,6 +4062,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -4325,6 +4402,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -4679,6 +4763,13 @@ export type Database = {
             foreignKeyName: "form16_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form16_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4863,6 +4954,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_plans_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -5537,6 +5635,13 @@ export type Database = {
             foreignKeyName: "investment_declarations_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_declarations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6178,6 +6283,13 @@ export type Database = {
             foreignKeyName: "leave_balances_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -6255,6 +6367,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -7243,6 +7362,13 @@ export type Database = {
             foreignKeyName: "payroll_entries_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7360,6 +7486,13 @@ export type Database = {
             columns: ["original_record_id"]
             isOneToOne: false
             referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -7542,6 +7675,13 @@ export type Database = {
             columns: ["payroll_record_id"]
             isOneToOne: false
             referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -7855,6 +7995,13 @@ export type Database = {
             foreignKeyName: "profile_change_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_change_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -7931,6 +8078,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -8576,6 +8730,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reimbursement_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -10701,6 +10862,86 @@ export type Database = {
       }
     }
     Views: {
+      employee_full_profiles: {
+        Row: {
+          aadhaar_last_four: string | null
+          address_line1: string | null
+          address_line2: string | null
+          avatar_url: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_ifsc: string | null
+          bank_name: string | null
+          blood_group: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          date_of_birth: string | null
+          department: string | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relation: string | null
+          employee_id: string | null
+          employee_id_number: string | null
+          esi_number: string | null
+          full_name: string | null
+          gender: string | null
+          id: string | null
+          job_title: string | null
+          join_date: string | null
+          location: string | null
+          manager_id: string | null
+          marital_status: string | null
+          nationality: string | null
+          organization_id: string | null
+          pan_number: string | null
+          phone: string | null
+          pincode: string | null
+          state: string | null
+          status: string | null
+          uan_number: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_profiles_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ledger_base: {
         Row: {
           account_code: string | null
@@ -10780,6 +11021,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
           {

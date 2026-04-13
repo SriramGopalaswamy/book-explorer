@@ -42,9 +42,10 @@ import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
   Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  UserCog, Clock, Mail,
+  UserCog, Clock, Mail, Building2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
@@ -97,6 +98,105 @@ const STATUS_COLORS: Record<string, string> = {
   on_leave: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   pending_approval: "bg-blue-500/10 text-blue-500 border-blue-500/20",
 };
+
+// ─── Organization Info Section ────────────────────────────────────────────────
+function OrganizationInfoSection() {
+  const { compliance, upsert } = useOnboardingCompliance();
+  const [local, setLocal] = useState({ legal_name: "", registered_address: "", state: "", pincode: "" });
+  const [initialized, setInitialized] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (compliance && !initialized) {
+      setLocal({
+        legal_name: compliance.legal_name || "",
+        registered_address: compliance.registered_address || "",
+        state: compliance.state || "",
+        pincode: compliance.pincode || "",
+      });
+      setInitialized(true);
+    }
+  }, [compliance, initialized]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await upsert.mutateAsync({
+        legal_name: local.legal_name,
+        registered_address: local.registered_address,
+        state: local.state,
+        pincode: local.pincode,
+      });
+      toast.success("Organization info saved");
+    } catch {
+      toast.error("Failed to save organization info");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-primary" />
+          Organization Details
+        </CardTitle>
+        <CardDescription>
+          This information appears on payslips and official documents.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="legal_name">Legal Name</Label>
+            <Input
+              id="legal_name"
+              value={local.legal_name}
+              onChange={(e) => setLocal((p) => ({ ...p, legal_name: e.target.value }))}
+              placeholder="e.g. Acme Technologies Pvt Ltd"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="state">State</Label>
+            <Input
+              id="state"
+              value={local.state}
+              onChange={(e) => setLocal((p) => ({ ...p, state: e.target.value }))}
+              placeholder="e.g. Karnataka"
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="registered_address">Registered Address</Label>
+          <Textarea
+            id="registered_address"
+            value={local.registered_address}
+            onChange={(e) => setLocal((p) => ({ ...p, registered_address: e.target.value }))}
+            placeholder="Full registered office address"
+            rows={3}
+          />
+        </div>
+        <div className="space-y-1.5 sm:w-1/3">
+          <Label htmlFor="pincode">Pincode</Label>
+          <Input
+            id="pincode"
+            value={local.pincode}
+            onChange={(e) => setLocal((p) => ({ ...p, pincode: e.target.value }))}
+            placeholder="e.g. 560001"
+            maxLength={6}
+          />
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Branding Section ─────────────────────────────────────────────────────────
 function BrandingSection() {
@@ -1262,11 +1362,15 @@ export default function Settings() {
             <Shield className="h-6 w-6 text-primary" />
             Settings
           </h1>
-          <p className="text-muted-foreground mt-1">Manage your organization's branding, payroll, roles, email alerts, integrations, and user access</p>
+          <p className="text-muted-foreground mt-1">Manage your organization's details, branding, payroll, roles, email alerts, integrations, and user access</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="organization" className="gap-1.5">
+              <Building2 className="h-4 w-4" />
+              Organization
+            </TabsTrigger>
             <TabsTrigger value="general" className="gap-1.5">
               <Palette className="h-4 w-4" />
               Branding
@@ -1304,6 +1408,10 @@ export default function Settings() {
               Privacy & Security
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="organization" className="mt-6">
+            <OrganizationInfoSection />
+          </TabsContent>
 
           <TabsContent value="general" className="mt-6">
             <BrandingSection />

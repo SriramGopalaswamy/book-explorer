@@ -8,8 +8,12 @@ ALTER TABLE public.profiles
 
 -- Rebuild the view now that profiles.location exists so the column is exposed
 -- through employee_full_profiles.  Runs AFTER the ALTER TABLE above.
+-- Use DROP + CREATE (not CREATE OR REPLACE) so that PostgreSQL does not reject
+-- the new column being inserted mid-list; CREATE OR REPLACE only allows appending.
 
-CREATE OR REPLACE VIEW public.employee_full_profiles
+DROP VIEW IF EXISTS public.employee_full_profiles;
+
+CREATE VIEW public.employee_full_profiles
 WITH (security_invoker = on) AS
 SELECT
   p.id,

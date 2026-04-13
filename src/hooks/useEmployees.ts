@@ -143,7 +143,7 @@ export function useEmployees() {
           .order("full_name", { ascending: true })
           .limit(500);
         if (error) throw error;
-        const employees = data as Employee[];
+        const employees = data as unknown as Employee[];
 
         // Fix stale on_leave statuses: check if employee actually has an approved leave covering today
         const today = new Date().toISOString().split("T")[0];

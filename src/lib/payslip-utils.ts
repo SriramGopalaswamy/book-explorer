@@ -125,7 +125,54 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
   }
 
   const totalEarnings = earnings.reduce((s, e) => s + e.amount, 0);
-  const totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
+  let totalDeductions = deductions.reduce((s, d) => s + d.amount, 0);
+
+  // If the stored net_pay implies deductions that aren't reflected in the flat
+  // deduction columns (e.g. bulk-uploaded records where only the final net_pay
+  // was captured), attempt to resolve the gap into named statutory heads before
+  // falling back to a generic catch-all.
+  const storedNetPay = Number(record.net_pay) || 0;
+  if (storedNetPay > 0) {
+    const impliedTotal = totalEarnings - storedNetPay;
+    const undocumented = impliedTotal - totalDeductions;
+    if (undocumented > 1) {
+      // Two PF conventions:
+      //   (a) 12% of actual basic (precise)
+      //   (b) 12% of ₹15,000 wage ceiling → ₹1,800 flat (common company simplification)
+      // PT slab (Karnataka): gross >₹15,000 → ₹200, >₹10,000 → ₹150, else ₹0
+      const pfActual  = basic > 0 ? Math.round(Math.min(basic, 15000) * 0.12) : 0;
+      const pfCeiling = 1800;
+      const ptAmount  = totalEarnings > 15000 ? 200 : totalEarnings > 10000 ? 150 : 0;
+
+      let resolved = false;
+      for (const pf of [pfActual, pfCeiling]) {
+        if (pf <= 0) continue;
+        // Check PF + PT
+        if (Math.abs(pf + ptAmount - undocumented) <= 1) {
+          // Absorb any ₹1 rounding delta into PF so items sum exactly to undocumented
+          deductions.push({ label: "PF Contribution", amount: pf + (undocumented - pf - ptAmount), statutory: true });
+          if (ptAmount > 0) deductions.push({ label: "Professional Tax", amount: ptAmount, statutory: true });
+          resolved = true;
+          break;
+        }
+        // Check PF only (no PT)
+        if (Math.abs(pf - undocumented) <= 1) {
+          deductions.push({ label: "PF Contribution", amount: undocumented, statutory: true });
+          resolved = true;
+          break;
+        }
+      }
+      // Check PT only
+      if (!resolved && ptAmount > 0 && Math.abs(ptAmount - undocumented) <= 1) {
+        deductions.push({ label: "Professional Tax", amount: undocumented, statutory: true });
+        resolved = true;
+      }
+      if (!resolved) {
+        deductions.push({ label: "Salary Deductions", amount: undocumented, statutory: false });
+      }
+      totalDeductions += undocumented;
+    }
+  }
 
   return {
     earnings,

@@ -8,6 +8,7 @@ import { exportScheduleIIIBalanceSheet } from "@/lib/schedule-iii-export";
 import { BSDrillDownDialog } from "./BSDrillDownDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -21,6 +22,7 @@ interface BalanceSheetSummaryProps {
 
 export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
   const bs = useBalanceSheet();
+  const { compliance } = useOnboardingCompliance();
 
   const [drillDown, setDrillDown] = useState<{ name: string; code: string; type: "asset" | "liability" | "equity"; balance: number } | null>(null);
   const [scheduleIIIExporting, setScheduleIIIExporting] = useState(false);
@@ -73,6 +75,7 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
         <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
           title: "Balance Sheet",
           subtitle: "Assets = Liabilities + Equity",
+          companyName: compliance?.legal_name || undefined,
           sections: [
             {
               title: "Assets",
@@ -107,8 +110,8 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
             toast.info("Opening Schedule III report. A print dialog will appear — please allow popups if prompted.");
             try {
               exportScheduleIIIBalanceSheet({
-                companyName: "Organization",
-                cin: "",
+                companyName: compliance?.legal_name || "",
+                cin: compliance?.cin_or_llpin || "",
                 asOfDate: asOfDate ? format(asOfDate, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
                 assets: bs.assets,
                 liabilities: bs.liabilities,

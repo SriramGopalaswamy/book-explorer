@@ -343,7 +343,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     setUploading(true);
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      let result: { success: number; errors: string[]; created?: number; updated?: number };
+      let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
       
       try {
         result = await config.onUpload(validRows);
@@ -548,9 +548,14 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8 sticky left-0 bg-background z-10">#</TableHead>
-                          {headers.map((h) => (
-                            <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
-                          ))}
+                          {headers.map((h) => {
+                            const isMapped = config.columns.some(c => c.key === h || c.aliases?.includes(h));
+                            return (
+                              <TableHead key={h} className={cn("text-xs whitespace-nowrap", !isMapped && "text-muted-foreground/60")}>
+                                {h}{!isMapped && <span className="ml-1 text-[10px] font-normal opacity-60">(ignored)</span>}
+                              </TableHead>
+                            );
+                          })}
                           <TableHead className="text-xs whitespace-nowrap min-w-[160px]">Status / Errors</TableHead>
                         </TableRow>
                       </TableHeader>

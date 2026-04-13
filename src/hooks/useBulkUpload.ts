@@ -79,6 +79,19 @@ const payrollColumns: BulkUploadColumn[] = [
       "prof_tax",
     ],
   },
+  // "Total Deductions" is present in the template so users can paste data directly.
+  // When the individual PF/PT columns are absent (or zero), this total is used to
+  // derive statutory components via back-calculation.
+  {
+    key: "total_deductions_col",
+    label: "Total Deductions",
+    aliases: [
+      "total_deductions",
+      "deductions",
+      "total_deduction",
+      "deduction_total",
+    ],
+  },
 
   // Variable pay — "no" values are safely treated as 0
   {
@@ -123,13 +136,15 @@ const payrollColumns: BulkUploadColumn[] = [
 ];
 
 // Template column names mirror this company's exact Excel file headers.
+// Columns like Department, Job Title, Total Annual CTC, Annual CTC, Employer PF Annual,
+// Bonus Yearly, and Total Deductions are included so users can paste their data directly —
+// they are present in the template but ignored during upload (not mapped in payrollColumns).
 // "PF- optout" in the PF column is handled gracefully (basic derived from 40% of gross).
 // "no" in Incentive/Bonus columns is treated as 0.
-// Annual CTC columns in the file are ignored — they are never used in calculations.
-const payrollTemplate = `Employee Name,Email ID,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Incentive monthly,Bonus monthly,Working Days,Paid Days,LWP Days,LWP Deduction,Net Pay
-Ravi Kumar,ravi@company.com,45000,47000,200,1800,2000,no,26,26,0,,45000
-Priya Sharma,priya@company.com,30000,30000,200,1560,no,no,26,25,1,1154,27086
-Dilli Ram Nirola,admin@grx10.com,45000,45000,200,PF- optout,no,no,31,31,0,,44800`;
+const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
+Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,2000,0,,26,26,45000
+Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,1760,1,1154,26,25,27086
+Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,PF- optout,200,0,,31,31,44800`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
@@ -235,8 +250,9 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // All values here must be MONTHLY figures.
       // Annual CTC / Total Annual CTC columns are intentionally NOT mapped — they
       // would produce 12× inflated salary figures on the payslip.
-      const pf_monthly     = parseFloat(row.pf_employee_monthly) || 0;
-      const prof_tax       = parseFloat(row.professional_tax_monthly) || 0;
+      const pf_monthly_raw  = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax_raw    = parseFloat(row.professional_tax_monthly) || 0;
+      const total_ded_file  = parseFloat(row.total_deductions_col) || 0;
       const monthly_gross  = parseFloat(row.monthly_gross) || 0;
       // gross_earnings_monthly includes variable pay; falls back to monthly_gross
       const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
@@ -254,9 +270,9 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 40% of gross
       //   • If no PF data    → default to 40% of monthly gross
       let basic: number;
-      if (pf_monthly > 0 && pf_monthly < 1800) {
-        basic = Math.round(pf_monthly / 0.12);
-      } else if (pf_monthly >= 1800) {
+      if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
+        basic = Math.round(pf_monthly_raw / 0.12);
+      } else if (pf_monthly_raw >= 1800) {
         basic = Math.max(Math.round(monthly_gross * 0.40), 15000);
       } else {
         basic = Math.round(monthly_gross * 0.40);
@@ -268,6 +284,69 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // Other Allowances = balance of fixed monthly gross after Basic + HRA
       // This absorbs Special Allowance, Transport, and other fixed components.
       const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
+
+      // ── Resolve individual deduction components ────────────────────────────
+      // Individual PF/PT columns take precedence. When they are absent (both 0)
+      // but "Total Deductions" was supplied in the file, back-calculate statutory
+      // components so the payslip shows proper named heads instead of a catch-all.
+      let pf_monthly = pf_monthly_raw;
+      let prof_tax   = prof_tax_raw;
+
+      if (pf_monthly === 0 && prof_tax === 0 && total_ded_file > 0) {
+        // Try to split total_ded_file into PF + PT using statutory rules.
+        // Two PF conventions: (a) 12% of actual basic, (b) ₹1,800 ceiling flat.
+        const grossForPT  = gross_earn || monthly_gross;
+        const ptDerived   = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+        const pfActual    = Math.round(Math.min(basic, 15000) * 0.12);
+        const pfCeiling   = 1800;
+
+        for (const pf of [pfActual, pfCeiling]) {
+          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) {
+            pf_monthly = pf;
+            prof_tax   = ptDerived;
+            break;
+          }
+          if (Math.abs(pf - total_ded_file) <= 1) {
+            pf_monthly = pf;
+            break;
+          }
+        }
+        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) {
+          prof_tax = ptDerived;
+        }
+        // If no pattern matched, leave pf_monthly and prof_tax as 0 —
+        // the display layer will still show the correct total via net_pay reconciliation.
+      }
+
+      // ── Deduction consistency checks ───────────────────────────────────────
+      // (1) Component sum check: when both individual columns and Total Deductions
+      //     are provided, their sum must agree within ₹2 (rounding tolerance).
+      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0)) {
+        const componentSum = pf_monthly_raw + prof_tax_raw;
+        if (Math.abs(componentSum - total_ded_file) > 2) {
+          errors.push(
+            `Row ${row.employee_id || row.email_id}: Total Deductions (₹${total_ded_file}) ` +
+            `does not match PF (₹${pf_monthly_raw}) + Professional Tax (₹${prof_tax_raw}) = ₹${componentSum}. ` +
+            `Please fix the deduction values in the file.`
+          );
+          continue;
+        }
+      }
+
+      // (2) Net pay cross-check: when gross, total deductions, and net pay are all
+      //     present, verify gross − total_deductions − lwp_deduction ≈ net_pay.
+      //     A mismatch > ₹5 suggests a data entry error worth flagging.
+      if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwp_ded_val);
+        if (Math.abs(expectedNet - net_from_file) > 5) {
+          errors.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
+            `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file}) − LWP (₹${lwp_ded_val}) = ₹${expectedNet}, ` +
+            `but file says ₹${net_from_file}. Please verify.`
+          );
+          continue;
+        }
+      }
 
       // Variable pay (Incentives + Bonus) stored in transport_allowance field.
       // On the payslip this is labelled "Incentives". The transport_allowance
@@ -322,30 +401,42 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         status: "draft",
       };
 
-      // Find an existing non-superseded record for this employee + period.
-      // We cannot use upsert(onConflict) because the unique constraint on
-      // (profile_id, pay_period) was dropped when the is_superseded pattern
-      // was introduced to support dispute-driven payslip revisions.
+      // Find the active (non-superseded) record for this employee + period, if any.
+      // The UNIQUE constraint on (profile_id, pay_period) exists in the DB, so we must
+      // UPDATE existing active records rather than INSERT duplicates.
+      // We also check for ANY record (including superseded) to detect constraint conflicts.
       const { data: existing } = await supabase
         .from("payroll_records")
-        .select("id, status")
+        .select("id, status, is_superseded")
         .eq("profile_id", profile.id)
         .eq("pay_period", payPeriod)
-        .eq("is_superseded", false)
+        .order("is_superseded", { ascending: true }) // false (active) first
+        .limit(1)
         .maybeSingle();
 
       let data: { id: string }[] | null;
       let error: { message: string } | null;
 
-      if (existing) {
-        if (existing.status === "locked") {
+      const activeExisting = existing && existing.is_superseded === false ? existing : null;
+      const supersededExisting = existing && existing.is_superseded === true ? existing : null;
+
+      if (activeExisting) {
+        if (activeExisting.status === "locked") {
           errors.push(`Row ${row.employee_id}: Payslip is locked and cannot be overwritten. Raise a dispute to revise it.`);
           continue;
         }
         ({ data, error } = await supabase
           .from("payroll_records")
           .update(payload)
-          .eq("id", existing.id)
+          .eq("id", activeExisting.id)
+          .select("id") as any);
+      } else if (supersededExisting) {
+        // A superseded record exists — mark it as no longer superseded and update it,
+        // rather than inserting a second row that would violate the unique constraint.
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .update({ ...payload, is_superseded: false })
+          .eq("id", supersededExisting.id)
           .select("id") as any);
       } else {
         ({ data, error } = await supabase
@@ -362,9 +453,13 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
           errors.push("Bulk upload aborted: too many errors. All changes rolled back.");
           return { success: 0, errors };
         }
-      } else {
-        if (data?.[0]?.id) insertedIds.push(data[0].id);
+      } else if (data?.[0]?.id) {
+        insertedIds.push(data[0].id);
         success++;
+      } else {
+        // Insert/update went through but Supabase returned no row — likely an RLS
+        // visibility issue on the RETURNING clause. Count as error so the user knows.
+        errors.push(`Row ${row.employee_id}: record was not saved (possible permission issue — check RLS policies).`);
       }
     }
 
@@ -960,15 +1055,8 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       // Only email + employee-not-found are hard failures that skip the whole row.
       const skippedFields: string[] = [];
 
-      // PAN
-      let pan: string | null = null;
-      if (row.pan_number?.trim()) {
-        pan = row.pan_number.trim().toUpperCase();
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-          skippedFields.push(`PAN "${pan}" skipped (expected format: ABCDE1234F)`);
-          pan = null;
-        }
-      }
+      // PAN — store as-is (no format enforcement)
+      const pan: string | null = row.pan_number?.trim() ? row.pan_number.trim().toUpperCase() : null;
 
       // Aadhaar — accept full 12-digit, store only last 4
       let aadhaarLastFour: string | null = null;
@@ -1041,7 +1129,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (Object.keys(profileUpdate).length > 0) {
         const { error: profileUpdateError } = await supabase
           .from("profiles")
-          .update(profileUpdate)
+          .update(profileUpdate as any)
           .eq("id", profileId)
           .eq("organization_id", callerOrgId ?? profile.organization_id);
         if (profileUpdateError) {
@@ -1071,7 +1159,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (hasDetails) {
         const { error: detailsError } = await supabase
           .from("employee_details")
-          .upsert(detailsPayload, { onConflict: "profile_id" });
+          .upsert(detailsPayload as any, { onConflict: "profile_id" });
         if (detailsError) {
           errors.push(`"${email}": Details update failed — ${detailsError.message}`);
           continue;
