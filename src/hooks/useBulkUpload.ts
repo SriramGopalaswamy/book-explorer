@@ -123,13 +123,15 @@ const payrollColumns: BulkUploadColumn[] = [
 ];
 
 // Template column names mirror this company's exact Excel file headers.
+// Columns like Department, Job Title, Total Annual CTC, Annual CTC, Employer PF Annual,
+// Bonus Yearly, and Total Deductions are included so users can paste their data directly —
+// they are present in the template but ignored during upload (not mapped in payrollColumns).
 // "PF- optout" in the PF column is handled gracefully (basic derived from 40% of gross).
 // "no" in Incentive/Bonus columns is treated as 0.
-// Annual CTC columns in the file are ignored — they are never used in calculations.
-const payrollTemplate = `Employee Name,Email ID,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Incentive monthly,Bonus monthly,Working Days,Paid Days,LWP Days,LWP Deduction,Net Pay
-Ravi Kumar,ravi@company.com,45000,47000,200,1800,2000,no,26,26,0,,45000
-Priya Sharma,priya@company.com,30000,30000,200,1560,no,no,26,25,1,1154,27086
-Dilli Ram Nirola,admin@grx10.com,45000,45000,200,PF- optout,no,no,31,31,0,,44800`;
+const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
+Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,2000,0,,26,26,45000
+Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,1760,1,1154,26,25,27086
+Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,PF- optout,200,0,,31,31,44800`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
