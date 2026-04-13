@@ -68,9 +68,6 @@ export function useUpsertEmployeeDetails() {
       if (input.esi_number && !/^\d{17}$/.test(input.esi_number)) {
         throw new Error("ESI number must be exactly 17 digits");
       }
-      if (input.pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(input.pan_number)) {
-        throw new Error("Invalid PAN format (expected: ABCDE1234F)");
-      }
       // Validate IFSC if provided
       if (input.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(input.bank_ifsc)) {
         throw new Error("Invalid IFSC format (expected: ABCD0123456)");

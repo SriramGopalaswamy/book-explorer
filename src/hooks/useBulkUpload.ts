@@ -978,15 +978,8 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       // Only email + employee-not-found are hard failures that skip the whole row.
       const skippedFields: string[] = [];
 
-      // PAN
-      let pan: string | null = null;
-      if (row.pan_number?.trim()) {
-        pan = row.pan_number.trim().toUpperCase();
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-          skippedFields.push(`PAN "${pan}" skipped (expected format: ABCDE1234F)`);
-          pan = null;
-        }
-      }
+      // PAN — store as-is (no format enforcement)
+      const pan: string | null = row.pan_number?.trim() ? row.pan_number.trim().toUpperCase() : null;
 
       // Aadhaar — accept full 12-digit, store only last 4
       let aadhaarLastFour: string | null = null;
