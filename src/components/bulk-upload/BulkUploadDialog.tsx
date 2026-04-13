@@ -18,6 +18,7 @@ export interface BulkUploadColumn {
   key: string;
   label: string;
   required?: boolean;
+  aliases?: string[];
 }
 
 export interface BulkUploadConfig {
@@ -181,6 +182,17 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
           row[h] = val;
         }
       });
+      // Remap aliased column names to primary config keys
+      for (const col of config.columns) {
+        if (!row[col.key] && col.aliases) {
+          for (const alias of col.aliases) {
+            if (row[alias]) {
+              row[col.key] = row[alias];
+              break;
+            }
+          }
+        }
+      }
       return validateRow(row, idx);
     });
     setParsedRows(dataRows);

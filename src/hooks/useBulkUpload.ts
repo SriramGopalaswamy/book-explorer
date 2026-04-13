@@ -7,8 +7,8 @@ import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-uploa
 
 // ─── Payroll ───────────────────────────────────────
 const payrollColumns: BulkUploadColumn[] = [
-  { key: "employee_id", label: "Employee ID", required: true },
-  { key: "basic_salary", label: "Basic Salary", required: true },
+  { key: "employee_id", label: "Employee ID", required: true, aliases: ["employee_name", "emp_name", "name", "employee"] },
+  { key: "basic_salary", label: "Basic Salary", required: true, aliases: ["total_annual_ctc_", "total_annual_ctc", "annual_ctc", "ctc", "salary", "gross_salary"] },
   { key: "hra", label: "HRA" },
   { key: "transport_allowance", label: "Transport Allowance" },
   { key: "other_allowances", label: "Other Allowances" },
