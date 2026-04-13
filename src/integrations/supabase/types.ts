@@ -8026,7 +8026,6 @@ export type Database = {
           id: string
           job_title: string | null
           join_date: string | null
-          location: string | null
           manager_id: string | null
           organization_id: string
           phone: string | null
@@ -8045,7 +8044,6 @@ export type Database = {
           id?: string
           job_title?: string | null
           join_date?: string | null
-          location?: string | null
           manager_id?: string | null
           organization_id?: string
           phone?: string | null
@@ -8064,7 +8062,6 @@ export type Database = {
           id?: string
           job_title?: string | null
           join_date?: string | null
-          location?: string | null
           manager_id?: string | null
           organization_id?: string
           phone?: string | null
