@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { Save, Upload, Building2, CreditCard, FileSignature, Settings2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 
 interface InvoiceSettingsData {
   company_name: string;
@@ -42,7 +43,7 @@ interface InvoiceSettingsData {
 }
 
 const defaultSettings: InvoiceSettingsData = {
-  company_name: "GRX10 SOLUTIONS PRIVATE LIMITED",
+  company_name: "",
   cin: "",
   address_line1: "",
   address_line2: "",
@@ -74,6 +75,7 @@ export default function InvoiceSettings() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const [form, setForm] = useState<InvoiceSettingsData>(defaultSettings);
   const [uploading, setUploading] = useState<"logo" | "signature" | null>(null);
+  const { compliance } = useOnboardingCompliance();
 
   const { data: existingSettings, isLoading } = useQuery({
     queryKey: ["invoice-settings", user?.id],
@@ -93,15 +95,15 @@ export default function InvoiceSettings() {
   useEffect(() => {
     if (existingSettings) {
       setForm({
-        company_name: existingSettings.company_name || defaultSettings.company_name,
-        cin: existingSettings.cin || "",
-        address_line1: existingSettings.address_line1 || "",
+        company_name: existingSettings.company_name || compliance?.legal_name || "",
+        cin: existingSettings.cin || compliance?.cin_or_llpin || "",
+        address_line1: existingSettings.address_line1 || compliance?.registered_address || "",
         address_line2: existingSettings.address_line2 || "",
         city: existingSettings.city || "",
-        state: existingSettings.state || "",
-        pincode: existingSettings.pincode || "",
+        state: existingSettings.state || compliance?.state || "",
+        pincode: existingSettings.pincode || compliance?.pincode || "",
         country: existingSettings.country || "India",
-        gstin: existingSettings.gstin || "",
+        gstin: existingSettings.gstin || (compliance?.gstin?.[0] ?? ""),
         phone: existingSettings.phone || "",
         email: existingSettings.email || "",
         website: existingSettings.website || "",
@@ -117,8 +119,19 @@ export default function InvoiceSettings() {
         upi_code: existingSettings.upi_code || "",
         custom_footer_text: existingSettings.custom_footer_text || "",
       });
+    } else if (compliance) {
+      // No saved invoice settings yet — seed from organization_compliance
+      setForm((prev) => ({
+        ...prev,
+        company_name: compliance.legal_name || "",
+        cin: compliance.cin_or_llpin || "",
+        address_line1: compliance.registered_address || "",
+        state: compliance.state || "",
+        pincode: compliance.pincode || "",
+        gstin: compliance.gstin?.[0] ?? "",
+      }));
     }
-  }, [existingSettings]);
+  }, [existingSettings, compliance]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {

@@ -8,6 +8,7 @@ import { exportReportAsPDF } from "@/lib/pdf-export";
 import { exportScheduleIIIProfitLoss } from "@/lib/schedule-iii-export";
 import { PLDrillDownDialog } from "./PLDrillDownDialog";
 import { format } from "date-fns";
+import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 
 const formatCurrency = (v: number) => {
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
@@ -24,6 +25,7 @@ interface ProfitLossStatementProps {
 export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatementProps) {
   const defaultPL = useProfitLoss();
   const pl = periodData || defaultPL;
+  const { compliance } = useOnboardingCompliance();
   const [drillDown, setDrillDown] = useState<{ name: string; type: "revenue" | "expense" } | null>(null);
 
   const subtitle = from || to
@@ -64,8 +66,8 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
             <Download className="h-4 w-4 mr-1" /> Export PDF
           </Button>
           <Button variant="outline" size="sm" onClick={() => exportScheduleIIIProfitLoss({
-            companyName: "Organization",
-            cin: "",
+            companyName: compliance?.legal_name || "",
+            cin: compliance?.cin_or_llpin || "",
             periodFrom: from ? format(from, "dd MMM yyyy") : "Start of FY",
             periodTo: to ? format(to, "dd MMM yyyy") : format(new Date(), "dd MMM yyyy"),
             revenue: pl.revenue,
