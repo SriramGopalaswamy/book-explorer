@@ -131,14 +131,22 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const otherDed = parseFloat(row.other_deductions) || 0;
       const net = basic + hra + transport + otherAllow - pf - tax - otherDed;
 
-      // Prefer exact email match when an email column is present in the file;
-      // fall back to fuzzy name matching for files without an email column.
-      const profile = (row.email_id ? findProfileByEmail(row.email_id) : null)
-        ?? findProfileByName(row.employee_id);
-
-      if (!profile) {
-        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
-        continue;
+      // When an email is supplied, use exact match only — do NOT fall back to
+      // name matching, since a failed email lookup means the address is wrong
+      // and a name fallback could silently match the wrong employee.
+      let profile;
+      if (row.email_id) {
+        profile = findProfileByEmail(row.email_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          continue;
+        }
+      } else {
+        profile = findProfileByName(row.employee_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+          continue;
+        }
       }
 
       const payload = {
