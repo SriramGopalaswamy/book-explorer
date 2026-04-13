@@ -911,6 +911,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
     let success = 0;
 
     // Resolve the caller's org once — used for tenant isolation on every update.
@@ -1051,15 +1052,15 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       }
 
       success++;
-      // Report any field-level skips as warnings (row was saved, these fields were not)
+      // Field-level skips go into warnings (row was saved, only these fields were not)
       if (skippedFields.length > 0) {
-        errors.push(`"${email}": Saved with warnings — ${skippedFields.join("; ")}`);
+        warnings.push(`"${email}": ${skippedFields.join("; ")}`);
       }
     }
 
     qc.invalidateQueries({ queryKey: ["employees"] });
     qc.invalidateQueries({ queryKey: ["employee-details"] });
-    return { success, errors };
+    return { success, errors, warnings };
   }, [qc]);
 
   return {
