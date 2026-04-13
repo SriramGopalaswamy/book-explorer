@@ -407,6 +407,77 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────
+    // activate_user — reactivates an inactive user: clears soft-delete flags, unbans auth account
+    // ─────────────────────────────────────────────
+    if (action === "activate_user") {
+      if (callerRole !== "admin") {
+        return new Response(JSON.stringify({ error: "Admin access required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { user_id } = body;
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "user_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // SECURITY: Verify target user belongs to same org
+      const { data: targetMemberAct } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+      if (!targetMemberAct) {
+        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Guard: only reactivate users who are actually inactive
+      const { data: targetProfileAct } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+
+      if (!targetProfileAct || targetProfileAct.status !== "inactive") {
+        return new Response(JSON.stringify({ error: "User is not inactive" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Restore profile: clear soft-delete flags, set status active
+      const { error: activateError } = await supabase
+        .from("profiles")
+        .update({ status: "active", is_deleted: false, deleted_at: null })
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      if (activateError) {
+        console.error("Activate error:", activateError);
+        return new Response(JSON.stringify({ error: "Failed to activate user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Unban the auth account (mirrors approve_user behaviour)
+      await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─────────────────────────────────────────────
     // delete_user — soft-deletes profile (trigger blocks hard delete), hard-deletes auth user
     // ─────────────────────────────────────────────
     if (action === "delete_user") {

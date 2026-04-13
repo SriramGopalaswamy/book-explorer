@@ -96,16 +96,19 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
     ...(incentives > 0 ? [{ label: "Incentives", amount: incentives }] : []),
   ];
 
-  // Professional Tax is stored in other_deductions; TDS is stored in tax_deduction.
+  // Professional Tax is stored in other_deductions; TDS in tax_deduction;
+  // Other/misc deductions (salary advances, welfare fund, etc.) in misc_deductions.
   const profTax = Number(record.other_deductions) || 0;
   const tds     = Number(record.tax_deduction) || 0;
   const pf      = Number(record.pf_deduction) || 0;
+  const miscDed = Number(record.misc_deductions) || 0;
 
-  // Deductions: match company payslip layout — Professional Tax, TDS, PF Contribution, LOP
+  // Deductions: Professional Tax, TDS, PF Contribution, Other Deductions, then LOP
   const deductions: PayslipLineItem[] = [
     ...(profTax > 0 ? [{ label: "Professional Tax", amount: profTax, statutory: true }] : []),
     ...(tds > 0     ? [{ label: "TDS", amount: tds, statutory: true }] : []),
     ...(pf > 0      ? [{ label: "PF Contribution", amount: pf, statutory: true }] : []),
+    ...(miscDed > 0 ? [{ label: "Other Deductions", amount: miscDed, statutory: false }] : []),
   ];
 
   const lopDays = Number(record.lop_days) || 0;
