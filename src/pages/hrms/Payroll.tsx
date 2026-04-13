@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
@@ -26,7 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Wallet, Users, Calendar, TrendingUp, Download, Search, FileText,
-  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye, AlertTriangle, X,
+  CheckCircle, Clock, Plus, MoreHorizontal, Pencil, Trash2, ShieldAlert, Zap, Eye, AlertTriangle, X, RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -43,7 +44,7 @@ import {
 } from "@/hooks/usePayslipDisputes";
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
-  useDeletePayroll, useProcessPayroll, useMyPayrollRecords,
+  useDeletePayroll, useBulkDeletePayroll, useProcessPayroll, useMyPayrollRecords,
   type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
@@ -453,6 +454,7 @@ export default function Payroll() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRecord | null>(null);
@@ -483,7 +485,9 @@ export default function Payroll() {
   const createPayroll = useCreatePayroll();
   const updatePayroll = useUpdatePayroll();
   const deletePayroll = useDeletePayroll();
+  const bulkDeletePayroll = useBulkDeletePayroll();
   const processPayroll = useProcessPayroll();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState({ profile_id: "", ...defaultForm });
 
@@ -620,6 +624,18 @@ export default function Payroll() {
   const handleBulkProcess = () => {
     if (selectedIds.length === 0) return;
     processPayroll.mutate(selectedIds, { onSuccess: () => setSelectedIds([]) });
+  };
+
+  const handleBulkDelete = () => {
+    bulkDeletePayroll.mutate(selectedIds, {
+      onSuccess: () => { setBulkDeleteConfirmOpen(false); setSelectedIds([]); },
+    });
+  };
+
+  const handleSyncEmployeeInfo = () => {
+    queryClient.invalidateQueries({ queryKey: ["payroll"] });
+    queryClient.invalidateQueries({ queryKey: ["employees"] });
+    toast.success("Employee details refreshed.");
   };
 
   // Access is now handled by FinanceRoute — only admin/finance reach here
@@ -836,15 +852,30 @@ export default function Payroll() {
                     </Select>
 
                     {selectedIds.length > 0 && (
-                      <Button
-                        onClick={handleBulkProcess}
-                        disabled={processPayroll.isPending}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <Zap className="h-4 w-4 mr-1" />
-                        Process ({selectedIds.length})
-                      </Button>
+                      <>
+                        <Button
+                          onClick={handleBulkProcess}
+                          disabled={processPayroll.isPending}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Zap className="h-4 w-4 mr-1" />
+                          Process ({selectedIds.length})
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => setBulkDeleteConfirmOpen(true)}
+                          disabled={bulkDeletePayroll.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete ({selectedIds.length})
+                        </Button>
+                      </>
                     )}
+
+                    <Button variant="outline" size="sm" onClick={handleSyncEmployeeInfo}>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Sync Employee Info
+                    </Button>
 
                     <BulkUploadDialog config={bulkUploadConfig} />
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -1262,6 +1293,30 @@ export default function Payroll() {
               onClick={() => deleteTarget && deletePayroll.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.length} Payroll Record{selectedIds.length !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedIds.length} selected record{selectedIds.length !== 1 ? "s" : ""}.
+              Only draft or cancelled records can be deleted — any others will be skipped.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+              disabled={bulkDeletePayroll.isPending}
+            >
+              {bulkDeletePayroll.isPending ? "Deleting…" : `Delete ${selectedIds.length} Record${selectedIds.length !== 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
