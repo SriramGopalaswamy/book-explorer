@@ -77,15 +77,25 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, workingDays, paidDays } = slip;
 
   const r = record as any; // engine entries may carry extra employee detail fields
+  // employee_details is embedded as a nested object on profiles (1:1 via unique FK)
+  const ed = record.profiles?.employee_details as {
+    pan_number?: string | null;
+    bank_name?: string | null;
+    uan_number?: string | null;
+    gender?: string | null;
+    bank_account_number?: string | null;
+    bank_ifsc?: string | null;
+    employee_id_number?: string | null;
+  } | null | undefined;
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
   const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
-  // profiles.employee_id (string ID like EMP001); fall back to engine-entry field
-  const employeeId = DOMPurify.sanitize(record.profiles?.employee_id || r.employee_id || "—");
-  const panNumber = DOMPurify.sanitize(r.pan_number || "—");
-  const bankName = DOMPurify.sanitize(r.bank_name || "—");
-  const uanNumber = DOMPurify.sanitize(r.uan_number || "—");
+  // profiles.employee_id (string ID like EMP001); fall back to employee_details.employee_id_number or engine field
+  const employeeId = DOMPurify.sanitize(record.profiles?.employee_id || ed?.employee_id_number || r.employee_id || "—");
+  const panNumber = DOMPurify.sanitize(ed?.pan_number || r.pan_number || "—");
+  const bankName = DOMPurify.sanitize(ed?.bank_name || r.bank_name || "—");
+  const uanNumber = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
   const pfAccountNo = DOMPurify.sanitize(r.pf_account_number || "—");
-  const gender = DOMPurify.sanitize(r.profiles?.gender || r.gender || "—");
+  const gender = DOMPurify.sanitize(ed?.gender || r.profiles?.gender || r.gender || "—");
   const location = DOMPurify.sanitize(r.profiles?.location || r.location || "—");
   // join_date from profile (YYYY-MM-DD) formatted to DD-MMM-YYYY
   const rawJoinDate = record.profiles?.join_date || r.date_of_joining || "";
