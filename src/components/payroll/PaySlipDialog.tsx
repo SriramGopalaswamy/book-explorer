@@ -101,6 +101,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const employeeId = DOMPurify.sanitize(record.profiles?.employee_id || ed?.employee_id_number || r.employee_id || "—");
   const panNumber = DOMPurify.sanitize(ed?.pan_number || r.pan_number || "—");
   const bankName = DOMPurify.sanitize(ed?.bank_name || r.bank_name || "—");
+  const bankAccountNumber = DOMPurify.sanitize(ed?.bank_account_number || r.bank_account_number || "—");
   const uanNumber = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
   const pfAccountNo = DOMPurify.sanitize(r.pf_account_number || "—");
   const gender = DOMPurify.sanitize(ed?.gender || r.gender || "—");
@@ -205,8 +206,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
       <div class="eg-label">Gender</div>
       <div class="eg-value">${gender}</div>
-      <div class="eg-label">Bank Name</div>
-      <div class="eg-value">${bankName}</div>
+      <div class="eg-label">Bank A/C No</div>
+      <div class="eg-value">${bankAccountNumber}</div>
 
       <div class="eg-label">Date of Joining</div>
       <div class="eg-value">${dateOfJoining}</div>
@@ -369,7 +370,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
               {[
                 ["Employee ID", employeeId,              "Location",    location],
                 ["Designation", jobTitle,                "PAN No",      panNumber],
-                ["Gender",      gender,                  "Bank Name",   bankName],
+                ["Gender",      gender,                  "Bank A/C No", bankAccountNumber],
                 ["Date of Joining", dateOfJoining,       "Working Days", String(workingDays || "—")],
                 ["PF A/C No",   pfAccountNo,             "Paid Days",   String(paidDays || "—")],
                 ["UAN",         uanNumber,               "LOP",         String(lopDays || "0")],
