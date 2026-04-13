@@ -913,6 +913,15 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
+    // Resolve the caller's org once — used for tenant isolation on every update.
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user?.id ?? "")
+      .maybeSingle();
+    const callerOrgId = callerProfile?.organization_id ?? null;
+
     for (const row of rows) {
       const email = row.email?.trim();
 
@@ -925,10 +934,61 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
         continue;
       }
 
-      // Resolve the profile by email
+      // ── Validate all fields BEFORE any DB write ──────────
+      // Collect all validation errors for this row up front so we never
+      // do a partial write (profile saved, details rejected).
+      const rowErrors: string[] = [];
+
+      // PAN
+      let pan: string | null = null;
+      if (row.pan_number?.trim()) {
+        pan = row.pan_number.trim().toUpperCase();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+          rowErrors.push(`Invalid PAN "${pan}" (expected: ABCDE1234F)`);
+          pan = null;
+        }
+      }
+
+      // Aadhaar — accept full 12-digit, store only last 4
+      let aadhaarLastFour: string | null = null;
+      if (row.aadhar_no?.trim()) {
+        const digits = row.aadhar_no.trim().replace(/[\s\-]/g, "");
+        if (!/^\d{12}$/.test(digits)) {
+          rowErrors.push(`Aadhaar must be 12 digits (got "${row.aadhar_no.trim()}")`);
+        } else {
+          aadhaarLastFour = digits.slice(-4);
+        }
+      }
+
+      // UAN
+      let uan: string | null = null;
+      if (row.uan?.trim()) {
+        uan = row.uan.trim().replace(/\s/g, "");
+        if (!/^\d{12}$/.test(uan)) {
+          rowErrors.push(`UAN must be exactly 12 digits`);
+          uan = null;
+        }
+      }
+
+      // IFSC
+      let ifsc: string | null = null;
+      if (row.ifsc_code?.trim()) {
+        ifsc = row.ifsc_code.trim().toUpperCase();
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+          rowErrors.push(`Invalid IFSC "${ifsc}" (expected: ABCD0123456)`);
+          ifsc = null;
+        }
+      }
+
+      if (rowErrors.length > 0) {
+        errors.push(`"${email}": ${rowErrors.join("; ")} — row skipped`);
+        continue;
+      }
+
+      // ── Resolve the profile by email (org-scoped via RLS) ─
       const { data: profile, error: profileLookupError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, organization_id")
         .ilike("email", email)
         .maybeSingle();
 
@@ -938,6 +998,11 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       }
       if (!profile) {
         errors.push(`"${email}": Employee not found — skipped`);
+        continue;
+      }
+      // Explicit tenant check (defence-in-depth on top of RLS)
+      if (callerOrgId && profile.organization_id !== callerOrgId) {
+        errors.push(`"${email}": Employee belongs to a different organisation — skipped`);
         continue;
       }
       const profileId = profile.id;
@@ -955,7 +1020,8 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
         const { error: profileUpdateError } = await supabase
           .from("profiles")
           .update(profileUpdate)
-          .eq("id", profileId);
+          .eq("id", profileId)
+          .eq("organization_id", callerOrgId ?? profile.organization_id);
         if (profileUpdateError) {
           errors.push(`"${email}": Profile update failed — ${profileUpdateError.message}`);
           continue;
@@ -966,77 +1032,19 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       const detailsPayload: Record<string, string | null> = { profile_id: profileId };
       let hasDetails = false;
 
-      if (row.employee_id?.trim()) {
-        detailsPayload.employee_id_number = row.employee_id.trim();
-        hasDetails = true;
-      }
-      if (row.gender?.trim()) {
-        detailsPayload.gender = row.gender.trim();
-        hasDetails = true;
-      }
-      if (row.emergency_contact?.trim()) {
-        detailsPayload.emergency_contact_name = row.emergency_contact.trim();
-        hasDetails = true;
-      }
-      if (row.permanent_address?.trim()) {
-        detailsPayload.address_line1 = row.permanent_address.trim();
-        hasDetails = true;
-      }
-      if (row.bank_account?.trim()) {
-        detailsPayload.bank_account_number = row.bank_account.trim();
-        hasDetails = true;
-      }
+      if (row.employee_id?.trim()) { detailsPayload.employee_id_number = row.employee_id.trim(); hasDetails = true; }
+      if (row.gender?.trim()) { detailsPayload.gender = row.gender.trim(); hasDetails = true; }
+      if (row.emergency_contact?.trim()) { detailsPayload.emergency_contact_name = row.emergency_contact.trim(); hasDetails = true; }
+      if (row.permanent_address?.trim()) { detailsPayload.address_line1 = row.permanent_address.trim(); hasDetails = true; }
+      if (row.bank_account?.trim()) { detailsPayload.bank_account_number = row.bank_account.trim(); hasDetails = true; }
 
-      // DOB
       const dobNorm = normaliseDateStr(row.date_of_birth || "");
-      if (dobNorm) {
-        detailsPayload.date_of_birth = dobNorm;
-        hasDetails = true;
-      }
+      if (dobNorm) { detailsPayload.date_of_birth = dobNorm; hasDetails = true; }
 
-      // PAN — uppercase + validate
-      if (row.pan_number?.trim()) {
-        const pan = row.pan_number.trim().toUpperCase();
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-          errors.push(`"${email}": Invalid PAN "${pan}" (expected format: ABCDE1234F) — skipped row`);
-          continue;
-        }
-        detailsPayload.pan_number = pan;
-        hasDetails = true;
-      }
-
-      // Aadhaar — accept full 12-digit, store only last 4
-      if (row.aadhar_no?.trim()) {
-        const digits = row.aadhar_no.trim().replace(/[\s\-]/g, "");
-        if (!/^\d{12}$/.test(digits)) {
-          errors.push(`"${email}": Aadhaar must be 12 digits (got "${row.aadhar_no.trim()}") — skipped row`);
-          continue;
-        }
-        detailsPayload.aadhaar_last_four = digits.slice(-4);
-        hasDetails = true;
-      }
-
-      // UAN — 12 digits
-      if (row.uan?.trim()) {
-        const uan = row.uan.trim().replace(/\s/g, "");
-        if (!/^\d{12}$/.test(uan)) {
-          errors.push(`"${email}": UAN must be exactly 12 digits — skipped row`);
-          continue;
-        }
-        detailsPayload.uan_number = uan;
-        hasDetails = true;
-      }
-
-      // IFSC — uppercase + validate
-      if (row.ifsc_code?.trim()) {
-        const ifsc = row.ifsc_code.trim().toUpperCase();
-        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-          errors.push(`"${email}": Invalid IFSC "${ifsc}" (expected format: ABCD0123456) — skipped row`);
-          continue;
-        }
-        detailsPayload.bank_ifsc = ifsc;
-        hasDetails = true;
-      }
+      if (pan) { detailsPayload.pan_number = pan; hasDetails = true; }
+      if (aadhaarLastFour) { detailsPayload.aadhaar_last_four = aadhaarLastFour; hasDetails = true; }
+      if (uan) { detailsPayload.uan_number = uan; hasDetails = true; }
+      if (ifsc) { detailsPayload.bank_ifsc = ifsc; hasDetails = true; }
 
       if (hasDetails) {
         const { error: detailsError } = await supabase
