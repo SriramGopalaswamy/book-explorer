@@ -53,6 +53,17 @@ export interface PayrollRecord {
     email: string | null;
     department: string | null;
     job_title: string | null;
+    employee_id: string | null;
+    join_date: string | null;
+    employee_details?: {
+      pan_number: string | null;
+      bank_name: string | null;
+      uan_number: string | null;
+      gender: string | null;
+      bank_account_number: string | null;
+      bank_ifsc: string | null;
+      employee_id_number: string | null;
+    } | null;
   } | null;
 }
 
@@ -96,7 +107,7 @@ export function usePayrollRecords(payPeriod?: string) {
 
       let query = supabase
         .from("payroll_records")
-        .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, employee_details(pan_number, bank_name, uan_number, gender, bank_account_number, bank_ifsc, employee_id_number))")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
@@ -123,7 +134,7 @@ export function useMyPayrollRecords() {
 
       const { data, error } = await supabase
         .from("payroll_records")
-        .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, employee_details(pan_number, bank_name, uan_number, gender, bank_account_number, bank_ifsc, employee_id_number))")
         .eq("user_id", user.id)
         .order("pay_period", { ascending: false });
 
@@ -188,7 +199,7 @@ export function useCreatePayroll() {
           notes: validated.notes ?? null,
           user_id: profile?.user_id || user.id,
         })
-        .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, employee_details(pan_number, bank_name, uan_number, gender, bank_account_number, bank_ifsc, employee_id_number))")
         .single();
 
       if (error) throw error;
@@ -265,7 +276,7 @@ export function useUpdatePayroll() {
         .update(updateData as any)
         .eq("id", id)
         .eq("organization_id", callerOrgId)
-        .select("*, profiles!profile_id(full_name, email, department, job_title)")
+        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, employee_details(pan_number, bank_name, uan_number, gender, bank_account_number, bank_ifsc, employee_id_number))")
         .single();
 
       if (error) throw error;

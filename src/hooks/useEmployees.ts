@@ -9,6 +9,8 @@ import { toast } from "sonner";
 export interface Employee {
   id: string;
   user_id: string;
+  organization_id: string | null;
+  employee_id: string | null;
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
@@ -16,10 +18,35 @@ export interface Employee {
   department: string | null;
   status: "active" | "on_leave" | "inactive";
   join_date: string | null;
+  date_of_joining: string | null;
   phone: string | null;
   manager_id: string | null;
   created_at: string;
   updated_at: string;
+  // Extended fields from employee_details (null when not yet filled in)
+  gender: string | null;
+  date_of_birth: string | null;
+  blood_group: string | null;
+  marital_status: string | null;
+  nationality: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  country: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relation: string | null;
+  emergency_contact_phone: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_branch: string | null;
+  employee_id_number: string | null;
+  pan_number: string | null;
+  aadhaar_last_four: string | null;
+  uan_number: string | null;
+  esi_number: string | null;
 }
 
 export interface CreateEmployeeData {
@@ -106,9 +133,11 @@ export function useEmployees() {
       if (!orgId) return [];
 
       if (hasAccess) {
-        // CRITICAL: Always filter by organization_id to enforce tenant isolation
+        // CRITICAL: Always filter by organization_id to enforce tenant isolation.
+        // Query the unified view so employee_details fields (bank, PAN, UAN, etc.)
+        // are available without a separate fetch.
         const { data, error } = await supabase
-          .from("profiles")
+          .from("employee_full_profiles" as any)
           .select("*")
           .eq("organization_id", orgId)
           .order("full_name", { ascending: true })
