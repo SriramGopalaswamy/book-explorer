@@ -132,7 +132,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         continue;
       }
 
-      const { data, error } = await supabase.from("payroll_records").upsert({
+      const payload = {
         user_id: profile.user_id,
         profile_id: profile.id,
         organization_id: orgId || null,
@@ -146,7 +146,39 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         other_deductions: otherDed,
         net_pay: net,
         status: "draft",
-      }, { onConflict: "profile_id,pay_period" }).select("id");
+      };
+
+      // Find an existing non-superseded record for this employee + period.
+      // We cannot use upsert(onConflict) because the unique constraint on
+      // (profile_id, pay_period) was dropped when the is_superseded pattern
+      // was introduced to support dispute-driven payslip revisions.
+      const { data: existing } = await supabase
+        .from("payroll_records")
+        .select("id, status")
+        .eq("profile_id", profile.id)
+        .eq("pay_period", payPeriod)
+        .eq("is_superseded", false)
+        .maybeSingle();
+
+      let data: { id: string }[] | null;
+      let error: { message: string } | null;
+
+      if (existing) {
+        if (existing.status === "locked") {
+          errors.push(`Row ${row.employee_id}: Payslip is locked and cannot be overwritten. Raise a dispute to revise it.`);
+          continue;
+        }
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .update(payload)
+          .eq("id", existing.id)
+          .select("id") as any);
+      } else {
+        ({ data, error } = await supabase
+          .from("payroll_records")
+          .insert(payload)
+          .select("id") as any);
+      }
 
       if (error) {
         errors.push(`Row ${row.employee_id}: ${error.message}`);
