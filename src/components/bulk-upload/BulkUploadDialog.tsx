@@ -5,7 +5,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -34,6 +33,7 @@ export interface BulkUploadConfig {
 interface ParsedRow {
   data: Record<string, string>;
   errors: string[];
+  errorKeys: string[]; // config column keys that failed validation
   rowIndex: number;
 }
 
@@ -106,6 +106,37 @@ function maybeConvertExcelTime(value: string): string {
   return trimmed;
 }
 
+/**
+ * Safely convert any ExcelJS CellValue to a plain string.
+ * Handles rich-text, hyperlink, formula-result, and error objects
+ * that would otherwise stringify to "[object Object]".
+ */
+function extractCellValue(val: ExcelJS.CellValue): string {
+  if (val == null) return "";
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof val === "object") {
+    // Rich text: { richText: [{ text: string }] }
+    if ("richText" in val && Array.isArray((val as any).richText)) {
+      return (val as any).richText.map((r: any) => r.text ?? "").join("");
+    }
+    // Hyperlink: { text: string, hyperlink: string }
+    if ("text" in val) return String((val as any).text ?? "");
+    // Formula / shared formula: { formula: string, result: value }
+    if ("result" in val) {
+      const res = (val as any).result;
+      return res == null ? "" : String(res);
+    }
+    // Error cell value
+    if ("error" in val) return "";
+  }
+  return String(val);
+}
+
 export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -113,6 +144,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [editingCell, setEditingCell] = useState<{ rowIndex: number; header: string } | null>(null);
   const [fileName, setFileName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadSummary, setUploadSummary] = useState<{
@@ -149,13 +181,28 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
 
   const validateRow = useCallback((row: Record<string, string>, idx: number): ParsedRow => {
     const errors: string[] = [];
+    const errorKeys: string[] = [];
     for (const col of config.columns) {
       if (col.required && !row[col.key]?.trim()) {
         errors.push(`${col.label} is required`);
+        errorKeys.push(col.key);
       }
     }
-    return { data: row, errors, rowIndex: idx + 1 };
+    return { data: row, errors, errorKeys, rowIndex: idx + 1 };
   }, [config.columns]);
+
+  const handleCellEdit = useCallback((rowIndex: number, header: string, value: string) => {
+    setParsedRows(prev => prev.map(row => {
+      if (row.rowIndex !== rowIndex) return row;
+      const newData = { ...row.data, [header]: value };
+      // If editing an aliased column, also update the primary config key
+      for (const col of config.columns) {
+        if (col.aliases?.includes(header)) newData[col.key] = value;
+      }
+      return validateRow(newData, row.rowIndex - 1);
+    }));
+    setEditingCell(null);
+  }, [config.columns, validateRow]);
 
   const processRows = useCallback((rawRows: string[][]) => {
     // Filter out completely empty rows (all cells empty)
@@ -244,16 +291,10 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
         ws.eachRow((row) => {
           const cells: string[] = [];
           for (let i = 1; i <= colCount; i++) {
-            let val: ExcelJS.CellValue = row.getCell(i).value;
-            if (val instanceof Date) {
-              const y = val.getFullYear();
-              const m = String(val.getMonth() + 1).padStart(2, "0");
-              const d = String(val.getDate()).padStart(2, "0");
-              val = `${y}-${m}-${d}`;
-            }
-            cells.push(val == null ? "" : String(val));
+            cells.push(extractCellValue(row.getCell(i).value));
           }
-          rows.push(cells);
+          // Skip rows where every cell is empty (e.g. trailing blank rows)
+          if (cells.some((c) => c.trim() !== "")) rows.push(cells);
         });
         processRows(rows);
       };
@@ -478,30 +519,64 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
                       </Badge>
                     )}
                   </div>
-                  <ScrollArea className="h-[200px] rounded-md border">
+                  <p className="text-xs text-muted-foreground">Click any cell to edit its value inline.</p>
+                  <div className="h-[220px] overflow-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-10">#</TableHead>
+                          <TableHead className="w-8 sticky left-0 bg-background z-10">#</TableHead>
                           {headers.map((h) => (
                             <TableHead key={h} className="text-xs whitespace-nowrap">{h}</TableHead>
                           ))}
-                          <TableHead className="w-20">Status</TableHead>
+                          <TableHead className="text-xs whitespace-nowrap min-w-[160px]">Status / Errors</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {parsedRows.map((row) => (
                           <TableRow key={row.rowIndex} className={row.errors.length > 0 ? "bg-destructive/5" : ""}>
-                            <TableCell className="text-xs text-muted-foreground">{row.rowIndex}</TableCell>
-                            {headers.map((h) => (
-                              <TableCell key={h} className="text-xs max-w-[120px] truncate">{row.data[h] || "-"}</TableCell>
-                            ))}
-                            <TableCell>
+                            <TableCell className="text-xs text-muted-foreground sticky left-0 bg-inherit">{row.rowIndex}</TableCell>
+                            {headers.map((h) => {
+                              const configCol = config.columns.find(c => c.key === h || c.aliases?.includes(h));
+                              const isErrorCell = !!configCol && row.errorKeys.includes(configCol.key);
+                              const isEditing = editingCell?.rowIndex === row.rowIndex && editingCell?.header === h;
+                              return (
+                                <TableCell
+                                  key={h}
+                                  className={cn("text-xs p-1 cursor-pointer", isErrorCell ? "bg-destructive/15" : "")}
+                                  onClick={() => { if (!isEditing) setEditingCell({ rowIndex: row.rowIndex, header: h }); }}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      autoFocus
+                                      defaultValue={row.data[h] ?? ""}
+                                      className="w-full min-w-[80px] px-1 py-0.5 rounded border border-primary bg-background text-xs outline-none"
+                                      onBlur={(e) => handleCellEdit(row.rowIndex, h, e.target.value.trim())}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleCellEdit(row.rowIndex, h, (e.target as HTMLInputElement).value.trim());
+                                        if (e.key === "Escape") setEditingCell(null);
+                                      }}
+                                    />
+                                  ) : (
+                                    <span
+                                      className={cn("block max-w-[120px] truncate", isErrorCell ? "text-destructive font-medium italic" : "")}
+                                      title={isErrorCell ? `${configCol?.label} is required — click to edit` : (row.data[h] || "")}
+                                    >
+                                      {row.data[h] || (isErrorCell ? "missing" : "-")}
+                                    </span>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-xs min-w-[160px]">
                               {row.errors.length > 0 ? (
-                                <span className="text-xs text-destructive" title={row.errors.join("; ")}>
-                                  <AlertTriangle className="h-3 w-3 inline mr-1" />
-                                  {row.errors.length} error{row.errors.length > 1 ? "s" : ""}
-                                </span>
+                                <div className="space-y-0.5">
+                                  {row.errors.map((e, i) => (
+                                    <div key={i} className="flex items-start gap-1 text-destructive leading-tight">
+                                      <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                                      <span>{e}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               ) : (
                                 <CheckCircle2 className="h-4 w-4 text-primary" />
                               )}
@@ -510,7 +585,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
                         ))}
                       </TableBody>
                     </Table>
-                  </ScrollArea>
+                  </div>
                 </div>
               )}
             </>
