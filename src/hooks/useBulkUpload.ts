@@ -904,10 +904,15 @@ const employeeDetailsColumns: BulkUploadColumn[] = [
     label: "Permanent Address",
     aliases: ["address", "address_line1", "residence_address", "home_address"],
   },
+  {
+    key: "location",
+    label: "Location",
+    aliases: ["work_location", "office_location", "branch"],
+  },
 ];
 
-const employeeDetailsTemplate = `email_id,employees_name,employee_id,date_of_joining,designation,gender,aadhar_card_no,pan_card_no,date_of_birth,uan,bank_account,ifsc_code,mobile_no,emergency_contact,permanent_address
-john@company.com,John Doe,EMP001,2024-01-15,Software Engineer,Male,123456789012,ABCDE1234F,1990-05-20,123456789012,9876543210,SBIN0001234,+91 98765 43210,Jane Doe,123 Main St Mumbai`;
+const employeeDetailsTemplate = `email_id,employees_name,employee_id,date_of_joining,designation,gender,aadhar_card_no,pan_card_no,date_of_birth,uan,bank_account,ifsc_code,mobile_no,emergency_contact,permanent_address,location
+john@company.com,John Doe,EMP001,2024-01-15,Software Engineer,Male,123456789012,ABCDE1234F,1990-05-20,123456789012,9876543210,SBIN0001234,+91 98765 43210,Jane Doe,123 Main St Mumbai,Mumbai`;
 
 // Helper: normalise a date string to YYYY-MM-DD.
 // Accepts YYYY-MM-DD or DD/MM/YYYY (common Indian Excel format).
@@ -1028,6 +1033,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.full_name?.trim()) profileUpdate.full_name = row.full_name.trim();
       if (row.designation?.trim()) profileUpdate.job_title = row.designation.trim();
       if (row.mobile_no?.trim()) profileUpdate.phone = row.mobile_no.trim();
+      if (row.location?.trim()) profileUpdate.location = row.location.trim();
 
       const joinDateNorm = normaliseDateStr(row.join_date || "");
       if (joinDateNorm) profileUpdate.join_date = joinDateNorm;
