@@ -62,6 +62,12 @@ Independence Day,2026-08-15
 Christmas,2026-12-25`;
 
 // ─── Hook ──────────────────────────────────────────
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const formatPayPeriod = (p: string) => {
+  const [y, m] = p.split("-");
+  return `${MONTHS[parseInt(m) - 1]} ${y}`;
+};
+
 export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -163,7 +169,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   return {
     module: "payroll",
     title: "Bulk Upload Payroll",
-    description: "Upload salary records for multiple employees at once using a CSV file.",
+    description: `Upload salary records for multiple employees for ${formatPayPeriod(payPeriod)}.`,
     columns: payrollColumns,
     templateFileName: "payroll_template.csv",
     templateContent: payrollTemplate,
