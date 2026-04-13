@@ -20,7 +20,6 @@ SELECT
   p.phone,
   p.manager_id,
   p.employee_id,
-  p.location,
   p.created_at,
   p.updated_at,
   -- employee_details fields (all nullable — LEFT JOIN)
