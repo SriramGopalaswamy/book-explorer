@@ -39,21 +39,29 @@ const fmtFull = (value: number) =>
 
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
-/** Fetch brand color from organization_compliance for current user */
+/** Fetch branding and org identity info from organization_compliance for current user */
 function useBrandingInfo(userId: string | undefined) {
   const [color, setColor] = useState("#e11d74");
   const [signatoryName, setSignatoryName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
   useEffect(() => {
     if (!userId) return;
     (async () => {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
       if (!profile?.organization_id) return;
-      const { data } = await supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name").eq("organization_id", profile.organization_id).maybeSingle();
-      if ((data as any)?.brand_color) setColor((data as any).brand_color);
-      if ((data as any)?.authorized_signatory_name) setSignatoryName((data as any).authorized_signatory_name);
+      const [{ data: compliance }, { data: org }] = await Promise.all([
+        supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name, legal_name, registered_address").eq("organization_id", profile.organization_id).maybeSingle(),
+        supabase.from("organizations").select("name").eq("id", profile.organization_id).maybeSingle(),
+      ]);
+      if ((compliance as any)?.brand_color) setColor((compliance as any).brand_color);
+      if ((compliance as any)?.authorized_signatory_name) setSignatoryName((compliance as any).authorized_signatory_name);
+      // Prefer compliance legal_name, fall back to organizations.name
+      setCompanyName((compliance as any)?.legal_name || (org as any)?.name || "");
+      setCompanyAddress((compliance as any)?.registered_address || "");
     })();
   }, [userId]);
-  return { color, signatoryName };
+  return { color, signatoryName, companyName, companyAddress };
 }
 
 const periodLabel = (p: string) => {
@@ -71,7 +79,7 @@ interface PaySlipDialogProps {
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
   const logoDataUrl = useLogoDataUrl(grx10Logo);
   const { user } = useAuth();
-  const { color: brandColor, signatoryName } = useBrandingInfo(user?.id);
+  const { color: brandColor, signatoryName, companyName, companyAddress } = useBrandingInfo(user?.id);
   // Fetch employee_details using the proven hook — runs only when profile_id is present,
   // does not affect the payroll list query at all.  Must be called before any early returns.
   const { data: employeeDetails } = useEmployeeDetails(record?.profile_id ?? null);
@@ -170,8 +178,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   <div class="company-header">
     <img src="${logoSrc}" alt="Logo" class="company-logo" />
     <div class="company-info">
-      <div class="company-name">GRX10 Solutions Pvt Ltd</div>
-      <div class="company-address">MKB Tower, 3rd floor, 2nd Cross Road, Appareddy Palya Rd, HAL 2nd Stage,<br/>Indiranagar, Bengaluru, Karnataka 560009</div>
+      <div class="company-name">${esc(companyName)}</div>
+      ${companyAddress ? `<div class="company-address">${esc(companyAddress)}</div>` : ''}
     </div>
   </div>
   <div class="payslip-title">Pay Slip</div>
@@ -338,8 +346,8 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           <div className="flex items-center gap-4">
             <img src={grx10Logo} alt="GRX10 Logo" className="h-16 w-auto" />
             <div>
-              <p className="text-lg font-extrabold tracking-wide uppercase">GRX10 Solutions Pvt Ltd</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">MKB Tower, 3rd floor, 2nd Cross Road, Appareddy Palya Rd, HAL 2nd Stage,<br/>Indiranagar, Bengaluru, Karnataka 560009</p>
+              <p className="text-lg font-extrabold tracking-wide uppercase">{companyName}</p>
+              {companyAddress && <p className="text-xs text-muted-foreground leading-relaxed">{companyAddress}</p>}
             </div>
           </div>
           <p className="text-center text-xl font-semibold italic text-foreground/80">Pay Slip</p>

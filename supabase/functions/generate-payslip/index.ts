@@ -76,10 +76,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Payslips can only be generated for locked payroll runs" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: org } = await supabase.from("organizations").select("name, address").eq("id", run.organization_id).single();
+    const { data: org } = await supabase.from("organizations").select("name").eq("id", run.organization_id).single();
 
-    // Fetch brand color and signatory from organization_compliance
-    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name").eq("organization_id", run.organization_id).maybeSingle();
+    // Fetch branding, signatory, and registered address from organization_compliance
+    const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name, legal_name, registered_address").eq("organization_id", run.organization_id).maybeSingle();
     const brandColor = compliance?.brand_color || "#e11d74";
     const authorizedSignatoryName = compliance?.authorized_signatory_name || "";
 
@@ -118,8 +118,8 @@ serve(async (req) => {
       const profile: any = entry.profiles || {};
 
       const html = buildPayslipHTML({
-        companyName: org?.name || "GRX10 Solutions Pvt Ltd",
-        companyAddress: org?.address || "Bengaluru, Karnataka",
+        companyName: compliance?.legal_name || org?.name || "",
+        companyAddress: compliance?.registered_address || "",
         periodLabel,
         employeeName: profile.full_name || "Employee",
         employeeId: details.employee_id_number || "—",
