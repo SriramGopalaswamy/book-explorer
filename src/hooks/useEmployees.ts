@@ -133,11 +133,9 @@ export function useEmployees() {
       if (!orgId) return [];
 
       if (hasAccess) {
-        // CRITICAL: Always filter by organization_id to enforce tenant isolation.
-        // Query the unified view so employee_details fields (bank, PAN, UAN, etc.)
-        // are available without a separate fetch.
+        // CRITICAL: Always filter by organization_id to enforce tenant isolation
         const { data, error } = await supabase
-          .from("employee_full_profiles" as any)
+          .from("profiles")
           .select("*")
           .eq("organization_id", orgId)
           .order("full_name", { ascending: true })
