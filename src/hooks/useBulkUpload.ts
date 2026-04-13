@@ -960,13 +960,18 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
         }
       }
 
-      // UAN
+      // UAN — "NO"/"no" means explicitly not enrolled in EPF; blank means not provided (no change)
       let uan: string | null = null;
       if (row.uan?.trim()) {
-        uan = row.uan.trim().replace(/\s/g, "");
-        if (!/^\d{12}$/.test(uan)) {
-          skippedFields.push(`UAN skipped (must be 12 digits)`);
-          uan = null;
+        const rawUan = row.uan.trim();
+        if (rawUan.toUpperCase() === "NO") {
+          uan = "Opted out";
+        } else {
+          uan = rawUan.replace(/\s/g, "");
+          if (!/^\d{12}$/.test(uan)) {
+            skippedFields.push(`UAN skipped (must be 12 digits or "NO" for opted-out)`);
+            uan = null;
+          }
         }
       }
 
