@@ -176,6 +176,7 @@ serve(async (req) => {
 
     let authorizedSignatoryName = "";
     let brandColor = "#d6336c"; // default magenta
+    let orgLegalName = "";
     if (profile?.organization_id) {
       // Check organization_settings first, then fall back to organization_compliance
       const [settingsRes, complianceRes] = await Promise.all([
@@ -186,7 +187,7 @@ serve(async (req) => {
           .maybeSingle(),
         supabaseClient
           .from("organization_compliance")
-          .select("authorized_signatory_name, brand_color")
+          .select("authorized_signatory_name, brand_color, legal_name")
           .eq("organization_id", profile.organization_id)
           .maybeSingle(),
       ]);
@@ -197,6 +198,7 @@ serve(async (req) => {
       if (complianceRes.data?.brand_color) {
         brandColor = complianceRes.data.brand_color;
       }
+      orgLegalName = complianceRes.data?.legal_name || "";
     }
 
     const BRAND_COLORS = buildBrandColors(brandColor);
@@ -248,7 +250,7 @@ serve(async (req) => {
       // Push all header text to the right of the logo
       const textOffsetX = leftMargin + logoW + 10;
 
-      const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
+      const companyName = s.company_name || orgLegalName || "";
       drawText(page, companyName, textOffsetX, y, bold, 12, BRAND_COLORS.text);
       y -= 14;
 
@@ -284,7 +286,7 @@ serve(async (req) => {
       if (s.email) { drawText(page, s.email, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
       if (s.website) { drawText(page, s.website, textOffsetX, y, regular, 8, BRAND_COLORS.muted); y -= 11; }
     } else {
-      const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
+      const companyName = s.company_name || orgLegalName || "";
       drawText(page, companyName, leftMargin, y, bold, 12, BRAND_COLORS.text);
       y -= 14;
 

@@ -46,6 +46,7 @@ export function ProfitLossStatement({ periodData, from, to }: ProfitLossStatemen
           <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
             title: "Profit & Loss Statement",
             subtitle: subtitle,
+            companyName: compliance?.legal_name || undefined,
             sections: [
               {
                 title: "Revenue",
