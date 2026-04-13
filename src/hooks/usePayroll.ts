@@ -329,6 +329,62 @@ export function useDeletePayroll() {
   });
 }
 
+export function useBulkDeletePayroll() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) return { deleted: 0, skipped: 0 };
+
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      const callerOrgId = callerProfile?.organization_id;
+      if (!callerOrgId) throw new Error("Organization context required");
+
+      // Fetch statuses for all requested IDs, scoped to org
+      const { data: checks, error: checkErr } = await supabase
+        .from("payroll_records")
+        .select("id, status")
+        .in("id", ids)
+        .eq("organization_id", callerOrgId);
+      if (checkErr) throw checkErr;
+
+      const deletableIds = (checks ?? [])
+        .filter((r) => ["draft", "cancelled"].includes(r.status as string))
+        .map((r) => r.id);
+      const skipped = ids.length - deletableIds.length;
+
+      if (deletableIds.length > 0) {
+        const { error } = await supabase
+          .from("payroll_records")
+          .delete()
+          .in("id", deletableIds)
+          .eq("organization_id", callerOrgId);
+        if (error) throw error;
+      }
+
+      return { deleted: deletableIds.length, skipped };
+    },
+    onSuccess: ({ deleted, skipped }) => {
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      if (skipped > 0) {
+        toast.warning(`Deleted ${deleted} record(s). ${skipped} skipped (only draft/cancelled records can be deleted).`);
+      } else {
+        toast.success(`${deleted} payroll record(s) deleted.`);
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
 export function useProcessPayroll() {
   const queryClient = useQueryClient();
 
