@@ -18,7 +18,7 @@ const payrollColumns: BulkUploadColumn[] = [
   },
   {
     key: "email_id",
-    label: "Email",
+    label: "Email ID",
     aliases: ["email", "email_address", "emp_email", "employee_email", "login_email"],
   },
 
@@ -28,8 +28,10 @@ const payrollColumns: BulkUploadColumn[] = [
     label: "Monthly Fixed Salary",
     required: true,
     aliases: [
-      "monthly_fixed_salary",
-      "monthly_fixed_sala",
+      "monthly_fixed_salary",   // "Monthly fixed Salary" (standard)
+      "montly_fixed_salary",    // common typo in Excel (missing 'h')
+      "monthly_fixed_sala",     // truncated display variant
+      "montly_fixed_sala",      // truncated + typo variant
       "fixed_salary",
       "monthly_salary",
       "fixed_gross",
@@ -37,16 +39,24 @@ const payrollColumns: BulkUploadColumn[] = [
   },
   {
     key: "gross_earnings_monthly",
-    label: "Gross Earnings (Monthly)",
-    aliases: ["gross_earnings", "total_earnings", "monthly_gross_earnings", "total_gross"],
+    label: "Gross Earnings",
+    aliases: [
+      "gross_earnings",
+      "gross_earn",             // truncated display variant
+      "total_earnings",
+      "monthly_gross_earnings",
+      "total_gross",
+    ],
   },
 
   // Statutory deductions — monthly amounts as deducted from payslip
+  // Note: "PF- optout" is automatically treated as 0 (basic derived from 40% of gross instead)
   {
     key: "pf_employee_monthly",
     label: "Employee PF Deduction (Monthly)",
     aliases: [
       "employee_pf_deduction_monthly",
+      "employee_pf_deduction_me",  // truncated display variant
       "employee_pf_monthly",
       "pf_deduction_monthly",
       "pf_monthly",
@@ -57,9 +67,11 @@ const payrollColumns: BulkUploadColumn[] = [
   },
   {
     key: "professional_tax_monthly",
-    label: "Professional Tax (Monthly)",
+    label: "Profession Tax Monthly",
     aliases: [
       "profession_tax_monthly",
+      "profession_tax_me",         // truncated display variant
+      "professional_tax_monthly",
       "pt_monthly",
       "professional_tax",
       "profession_tax",
@@ -68,16 +80,16 @@ const payrollColumns: BulkUploadColumn[] = [
     ],
   },
 
-  // Variable pay (included in gross_earnings_monthly if file has it)
+  // Variable pay — "no" values are safely treated as 0
   {
     key: "incentive_monthly",
-    label: "Monthly Incentive",
-    aliases: ["incentive_monthly", "monthly_incentive", "variable_pay", "incentive"],
+    label: "Incentive Monthly",
+    aliases: ["incentive_monthly", "incentive_mon", "monthly_incentive", "variable_pay", "incentive"],
   },
   {
     key: "bonus_monthly",
-    label: "Monthly Bonus",
-    aliases: ["bonus_monthly", "monthly_bonus", "bonus"],
+    label: "Bonus Monthly",
+    aliases: ["bonus_monthly", "bonus_mon", "monthly_bonus", "bonus"],
   },
 
   // Attendance / Loss of Pay
@@ -94,7 +106,7 @@ const payrollColumns: BulkUploadColumn[] = [
   {
     key: "lwp_days_col",
     label: "LWP Days",
-    aliases: ["lwp_days", "lop_days", "loss_of_pay_days", "no_pay_days"],
+    aliases: ["lwp_days", "lop_days", "loss_of_pay_days", "lwp_day"],
   },
   {
     key: "lwp_deduction_col",
@@ -110,10 +122,14 @@ const payrollColumns: BulkUploadColumn[] = [
   },
 ];
 
-// Template uses monthly figures; basic/HRA are derived automatically on upload
-const payrollTemplate = `employee_id,email_id,monthly_gross,gross_earnings_monthly,pf_employee_monthly,professional_tax_monthly,incentive_monthly,bonus_monthly,working_days_col,paid_days_col,lwp_days_col,lwp_deduction_col,net_pay_file
-Ravi Kumar,ravi@company.com,45000,47000,1800,200,2000,0,26,26,0,0,45000
-Priya Sharma,priya@company.com,30000,30000,1560,200,0,0,26,25,1,1154,27086`;
+// Template column names mirror this company's exact Excel file headers.
+// "PF- optout" in the PF column is handled gracefully (basic derived from 40% of gross).
+// "no" in Incentive/Bonus columns is treated as 0.
+// Annual CTC columns in the file are ignored — they are never used in calculations.
+const payrollTemplate = `Employee Name,Email ID,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Incentive monthly,Bonus monthly,Working Days,Paid Days,LWP Days,LWP Deduction,Net Pay
+Ravi Kumar,ravi@company.com,45000,47000,200,1800,2000,no,26,26,0,,45000
+Priya Sharma,priya@company.com,30000,30000,200,1560,no,no,26,25,1,1154,27086
+Dilli Ram Nirola,admin@grx10.com,45000,45000,200,PF- optout,no,no,31,31,0,,44800`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
