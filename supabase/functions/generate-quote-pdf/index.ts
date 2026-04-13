@@ -150,6 +150,22 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    let orgLegalName = "";
+    if (profile?.organization_id) {
+      const { data: compliance } = await supabaseClient
+        .from("organization_compliance")
+        .select("legal_name")
+        .eq("organization_id", profile.organization_id)
+        .maybeSingle();
+      orgLegalName = compliance?.legal_name || "";
+    }
+
     const s: InvoiceSettings = settings || {};
 
     const pdfDoc = await PDFDocument.create();
@@ -192,7 +208,7 @@ serve(async (req) => {
       y -= 5;
     }
 
-    const companyName = s.company_name || "GRX10 SOLUTIONS PRIVATE LIMITED";
+    const companyName = s.company_name || orgLegalName || "";
     drawText(page, companyName, leftMargin + (logoImage ? 50 : 0), y, bold, 12, BRAND_COLORS.text);
     y -= 14;
 

@@ -75,6 +75,7 @@ export function BalanceSheetSummary({ asOfDate }: BalanceSheetSummaryProps) {
         <Button variant="outline" size="sm" onClick={() => exportReportAsPDF({
           title: "Balance Sheet",
           subtitle: "Assets = Liabilities + Equity",
+          companyName: compliance?.legal_name || undefined,
           sections: [
             {
               title: "Assets",

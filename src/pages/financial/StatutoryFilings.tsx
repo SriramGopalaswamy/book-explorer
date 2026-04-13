@@ -53,6 +53,7 @@ import {
   exportProfTax,
 } from "@/lib/statutory-export";
 import { exportReportAsPDF } from "@/lib/pdf-export";
+import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { useGSTFilingStatus, useUpdateFilingStatus } from "@/hooks/useCurrencyAndFiling";
 import { useITCReconciliation, useForm16Data, useForm16AData } from "@/hooks/useGSTReconciliation";
@@ -201,6 +202,7 @@ export default function StatutoryFilings() {
   const [fy, setFy] = useState(defaults.currentFy);
   const [quarter, setQuarter] = useState(defaults.currentQuarter);
   const [month, setMonth] = useState(defaults.currentMonth);
+  const { compliance } = useOnboardingCompliance();
   const { data: payrollFlags } = usePayrollFlags();
   const { data: filingStatuses = [] } = useGSTFilingStatus(fy);
   const updateFiling = useUpdateFilingStatus();
@@ -276,6 +278,7 @@ export default function StatutoryFilings() {
       exportReportAsPDF({
         title: "GSTR-3B Summary Return",
         subtitle: periodLabel,
+        companyName: compliance?.legal_name || undefined,
         sections: [
           {
             title: "Outward Supplies",
