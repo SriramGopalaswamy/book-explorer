@@ -343,7 +343,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     setUploading(true);
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      let result: { success: number; errors: string[]; created?: number; updated?: number };
+      let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
       
       try {
         result = await config.onUpload(validRows);
