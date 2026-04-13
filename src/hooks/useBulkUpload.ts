@@ -1014,7 +1014,7 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.mobile_no?.trim()) profileUpdate.phone = row.mobile_no.trim();
 
       const joinDateNorm = normaliseDateStr(row.join_date || "");
-      if (joinDateNorm) profileUpdate.date_of_joining = joinDateNorm;
+      if (joinDateNorm) profileUpdate.join_date = joinDateNorm;
 
       if (Object.keys(profileUpdate).length > 0) {
         const { error: profileUpdateError } = await supabase

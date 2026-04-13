@@ -328,8 +328,8 @@ export default function Employees() {
               </Select>
               {!isReadOnly && (
                 <div className="flex items-center gap-2">
-                  <BulkUploadDialog config={employeeBulkConfig} />
-                  <BulkUploadDialog config={employeeDetailsBulkConfig} />
+                  <BulkUploadDialog config={employeeBulkConfig} label="Bulk Add Employees" />
+                  <BulkUploadDialog config={employeeDetailsBulkConfig} label="Update Employee Details" />
                   <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                       <Button className="bg-gradient-hrms text-white hover:opacity-90">

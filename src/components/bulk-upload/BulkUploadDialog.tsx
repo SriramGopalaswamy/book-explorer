@@ -137,7 +137,7 @@ function extractCellValue(val: ExcelJS.CellValue): string {
   return String(val);
 }
 
-export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
+export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: BulkUploadConfig; label?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -398,7 +398,7 @@ export function BulkUploadDialog({ config }: { config: BulkUploadConfig }) {
       <DialogTrigger asChild>
         <Button variant="outline">
           <Upload className="h-4 w-4 mr-2" />
-          Bulk Upload
+          {label}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
