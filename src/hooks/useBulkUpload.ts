@@ -1044,7 +1044,8 @@ export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
       if (row.full_name?.trim()) profileUpdate.full_name = row.full_name.trim();
       if (row.designation?.trim()) profileUpdate.job_title = row.designation.trim();
       if (row.mobile_no?.trim()) profileUpdate.phone = row.mobile_no.trim();
-      if (row.location?.trim()) profileUpdate.location = row.location.trim();
+      // location column requires migration 20260413000002 to be applied first;
+      // skip it here to avoid PGRST204 schema-cache errors on un-migrated DBs.
 
       const joinDateNorm = normaliseDateStr(row.join_date || "");
       if (joinDateNorm) profileUpdate.join_date = joinDateNorm;
