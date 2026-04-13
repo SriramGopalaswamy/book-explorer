@@ -60,9 +60,9 @@ export function useUpsertEmployeeDetails() {
       if (!user) throw new Error("Not authenticated");
       if (!input.profile_id) throw new Error("Profile ID is required");
 
-      // Validate UAN if provided (12-digit number)
-      if (input.uan_number && !/^\d{12}$/.test(input.uan_number)) {
-        throw new Error("UAN must be exactly 12 digits");
+      // Validate UAN if provided — allow "Opted out" sentinel for non-EPF employees
+      if (input.uan_number && input.uan_number !== "Opted out" && !/^\d{12}$/.test(input.uan_number)) {
+        throw new Error("UAN must be exactly 12 digits (or leave blank / enter \"Opted out\" for non-EPF employees)");
       }
       // Validate ESI number if provided
       if (input.esi_number && !/^\d{17}$/.test(input.esi_number)) {
