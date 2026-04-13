@@ -475,7 +475,7 @@ export default function Payroll() {
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes("hr");
   const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes("finance");
-  const { data: records = [], isLoading } = usePayrollRecords(selectedPeriod);
+  const { data: records = [], isLoading, isError: recordsError } = usePayrollRecords(selectedPeriod);
   const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords();
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
@@ -905,6 +905,12 @@ export default function Payroll() {
                   {isLoading || roleLoading ? (
                     <div className="space-y-3">
                       {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                    </div>
+                  ) : recordsError ? (
+                    <div className="text-center py-12">
+                      <FileText className="mx-auto h-12 w-12 text-destructive/60" />
+                      <p className="mt-3 font-medium text-destructive">Failed to load payroll records</p>
+                      <p className="text-sm text-muted-foreground mt-1">A database schema error occurred. Please contact support or try refreshing.</p>
                     </div>
                   ) : filtered.length === 0 ? (
                     <div className="text-center py-12">
