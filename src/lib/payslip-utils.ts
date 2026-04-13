@@ -80,33 +80,48 @@ function normalizeEngineRecord(record: any): NormalizedPayslip {
 }
 
 function normalizeLegacyRecord(record: any): NormalizedPayslip {
+  const basic        = Number(record.basic_salary) || 0;
+  const hra          = Number(record.hra) || 0;
+  // transport_allowance is repurposed for variable pay (Incentives) in bulk-uploaded records.
+  // Legacy records that stored actual transport amount will display it under "Incentives" —
+  // the amount is small and these records were historically incorrect anyway.
+  const incentives   = Number(record.transport_allowance) || 0;
+  const otherAllow   = Number(record.other_allowances) || 0;
+
+  // Earnings: match company payslip layout — Basic, HRA, Other Allowances, Incentives
   const earnings: PayslipLineItem[] = [
-    { label: "Basic Salary", amount: Number(record.basic_salary) || 0 },
-    { label: "House Rent Allowance (HRA)", amount: Number(record.hra) || 0 },
-    { label: "Transport Allowance", amount: Number(record.transport_allowance) || 0 },
-    { label: "Other Allowances", amount: Number(record.other_allowances) || 0 },
+    { label: "Basic", amount: basic },
+    { label: "HRA", amount: hra },
+    ...(otherAllow > 0 ? [{ label: "Other Allowances", amount: otherAllow }] : []),
+    ...(incentives > 0 ? [{ label: "Incentives", amount: incentives }] : []),
   ];
 
+  // Professional Tax is stored in other_deductions; TDS is stored in tax_deduction.
+  const profTax = Number(record.other_deductions) || 0;
+  const tds     = Number(record.tax_deduction) || 0;
+  const pf      = Number(record.pf_deduction) || 0;
+
+  // Deductions: match company payslip layout — Professional Tax, TDS, PF Contribution, LOP
   const deductions: PayslipLineItem[] = [
-    { label: "Provident Fund (PF)", amount: Number(record.pf_deduction) || 0 },
-    { label: "Tax Deduction (TDS)", amount: Number(record.tax_deduction) || 0 },
-    { label: "Other Deductions", amount: Number(record.other_deductions) || 0 },
+    ...(profTax > 0 ? [{ label: "Professional Tax", amount: profTax, statutory: true }] : []),
+    ...(tds > 0     ? [{ label: "TDS", amount: tds, statutory: true }] : []),
+    ...(pf > 0      ? [{ label: "PF Contribution", amount: pf, statutory: true }] : []),
   ];
 
   const lopDays = Number(record.lop_days) || 0;
   let lopDeduction = Number(record.lop_deduction) || 0;
-  
-  // If LOP days exist but deduction wasn't stored, calculate it
+
+  // If LOP days were recorded but the deduction amount wasn't stored, derive it
   if (lopDays > 0 && lopDeduction === 0) {
-    const gross = earnings.reduce((s, e) => s + e.amount, 0);
+    const grossFixed = basic + hra + otherAllow;
     const wd = Number(record.working_days) || 0;
     if (wd > 0) {
-      lopDeduction = Math.round((gross / wd) * lopDays);
+      lopDeduction = Math.round((grossFixed / wd) * lopDays);
     }
   }
-  
+
   if (lopDays > 0) {
-    deductions.push({ label: `Loss of Pay (${lopDays} days)`, amount: lopDeduction });
+    deductions.push({ label: `LOP (${lopDays} days)`, amount: lopDeduction, statutory: false });
   }
 
   const totalEarnings = earnings.reduce((s, e) => s + e.amount, 0);

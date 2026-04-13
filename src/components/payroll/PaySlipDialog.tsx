@@ -78,15 +78,20 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const r = record as any; // engine entries may carry extra employee detail fields
   const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
-  const department = DOMPurify.sanitize(record.profiles?.department || "—");
   const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
-  const employeeId = DOMPurify.sanitize(r.employee_id || "—");
+  // profiles.employee_id (string ID like EMP001); fall back to engine-entry field
+  const employeeId = DOMPurify.sanitize(record.profiles?.employee_id || r.employee_id || "—");
   const panNumber = DOMPurify.sanitize(r.pan_number || "—");
   const bankName = DOMPurify.sanitize(r.bank_name || "—");
-  const bankAccountNumber = DOMPurify.sanitize(r.bank_account_number || "—");
-  const bankIfsc = DOMPurify.sanitize(r.bank_ifsc || "—");
   const uanNumber = DOMPurify.sanitize(r.uan_number || "—");
-  const dateOfJoining = DOMPurify.sanitize(r.date_of_joining || "—");
+  const pfAccountNo = DOMPurify.sanitize(r.pf_account_number || "—");
+  const gender = DOMPurify.sanitize(r.profiles?.gender || r.gender || "—");
+  const location = DOMPurify.sanitize(r.profiles?.location || r.location || "—");
+  // join_date from profile (YYYY-MM-DD) formatted to DD-MMM-YYYY
+  const rawJoinDate = record.profiles?.join_date || r.date_of_joining || "";
+  const dateOfJoining = rawJoinDate
+    ? DOMPurify.sanitize(new Date(rawJoinDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }))
+    : "—";
   const period = periodLabel(record.pay_period);
   const processedDate = record.processed_at
     ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
@@ -172,31 +177,31 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     <div class="emp-grid">
       <div class="eg-label">Employee ID</div>
       <div class="eg-value">${employeeId}</div>
-      <div class="eg-label">PAN No</div>
-      <div class="eg-value">${panNumber}</div>
+      <div class="eg-label">Location</div>
+      <div class="eg-value">${location}</div>
 
       <div class="eg-label">Designation</div>
       <div class="eg-value">${jobTitle}</div>
+      <div class="eg-label">PAN No</div>
+      <div class="eg-value">${panNumber}</div>
+
+      <div class="eg-label">Gender</div>
+      <div class="eg-value">${gender}</div>
       <div class="eg-label">Bank Name</div>
       <div class="eg-value">${bankName}</div>
 
       <div class="eg-label">Date of Joining</div>
       <div class="eg-value">${dateOfJoining}</div>
-      <div class="eg-label">Bank A/C No</div>
-      <div class="eg-value">${bankAccountNumber}</div>
-
-      <div class="eg-label">Pay Period</div>
-      <div class="eg-value">${period}</div>
-      <div class="eg-label">IFSC Code</div>
-      <div class="eg-value">${bankIfsc}</div>
-
       <div class="eg-label">Working Days</div>
       <div class="eg-value">${workingDays || '—'}</div>
-      <div class="eg-label">UAN No</div>
-      <div class="eg-value">${uanNumber}</div>
 
+      <div class="eg-label">PF A/C No</div>
+      <div class="eg-value">${pfAccountNo}</div>
       <div class="eg-label">Paid Days</div>
       <div class="eg-value">${paidDays || '—'}</div>
+
+      <div class="eg-label">UAN</div>
+      <div class="eg-value">${uanNumber}</div>
       <div class="eg-label">LOP</div>
       <div class="eg-value">${lopDays || '0'}</div>
     </div>
@@ -344,12 +349,12 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
             </div>
             <div className="grid grid-cols-4 text-xs">
               {[
-                ["Employee ID", employeeId, "PAN No", panNumber],
-                ["Designation", jobTitle, "Bank Name", bankName],
-                ["Date of Joining", dateOfJoining, "Bank A/C No", bankAccountNumber],
-                ["Pay Period", period, "IFSC Code", bankIfsc],
-                ["Working Days", String(workingDays || "—"), "UAN No", uanNumber],
-                ["Paid Days", String(paidDays || "—"), "LOP", String(lopDays || "0")],
+                ["Employee ID", employeeId,              "Location",    location],
+                ["Designation", jobTitle,                "PAN No",      panNumber],
+                ["Gender",      gender,                  "Bank Name",   bankName],
+                ["Date of Joining", dateOfJoining,       "Working Days", String(workingDays || "—")],
+                ["PF A/C No",   pfAccountNo,             "Paid Days",   String(paidDays || "—")],
+                ["UAN",         uanNumber,               "LOP",         String(lopDays || "0")],
               ].map((row, i) => (
                 <React.Fragment key={i}>
                   <div className="px-3 py-1.5 border-b border-r border-border bg-muted/30 font-semibold">{row[0]}</div>

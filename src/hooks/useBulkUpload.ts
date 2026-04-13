@@ -6,21 +6,114 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { BulkUploadConfig, BulkUploadColumn } from "@/components/bulk-upload/BulkUploadDialog";
 
 // ─── Payroll ───────────────────────────────────────
+// Columns match the user's Excel file layout.
+// basic_salary is DERIVED from PF (see onUpload) — never read from an annual CTC column.
 const payrollColumns: BulkUploadColumn[] = [
-  { key: "employee_id", label: "Employee ID", required: true, aliases: ["employee_name", "emp_name", "name", "employee"] },
-  { key: "email_id", label: "Email", aliases: ["email", "email_address", "emp_email", "employee_email", "login_email"] },
-  { key: "basic_salary", label: "Basic Salary", required: true, aliases: ["total_annual_ctc_", "total_annual_ctc", "annual_ctc", "ctc", "salary", "gross_salary"] },
-  { key: "hra", label: "HRA" },
-  { key: "transport_allowance", label: "Transport Allowance" },
-  { key: "other_allowances", label: "Other Allowances" },
-  { key: "pf_deduction", label: "PF Deduction" },
-  { key: "tax_deduction", label: "Tax Deduction" },
-  { key: "other_deductions", label: "Other Deductions" },
+  // Employee identification
+  {
+    key: "employee_id",
+    label: "Employee Name",
+    required: true,
+    aliases: ["employee_name", "emp_name", "name", "employee"],
+  },
+  {
+    key: "email_id",
+    label: "Email",
+    aliases: ["email", "email_address", "emp_email", "employee_email", "login_email"],
+  },
+
+  // Monthly salary inputs (MONTHLY figures only — do NOT use annual CTC columns here)
+  {
+    key: "monthly_gross",
+    label: "Monthly Fixed Salary",
+    required: true,
+    aliases: [
+      "monthly_fixed_salary",
+      "monthly_fixed_sala",
+      "fixed_salary",
+      "monthly_salary",
+      "fixed_gross",
+    ],
+  },
+  {
+    key: "gross_earnings_monthly",
+    label: "Gross Earnings (Monthly)",
+    aliases: ["gross_earnings", "total_earnings", "monthly_gross_earnings", "total_gross"],
+  },
+
+  // Statutory deductions — monthly amounts as deducted from payslip
+  {
+    key: "pf_employee_monthly",
+    label: "Employee PF Deduction (Monthly)",
+    aliases: [
+      "employee_pf_deduction_monthly",
+      "employee_pf_monthly",
+      "pf_deduction_monthly",
+      "pf_monthly",
+      "epf_monthly",
+      "employee_pf",
+      "pf_employee",
+    ],
+  },
+  {
+    key: "professional_tax_monthly",
+    label: "Professional Tax (Monthly)",
+    aliases: [
+      "profession_tax_monthly",
+      "pt_monthly",
+      "professional_tax",
+      "profession_tax",
+      "tax_monthly",
+      "prof_tax",
+    ],
+  },
+
+  // Variable pay (included in gross_earnings_monthly if file has it)
+  {
+    key: "incentive_monthly",
+    label: "Monthly Incentive",
+    aliases: ["incentive_monthly", "monthly_incentive", "variable_pay", "incentive"],
+  },
+  {
+    key: "bonus_monthly",
+    label: "Monthly Bonus",
+    aliases: ["bonus_monthly", "monthly_bonus", "bonus"],
+  },
+
+  // Attendance / Loss of Pay
+  {
+    key: "working_days_col",
+    label: "Working Days",
+    aliases: ["working_days", "total_working_days", "work_days"],
+  },
+  {
+    key: "paid_days_col",
+    label: "Paid Days",
+    aliases: ["paid_days", "actual_paid_days", "total_paid_days"],
+  },
+  {
+    key: "lwp_days_col",
+    label: "LWP Days",
+    aliases: ["lwp_days", "lop_days", "loss_of_pay_days", "no_pay_days"],
+  },
+  {
+    key: "lwp_deduction_col",
+    label: "LWP Deduction",
+    aliases: ["lwp_deduction", "lop_deduction", "loss_of_pay_deduction", "lwp_amount"],
+  },
+
+  // Take-home
+  {
+    key: "net_pay_file",
+    label: "Net Pay",
+    aliases: ["net_pay", "take_home", "take_home_pay", "net_payable", "net_salary"],
+  },
 ];
 
-const payrollTemplate = `employee_id,basic_salary,hra,transport_allowance,other_allowances,pf_deduction,tax_deduction,other_deductions
-emp001,50000,20000,1600,5000,6000,5000,0
-emp002,60000,24000,1600,6000,7200,7000,0`;
+// Template uses monthly figures; basic/HRA are derived automatically on upload
+const payrollTemplate = `employee_id,email_id,monthly_gross,gross_earnings_monthly,pf_employee_monthly,professional_tax_monthly,incentive_monthly,bonus_monthly,working_days_col,paid_days_col,lwp_days_col,lwp_deduction_col,net_pay_file
+Ravi Kumar,ravi@company.com,45000,47000,1800,200,2000,0,26,26,0,0,45000
+Priya Sharma,priya@company.com,30000,30000,1560,200,0,0,26,25,1,1154,27086`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
@@ -122,18 +215,59 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     const insertedIds: string[] = [];
 
     for (const row of rows) {
-      const basic = parseFloat(row.basic_salary) || 0;
-      const hra = parseFloat(row.hra) || 0;
-      const transport = parseFloat(row.transport_allowance) || 0;
-      const otherAllow = parseFloat(row.other_allowances) || 0;
-      const pf = parseFloat(row.pf_deduction) || 0;
-      const tax = parseFloat(row.tax_deduction) || 0;
-      const otherDed = parseFloat(row.other_deductions) || 0;
-      const net = basic + hra + transport + otherAllow - pf - tax - otherDed;
+      // ── Parse monthly inputs from file ──────────────────────────────────────
+      // All values here must be MONTHLY figures.
+      // Annual CTC / Total Annual CTC columns are intentionally NOT mapped — they
+      // would produce 12× inflated salary figures on the payslip.
+      const pf_monthly     = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax       = parseFloat(row.professional_tax_monthly) || 0;
+      const monthly_gross  = parseFloat(row.monthly_gross) || 0;
+      // gross_earnings_monthly includes variable pay; falls back to monthly_gross
+      const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
+      const incentive      = parseFloat(row.incentive_monthly) || 0;
+      const bonus          = parseFloat(row.bonus_monthly) || 0;
+      const working_days_val = parseFloat(row.working_days_col) || 26;
+      const paid_days_val    = parseFloat(row.paid_days_col) || working_days_val;
+      const lwp_days_val     = parseFloat(row.lwp_days_col) || 0;
+      const lwp_ded_val      = parseFloat(row.lwp_deduction_col) || 0;
+      const net_from_file    = parseFloat(row.net_pay_file) || 0;
 
-      // When an email is supplied, use exact match only — do NOT fall back to
-      // name matching, since a failed email lookup means the address is wrong
-      // and a name fallback could silently match the wrong employee.
+      // ── Derive monthly Basic Salary from Employee PF (Indian statutory) ─────
+      // Rule: EPF employee contribution = 12% of min(basic, ₹15,000 wage ceiling)
+      //   • If PF < ₹1,800  → basic = PF ÷ 12% (exact, basic is under ceiling)
+      //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 40% of gross
+      //   • If no PF data    → default to 40% of monthly gross
+      let basic: number;
+      if (pf_monthly > 0 && pf_monthly < 1800) {
+        basic = Math.round(pf_monthly / 0.12);
+      } else if (pf_monthly >= 1800) {
+        basic = Math.max(Math.round(monthly_gross * 0.40), 15000);
+      } else {
+        basic = Math.round(monthly_gross * 0.40);
+      }
+
+      // Standard HRA: 40% of basic (non-metro cities)
+      const hra = Math.round(basic * 0.40);
+
+      // Other Allowances = balance of fixed monthly gross after Basic + HRA
+      // This absorbs Special Allowance, Transport, and other fixed components.
+      const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
+
+      // Variable pay (Incentives + Bonus) stored in transport_allowance field.
+      // On the payslip this is labelled "Incentives". The transport_allowance
+      // column is repurposed here because the company payslip does not show a
+      // separate Transport line — transport is already embedded in other_allowances.
+      const incentives = incentive + bonus;
+
+      // ── Net Pay ──────────────────────────────────────────────────────────────
+      // Prefer the file value; compute as fallback.
+      const net_pay = net_from_file > 0
+        ? net_from_file
+        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - lwp_ded_val));
+
+      // ── Employee matching ────────────────────────────────────────────────────
+      // When email is supplied use exact match only — do NOT fall back to name
+      // matching on email failure, as that could silently write to the wrong person.
       let profile;
       if (row.email_id) {
         profile = findProfileByEmail(row.email_id);
@@ -154,14 +288,21 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         profile_id: profile.id,
         organization_id: orgId || null,
         pay_period: payPeriod,
+        // Earnings
         basic_salary: basic,
         hra,
-        transport_allowance: transport,
-        other_allowances: otherAllow,
-        pf_deduction: pf,
-        tax_deduction: tax,
-        other_deductions: otherDed,
-        net_pay: net,
+        transport_allowance: incentives, // repurposed: stores variable pay (shown as "Incentives")
+        other_allowances,                // fixed special allowance (absorbs transport)
+        // Deductions
+        pf_deduction: pf_monthly,        // PF Contribution (direct from file)
+        tax_deduction: 0,                // TDS — 0 for most employees; compute separately if needed
+        other_deductions: prof_tax,      // Professional Tax stored here (shown as "Professional Tax")
+        // Attendance / LOP
+        lop_days: lwp_days_val,
+        lop_deduction: lwp_ded_val,
+        working_days: working_days_val,
+        paid_days: paid_days_val,
+        net_pay,
         status: "draft",
       };
 
