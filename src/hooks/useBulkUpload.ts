@@ -807,3 +807,263 @@ export function useEmployeeBulkUpload(): BulkUploadConfig {
     onUpload,
   };
 }
+
+// ─── Employee Details (Update Existing) ────────────────
+// Updates extended fields for existing employees keyed by email.
+// Maps directly to the profiles + employee_details tables.
+const employeeDetailsColumns: BulkUploadColumn[] = [
+  {
+    key: "email",
+    label: "Email ID",
+    required: true,
+    aliases: ["email_id", "employee_email", "emp_email"],
+  },
+  {
+    key: "full_name",
+    label: "Employee Name",
+    aliases: ["employees_name", "employee_name", "name", "emp_name"],
+  },
+  {
+    key: "employee_id",
+    label: "Employee ID",
+    aliases: ["emp_id", "emp_code", "employee_code"],
+  },
+  {
+    key: "join_date",
+    label: "Date of Joining",
+    aliases: ["date_of_joining", "doj", "joining_date", "date_joining"],
+  },
+  {
+    key: "designation",
+    label: "Designation",
+    aliases: ["job_title", "position", "title", "role"],
+  },
+  {
+    key: "gender",
+    label: "Gender",
+    aliases: ["sex"],
+  },
+  {
+    key: "aadhar_no",
+    label: "Aadhar Card No",
+    aliases: ["aadhaar_no", "aadhar_number", "aadhaar_number", "aadhaar_card_no", "aadhar_card_no"],
+  },
+  {
+    key: "pan_number",
+    label: "Pan Card No",
+    aliases: ["pan_no", "pan_card_no", "pan", "pan_card"],
+  },
+  {
+    key: "date_of_birth",
+    label: "Date of Birth",
+    aliases: ["dob", "birth_date", "birthdate"],
+  },
+  {
+    key: "uan",
+    label: "UAN",
+    aliases: ["uan_number", "uan_no", "universal_account_number"],
+  },
+  {
+    key: "bank_account",
+    label: "Bank Account",
+    aliases: ["bank_account_no", "bank_account_number", "account_number", "account_no"],
+  },
+  {
+    key: "ifsc_code",
+    label: "IFSC Code",
+    aliases: ["ifsc", "bank_ifsc", "ifsc_no"],
+  },
+  {
+    key: "mobile_no",
+    label: "Mobile No",
+    aliases: ["phone", "mobile", "contact_number", "mobile_number", "phone_number"],
+  },
+  {
+    key: "emergency_contact",
+    label: "Emergency Contact",
+    aliases: ["emergency_contact_name", "emergency_name", "emergency"],
+  },
+  {
+    key: "permanent_address",
+    label: "Permanent Address",
+    aliases: ["address", "address_line1", "residence_address", "home_address"],
+  },
+];
+
+const employeeDetailsTemplate = `email_id,employees_name,employee_id,date_of_joining,designation,gender,aadhar_card_no,pan_card_no,date_of_birth,uan,bank_account,ifsc_code,mobile_no,emergency_contact,permanent_address
+john@company.com,John Doe,EMP001,2024-01-15,Software Engineer,Male,123456789012,ABCDE1234F,1990-05-20,123456789012,9876543210,SBIN0001234,+91 98765 43210,Jane Doe,123 Main St Mumbai`;
+
+// Helper: normalise a date string to YYYY-MM-DD.
+// Accepts YYYY-MM-DD or DD/MM/YYYY (common Indian Excel format).
+function normaliseDateStr(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  // DD/MM/YYYY
+  const dmy = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  return null;
+}
+
+export function useEmployeeDetailsBulkUpload(): BulkUploadConfig {
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    const errors: string[] = [];
+    let success = 0;
+
+    for (const row of rows) {
+      const email = row.email?.trim();
+
+      if (!email) {
+        errors.push(`Row missing Email ID — skipped`);
+        continue;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push(`"${email}": Invalid email format — skipped`);
+        continue;
+      }
+
+      // Resolve the profile by email
+      const { data: profile, error: profileLookupError } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", email)
+        .maybeSingle();
+
+      if (profileLookupError) {
+        errors.push(`"${email}": Lookup failed — ${profileLookupError.message}`);
+        continue;
+      }
+      if (!profile) {
+        errors.push(`"${email}": Employee not found — skipped`);
+        continue;
+      }
+      const profileId = profile.id;
+
+      // ── Profile-level fields ──────────────────────────────
+      const profileUpdate: Record<string, string> = {};
+      if (row.full_name?.trim()) profileUpdate.full_name = row.full_name.trim();
+      if (row.designation?.trim()) profileUpdate.job_title = row.designation.trim();
+      if (row.mobile_no?.trim()) profileUpdate.phone = row.mobile_no.trim();
+
+      const joinDateNorm = normaliseDateStr(row.join_date || "");
+      if (joinDateNorm) profileUpdate.date_of_joining = joinDateNorm;
+
+      if (Object.keys(profileUpdate).length > 0) {
+        const { error: profileUpdateError } = await supabase
+          .from("profiles")
+          .update(profileUpdate)
+          .eq("id", profileId);
+        if (profileUpdateError) {
+          errors.push(`"${email}": Profile update failed — ${profileUpdateError.message}`);
+          continue;
+        }
+      }
+
+      // ── employee_details fields ───────────────────────────
+      const detailsPayload: Record<string, string | null> = { profile_id: profileId };
+      let hasDetails = false;
+
+      if (row.employee_id?.trim()) {
+        detailsPayload.employee_id_number = row.employee_id.trim();
+        hasDetails = true;
+      }
+      if (row.gender?.trim()) {
+        detailsPayload.gender = row.gender.trim();
+        hasDetails = true;
+      }
+      if (row.emergency_contact?.trim()) {
+        detailsPayload.emergency_contact_name = row.emergency_contact.trim();
+        hasDetails = true;
+      }
+      if (row.permanent_address?.trim()) {
+        detailsPayload.address_line1 = row.permanent_address.trim();
+        hasDetails = true;
+      }
+      if (row.bank_account?.trim()) {
+        detailsPayload.bank_account_number = row.bank_account.trim();
+        hasDetails = true;
+      }
+
+      // DOB
+      const dobNorm = normaliseDateStr(row.date_of_birth || "");
+      if (dobNorm) {
+        detailsPayload.date_of_birth = dobNorm;
+        hasDetails = true;
+      }
+
+      // PAN — uppercase + validate
+      if (row.pan_number?.trim()) {
+        const pan = row.pan_number.trim().toUpperCase();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+          errors.push(`"${email}": Invalid PAN "${pan}" (expected format: ABCDE1234F) — skipped row`);
+          continue;
+        }
+        detailsPayload.pan_number = pan;
+        hasDetails = true;
+      }
+
+      // Aadhaar — accept full 12-digit, store only last 4
+      if (row.aadhar_no?.trim()) {
+        const digits = row.aadhar_no.trim().replace(/[\s\-]/g, "");
+        if (!/^\d{12}$/.test(digits)) {
+          errors.push(`"${email}": Aadhaar must be 12 digits (got "${row.aadhar_no.trim()}") — skipped row`);
+          continue;
+        }
+        detailsPayload.aadhaar_last_four = digits.slice(-4);
+        hasDetails = true;
+      }
+
+      // UAN — 12 digits
+      if (row.uan?.trim()) {
+        const uan = row.uan.trim().replace(/\s/g, "");
+        if (!/^\d{12}$/.test(uan)) {
+          errors.push(`"${email}": UAN must be exactly 12 digits — skipped row`);
+          continue;
+        }
+        detailsPayload.uan_number = uan;
+        hasDetails = true;
+      }
+
+      // IFSC — uppercase + validate
+      if (row.ifsc_code?.trim()) {
+        const ifsc = row.ifsc_code.trim().toUpperCase();
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+          errors.push(`"${email}": Invalid IFSC "${ifsc}" (expected format: ABCD0123456) — skipped row`);
+          continue;
+        }
+        detailsPayload.bank_ifsc = ifsc;
+        hasDetails = true;
+      }
+
+      if (hasDetails) {
+        const { error: detailsError } = await supabase
+          .from("employee_details")
+          .upsert(detailsPayload, { onConflict: "profile_id" });
+        if (detailsError) {
+          errors.push(`"${email}": Details update failed — ${detailsError.message}`);
+          continue;
+        }
+      }
+
+      success++;
+    }
+
+    qc.invalidateQueries({ queryKey: ["employees"] });
+    qc.invalidateQueries({ queryKey: ["employee-details"] });
+    return { success, errors };
+  }, [qc]);
+
+  return {
+    module: "employee-details",
+    title: "Update Employee Details",
+    description:
+      "Update extended details for existing employees. Email ID is used as the primary key to match records. Aadhaar: only the last 4 digits are stored.",
+    columns: employeeDetailsColumns,
+    templateFileName: "employee_details_template.csv",
+    templateContent: employeeDetailsTemplate,
+    onUpload,
+  };
+}
