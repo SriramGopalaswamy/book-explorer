@@ -172,7 +172,10 @@ export default function Employees() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [viewEmployee, setViewEmployee] = useState<Employee | null>(null);
+  const [viewEmployeeId, setViewEmployeeId] = useState<string | null>(null);
+  const liveViewEmployee = viewEmployeeId
+    ? (employees.find((e) => e.id === viewEmployeeId) ?? null)
+    : null;
   const [openInEditMode, setOpenInEditMode] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -244,7 +247,7 @@ export default function Employees() {
   };
 
   const openEditViaDetailDialog = (employee: Employee) => {
-    setViewEmployee(employee);
+    setViewEmployeeId(employee.id);
     setOpenInEditMode(true);
   };
 
@@ -461,7 +464,7 @@ export default function Employees() {
                   <div
                     key={employee.id}
                     className="group rounded-lg border bg-background p-4 transition-all hover:border-hrms hover:shadow-md cursor-pointer"
-                    onClick={() => { setOpenInEditMode(false); setViewEmployee(employee); }}
+                    onClick={() => { setOpenInEditMode(false); setViewEmployeeId(employee.id); }}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="h-12 w-12">
@@ -576,13 +579,13 @@ export default function Employees() {
         </AlertDialogContent>
       </AlertDialog>
       <EmployeeDetailDialog
-        employee={viewEmployee}
-        open={!!viewEmployee}
-        onOpenChange={(open) => { if (!open) { setViewEmployee(null); setOpenInEditMode(false); } }}
+        employee={liveViewEmployee}
+        open={!!liveViewEmployee}
+        onOpenChange={(open) => { if (!open) { setViewEmployeeId(null); setOpenInEditMode(false); } }}
         initialEditMode={openInEditMode}
         managerName={
-          viewEmployee?.manager_id
-            ? employees.find((e) => e.id === viewEmployee.manager_id)?.full_name || undefined
+          liveViewEmployee?.manager_id
+            ? employees.find((e) => e.id === liveViewEmployee.manager_id)?.full_name || undefined
             : undefined
         }
         allEmployees={employees}
