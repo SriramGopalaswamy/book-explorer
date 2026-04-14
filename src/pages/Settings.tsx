@@ -59,6 +59,7 @@ import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySec
 import { EmailAlertsConfigSection } from "@/components/settings/EmailAlertsConfigSection";
 
 interface UserWithRole {
+  profile_id: string;            // profiles.id — used to resolve manager_id
   user_id: string;
   full_name: string | null;
   email: string | null;
@@ -66,7 +67,7 @@ interface UserWithRole {
   job_title: string | null;
   roles: string[];
   status: string;
-  manager_id: string | null;
+  manager_id: string | null;     // references profiles.id of the manager
   pending_manager_email: string | null;
 }
 
@@ -919,6 +920,15 @@ function UserManagementSection() {
     [users]
   );
 
+  // Map from profiles.id → display name — used to resolve manager_id to a name
+  const profileIdToName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of users) {
+      if (u.profile_id) map.set(u.profile_id, u.full_name || u.email || "Unknown");
+    }
+    return map;
+  }, [users]);
+
   // Excludes pending_approval — those are handled in their own section above
   const filteredUsers = useMemo(() => {
     const nonPending = users.filter((u) => u.status !== "pending_approval");
@@ -1201,6 +1211,16 @@ function UserManagementSection() {
                             {u.department}{u.job_title ? ` · ${u.job_title}` : ""}
                           </p>
                         )}
+                        {u.manager_id && profileIdToName.get(u.manager_id) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Reports to: {profileIdToName.get(u.manager_id)}
+                          </p>
+                        )}
+                        {!u.manager_id && u.pending_manager_email && (
+                          <p className="text-xs text-yellow-600 mt-0.5">
+                            Manager pending sync: {u.pending_manager_email}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Select
@@ -1342,9 +1362,14 @@ function UserManagementSection() {
                           {u.department} {u.job_title ? `· ${u.job_title}` : ""}
                         </p>
                       )}
-                      {u.pending_manager_email && (
+                      {u.manager_id && profileIdToName.get(u.manager_id) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Reports to: {profileIdToName.get(u.manager_id)}
+                        </p>
+                      )}
+                      {!u.manager_id && u.pending_manager_email && (
                         <p className="text-xs text-yellow-600 mt-0.5">
-                          Manager pending: {u.pending_manager_email}
+                          Manager pending sync: {u.pending_manager_email}
                         </p>
                       )}
                     </div>
