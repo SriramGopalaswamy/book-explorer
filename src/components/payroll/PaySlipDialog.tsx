@@ -166,7 +166,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Header */
   .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .co-logo  { height: 44px; width: auto; object-fit: contain; margin-right: 14px; }
+  .co-logo  { height: 44px; width: auto; object-fit: contain; }
   .co-info  { display: flex; align-items: center; gap: 14px; }
   .co-name  { font-size: 20px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
   .co-addr  { font-size: 10px; color: rgba(255,255,255,0.82); margin-top: 4px; line-height: 1.6; max-width: 340px; }
