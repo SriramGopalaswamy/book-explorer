@@ -1051,8 +1051,19 @@ function UserManagementSection() {
       body: { action: "sync_managers" },
     });
     if (error || data?.error) {
-      const msg = data?.error || error?.message || "Sync failed. Check Supabase function logs for details.";
-      toast.error(msg);
+      // data?.error covers versions where non-2xx body is returned in data.
+      // For versions where it's null, read the response body from error.context.
+      let msg: string = data?.error ?? "";
+      if (!msg && error) {
+        try {
+          const body = await (error as any).context?.json?.();
+          msg = body?.error ?? "";
+        } catch {
+          // context already consumed or not JSON
+        }
+        if (!msg) msg = error.message;
+      }
+      toast.error(msg || "Sync failed. Check Supabase function logs for details.");
     } else {
       const { synced = 0, errors = [] } = data;
       if (errors.length > 0) {
