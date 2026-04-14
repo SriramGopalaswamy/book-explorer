@@ -81,7 +81,6 @@ serve(async (req) => {
     // Fetch branding, signatory, and registered address from organization_compliance
     const { data: compliance } = await supabase.from("organization_compliance").select("brand_color, authorized_signatory_name, legal_name, registered_address, state, pincode").eq("organization_id", run.organization_id).maybeSingle();
     const brandColor = compliance?.brand_color || "#e11d74";
-    const authorizedSignatoryName = compliance?.authorized_signatory_name || "";
 
     let query = supabase
       .from("payroll_entries")
@@ -124,6 +123,7 @@ serve(async (req) => {
         employeeName: profile.full_name || "Employee",
         employeeId: details.employee_id_number || "—",
         designation: profile.job_title || "—",
+        department: profile.department || "—",
         dateOfJoining: details.date_of_joining || profile.date_of_joining || "—",
         pan: details.pan_number || "—",
         uan: details.uan_number || "—",
@@ -139,7 +139,6 @@ serve(async (req) => {
         paidDays: entry.paid_days || 0,
         lwpDays: entry.lwp_days,
         brandColor,
-        authorizedSignatoryName,
       });
 
       const payslipUrl = `payslip://${run.pay_period}/${entry.profile_id}`;
@@ -164,15 +163,27 @@ serve(async (req) => {
 
 function buildPayslipHTML(data: {
   companyName: string; companyAddress: string; periodLabel: string;
-  employeeName: string; employeeId: string; designation: string; dateOfJoining: string;
+  employeeName: string; employeeId: string; designation: string; department: string; dateOfJoining: string;
   pan: string; uan: string; bankName: string; bankAccount: string; bankIfsc: string;
   earnings: any[]; deductions: any[];
   grossEarnings: number; totalDeductions: number; netPay: number;
   workingDays: number; paidDays: number; lwpDays: number;
   brandColor: string;
-  authorizedSignatoryName: string;
 }): string {
   const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Derive a slightly darker shade for table row tints
+  const hexToRgb = (hex: string) => {
+    const h = hex.replace("#", "");
+    return {
+      r: parseInt(h.substring(0, 2), 16),
+      g: parseInt(h.substring(2, 4), 16),
+      b: parseInt(h.substring(4, 6), 16),
+    };
+  };
+  const rgb = hexToRgb(data.brandColor);
+  const tintBg = `rgba(${rgb.r},${rgb.g},${rgb.b},0.06)`;
+  const tintMed = `rgba(${rgb.r},${rgb.g},${rgb.b},0.12)`;
 
   const maxRows = Math.max(data.earnings.length, data.deductions.length);
   const padE = [...data.earnings, ...Array(Math.max(0, maxRows - data.earnings.length)).fill(null)];
@@ -180,101 +191,172 @@ function buildPayslipHTML(data: {
 
   const rows = padE.map((e: any, i: number) => {
     const d = padD[i];
-    return `<tr>
+    const bg = i % 2 === 0 ? "#fff" : tintBg;
+    return `<tr style="background:${bg}">
       <td class="cell">${e ? e.name : ''}</td>
       <td class="cell r">${e ? fmt(e.monthly ?? e.amount ?? 0) : ''}</td>
-      <td class="cell">${d ? d.name : ''}</td>
+      <td class="cell mid">${d ? d.name : ''}</td>
       <td class="cell r">${d ? fmt(d.monthly ?? d.amount ?? 0) : ''}</td>
     </tr>`;
   }).join("");
 
+  const genDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+
+  // Employee info grid rows: 2 columns × N rows
+  const empFields = [
+    ["Employee ID", data.employeeId],
+    ["Pay Period", data.periodLabel],
+    ["Designation", data.designation],
+    ["Department", data.department],
+    ["Date of Joining", typeof data.dateOfJoining === "string" && data.dateOfJoining !== "—"
+      ? new Date(data.dateOfJoining).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : data.dateOfJoining],
+    ["Working Days", String(data.workingDays)],
+    ["Paid Days", String(data.paidDays)],
+    ["LOP Days", String(data.lwpDays)],
+    ["PAN No", data.pan],
+    ["UAN No", data.uan],
+    ["Bank Name", data.bankName],
+    ["Bank A/C No", data.bankAccount],
+    ["IFSC Code", data.bankIfsc],
+  ];
+
+  // Render as a 4-column grid (label | value | label | value) for compact A4 layout
+  const empRows: string[] = [];
+  for (let i = 0; i < empFields.length; i += 2) {
+    const [l1, v1] = empFields[i];
+    const [l2, v2] = empFields[i + 1] || ["", ""];
+    empRows.push(`<tr>
+      <td class="eg-label">${l1}</td><td class="eg-value">${v1}</td>
+      <td class="eg-label">${l2}</td><td class="eg-value">${v2}</td>
+    </tr>`);
+  }
+
   const bc = data.brandColor;
-  // Derive a slightly darker shade for borders
-  const darken = (hex: string): string => {
-    const h = hex.replace("#", "");
-    const r = Math.max(0, parseInt(h.substring(0, 2), 16) - 20);
-    const g = Math.max(0, parseInt(h.substring(2, 4), 16) - 20);
-    const b = Math.max(0, parseInt(h.substring(4, 6), 16) - 20);
-    return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
-  };
-  const bcBorder = darken(bc);
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Pay Slip — ${data.employeeName} — ${data.periodLabel}</title>
+<html><head><meta charset="utf-8">
+<title>Pay Slip — ${data.employeeName} — ${data.periodLabel}</title>
 <style>
+  @page { size: A4; margin: 14mm 16mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a1a; background: #fff; width: 700px; max-width: 700px; margin: 0 auto; padding: 30px 36px 50px; }
-  .company-header { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
-  .company-name { font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-  .company-address { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.5; }
-  .payslip-title { text-align: center; font-size: 22px; font-weight: 600; font-style: italic; margin: 8px 0 16px; }
-  .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
-  .emp-header { background: ${bc}; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .emp-name { font-size: 15px; font-weight: 700; color: ${bc}; padding: 8px 12px; border-bottom: 1px solid #ddd; }
-  .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
-  .emp-grid .eg-label { font-size: 11px; font-weight: 600; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
-  .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
-  .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
-  .ed-table .ed-header th { background: ${bc}; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; text-align: left; border: 1px solid ${bcBorder}; }
-  .ed-table .ed-header th.r { text-align: right; }
-  .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
-  .cell.r { text-align: right; font-weight: 500; }
-  .total-row td { border-top: 2px solid #999; font-weight: 700; font-size: 12px; padding: 7px 12px; }
-  .netpay-row td { font-weight: 700; font-size: 12px; padding: 7px 12px; border-top: 1px solid #ccc; }
-  .net-box { border: 2px solid #333; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .net-box .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
-  .net-box .sub { font-size: 11px; color: #888; font-style: italic; }
-  .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
-  .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; }
-  .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
-  .footer .sig span { display: block; width: 140px; border-top: 1px solid #bbb; padding-top: 4px; margin-top: 30px; text-align: right; }
+  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1a1a1a; background: #fff;
+         width: 700px; max-width: 700px; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* ── Header ── */
+  .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-left .co-name { font-size: 20px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
+  .header-left .co-addr { font-size: 10px; color: rgba(255,255,255,0.80); margin-top: 4px; line-height: 1.6; max-width: 340px; }
+  .header-right { text-align: right; }
+  .header-right .slip-title { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
+  .header-right .slip-period { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 4px; font-style: italic; }
+
+  /* ── Employee section ── */
+  .emp-name-bar { background: ${tintMed}; padding: 8px 16px; border-left: 4px solid ${bc}; margin-top: 14px; }
+  .emp-name-bar .name { font-size: 15px; font-weight: 700; color: ${bc}; }
+  .emp-name-bar .sub  { font-size: 11px; color: #555; margin-top: 2px; }
+
+  .emp-table { width: 100%; border-collapse: collapse; margin-top: 0; border: 1px solid #ddd; }
+  .emp-table .eg-label { font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase;
+                          letter-spacing: 0.4px; padding: 5px 10px; background: ${tintBg};
+                          border-bottom: 1px solid #e8e8e8; border-right: 1px solid #ddd; width: 18%; }
+  .emp-table .eg-value { font-size: 11px; color: #222; padding: 5px 10px;
+                          border-bottom: 1px solid #e8e8e8; border-right: 1px solid #ddd; width: 32%; }
+  .emp-table tr:last-child .eg-label,
+  .emp-table tr:last-child .eg-value { border-bottom: none; }
+
+  /* ── Earnings & Deductions ── */
+  .ed-table { width: 100%; border-collapse: collapse; margin-top: 14px; border: 1px solid #ddd; }
+  .ed-table thead th { background: ${bc}; color: #fff; font-size: 11px; font-weight: 700;
+                        padding: 7px 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ed-table thead th.r { text-align: right; }
+  .cell { padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #eee; color: #222; }
+  .cell.r { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cell.mid { border-left: 1px solid #ddd; }
+  .total-row td { border-top: 2px solid ${bc}; font-weight: 700; font-size: 11px; padding: 7px 10px;
+                   background: ${tintBg}; }
+  .total-row .earn  { color: #15803d; }
+  .total-row .ded   { color: #dc2626; }
+
+  /* ── Net Pay ── */
+  .net-box { background: ${bc}; padding: 14px 20px; margin-top: 14px;
+              display: flex; justify-content: space-between; align-items: center; }
+  .net-box .net-label { color: rgba(255,255,255,0.9); font-size: 11px; text-transform: uppercase;
+                          letter-spacing: 1px; font-weight: 700; }
+  .net-box .net-sub   { color: rgba(255,255,255,0.7); font-size: 10px; font-style: italic; margin-top: 3px; }
+  .net-box .net-amt   { color: #fff; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .words-bar { background: ${tintBg}; border: 1px solid #ddd; border-top: none;
+                text-align: center; font-size: 11px; font-weight: 600; color: #333; padding: 7px 10px; }
+
+  /* ── Footer ── */
+  .footer { margin-top: 18px; border-top: 2px solid ${bc}; padding-top: 10px;
+             display: flex; justify-content: space-between; align-items: flex-start; }
+  .footer .gen-date  { font-size: 10px; color: #888; }
+  .footer .statutory { font-size: 9.5px; color: #999; font-style: italic; text-align: right; max-width: 340px; line-height: 1.5; }
 </style></head><body>
-  <div class="company-header">
-    <div>
-      <div class="company-name">${data.companyName}</div>
-      <div class="company-address">${data.companyAddress}</div>
-    </div>
-  </div>
-  <div class="payslip-title">Pay Slip</div>
 
-  <div class="emp-section">
-    <div class="emp-header">Employee Summary</div>
-    <div class="emp-name">${data.employeeName}</div>
-    <div class="emp-grid">
-      <div class="eg-label">Employee ID</div><div class="eg-value">${data.employeeId}</div>
-      <div class="eg-label">PAN No</div><div class="eg-value">${data.pan}</div>
-      <div class="eg-label">Designation</div><div class="eg-value">${data.designation}</div>
-      <div class="eg-label">Bank Name</div><div class="eg-value">${data.bankName}</div>
-      <div class="eg-label">Date of Joining</div><div class="eg-value">${data.dateOfJoining}</div>
-      <div class="eg-label">Bank A/C No</div><div class="eg-value">${data.bankAccount}</div>
-      <div class="eg-label">Pay Period</div><div class="eg-value">${data.periodLabel}</div>
-      <div class="eg-label">IFSC Code</div><div class="eg-value">${data.bankIfsc}</div>
-      <div class="eg-label">Working Days</div><div class="eg-value">${data.workingDays}</div>
-      <div class="eg-label">UAN No</div><div class="eg-value">${data.uan}</div>
-      <div class="eg-label">Paid Days</div><div class="eg-value">${data.paidDays}</div>
-      <div class="eg-label">LOP</div><div class="eg-value">${data.lwpDays}</div>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="co-name">${data.companyName}</div>
+      ${data.companyAddress ? `<div class="co-addr">${data.companyAddress}</div>` : ''}
+    </div>
+    <div class="header-right">
+      <div class="slip-title">Pay Slip</div>
+      <div class="slip-period">${data.periodLabel}</div>
     </div>
   </div>
 
-  <table class="ed-table">
-    <tr class="ed-header"><th>Earning</th><th class="r">Amount</th><th>Deduction</th><th class="r">Amount</th></tr>
-    ${rows}
-    <tr class="total-row">
-      <td>Total Earnings</td><td class="r" style="color:#16a34a">${fmt(data.grossEarnings)}</td>
-      <td>Total Deductions</td><td class="r" style="color:#dc2626">${fmt(data.totalDeductions)}</td>
-    </tr>
-    <tr class="netpay-row"><td colspan="2"></td><td><strong>Net Pay</strong></td><td class="r">${fmt(data.netPay)}</td></tr>
+  <!-- Employee Name Bar -->
+  <div class="emp-name-bar">
+    <div class="name">${data.employeeName}</div>
+    <div class="sub">${data.designation}${data.department && data.department !== '—' ? ' &nbsp;·&nbsp; ' + data.department : ''}</div>
+  </div>
+
+  <!-- Employee Details Grid -->
+  <table class="emp-table">
+    <tbody>
+      ${empRows.join("\n      ")}
+    </tbody>
   </table>
 
-  <div class="net-box">
-    <div><div class="title">Total Net Payable</div><div class="sub">Gross Earnings - Total Deduction</div></div>
-    <div class="amount">Rs : ${Math.round(data.netPay).toLocaleString("en-IN")}/-</div>
-  </div>
-  <div class="words-row">Amount in Words : ${numberToWords(data.netPay)}</div>
+  <!-- Earnings & Deductions -->
+  <table class="ed-table">
+    <thead>
+      <tr>
+        <th style="text-align:left">Earning</th>
+        <th class="r">Amount (₹)</th>
+        <th style="text-align:left;border-left:1px solid rgba(255,255,255,0.3)">Deduction</th>
+        <th class="r">Amount (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="total-row">
+        <td>Total Earnings</td>
+        <td class="r earn">${fmt(data.grossEarnings)}</td>
+        <td class="mid">Total Deductions</td>
+        <td class="r ded">${fmt(data.totalDeductions)}</td>
+      </tr>
+    </tbody>
+  </table>
 
-   <div class="footer">
-    <div>Generated: ${new Date().toLocaleDateString("en-IN")}</div>
-    <div class="sig">${data.authorizedSignatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${data.authorizedSignatoryName}</span>` : ''}<span>Authorised Signatory</span></div>
+  <!-- Net Pay -->
+  <div class="net-box">
+    <div>
+      <div class="net-label">Total Net Payable</div>
+      <div class="net-sub">Gross Earnings − Total Deductions</div>
+    </div>
+    <div class="net-amt">₹${Math.round(data.netPay).toLocaleString("en-IN")}/-</div>
   </div>
+  <div class="words-bar">Amount in Words: ${numberToWords(data.netPay)}</div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="gen-date">Generated on ${genDate}</div>
+    <div class="statutory">This is a computer-generated payslip and does not require a physical signature.<br>
+      Valid under the Information Technology Act, 2000 and the Payment of Wages Act, 1936.</div>
+  </div>
+
 </body></html>`;
 }

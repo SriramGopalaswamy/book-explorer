@@ -79,6 +79,33 @@ const payrollColumns: BulkUploadColumn[] = [
       "prof_tax",
     ],
   },
+  // TDS (income tax deducted at source) — monthly amount
+  {
+    key: "tds_monthly",
+    label: "TDS (Monthly)",
+    aliases: [
+      "tds",
+      "tds_monthly",
+      "income_tax_monthly",
+      "tax_deduction_monthly",
+      "income_tax",
+      "tds_amount",
+    ],
+  },
+  // Other / miscellaneous deductions not covered by PF, PT, TDS or LOP
+  // (salary advances recovered, welfare fund, canteen, etc.)
+  {
+    key: "other_deductions_col",
+    label: "Other Deductions",
+    aliases: [
+      "other_deductions",
+      "other_ded",
+      "misc_deductions",
+      "miscellaneous_deductions",
+      "other deductions",
+      "other_deduction",
+    ],
+  },
   // "Total Deductions" is present in the template so users can paste data directly.
   // When the individual PF/PT columns are absent (or zero), this total is used to
   // derive statutory components via back-calculation.
@@ -141,10 +168,10 @@ const payrollColumns: BulkUploadColumn[] = [
 // they are present in the template but ignored during upload (not mapped in payrollColumns).
 // "PF- optout" in the PF column is handled gracefully (basic derived from 40% of gross).
 // "no" in Incentive/Bonus columns is treated as 0.
-const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
-Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,2000,0,,26,26,45000
-Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,1760,1,1154,26,25,27086
-Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,PF- optout,200,0,,31,31,44800`;
+const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,TDS,Other Deductions,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
+Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,0,0,2000,0,,26,26,45000
+Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,500,0,2260,1,1154,26,25,26540
+Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,0,1500,0,1700,0,,31,31,43300`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
@@ -250,10 +277,12 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // All values here must be MONTHLY figures.
       // Annual CTC / Total Annual CTC columns are intentionally NOT mapped — they
       // would produce 12× inflated salary figures on the payslip.
-      const pf_monthly_raw  = parseFloat(row.pf_employee_monthly) || 0;
-      const prof_tax_raw    = parseFloat(row.professional_tax_monthly) || 0;
-      const total_ded_file  = parseFloat(row.total_deductions_col) || 0;
-      const monthly_gross  = parseFloat(row.monthly_gross) || 0;
+      const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
+      const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
+      const other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
+      const total_ded_file   = parseFloat(row.total_deductions_col) || 0;
+      const monthly_gross   = parseFloat(row.monthly_gross) || 0;
       // gross_earnings_monthly includes variable pay; falls back to monthly_gross
       const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
       const incentive      = parseFloat(row.incentive_monthly) || 0;
@@ -319,22 +348,22 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       }
 
       // ── Deduction consistency checks ───────────────────────────────────────
-      // (1) Component sum check: when both individual columns and Total Deductions
-      //     are provided, their sum must agree within ₹2 (rounding tolerance).
-      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0)) {
-        const componentSum = pf_monthly_raw + prof_tax_raw;
+      // (1) Component sum check: when individual deduction columns and Total Deductions
+      //     are both provided, their sum must agree within ₹2 (rounding tolerance).
+      //     Includes PF + PT + TDS + Other Deductions.
+      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0 || tds_monthly_raw > 0 || other_ded_raw > 0)) {
+        const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
         if (Math.abs(componentSum - total_ded_file) > 2) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Total Deductions (₹${total_ded_file}) ` +
-            `does not match PF (₹${pf_monthly_raw}) + Professional Tax (₹${prof_tax_raw}) = ₹${componentSum}. ` +
+            `does not match PF (₹${pf_monthly_raw}) + PT (₹${prof_tax_raw}) + TDS (₹${tds_monthly_raw}) + Other (₹${other_ded_raw}) = ₹${componentSum}. ` +
             `Please fix the deduction values in the file.`
           );
           continue;
         }
       }
 
-      // (2) Net pay cross-check: when gross, total deductions, and net pay are all
-      //     present, verify gross − total_deductions − lwp_deduction ≈ net_pay.
+      // (2) Net pay cross-check: gross − total_deductions − lwp_deduction ≈ net_pay.
       //     A mismatch > ₹5 suggests a data entry error worth flagging.
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
         const expectedNet = Math.round(gross_earn - total_ded_file - lwp_ded_val);
@@ -355,10 +384,10 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const incentives = incentive + bonus;
 
       // ── Net Pay ──────────────────────────────────────────────────────────────
-      // Prefer the file value; compute as fallback.
+      // Prefer the file value; compute as fallback including TDS + other deductions.
       const net_pay = net_from_file > 0
         ? net_from_file
-        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - lwp_ded_val));
+        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - tds_monthly_raw - other_ded_raw - lwp_ded_val));
 
       // ── Employee matching ────────────────────────────────────────────────────
       // When email is supplied use exact match only — do NOT fall back to name
@@ -390,8 +419,9 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         other_allowances,                // fixed special allowance (absorbs transport)
         // Deductions
         pf_deduction: pf_monthly,        // PF Contribution (direct from file)
-        tax_deduction: 0,                // TDS — 0 for most employees; compute separately if needed
+        tax_deduction: tds_monthly_raw,  // TDS (income tax deducted at source)
         other_deductions: prof_tax,      // Professional Tax stored here (shown as "Professional Tax")
+        misc_deductions: other_ded_raw,  // Other / miscellaneous deductions (shown as "Other Deductions")
         // Attendance / LOP
         lop_days: lwp_days_val,
         lop_deduction: lwp_ded_val,

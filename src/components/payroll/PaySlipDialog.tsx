@@ -10,6 +10,7 @@ import { numberToWords } from "@/lib/number-to-words";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmployeeDetails } from "@/hooks/useEmployeeDetails";
+import React from "react";
 
 /** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
 function useLogoDataUrl(src: string) {
@@ -42,7 +43,6 @@ const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 /** Fetch branding and org identity info from organization_compliance for current user */
 function useBrandingInfo(userId: string | undefined) {
   const [color, setColor] = useState("#e11d74");
-  const [signatoryName, setSignatoryName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   useEffect(() => {
@@ -51,12 +51,10 @@ function useBrandingInfo(userId: string | undefined) {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
       if (!profile?.organization_id) return;
       const [{ data: compliance }, { data: org }] = await Promise.all([
-        supabase.from("organization_compliance" as any).select("brand_color, authorized_signatory_name, legal_name, registered_address, state, pincode").eq("organization_id", profile.organization_id).maybeSingle(),
+        supabase.from("organization_compliance" as any).select("brand_color, legal_name, registered_address, state, pincode").eq("organization_id", profile.organization_id).maybeSingle(),
         supabase.from("organizations").select("name").eq("id", profile.organization_id).maybeSingle(),
       ]);
       if ((compliance as any)?.brand_color) setColor((compliance as any).brand_color);
-      if ((compliance as any)?.authorized_signatory_name) setSignatoryName((compliance as any).authorized_signatory_name);
-      // Prefer compliance legal_name, fall back to organizations.name
       setCompanyName((compliance as any)?.legal_name || (org as any)?.name || "");
       const parts = [
         (compliance as any)?.registered_address,
@@ -66,7 +64,7 @@ function useBrandingInfo(userId: string | undefined) {
       setCompanyAddress(parts.join(", "));
     })();
   }, [userId]);
-  return { color, signatoryName, companyName, companyAddress };
+  return { color, companyName, companyAddress };
 }
 
 const periodLabel = (p: string) => {
@@ -82,184 +80,191 @@ interface PaySlipDialogProps {
 }
 
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
-  const logoDataUrl = useLogoDataUrl(grx10Logo);
+  useLogoDataUrl(grx10Logo); // keep hook call order stable
   const { user } = useAuth();
-  const { color: brandColor, signatoryName, companyName, companyAddress } = useBrandingInfo(user?.id);
-  // Fetch employee_details using the proven hook — runs only when profile_id is present,
-  // does not affect the payroll list query at all.  Must be called before any early returns.
+  const { color: brandColor, companyName, companyAddress } = useBrandingInfo(user?.id);
   const { data: employeeDetails } = useEmployeeDetails(record?.profile_id ?? null);
   if (!record) return null;
 
   const slip = normalizePayslip(record);
   const { earnings, deductions, totalEarnings, totalDeductions, netPay, lopDays, workingDays, paidDays } = slip;
 
-  const r = record as any; // engine entries may carry extra fields from older payroll rows
-  const ed = employeeDetails; // from employee_details table via useEmployeeDetails hook
-  const employeeName = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
-  const jobTitle = DOMPurify.sanitize(record.profiles?.job_title || "—");
-  // profiles.employee_id (EMP001 style); fall back to employee_details.employee_id_number
-  const employeeId = DOMPurify.sanitize(record.profiles?.employee_id || ed?.employee_id_number || r.employee_id || "—");
-  const panNumber = DOMPurify.sanitize(ed?.pan_number || r.pan_number || "—");
-  const bankName = DOMPurify.sanitize(ed?.bank_name || r.bank_name || "—");
-  const bankAccountNumber = DOMPurify.sanitize(ed?.bank_account_number || r.bank_account_number || "—");
-  const uanNumber = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
-  const pfAccountNo = DOMPurify.sanitize(r.pf_account_number || "—");
-  const gender = DOMPurify.sanitize(ed?.gender || r.gender || "—");
-  const location = DOMPurify.sanitize(r.profiles?.location || r.location || "—");
-  // join_date from profile (YYYY-MM-DD) formatted to DD-MMM-YYYY
-  const rawJoinDate = record.profiles?.join_date || r.date_of_joining || "";
+  const r = record as any;
+  const ed = employeeDetails;
+  const employeeName  = DOMPurify.sanitize(record.profiles?.full_name || "Employee");
+  const jobTitle      = DOMPurify.sanitize(record.profiles?.job_title || "—");
+  const department    = DOMPurify.sanitize(record.profiles?.department || r.department || "—");
+  const employeeId    = DOMPurify.sanitize(record.profiles?.employee_id || ed?.employee_id_number || r.employee_id || "—");
+  const panNumber     = DOMPurify.sanitize(ed?.pan_number || r.pan_number || "—");
+  const bankName      = DOMPurify.sanitize(ed?.bank_name || r.bank_name || "—");
+  const bankAccount   = DOMPurify.sanitize(ed?.bank_account_number || r.bank_account_number || "—");
+  const bankIfsc      = DOMPurify.sanitize(ed?.bank_ifsc || r.bank_ifsc || "—");
+  const uanNumber     = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
+  const rawJoinDate   = record.profiles?.join_date || r.date_of_joining || "";
   const dateOfJoining = rawJoinDate
     ? DOMPurify.sanitize(new Date(rawJoinDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }))
     : "—";
-  const period = periodLabel(record.pay_period);
-  const processedDate = record.processed_at
-    ? new Date(record.processed_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-    : null;
-
-  const logoSrc = logoDataUrl || new URL(grx10Logo, window.location.origin).href;
+  const period        = periodLabel(record.pay_period);
+  const genDate       = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 
   // Pad earnings/deductions to equal rows for side-by-side table
   const maxRows = Math.max(earnings.length, deductions.length);
-  const paddedEarnings = [...earnings, ...Array(maxRows - earnings.length).fill(null)];
-  const paddedDeductions = [...deductions, ...Array(maxRows - deductions.length).fill(null)];
+  const padE = [...earnings,    ...Array(maxRows - earnings.length).fill(null)];
+  const padD = [...deductions,  ...Array(maxRows - deductions.length).fill(null)];
+
+  // Helper: derive tint backgrounds from brand color
+  const hexToRgb = (hex: string) => {
+    const h = hex.replace("#", "");
+    return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+  };
+  const rgb     = hexToRgb(brandColor);
+  const tintBg  = `rgba(${rgb.r},${rgb.g},${rgb.b},0.06)`;
+  const tintMed = `rgba(${rgb.r},${rgb.g},${rgb.b},0.12)`;
+
+  // Employee info table: 4 columns (label|value|label|value)
+  const empFields = [
+    ["Employee ID",    employeeId,               "Pay Period",   period],
+    ["Designation",    jobTitle,                  "Department",   department],
+    ["Date of Joining",dateOfJoining,             "Working Days", String(workingDays || "—")],
+    ["Paid Days",      String(paidDays || "—"),   "LOP Days",     String(lopDays || "0")],
+    ["PAN No",         panNumber,                 "UAN No",       uanNumber],
+    ["Bank Name",      bankName,                  "Bank A/C No",  bankAccount],
+    ["IFSC Code",      bankIfsc,                  "",             ""],
+  ];
 
   const buildHTML = () => {
-    const bc = brandColor;
+    const bc  = brandColor;
     const esc = (v: unknown) => DOMPurify.sanitize(String(v ?? ""));
-    const eRows = paddedEarnings.map((e, i) => {
-      const d = paddedDeductions[i];
-      return `<tr>
+
+    const eRows = padE.map((e, i) => {
+      const d   = padD[i];
+      const bg  = i % 2 === 0 ? "#fff" : tintBg;
+      return `<tr style="background:${bg}">
         <td class="cell">${e ? esc(e.label) : ''}</td>
         <td class="cell r">${e && e.amount > 0 ? fmtFull(e.amount) : e ? '--' : ''}</td>
-        <td class="cell">${d ? esc(d.label) : ''}</td>
+        <td class="cell mid">${d ? esc(d.label) : ''}</td>
         <td class="cell r">${d && d.amount > 0 ? fmtFull(d.amount) : d ? '--' : ''}</td>
       </tr>`;
     }).join("");
 
-    return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Pay Slip — ${employeeName} — ${period}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a1a; background: #fff; width: 700px; max-width: 700px; margin: 0 auto; padding: 30px 36px; }
-  .company-header { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; padding-bottom: 10px; }
-  .company-logo { height: 72px; width: auto; }
-  .company-info { flex: 1; }
-  .company-name { font-size: 22px; font-weight: 800; color: #1a1a1a; text-transform: uppercase; letter-spacing: 1px; }
-  .company-address { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.5; }
-  .payslip-title { text-align: center; font-size: 22px; font-weight: 600; color: #333; font-style: italic; margin: 8px 0 16px; }
+    const empRows = empFields.map(([l1, v1, l2, v2]) => `
+      <tr>
+        <td class="eg-label">${l1}</td><td class="eg-value">${esc(v1)}</td>
+        <td class="eg-label">${l2}</td><td class="eg-value">${esc(v2)}</td>
+      </tr>`).join("");
 
-  /* Employee Summary */
-  .emp-section { border: 1px solid #ccc; margin-bottom: 16px; }
-  .emp-header { background: ${bc}; color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .emp-name { font-size: 15px; font-weight: 700; color: ${bc}; padding: 8px 12px; border-bottom: 1px solid #ddd; }
-  .emp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; }
-  .emp-grid .eg-label { font-size: 11px; font-weight: 600; color: #333; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; background: #fafafa; }
-  .emp-grid .eg-value { font-size: 11px; color: #555; padding: 5px 12px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
-  .emp-grid .eg-value:nth-child(4n) { border-right: none; }
-  .emp-grid .eg-label:nth-child(4n) { border-right: none; }
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Pay Slip — ${employeeName} — ${period}</title>
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1a1a1a; background: #fff;
+         width: 700px; max-width: 700px; margin: 0 auto;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Header */
+  .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .co-name  { font-size: 20px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
+  .co-addr  { font-size: 10px; color: rgba(255,255,255,0.82); margin-top: 4px; line-height: 1.6; max-width: 340px; }
+  .slip-title  { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; text-align: right; }
+  .slip-period { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 4px; font-style: italic; text-align: right; }
+
+  /* Employee name bar */
+  .emp-name-bar { background: ${tintMed}; padding: 8px 14px; border-left: 4px solid ${bc}; margin-top: 14px; }
+  .emp-name-bar .name { font-size: 15px; font-weight: 700; color: ${bc}; }
+  .emp-name-bar .sub  { font-size: 11px; color: #555; margin-top: 2px; }
+
+  /* Employee details grid */
+  .emp-table { width: 100%; border-collapse: collapse; border: 1px solid #ddd; }
+  .eg-label { font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.4px;
+               padding: 5px 10px; background: ${tintBg}; border-bottom: 1px solid #e8e8e8; border-right: 1px solid #ddd; width: 18%; }
+  .eg-value { font-size: 11px; color: #222; padding: 5px 10px;
+               border-bottom: 1px solid #e8e8e8; border-right: 1px solid #ddd; width: 32%; }
+  .emp-table tr:last-child .eg-label,
+  .emp-table tr:last-child .eg-value { border-bottom: none; }
 
   /* Earnings & Deductions */
-  .ed-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #ccc; }
-  .ed-table .ed-header th { background: ${bc}; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border: 1px solid ${bc}; }
-  .ed-table .ed-header th.r { text-align: right; }
-  .cell { padding: 5px 12px; font-size: 12px; border-bottom: 1px solid #eee; }
-  .cell.r { text-align: right; font-weight: 500; }
-  .total-row td { border-top: 2px solid #999; font-weight: 700; font-size: 12px; padding: 7px 12px; }
-  .netpay-row td { font-weight: 700; font-size: 12px; padding: 7px 12px; border-top: 1px solid #ccc; }
+  .ed-table { width: 100%; border-collapse: collapse; margin-top: 14px; border: 1px solid #ddd; }
+  .ed-table thead th { background: ${bc}; color: #fff; font-size: 11px; font-weight: 700;
+                        padding: 7px 10px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+  .ed-table thead th.r { text-align: right; }
+  .cell { padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #eee; color: #222; }
+  .cell.r   { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cell.mid { border-left: 1px solid #ddd; }
+  .total-row td { border-top: 2px solid ${bc}; font-weight: 700; font-size: 11px;
+                   padding: 7px 10px; background: ${tintBg}; }
+  .earn { color: #15803d; }
+  .ded  { color: #dc2626; }
 
-  /* Net Pay Box */
-  .net-box { border: 2px solid #333; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .net-box .label-side { }
-  .net-box .label-side .title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
-  .net-box .label-side .sub { font-size: 11px; color: #888; font-style: italic; }
-  .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
-  .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; margin-bottom: 20px; }
+  /* Net Pay */
+  .net-box { background: ${bc}; padding: 14px 20px; margin-top: 14px;
+              display: flex; justify-content: space-between; align-items: center; }
+  .net-label { color: rgba(255,255,255,0.9); font-size: 11px; text-transform: uppercase;
+                letter-spacing: 1px; font-weight: 700; }
+  .net-sub   { color: rgba(255,255,255,0.7); font-size: 10px; font-style: italic; margin-top: 3px; }
+  .net-amt   { color: #fff; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .words-bar { background: ${tintBg}; border: 1px solid #ddd; border-top: none;
+                text-align: center; font-size: 11px; font-weight: 600; color: #333; padding: 7px 10px; }
 
-  .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
-  .footer .sig { text-align: right; }
-  .footer .sig .line { display: block; width: 140px; border-top: 1px solid #bbb; padding-top: 4px; margin-top: 30px; }
-  @media print { body { padding: 20px; } }
+  /* Footer */
+  .footer { margin-top: 18px; border-top: 2px solid ${bc}; padding-top: 10px;
+             display: flex; justify-content: space-between; align-items: flex-start; }
+  .gen-date  { font-size: 10px; color: #888; }
+  .statutory { font-size: 9.5px; color: #999; font-style: italic; text-align: right; max-width: 340px; line-height: 1.5; }
+
+  @media print { body { width: 100%; max-width: 100%; } }
 </style></head><body>
 
-  <div class="company-header">
-    <img src="${logoSrc}" alt="Logo" class="company-logo" />
-    <div class="company-info">
-      <div class="company-name">${esc(companyName)}</div>
-      ${companyAddress ? `<div class="company-address">${esc(companyAddress)}</div>` : ''}
+  <div class="header">
+    <div>
+      <div class="co-name">${esc(companyName)}</div>
+      ${companyAddress ? `<div class="co-addr">${esc(companyAddress)}</div>` : ''}
+    </div>
+    <div>
+      <div class="slip-title">Pay Slip</div>
+      <div class="slip-period">${period}</div>
     </div>
   </div>
-  <div class="payslip-title">Pay Slip</div>
 
-  <div class="emp-section">
-    <div class="emp-header">Employee Summary</div>
-    <div class="emp-name">${employeeName}</div>
-    <div class="emp-grid">
-      <div class="eg-label">Employee ID</div>
-      <div class="eg-value">${employeeId}</div>
-      <div class="eg-label">Location</div>
-      <div class="eg-value">${location}</div>
-
-      <div class="eg-label">Designation</div>
-      <div class="eg-value">${jobTitle}</div>
-      <div class="eg-label">PAN No</div>
-      <div class="eg-value">${panNumber}</div>
-
-      <div class="eg-label">Gender</div>
-      <div class="eg-value">${gender}</div>
-      <div class="eg-label">Bank A/C No</div>
-      <div class="eg-value">${bankAccountNumber}</div>
-
-      <div class="eg-label">Date of Joining</div>
-      <div class="eg-value">${dateOfJoining}</div>
-      <div class="eg-label">Working Days</div>
-      <div class="eg-value">${workingDays || '—'}</div>
-
-      <div class="eg-label">PF A/C No</div>
-      <div class="eg-value">${pfAccountNo}</div>
-      <div class="eg-label">Paid Days</div>
-      <div class="eg-value">${paidDays || '—'}</div>
-
-      <div class="eg-label">UAN</div>
-      <div class="eg-value">${uanNumber}</div>
-      <div class="eg-label">LOP</div>
-      <div class="eg-value">${lopDays || '0'}</div>
-    </div>
+  <div class="emp-name-bar">
+    <div class="name">${employeeName}</div>
+    <div class="sub">${esc(jobTitle)}${department && department !== '—' ? ' &nbsp;·&nbsp; ' + esc(department) : ''}</div>
   </div>
+
+  <table class="emp-table"><tbody>${empRows}</tbody></table>
 
   <table class="ed-table">
-    <tr class="ed-header">
-      <th>Earning</th>
-      <th class="r">Amount</th>
-      <th>Deduction</th>
-      <th class="r">Amount</th>
-    </tr>
-    ${eRows}
-    <tr class="total-row">
-      <td>Total Earnings</td>
-      <td class="r" style="color:#16a34a">${fmtFull(totalEarnings)}</td>
-      <td>Total Deductions</td>
-      <td class="r" style="color:#dc2626">${fmtFull(totalDeductions)}</td>
-    </tr>
-    <tr class="netpay-row">
-      <td colspan="2"></td>
-      <td><strong>Net Pay</strong></td>
-      <td class="r" style="font-size:13px">${fmtFull(netPay)}</td>
-    </tr>
+    <thead>
+      <tr>
+        <th>Earning</th><th class="r">Amount (₹)</th>
+        <th style="border-left:1px solid rgba(255,255,255,0.3)">Deduction</th><th class="r">Amount (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${eRows}
+      <tr class="total-row">
+        <td>Total Earnings</td><td class="r earn">${fmtFull(totalEarnings)}</td>
+        <td class="mid">Total Deductions</td><td class="r ded">${fmtFull(totalDeductions)}</td>
+      </tr>
+    </tbody>
   </table>
 
   <div class="net-box">
-    <div class="label-side">
-      <div class="title">Total Net Payable</div>
-      <div class="sub">Gross Earnings - Total Deduction</div>
+    <div>
+      <div class="net-label">Total Net Payable</div>
+      <div class="net-sub">Gross Earnings − Total Deductions</div>
     </div>
-    <div class="amount">Rs : ${Math.round(netPay).toLocaleString("en-IN")}/-</div>
+    <div class="net-amt">₹${Math.round(netPay).toLocaleString("en-IN")}/-</div>
   </div>
-  <div class="words-row">Amount in Words : ${numberToWords(netPay)}</div>
+  <div class="words-bar">Amount in Words: ${numberToWords(netPay)}</div>
 
-   <div class="footer">
-    <div>${processedDate ? `Processed on: ${processedDate}` : 'Not yet processed'}</div>
-    <div class="sig">${signatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${DOMPurify.sanitize(signatoryName)}</span>` : ''}<span class="line">Authorised Signatory</span></div>
+  <div class="footer">
+    <div class="gen-date">Generated on ${genDate}</div>
+    <div class="statutory">This is a computer-generated payslip and does not require a physical signature.<br>
+      Valid under the Information Technology Act, 2000 and the Payment of Wages Act, 1936.</div>
   </div>
+
 </body></html>`;
   };
 
@@ -276,12 +281,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   const handleDownload = async () => {
     const container = document.createElement("div");
-    container.style.position = "fixed";
-    container.style.left = "-10000px";
-    container.style.top = "0";
-    container.style.width = "700px";
-    container.style.background = "#ffffff";
-    container.style.zIndex = "-1";
+    container.style.cssText = "position:fixed;left:-10000px;top:0;width:700px;background:#ffffff;z-index:-1;";
     document.body.appendChild(container);
 
     const shadow = container.attachShadow({ mode: "open" });
@@ -289,23 +289,12 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     const parsed = parser.parseFromString(buildHTML(), "text/html");
     const style = parsed.querySelector("style");
     if (style) shadow.appendChild(style.cloneNode(true));
-
     const bodyContent = document.createElement("div");
     bodyContent.innerHTML = parsed.body.innerHTML;
     shadow.appendChild(bodyContent);
 
     try {
-      await new Promise<void>((resolve) => {
-        const img = shadow.querySelector("img") as HTMLImageElement | null;
-        if (img && !img.complete) {
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          setTimeout(resolve, 2000);
-        } else {
-          setTimeout(resolve, 400);
-        }
-      });
-
+      await new Promise<void>((resolve) => setTimeout(resolve, 400));
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
@@ -325,11 +314,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     }
   };
 
-  // In-dialog preview mirrors the PDF layout
-  const maxRowsUI = Math.max(earnings.length, deductions.length);
-  const padE = [...earnings, ...Array(maxRowsUI - earnings.length).fill(null)];
-  const padD = [...deductions, ...Array(maxRowsUI - deductions.length).fill(null)];
-
+  // ── In-dialog React preview ───────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-morphism">
@@ -337,114 +322,113 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           <DialogTitle className="text-gradient-primary text-xl">Pay Slip</DialogTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={openPrintWindow}>
-              <Printer className="h-4 w-4 mr-1" />
-              Print
+              <Printer className="h-4 w-4 mr-1" />Print
             </Button>
             <Button size="sm" onClick={handleDownload} className="bg-gradient-financial text-white hover:opacity-90">
-              <Download className="h-4 w-4 mr-1" />
-              Download PDF
+              <Download className="h-4 w-4 mr-1" />Download PDF
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Company Header */}
-          <div className="flex items-center gap-4">
-            <img src={grx10Logo} alt="GRX10 Logo" className="h-16 w-auto" />
-            <div>
-              <p className="text-lg font-extrabold tracking-wide uppercase">{companyName}</p>
-              {companyAddress && <p className="text-xs text-muted-foreground leading-relaxed">{companyAddress}</p>}
+        <div className="space-y-3 text-sm">
+          {/* Header */}
+          <div className="rounded-md overflow-hidden">
+            <div className="flex justify-between items-start p-4" style={{ background: brandColor }}>
+              <div>
+                <p className="text-base font-extrabold tracking-wider uppercase text-white">{companyName}</p>
+                {companyAddress && <p className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.82)" }}>{companyAddress}</p>}
+              </div>
+              <div className="text-right">
+                <p className="text-base font-bold tracking-widest uppercase text-white">Pay Slip</p>
+                <p className="text-xs italic mt-1" style={{ color: "rgba(255,255,255,0.85)" }}>{period}</p>
+              </div>
             </div>
           </div>
-          <p className="text-center text-xl font-semibold italic text-foreground/80">Pay Slip</p>
 
-          {/* Employee Summary */}
+          {/* Employee name bar */}
+          <div className="px-3 py-2 rounded-sm border-l-4" style={{ background: tintMed, borderLeftColor: brandColor }}>
+            <p className="font-bold text-sm" style={{ color: brandColor }}>{employeeName}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {jobTitle}{department && department !== "—" ? ` · ${department}` : ""}
+            </p>
+          </div>
+
+          {/* Employee details grid */}
           <div className="border border-border rounded overflow-hidden">
-            <div className="bg-primary text-primary-foreground text-center text-sm font-bold py-1.5 uppercase tracking-wider">
-              Employee Summary
-            </div>
-            <div className="px-3 py-2 border-b border-border">
-              <span className="text-base font-bold text-primary">{employeeName}</span>
-            </div>
-            <div className="grid grid-cols-4 text-xs">
-              {[
-                ["Employee ID", employeeId,              "Location",    location],
-                ["Designation", jobTitle,                "PAN No",      panNumber],
-                ["Gender",      gender,                  "Bank A/C No", bankAccountNumber],
-                ["Date of Joining", dateOfJoining,       "Working Days", String(workingDays || "—")],
-                ["PF A/C No",   pfAccountNo,             "Paid Days",   String(paidDays || "—")],
-                ["UAN",         uanNumber,               "LOP",         String(lopDays || "0")],
-              ].map((row, i) => (
-                <React.Fragment key={i}>
-                  <div className="px-3 py-1.5 border-b border-r border-border bg-muted/30 font-semibold">{row[0]}</div>
-                  <div className="px-3 py-1.5 border-b border-r border-border">{row[1]}</div>
-                  <div className="px-3 py-1.5 border-b border-r border-border bg-muted/30 font-semibold">{row[2]}</div>
-                  <div className="px-3 py-1.5 border-b border-border">{row[3]}</div>
-                </React.Fragment>
-              ))}
-            </div>
+            <table className="w-full text-xs">
+              <tbody>
+                {empFields.map(([l1, v1, l2, v2], i) => (
+                  <tr key={i} className="border-b border-border/50 last:border-0">
+                    <td className="px-3 py-1.5 font-semibold uppercase tracking-wide text-muted-foreground w-[18%]" style={{ background: tintBg }}>{l1}</td>
+                    <td className="px-3 py-1.5 w-[32%]">{v1}</td>
+                    <td className="px-3 py-1.5 font-semibold uppercase tracking-wide text-muted-foreground w-[18%] border-l border-border" style={{ background: tintBg }}>{l2}</td>
+                    <td className="px-3 py-1.5">{v2}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* Earnings & Deductions Table */}
+          {/* Earnings & Deductions */}
           <div className="border border-border rounded overflow-hidden">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-primary text-primary-foreground">
-                  <th className="text-left px-3 py-1.5 font-bold uppercase tracking-wide">Earning</th>
-                  <th className="text-right px-3 py-1.5 font-bold uppercase tracking-wide">Amount</th>
-                  <th className="text-left px-3 py-1.5 font-bold uppercase tracking-wide">Deduction</th>
-                  <th className="text-right px-3 py-1.5 font-bold uppercase tracking-wide">Amount</th>
+                <tr style={{ background: brandColor }}>
+                  <th className="text-left px-3 py-2 font-bold uppercase tracking-wide text-white">Earning</th>
+                  <th className="text-right px-3 py-2 font-bold uppercase tracking-wide text-white">Amount (₹)</th>
+                  <th className="text-left px-3 py-2 font-bold uppercase tracking-wide text-white border-l border-white/20">Deduction</th>
+                  <th className="text-right px-3 py-2 font-bold uppercase tracking-wide text-white">Amount (₹)</th>
                 </tr>
               </thead>
               <tbody>
                 {padE.map((e, i) => {
                   const d = padD[i];
                   return (
-                    <tr key={i} className="border-b border-border/50">
+                    <tr key={i} className="border-b border-border/40 last:border-0"
+                        style={{ background: i % 2 === 0 ? "#fff" : tintBg }}>
                       <td className="px-3 py-1.5">{e ? e.label : ""}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{e && e.amount > 0 ? fmt(e.amount) : e ? "--" : ""}</td>
-                      <td className="px-3 py-1.5">{d ? d.label : ""}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{d && d.amount > 0 ? fmt(d.amount) : d ? "--" : ""}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{e && e.amount > 0 ? fmt(e.amount) : e ? "--" : ""}</td>
+                      <td className="px-3 py-1.5 border-l border-border">{d ? d.label : ""}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{d && d.amount > 0 ? fmt(d.amount) : d ? "--" : ""}</td>
                     </tr>
                   );
                 })}
-                <tr className="border-t-2 border-foreground/30 font-bold">
+                <tr className="font-bold" style={{ background: tintBg, borderTop: `2px solid ${brandColor}` }}>
                   <td className="px-3 py-2">Total Earnings</td>
-                  <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{fmt(totalEarnings)}</td>
-                  <td className="px-3 py-2">Total Deductions</td>
-                  <td className="px-3 py-2 text-right text-destructive">{fmt(totalDeductions)}</td>
-                </tr>
-                <tr className="border-t border-border">
-                  <td colSpan={2}></td>
-                  <td className="px-3 py-2 font-bold">Net Pay</td>
-                  <td className="px-3 py-2 text-right font-bold">{fmt(netPay)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(totalEarnings)}</td>
+                  <td className="px-3 py-2 border-l border-border">Total Deductions</td>
+                  <td className="px-3 py-2 text-right text-destructive tabular-nums">{fmt(totalDeductions)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Net Payable Box */}
-          <div className="border-2 border-foreground/60 rounded p-4 flex justify-between items-center">
-            <div>
-              <p className="text-sm font-extrabold uppercase">Total Net Payable</p>
-              <p className="text-xs text-muted-foreground italic">Gross Earnings - Total Deduction</p>
+          {/* Net Pay */}
+          <div className="rounded overflow-hidden">
+            <div className="flex justify-between items-center px-5 py-3" style={{ background: brandColor }}>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-white/90">Total Net Payable</p>
+                <p className="text-xs italic mt-0.5 text-white/70">Gross Earnings − Total Deductions</p>
+              </div>
+              <span className="text-2xl font-extrabold text-white tracking-tight">
+                ₹{Math.round(netPay).toLocaleString("en-IN")}/-
+              </span>
             </div>
-            <span className="text-2xl font-extrabold text-primary">Rs : {Math.round(netPay).toLocaleString("en-IN")}/-</span>
-          </div>
-          <div className="text-center text-xs font-semibold border border-border rounded py-2 bg-muted/20">
-            Amount in Words : {numberToWords(netPay)}
+            <div className="text-center text-xs font-semibold py-2 border border-t-0 border-border" style={{ background: tintBg }}>
+              Amount in Words: {numberToWords(netPay)}
+            </div>
           </div>
 
-          {processedDate && (
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Processed on {processedDate}
+          {/* Footer */}
+          <div className="flex justify-between items-start pt-2" style={{ borderTop: `2px solid ${brandColor}` }}>
+            <p className="text-xs text-muted-foreground">Generated on {genDate}</p>
+            <p className="text-xs text-muted-foreground italic text-right max-w-xs leading-relaxed">
+              This is a computer-generated payslip and does not require a physical signature.<br />
+              Valid under the Information Technology Act, 2000 and the Payment of Wages Act, 1936.
             </p>
-          )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-
-// Need React import for React.Fragment usage in JSX
-import React from "react";

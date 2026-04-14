@@ -53,6 +53,8 @@ import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Target } from "lucide-react";
 import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
 import { EmailAlertsConfigSection } from "@/components/settings/EmailAlertsConfigSection";
@@ -74,6 +76,7 @@ const ROLE_LABELS: Record<string, string> = {
   hr: "HR",
   manager: "Manager",
   finance: "Finance",
+  payroll: "Payroll",
   employee: "Employee",
 };
 
@@ -82,6 +85,7 @@ const ROLE_COLORS: Record<string, string> = {
   hr: "bg-primary/10 text-primary border-primary/20",
   manager: "bg-accent/50 text-accent-foreground border-accent",
   finance: "bg-chart-2/10 text-chart-2 border-chart-2/20",
+  payroll: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   employee: "bg-muted text-muted-foreground border-border",
 };
 
@@ -922,6 +926,21 @@ function UserManagementSection() {
     );
   }, [users, searchQuery]);
 
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: pagedUsers,
+    from,
+    to,
+  } = usePagination(filteredUsers, 10);
+
+  // Reset to page 1 whenever the search query changes
+  useEffect(() => { setPage(1); }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
     const { data, error } = await supabase.functions.invoke("manage-roles", {
@@ -948,6 +967,21 @@ function UserManagementSection() {
       qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setActionUser(null);
+  };
+
+  // Activate an inactive user (Yes in the User Status dropdown).
+  const handleActivateUser = async (userId: string) => {
+    setUpdatingUser(userId);
+    const { data, error } = await supabase.functions.invoke("manage-roles", {
+      body: { action: "activate_user", user_id: userId },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || "Failed to activate user");
+    } else {
+      toast.success("User reactivated successfully");
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
+    }
+    setUpdatingUser(null);
   };
 
   // Always show the confirm dialog before deactivating/deleting.
@@ -1148,7 +1182,7 @@ function UserManagementSection() {
                   : "No users match your search."}
               </p>
             ) : (
-              filteredUsers.map((u) => {
+              pagedUsers.map((u) => {
                 const currentRole = u.roles[0] || "employee";
                 const isSelf = u.user_id === user?.id;
                 const isPending = u.status === "pending_approval";
@@ -1169,13 +1203,36 @@ function UserManagementSection() {
                             You
                           </Badge>
                         )}
-                        <Badge
-                          variant="outline"
-                          className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
-                        >
-                          {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
-                          {STATUS_LABELS[u.status] || u.status}
-                        </Badge>
+                        {/* Status: editable Yes/No for active/inactive; read-only badge for others */}
+                        {(u.status === "active" || u.status === "inactive") && !isSelf ? (
+                          <Select
+                            value={u.status === "active" ? "yes" : "no"}
+                            onValueChange={(val) => {
+                              if (val === "yes") {
+                                handleActivateUser(u.user_id);
+                              } else {
+                                initiateDeactivateOrDelete(u, "deactivate");
+                              }
+                            }}
+                            disabled={actionUser === u.user_id || updatingUser === u.user_id}
+                          >
+                            <SelectTrigger className="h-6 w-[80px] text-xs px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="yes">Active</SelectItem>
+                              <SelectItem value="no">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
+                          >
+                            {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
+                            {STATUS_LABELS[u.status] || u.status}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {u.email}
@@ -1234,6 +1291,7 @@ function UserManagementSection() {
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="finance">Finance</SelectItem>
                             <SelectItem value="hr">HR</SelectItem>
+                            <SelectItem value="payroll">Payroll</SelectItem>
                             <SelectItem value="employee">Employee</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1256,8 +1314,8 @@ function UserManagementSection() {
                         </Button>
                       )}
 
-                      {/* Deactivate / Delete dropdown */}
-                      {!isSelf && !isInactive && (
+                      {/* Delete dropdown */}
+                      {!isSelf && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1270,16 +1328,6 @@ function UserManagementSection() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {!isPending && (
-                              <DropdownMenuItem
-                                className="text-yellow-600 focus:text-yellow-600"
-                                onClick={() => initiateDeactivateOrDelete(u, "deactivate")}
-                              >
-                                <UserX className="h-4 w-4 mr-2" />
-                                Deactivate
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => initiateDeactivateOrDelete(u, "delete")}
@@ -1296,6 +1344,18 @@ function UserManagementSection() {
               })
             )}
           </div>
+          {totalPages > 1 && (
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              from={from}
+              to={to}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
