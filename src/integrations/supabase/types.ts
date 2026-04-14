@@ -11264,20 +11264,33 @@ export type Database = {
         }[]
       }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _org_id: string
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
       initialize_financial_os: {
         Args: { _calibration?: Json; _force?: boolean; _org_id: string }
         Returns: Json
       }
       inspect_database_structure: { Args: never; Returns: Json }
-      is_admin_hr_or_manager: { Args: { _user_id: string }; Returns: boolean }
-      is_admin_or_finance: { Args: { _user_id: string }; Returns: boolean }
+      is_admin_hr_or_manager:
+        | { Args: { _user_id: string }; Returns: boolean }
+        | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
+      is_admin_or_finance:
+        | { Args: { _user_id: string }; Returns: boolean }
+        | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
       is_admin_or_hr: { Args: { _user_id: string }; Returns: boolean }
       is_manager_of_profile: {
         Args: { _profile_id: string; _user_id: string }
