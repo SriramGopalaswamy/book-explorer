@@ -41,7 +41,7 @@ import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
   Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  UserCog, Clock, Mail, Building2,
+  Clock, Mail, Building2, RefreshCw, ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -894,6 +894,8 @@ function UserManagementSection() {
   const [searchQuery, setSearchQuery] = useState("");
   // Role picker state for the Pending Activation section (keyed by user_id)
   const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
+  // MS365 manager sync state
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Manager reassignment dialog state
   const [managerDialogOpen, setManagerDialogOpen] = useState(false);
@@ -1043,24 +1045,23 @@ function UserManagementSection() {
     setManagerDialogAction(null);
   };
 
-  const handleSetManager = async () => {
-    if (!setManagerTarget) return;
-    setUpdatingManager(true);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: {
-        action: "update_manager",
-        user_id: setManagerTarget.user_id,
-        manager_user_id: newManagerUserId || undefined,
-      },
+  const handleSyncManagers = async () => {
+    setIsSyncing(true);
+    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+      body: { action: "sync_managers" },
     });
     if (error || data?.error) {
-      toast.error(data?.error || "Failed to update manager");
+      toast.error(data?.error || "Sync failed. Ensure the Azure app has User.Read.All application permission.");
     } else {
-      toast.success("Manager updated successfully");
-      setAssignManagerDialogOpen(false);
-      await refreshUsers();
+      const { synced = 0, errors = [] } = data;
+      if (errors.length > 0) {
+        toast.warning(`Sync complete: ${synced} updated, ${errors.length} error(s). Check function logs.`);
+      } else {
+        toast.success(`Sync complete — ${synced} manager assignment${synced !== 1 ? "s" : ""} updated from Microsoft 365.`);
+      }
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
-    setUpdatingManager(false);
+    setIsSyncing(false);
   };
 
   if (loading) {
@@ -1126,45 +1127,51 @@ function UserManagementSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Set Manager Dialog */}
+      {/* Manager Info Dialog — points admin to MS365 instead of manual override */}
       <Dialog open={assignManagerDialogOpen} onOpenChange={setAssignManagerDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set Manager for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
+            <DialogTitle>Manager assignment for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
             <DialogDescription>
-              Manually assign a manager. This overrides the MS365 org chart.
+              Manager assignments are controlled by your Microsoft 365 organisation chart and synced automatically.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>Manager</Label>
-            <Select value={newManagerUserId} onValueChange={setNewManagerUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select manager..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUsers
-                  .filter((u) => u.user_id !== setManagerTarget?.user_id)
-                  .map((u) => (
-                    <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.full_name || u.email}
-                      {u.job_title ? ` · ${u.job_title}` : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            {setManagerTarget?.pending_manager_email && (
-              <p className="text-xs text-yellow-600">
-                Waiting on MS365 sync for: {setManagerTarget.pending_manager_email}
-              </p>
+          <div className="space-y-3 py-3">
+            {setManagerTarget?.manager_id && profileIdToName.get(setManagerTarget.manager_id) ? (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+                Current manager: <span className="font-medium">{profileIdToName.get(setManagerTarget.manager_id)}</span>
+              </div>
+            ) : setManagerTarget?.pending_manager_email ? (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700">
+                Manager assigned in MS365 as <span className="font-medium">{setManagerTarget.pending_manager_email}</span> — will resolve once they log in, or click <strong>Sync from MS365</strong>.
+              </div>
+            ) : (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                No manager assigned in Microsoft 365.
+              </div>
             )}
+            <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-700 space-y-1">
+              <p className="font-medium">To change this employee's manager:</p>
+              <ol className="list-decimal list-inside space-y-1 text-blue-600">
+                <li>Open the Microsoft 365 Admin Center</li>
+                <li>Go to <strong>Users → Active users</strong></li>
+                <li>Select the employee and edit their profile</li>
+                <li>Update the <strong>Manager</strong> field</li>
+                <li>Return here and click <strong>Sync from MS365</strong></li>
+              </ol>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setAssignManagerDialogOpen(false)}>
-              Cancel
+              Close
             </Button>
-            <Button onClick={handleSetManager} disabled={updatingManager}>
-              {updatingManager && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => window.open("https://admin.microsoft.com/Adminportal/Home#/users", "_blank")}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open MS365 Admin
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1181,7 +1188,24 @@ function UserManagementSection() {
               Employees appear here after signing in with Microsoft 365. Activate them and assign a role to grant access.
             </CardDescription>
           </div>
-          <BulkUploadDialog config={bulkUploadConfig} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncManagers}
+              disabled={isSyncing}
+              className="gap-2"
+              title="Pull latest manager assignments from Microsoft 365 org chart"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {isSyncing ? "Syncing…" : "Sync from MS365"}
+            </Button>
+            <BulkUploadDialog config={bulkUploadConfig} />
+          </div>
         </CardHeader>
         <CardContent>
           {/* ── Pending Activation Banner ── */}
@@ -1422,20 +1446,19 @@ function UserManagementSection() {
                         </Select>
                       )}
 
-                      {/* Set Manager button */}
-                      {!isInactive && !isSelf && (
+                      {/* Manager info button — opens read-only dialog with MS365 guidance */}
+                      {!isSelf && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title="Set Manager"
+                          title="Manager info"
                           onClick={() => {
                             setSetManagerTarget(u);
-                            setNewManagerUserId("");
                             setAssignManagerDialogOpen(true);
                           }}
                         >
-                          <UserCog className="h-4 w-4" />
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                       )}
 
