@@ -96,12 +96,27 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
     ...(incentives > 0 ? [{ label: "Incentives", amount: incentives }] : []),
   ];
 
-  // Professional Tax is stored in other_deductions; TDS in tax_deduction;
-  // Other/misc deductions (salary advances, welfare fund, etc.) in misc_deductions.
-  const profTax = Number(record.other_deductions) || 0;
+  // Professional Tax + Other Deductions are both stored in other_deductions.
+  // Split them using the Karnataka PT slab so each displays as its own line.
+  // If misc_deductions exists separately (future migration), use it directly.
+  const rawOtherDed = Number(record.other_deductions) || 0;
+  const miscFromCol = Number(record.misc_deductions) || 0;
   const tds     = Number(record.tax_deduction) || 0;
   const pf      = Number(record.pf_deduction) || 0;
-  const miscDed = Number(record.misc_deductions) || 0;
+
+  let profTax: number;
+  let miscDed: number;
+  if (miscFromCol > 0) {
+    // misc_deductions column has data — other_deductions is pure PT
+    profTax = rawOtherDed;
+    miscDed = miscFromCol;
+  } else {
+    // Split other_deductions: PT = min(value, slab), remainder = Other Deductions
+    const grossBase = basic + hra + otherAllow + incentives;
+    const ptExpected = grossBase > 15000 ? 200 : grossBase > 10000 ? 150 : 0;
+    profTax = Math.min(rawOtherDed, ptExpected);
+    miscDed = rawOtherDed - profTax;
+  }
 
   // Deductions: Professional Tax, TDS, PF Contribution, Other Deductions, then LOP
   const deductions: PayslipLineItem[] = [
