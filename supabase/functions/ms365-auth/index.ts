@@ -10,8 +10,10 @@ const corsHeaders = {
 const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
 // Helper: sync profile fields + manager_id from MS365 data.
-// If the manager email cannot be resolved to a profile yet, stores it in
-// pending_manager_email for deferred resolution on next login.
+// Guarantees that org_members and a minimal profiles row are always created
+// (throws on failure so the caller returns a proper error rather than a silent
+// broken state). MS365 enrichment (name, title, manager) is applied afterwards
+// and is non-critical — failures are logged but do not abort the login flow.
 async function syncProfileFromMS365(
   supabase: any,
   userId: string,
@@ -22,9 +24,42 @@ async function syncProfileFromMS365(
   email: string,
   managerEmail: string | null,
   status: string = "active",
-) {
+): Promise<void> {
+  // ── Step 1: Guarantee org membership (required for manage-roles to work) ──
+  const { error: memberError } = await supabase
+    .from("organization_members")
+    .upsert(
+      { user_id: userId, organization_id: DEFAULT_ORG_ID },
+      { onConflict: "organization_id,user_id" }
+    );
+  if (memberError) {
+    throw new Error(`Failed to register org membership: ${memberError.message}`);
+  }
+
+  // ── Step 2: Guarantee minimal profile row (required for list_users to work) ──
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    const { error: insertError } = await supabase
+      .from("profiles")
+      .insert({
+        user_id: userId,
+        email: email.toLowerCase(),
+        organization_id: DEFAULT_ORG_ID,
+        status,
+      });
+    if (insertError) {
+      throw new Error(`Failed to create user profile: ${insertError.message}`);
+    }
+  }
+
+  // ── Step 3: Enrich with MS365 data (non-critical — profile already exists) ──
   try {
-    // Look up the manager's profile_id by their email
+    // Look up manager's profile id by email
     let managerId: string | null = null;
     if (managerEmail) {
       const { data: managerProfile } = await supabase
@@ -35,17 +70,9 @@ async function syncProfileFromMS365(
       managerId = managerProfile?.id || null;
     }
 
-    // Check if profile already exists
-    const { data: existingProfile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-
     const profileData: Record<string, any> = {
       full_name: fullName,
       email: email.toLowerCase(),
-      organization_id: DEFAULT_ORG_ID,
     };
     if (jobTitle) profileData.job_title = jobTitle;
     if (department) profileData.department = department;
@@ -67,19 +94,14 @@ async function syncProfileFromMS365(
         .update(profileData)
         .eq("id", existingProfile.id);
     } else {
-      // Only set status on initial profile creation
+      // Enrich the minimal profile just created in Step 2
       await supabase
         .from("profiles")
-        .insert({ ...profileData, user_id: userId, status });
+        .update(profileData)
+        .eq("user_id", userId);
     }
-
-    // Ensure org membership exists (idempotent upsert)
-    await supabase
-      .from("organization_members")
-      .upsert({ user_id: userId, organization_id: DEFAULT_ORG_ID }, { onConflict: "organization_id,user_id" });
-
   } catch (err) {
-    console.warn("Failed to sync profile from MS365:", err);
+    console.warn("MS365 profile enrichment failed (non-critical, minimal profile preserved):", err);
   }
 }
 
@@ -251,6 +273,20 @@ Deno.serve(async (req) => {
             JSON.stringify({ pending: true }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        }
+
+        // Handle existing auth user with no profile row — creation silently failed
+        // on a previous login. Re-create the profile now so they appear in list_users.
+        if (!profileStatus) {
+          const newUserStatus = isAdminEmail ? "active" : "pending_approval";
+          await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail, newUserStatus);
+          if (!isAdminEmail) {
+            return new Response(
+              JSON.stringify({ pending: true }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          // Admin: fall through to generate a session below
         }
 
         // Sign in existing active user by generating a session
