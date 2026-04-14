@@ -166,11 +166,12 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Header */
   .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .co-logo  { height: 44px; width: auto; object-fit: contain; }
+  .co-logo-wrap { background: #fff; border-radius: 6px; padding: 5px 8px; display: flex; align-items: center; justify-content: center; }
+  .co-logo  { height: 38px; width: auto; object-fit: contain; display: block; }
   .co-info  { display: flex; align-items: center; gap: 14px; }
   .co-name  { font-size: 20px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
   .co-addr  { font-size: 10px; color: rgba(255,255,255,0.82); margin-top: 4px; line-height: 1.6; max-width: 340px; }
-  .slip-title  { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; text-align: right; }
+  .slip-title  { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; text-align: right; white-space: nowrap; }
   .slip-period { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 4px; font-style: italic; text-align: right; }
 
   /* Employee name bar */
@@ -221,7 +222,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   <div class="header">
     <div class="co-info">
-      <img src="${logoSrc}" alt="Logo" class="co-logo" />
+      <div class="co-logo-wrap"><img src="${logoSrc}" alt="Logo" class="co-logo" /></div>
       <div>
         <div class="co-name">${esc(companyName)}</div>
         ${companyAddress ? `<div class="co-addr">${esc(companyAddress)}</div>` : ''}
@@ -350,14 +351,16 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
           <div className="rounded-md overflow-hidden">
             <div className="flex justify-between items-center p-4" style={{ background: brandColor }}>
               <div className="flex items-center gap-3">
-                <img src={grx10Logo} alt="Company Logo" className="h-10 w-auto object-contain" />
+                <div className="bg-white rounded p-1.5 flex items-center justify-center shrink-0">
+                  <img src={grx10Logo} alt="Company Logo" className="h-9 w-auto object-contain block" />
+                </div>
                 <div>
                   <p className="text-base font-extrabold tracking-wider uppercase text-white">{companyName}</p>
                   {companyAddress && <p className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.82)" }}>{companyAddress}</p>}
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-base font-bold tracking-widest uppercase text-white">Pay Slip</p>
+                <p className="text-base font-bold tracking-widest uppercase text-white whitespace-nowrap">Pay Slip</p>
                 <p className="text-xs italic mt-1" style={{ color: "rgba(255,255,255,0.85)" }}>{period}</p>
               </div>
             </div>
