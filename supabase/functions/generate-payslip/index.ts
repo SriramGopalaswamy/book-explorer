@@ -84,7 +84,7 @@ serve(async (req) => {
 
     let query = supabase
       .from("payroll_entries")
-      .select("*, profiles!profile_id(full_name, email, department, job_title, date_of_joining)")
+      .select("*, profiles!profile_id(full_name, email, department, job_title, date_of_joining, location)")
       .eq("payroll_run_id", payroll_run_id);
 
     if (entry_ids && entry_ids.length > 0) query = query.in("id", entry_ids);
@@ -101,7 +101,7 @@ serve(async (req) => {
     const profileIds = entries.map((e: any) => e.profile_id);
     const { data: empDetails } = await supabase
       .from("employee_details")
-      .select("profile_id, pan_number, uan_number, bank_account_number, bank_name, bank_ifsc, employee_id_number, date_of_joining")
+      .select("profile_id, pan_number, uan_number, bank_account_number, bank_name, bank_ifsc, employee_id_number, date_of_joining, gender")
       .in("profile_id", profileIds);
 
     const detailsMap = new Map((empDetails ?? []).map((d: any) => [d.profile_id, d]));
@@ -127,7 +127,8 @@ serve(async (req) => {
         dateOfJoining: details.date_of_joining || profile.date_of_joining || "—",
         pan: details.pan_number || "—",
         uan: details.uan_number || "—",
-        bankName: details.bank_name || "—",
+        gender: details.gender || "—",
+        location: profile.location || "—",
         bankAccount: details.bank_account_number || "—",
         bankIfsc: details.bank_ifsc || "—",
         earnings: (entry.earnings_breakdown as any[]) || [],
@@ -164,7 +165,7 @@ serve(async (req) => {
 function buildPayslipHTML(data: {
   companyName: string; companyAddress: string; periodLabel: string;
   employeeName: string; employeeId: string; designation: string; department: string; dateOfJoining: string;
-  pan: string; uan: string; bankName: string; bankAccount: string; bankIfsc: string;
+  pan: string; uan: string; gender: string; location: string; bankAccount: string; bankIfsc: string;
   earnings: any[]; deductions: any[];
   grossEarnings: number; totalDeductions: number; netPay: number;
   workingDays: number; paidDays: number; lwpDays: number;
@@ -202,23 +203,25 @@ function buildPayslipHTML(data: {
 
   const genDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 
-  // Employee info grid rows: 2 columns × N rows
+  // Employee info grid rows: rendered as 4-col table (label|value|label|value), pairs taken sequentially
+  const formattedDOJ = typeof data.dateOfJoining === "string" && data.dateOfJoining !== "—"
+    ? new Date(data.dateOfJoining).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : data.dateOfJoining;
   const empFields = [
-    ["Employee ID", data.employeeId],
-    ["Pay Period", data.periodLabel],
-    ["Designation", data.designation],
-    ["Department", data.department],
-    ["Date of Joining", typeof data.dateOfJoining === "string" && data.dateOfJoining !== "—"
-      ? new Date(data.dateOfJoining).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-      : data.dateOfJoining],
-    ["Working Days", String(data.workingDays)],
-    ["Paid Days", String(data.paidDays)],
-    ["LOP Days", String(data.lwpDays)],
-    ["PAN No", data.pan],
-    ["UAN No", data.uan],
-    ["Bank Name", data.bankName],
-    ["Bank A/C No", data.bankAccount],
-    ["IFSC Code", data.bankIfsc],
+    ["Employee ID",    data.employeeId],
+    ["Pay Period",     data.periodLabel],
+    ["Designation",    data.designation],
+    ["Department",     data.department],
+    ["Gender",         data.gender],
+    ["Location",       data.location],
+    ["Date of Joining", formattedDOJ],
+    ["Working Days",   String(data.workingDays)],
+    ["Paid Days",      String(data.paidDays)],
+    ["LOP Days",       String(data.lwpDays)],
+    ["PAN No",         data.pan],
+    ["UAN No",         data.uan],
+    ["Bank A/C No",    data.bankAccount],
+    ["IFSC Code",      data.bankIfsc],
   ];
 
   // Render as a 4-column grid (label | value | label | value) for compact A4 layout

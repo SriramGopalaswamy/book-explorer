@@ -259,6 +259,19 @@ describe("normalizePayslip", () => {
       expect(result.totalDeductions).toBe(3000);
     });
 
+    it("shows Other Deductions row when misc_deductions is set", () => {
+      const record = {
+        basic_salary: 30000, hra: 12000,
+        pf_deduction: 1800, other_deductions: 200, misc_deductions: 500,
+        net_pay: 39500, working_days: 26, paid_days: 26, lop_days: 0,
+      };
+      const result = normalizePayslip(record);
+      const row = result.deductions.find(d => d.label === "Other Deductions");
+      expect(row).toBeDefined();
+      expect(row!.amount).toBe(500);
+      expect(row!.statutory).toBe(false);
+    });
+
     it("handles missing/null fields", () => {
       const record = {
         basic_salary: null,
