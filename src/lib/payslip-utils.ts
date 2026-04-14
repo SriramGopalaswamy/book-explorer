@@ -88,12 +88,19 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
   const incentives   = Number(record.transport_allowance) || 0;
   const otherAllow   = Number(record.other_allowances) || 0;
 
+  // Re-derive display breakdown as company-standard percentages of fixed gross.
+  // Incentives (transport_allowance) are variable pay — excluded from this split.
+  const fixedGross   = basic + hra + otherAllow;
+  const displayBasic = fixedGross > 0 ? Math.round(fixedGross * 0.62)  : basic;
+  const displayHRA   = fixedGross > 0 ? Math.round(fixedGross * 0.248) : hra;
+  const displayOther = fixedGross > 0 ? fixedGross - displayBasic - displayHRA : otherAllow;
+
   // Earnings: match company payslip layout — Basic, HRA, Other Allowances, Incentives
   const earnings: PayslipLineItem[] = [
-    { label: "Basic", amount: basic },
-    { label: "HRA", amount: hra },
-    ...(otherAllow > 0 ? [{ label: "Other Allowances", amount: otherAllow }] : []),
-    ...(incentives > 0 ? [{ label: "Incentives", amount: incentives }] : []),
+    { label: "Basic", amount: displayBasic },
+    { label: "HRA", amount: displayHRA },
+    ...(displayOther > 0 ? [{ label: "Other Allowances", amount: displayOther }] : []),
+    ...(incentives > 0   ? [{ label: "Incentives",       amount: incentives }]   : []),
   ];
 
   // Professional Tax + Other Deductions are both stored in other_deductions.

@@ -301,19 +301,19 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // ── Derive monthly Basic Salary from Employee PF (Indian statutory) ─────
       // Rule: EPF employee contribution = 12% of min(basic, ₹15,000 wage ceiling)
       //   • If PF < ₹1,800  → basic = PF ÷ 12% (exact, basic is under ceiling)
-      //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 40% of gross
-      //   • If no PF data    → default to 40% of monthly gross
+      //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 62% of gross
+      //   • If no PF data    → default to 62% of monthly gross (company standard)
       let basic: number;
       if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
         basic = Math.round(pf_monthly_raw / 0.12);
       } else if (pf_monthly_raw >= 1800) {
-        basic = Math.max(Math.round(monthly_gross * 0.40), 15000);
+        basic = Math.max(Math.round(monthly_gross * 0.62), 15000);
       } else {
-        basic = Math.round(monthly_gross * 0.40);
+        basic = Math.round(monthly_gross * 0.62);
       }
 
-      // Standard HRA: 40% of basic (non-metro cities)
-      const hra = Math.round(basic * 0.40);
+      // HRA = 24.8% of monthly gross (company standard)
+      const hra = Math.round(monthly_gross * 0.248);
 
       // Other Allowances = balance of fixed monthly gross after Basic + HRA
       // This absorbs Special Allowance, Transport, and other fixed components.
