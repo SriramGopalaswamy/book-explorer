@@ -96,7 +96,6 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const department    = DOMPurify.sanitize(record.profiles?.department || r.department || "—");
   const employeeId    = DOMPurify.sanitize(record.profiles?.employee_id || ed?.employee_id_number || r.employee_id || "—");
   const panNumber     = DOMPurify.sanitize(ed?.pan_number || r.pan_number || "—");
-  const bankName      = DOMPurify.sanitize(ed?.bank_name || r.bank_name || "—");
   const bankAccount   = DOMPurify.sanitize(ed?.bank_account_number || r.bank_account_number || "—");
   const bankIfsc      = DOMPurify.sanitize(ed?.bank_ifsc || r.bank_ifsc || "—");
   const uanNumber     = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
@@ -129,8 +128,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     ["Date of Joining",dateOfJoining,             "Working Days", String(workingDays || "—")],
     ["Paid Days",      String(paidDays || "—"),   "LOP Days",     String(lopDays || "0")],
     ["PAN No",         panNumber,                 "UAN No",       uanNumber],
-    ["Bank Name",      bankName,                  "Bank A/C No",  bankAccount],
-    ["IFSC Code",      bankIfsc,                  "",             ""],
+    ["Bank A/C No",    bankAccount,               "IFSC Code",    bankIfsc],
   ];
 
   const buildHTML = () => {
