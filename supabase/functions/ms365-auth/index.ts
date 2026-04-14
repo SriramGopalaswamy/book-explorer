@@ -275,18 +275,31 @@ Deno.serve(async (req) => {
           );
         }
 
+        // Track the profile id needed for resolveWaitingManagerRefs, and whether
+        // syncProfileFromMS365 was already called in the null-profile recovery path.
+        let resolvedProfileId: string | null = profileStatus?.id ?? null;
+        let profileAlreadySynced = false;
+
         // Handle existing auth user with no profile row — creation silently failed
         // on a previous login. Re-create the profile now so they appear in list_users.
         if (!profileStatus) {
           const newUserStatus = isAdminEmail ? "active" : "pending_approval";
           await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail, newUserStatus);
+          profileAlreadySynced = true;
           if (!isAdminEmail) {
             return new Response(
               JSON.stringify({ pending: true }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
-          // Admin: fall through to generate a session below
+          // Admin: fall through to generate a session.
+          // Re-fetch profile id so resolveWaitingManagerRefs works below.
+          const { data: freshProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("user_id", existingUser.id)
+            .maybeSingle();
+          resolvedProfileId = freshProfile?.id ?? null;
         }
 
         // Sign in existing active user by generating a session
@@ -320,12 +333,14 @@ Deno.serve(async (req) => {
 
         session = sessionData.session;
 
-        // Update profile with latest MS365 data
-        await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail);
+        // Update profile with latest MS365 data (skip if already synced in null-profile path)
+        if (!profileAlreadySynced) {
+          await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail);
+        }
 
         // Resolve any profiles waiting on this user as manager
-        if (profileStatus?.id) {
-          await resolveWaitingManagerRefs(supabase, email, profileStatus.id);
+        if (resolvedProfileId) {
+          await resolveWaitingManagerRefs(supabase, email, resolvedProfileId);
         }
 
         // Ensure role exists for existing user
