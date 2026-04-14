@@ -144,13 +144,24 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Verify webhook signature for Meta payloads
+  // Verify webhook signature for Meta payloads; require shared secret for simplified format
   if (rawBody.object === "whatsapp_business_account") {
     const valid = await verifyMetaSignature(req, rawBodyText);
     if (!valid) {
       console.warn("[whatsapp-status] Invalid webhook signature — rejecting request");
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  } else {
+    // Simplified format — require a shared secret header to prevent unauthenticated access
+    const waSecret = Deno.env.get("WHATSAPP_WEBHOOK_SECRET");
+    const providedSecret = req.headers.get("x-webhook-secret");
+    if (!waSecret || providedSecret !== waSecret) {
+      console.warn("[whatsapp-status] Missing or invalid x-webhook-secret for simplified format — rejecting");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
