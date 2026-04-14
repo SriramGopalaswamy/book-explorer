@@ -80,7 +80,7 @@ interface PaySlipDialogProps {
 }
 
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
-  useLogoDataUrl(grx10Logo); // keep hook call order stable
+  const logoDataUrl = useLogoDataUrl(grx10Logo);
   const { user } = useAuth();
   const { color: brandColor, companyName, companyAddress } = useBrandingInfo(user?.id);
   const { data: employeeDetails } = useEmployeeDetails(record?.profile_id ?? null);
@@ -106,6 +106,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     : "—";
   const period        = periodLabel(record.pay_period);
   const genDate       = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+  const logoSrc       = logoDataUrl || new URL(grx10Logo, window.location.origin).href;
 
   // Pad earnings/deductions to equal rows for side-by-side table
   const maxRows = Math.max(earnings.length, deductions.length);
@@ -164,7 +165,9 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
          -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   /* Header */
-  .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header { background: ${bc}; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .co-logo  { height: 44px; width: auto; object-fit: contain; margin-right: 14px; }
+  .co-info  { display: flex; align-items: center; gap: 14px; }
   .co-name  { font-size: 20px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; line-height: 1.2; }
   .co-addr  { font-size: 10px; color: rgba(255,255,255,0.82); margin-top: 4px; line-height: 1.6; max-width: 340px; }
   .slip-title  { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 2px; text-transform: uppercase; text-align: right; }
@@ -217,9 +220,12 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 </style></head><body>
 
   <div class="header">
-    <div>
-      <div class="co-name">${esc(companyName)}</div>
-      ${companyAddress ? `<div class="co-addr">${esc(companyAddress)}</div>` : ''}
+    <div class="co-info">
+      <img src="${logoSrc}" alt="Logo" class="co-logo" />
+      <div>
+        <div class="co-name">${esc(companyName)}</div>
+        ${companyAddress ? `<div class="co-addr">${esc(companyAddress)}</div>` : ''}
+      </div>
     </div>
     <div>
       <div class="slip-title">Pay Slip</div>
@@ -294,7 +300,16 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     shadow.appendChild(bodyContent);
 
     try {
-      await new Promise<void>((resolve) => setTimeout(resolve, 400));
+      await new Promise<void>((resolve) => {
+        const img = shadow.querySelector("img") as HTMLImageElement | null;
+        if (img && !img.complete) {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 2000); // hard cap
+        } else {
+          setTimeout(resolve, 400);
+        }
+      });
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
@@ -333,10 +348,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
         <div className="space-y-3 text-sm">
           {/* Header */}
           <div className="rounded-md overflow-hidden">
-            <div className="flex justify-between items-start p-4" style={{ background: brandColor }}>
-              <div>
-                <p className="text-base font-extrabold tracking-wider uppercase text-white">{companyName}</p>
-                {companyAddress && <p className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.82)" }}>{companyAddress}</p>}
+            <div className="flex justify-between items-center p-4" style={{ background: brandColor }}>
+              <div className="flex items-center gap-3">
+                <img src={grx10Logo} alt="Company Logo" className="h-10 w-auto object-contain" />
+                <div>
+                  <p className="text-base font-extrabold tracking-wider uppercase text-white">{companyName}</p>
+                  {companyAddress && <p className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.82)" }}>{companyAddress}</p>}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-base font-bold tracking-widest uppercase text-white">Pay Slip</p>
@@ -385,7 +403,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
                   const d = padD[i];
                   return (
                     <tr key={i} className="border-b border-border/40 last:border-0"
-                        style={{ background: i % 2 === 0 ? "#fff" : tintBg }}>
+                        style={i % 2 !== 0 ? { background: tintBg } : undefined}>
                       <td className="px-3 py-1.5">{e ? e.label : ""}</td>
                       <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{e && e.amount > 0 ? fmt(e.amount) : e ? "--" : ""}</td>
                       <td className="px-3 py-1.5 border-l border-border">{d ? d.label : ""}</td>
