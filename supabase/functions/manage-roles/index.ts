@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       const [profilesResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email")
+          .select("id, user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email")
           .eq("organization_id", requestingOrgId),
         supabase
           .from("user_roles")
@@ -108,13 +108,14 @@ Deno.serve(async (req) => {
       }
 
       const users = (profilesResult.data || []).map((p) => ({
+        profile_id: p.id,          // profiles.id — used client-side for manager_id resolution
         user_id: p.user_id,
         full_name: p.full_name,
         email: p.email,
         department: p.department,
         job_title: p.job_title,
         status: p.status || "active",
-        manager_id: p.manager_id,
+        manager_id: p.manager_id,  // references profiles.id of the manager
         pending_manager_email: p.pending_manager_email,
         roles: roleMap.get(p.user_id) || ["employee"],
       }));
