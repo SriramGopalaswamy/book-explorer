@@ -102,13 +102,21 @@ Deno.serve(async (req) => {
 
     // ── Step 2: Fetch all @grx10.com users with their managers from Graph ─────
     // $expand=manager pulls each user's manager in the same request.
+    // endswith() on userPrincipalName is an advanced query — requires
+    // ConsistencyLevel: eventual + $count=true or Graph returns 400.
     const usersRes = await fetch(
       `https://graph.microsoft.com/v1.0/users` +
       `?$select=mail,userPrincipalName,displayName` +
       `&$expand=manager($select=mail,userPrincipalName,displayName)` +
       `&$filter=endswith(userPrincipalName,'@grx10.com')` +
+      `&$count=true` +
       `&$top=999`,
-      { headers: { Authorization: `Bearer ${access_token}` } }
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          ConsistencyLevel: "eventual",
+        },
+      }
     );
 
     if (!usersRes.ok) {
