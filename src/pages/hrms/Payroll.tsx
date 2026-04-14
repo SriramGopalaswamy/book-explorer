@@ -948,7 +948,13 @@ export default function Payroll() {
                         </TableHeader>
                         <TableBody>
                           {pagination.paginatedItems.map((r) => {
-                            const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
+                            // Mirror normalizeLegacyRecord: derive Basic as 62% of fixed gross
+                            // so the register stays consistent with the payslip display.
+                            const fixedGross   = Number(r.basic_salary) + Number(r.hra) + Number(r.other_allowances);
+                            const displayBasic = fixedGross > 0 ? Math.round(fixedGross * 0.62) : Number(r.basic_salary);
+                            // Allowances = remainder of fixed gross + incentives (transport_allowance)
+                            const totalAllow   = (fixedGross > 0 ? fixedGross - displayBasic : Number(r.hra) + Number(r.other_allowances))
+                              + Number(r.transport_allowance);
                             const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
                             const lopDeduct = Number(r.lop_deduction) || 0;
                             const lopDays = Number(r.lop_days) || 0;
@@ -971,7 +977,7 @@ export default function Payroll() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(displayBasic)}</TableCell>
                                 <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
                                 <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
                                 <TableCell className="text-right">
