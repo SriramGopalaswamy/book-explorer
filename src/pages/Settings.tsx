@@ -1051,7 +1051,8 @@ function UserManagementSection() {
       body: { action: "sync_managers" },
     });
     if (error || data?.error) {
-      toast.error(data?.error || "Sync failed. Ensure the Azure app has User.Read.All application permission.");
+      const msg = data?.error || error?.message || "Sync failed. Check Supabase function logs for details.";
+      toast.error(msg);
     } else {
       const { synced = 0, errors = [] } = data;
       if (errors.length > 0) {

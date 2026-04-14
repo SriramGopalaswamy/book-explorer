@@ -47,13 +47,10 @@ Deno.serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Validate JWT and check admin role
-  const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  // Validate JWT and check admin role using the standard getUser() pattern
   const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -62,7 +59,7 @@ Deno.serve(async (req) => {
   const { data: roleRow } = await supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", claimsData.claims.sub)
+    .eq("user_id", user.id)
     .eq("organization_id", DEFAULT_ORG_ID)
     .in("role", ["admin"])
     .maybeSingle();
