@@ -280,11 +280,16 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
       const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
       const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
-      const other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
+      let   other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
       const total_ded_file   = parseFloat(row.total_deductions_col) || 0;
       const monthly_gross   = parseFloat(row.monthly_gross) || 0;
-      // gross_earnings_monthly includes variable pay; falls back to monthly_gross
-      const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
+      // gross_earnings_monthly includes variable pay; falls back to monthly_gross.
+      // Track whether it was explicitly provided — when it is, LWP is already
+      // factored in (Gross Earnings = Fixed − LWP + variable), so we must NOT
+      // subtract LWP again in cross-checks or net-pay fallback.
+      const grossEarningsExplicit = parseFloat(row.gross_earnings_monthly);
+      const hasExplicitGross = !isNaN(grossEarningsExplicit) && grossEarningsExplicit > 0;
+      const gross_earn     = hasExplicitGross ? grossEarningsExplicit : monthly_gross;
       const incentive      = parseFloat(row.incentive_monthly) || 0;
       const bonus          = parseFloat(row.bonus_monthly) || 0;
       const working_days_val = parseFloat(row.working_days_col) || 26;
@@ -349,28 +354,46 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
 
       // ── Deduction consistency checks ───────────────────────────────────────
       // (1) Component sum check: when individual deduction columns and Total Deductions
-      //     are both provided, their sum must agree within ₹2 (rounding tolerance).
-      //     Includes PF + PT + TDS + Other Deductions.
+      //     are both provided, verify consistency. If components exceed total → error.
+      //     If components are less than total, auto-fill PT (Karnataka slab) and absorb
+      //     the remaining gap into other deductions — the file may not break out every head.
       if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0 || tds_monthly_raw > 0 || other_ded_raw > 0)) {
         const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
-        if (Math.abs(componentSum - total_ded_file) > 2) {
+        if (componentSum > total_ded_file + 2) {
           errors.push(
-            `Row ${row.employee_id || row.email_id}: Total Deductions (₹${total_ded_file}) ` +
-            `does not match PF (₹${pf_monthly_raw}) + PT (₹${prof_tax_raw}) + TDS (₹${tds_monthly_raw}) + Other (₹${other_ded_raw}) = ₹${componentSum}. ` +
-            `Please fix the deduction values in the file.`
+            `Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) ` +
+            `exceed Total Deductions (₹${total_ded_file}). Please fix the values in the file.`
           );
           continue;
         }
+        const gap = total_ded_file - componentSum;
+        if (gap > 2) {
+          // Auto-fill PT from Karnataka slab when not provided in file
+          if (prof_tax === 0) {
+            const grossForPT = gross_earn || monthly_gross;
+            const ptExpected = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+            if (ptExpected > 0 && gap >= ptExpected) {
+              prof_tax = ptExpected;
+            }
+          }
+          // Remaining gap → unitemized deductions included in file's Total
+          const remaining = total_ded_file - (pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw);
+          if (remaining > 0) other_ded_raw += remaining;
+        }
       }
 
-      // (2) Net pay cross-check: gross − total_deductions − lwp_deduction ≈ net_pay.
+      // (2) Net pay cross-check: gross − total_deductions ≈ net_pay.
+      //     When Gross Earnings was explicitly provided, LWP is already factored in
+      //     (Gross = Fixed − LWP + variable), so we must NOT subtract it again.
       //     A mismatch > ₹5 suggests a data entry error worth flagging.
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
-        const expectedNet = Math.round(gross_earn - total_ded_file - lwp_ded_val);
+        const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
         if (Math.abs(expectedNet - net_from_file) > 5) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
-            `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file}) − LWP (₹${lwp_ded_val}) = ₹${expectedNet}, ` +
+            `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file})` +
+            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ''} = ₹${expectedNet}, ` +
             `but file says ₹${net_from_file}. Please verify.`
           );
           continue;
@@ -385,9 +408,11 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
 
       // ── Net Pay ──────────────────────────────────────────────────────────────
       // Prefer the file value; compute as fallback including TDS + other deductions.
+      // When Gross Earnings was explicitly provided, LWP is already factored in.
+      const lwpForCalc = hasExplicitGross ? 0 : lwp_ded_val;
       const net_pay = net_from_file > 0
         ? net_from_file
-        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - tds_monthly_raw - other_ded_raw - lwp_ded_val));
+        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - tds_monthly_raw - other_ded_raw - lwpForCalc));
 
       // ── Employee matching ────────────────────────────────────────────────────
       // When email is supplied use exact match only — do NOT fall back to name
@@ -420,8 +445,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         // Deductions
         pf_deduction: pf_monthly,        // PF Contribution (direct from file)
         tax_deduction: tds_monthly_raw,  // TDS (income tax deducted at source)
-        other_deductions: prof_tax,      // Professional Tax stored here (shown as "Professional Tax")
-        misc_deductions: other_ded_raw,  // Other / miscellaneous deductions (shown as "Other Deductions")
+        other_deductions: prof_tax + other_ded_raw, // Professional Tax + Other deductions combined
         // Attendance / LOP
         lop_days: lwp_days_val,
         lop_deduction: lwp_ded_val,

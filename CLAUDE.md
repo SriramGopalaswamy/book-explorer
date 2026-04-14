@@ -45,8 +45,9 @@
 ### Payslip deduction column mapping (`src/lib/payslip-utils.ts`)
 - `pf_deduction` → "PF Contribution"
 - `tax_deduction` → "TDS"
-- `other_deductions` → "Professional Tax"
-- `misc_deductions` → "Other Deductions"
+- `other_deductions` → "Professional Tax" + "Other Deductions" combined; split on display
+  using Karnataka PT slab (>₹15k → ₹200, >₹10k → ₹150); excess over PT shown as
+  "Other Deductions" line item
 - `transport_allowance` → "Incentives" (repurposed field — excluded from LOP base calculation)
 
 ### Back-calculation logic (legacy path, when only `net_pay` stored)
@@ -55,8 +56,12 @@ with ±₹1 tolerance. Falls back to "Salary Deductions" catch-all when pattern 
 (e.g. TDS-heavy records from old bulk upload template — re-upload to fix).
 
 ### Bulk upload invariants (`src/hooks/useBulkUpload.ts`)
-- Consistency check must include ALL four heads: `pf + pt + tds + other_ded` (±₹2)
-- Net pay cross-check: `gross − total_deductions − lwp ≈ net_pay` (±₹5)
+- Consistency check: `pf + pt + tds + other_ded` must not EXCEED `total_deductions` (±₹2).
+  When components are LESS than total, auto-fill PT (Karnataka slab) and absorb
+  remaining gap into other deductions.
+- Net pay cross-check: when Gross Earnings is explicitly provided (LWP already factored
+  in), formula is `gross − total_deductions ≈ net_pay` (±₹5). When falling back to
+  Monthly Fixed Salary, formula includes LWP: `gross − total_deductions − lwp ≈ net_pay`.
 - "PF- optout" / "0" / missing all → `pf_monthly = 0` (`parseFloat → NaN → 0` is correct)
 
 ---

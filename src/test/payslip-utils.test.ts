@@ -125,7 +125,8 @@ describe("normalizePayslip", () => {
       const result = normalizePayslip(record);
       expect(result.isEnginePath).toBe(false);
       expect(result.earnings).toHaveLength(4);
-      expect(result.deductions).toHaveLength(3); // no LOP row when lop_days=0
+      // other_deductions=500 is split: PT=200 (Karnataka slab) + Other=300
+      expect(result.deductions).toHaveLength(4); // PT, TDS, PF, Other — no LOP when lop_days=0
       expect(result.totalEarnings).toBe(61000);
       expect(result.totalDeductions).toBe(8300);
       expect(result.netPay).toBe(52700);
