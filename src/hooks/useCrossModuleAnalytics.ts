@@ -71,7 +71,7 @@ export function useHRAnalytics() {
         (p) => leaveProfileIds.has(p.id) || leaveUserIds.has(p.user_id)
       ).length;
 
-      const nonInactive = all.filter((p) => p.status !== "inactive");
+      const nonInactive = all.filter((p) => p.status !== "inactive" && p.status !== "exited");
       const active = nonInactive.filter(
         (p) => !leaveProfileIds.has(p.id) && !leaveUserIds.has(p.user_id)
       );
@@ -97,7 +97,7 @@ export function useHRAnalytics() {
       const newHires = all.filter(
         (p) => p.join_date && new Date(p.join_date) >= ninetyDaysAgo && p.status === "active"
       ).length;
-      const inactive = all.filter((p) => p.status === "inactive").length;
+      const inactive = all.filter((p) => p.status === "inactive" || p.status === "exited").length;
 
       return {
         totalEmployees: all.length,
