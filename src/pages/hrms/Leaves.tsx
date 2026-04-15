@@ -204,12 +204,14 @@ export default function Leaves() {
       color: newColor,
       default_days: newDefaultDays,
       sort_order: allLeaveTypes.length + 1,
+      gender_eligibility: newGenderEligibility,
     });
     setNewKey("");
     setNewLabel("");
     setNewIcon("Briefcase");
     setNewColor("text-blue-600");
     setNewDefaultDays(12);
+    setNewGenderEligibility("all");
   };
 
   const handleUpdateLeaveType = async () => {
@@ -316,7 +318,12 @@ export default function Leaves() {
                                 <Icon className={`h-4 w-4 ${lt.color}`} />
                                 <div>
                                   <p className="text-sm font-medium">{lt.label}</p>
-                                  <p className="text-xs text-muted-foreground">Key: {lt.key} · {lt.default_days} days</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Key: {lt.key} · {lt.default_days} days
+                                    {lt.gender_eligibility && lt.gender_eligibility !== 'all' && (
+                                      <span className="ml-1">· {lt.gender_eligibility === 'female' ? '♀ Female only' : '♂ Male only'}</span>
+                                    )}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -379,6 +386,17 @@ export default function Leaves() {
                             <Input type="number" min={0} value={newDefaultDays} onChange={(e) => setNewDefaultDays(Number(e.target.value))} />
                           </div>
                         </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Gender Eligibility</Label>
+                          <Select value={newGenderEligibility} onValueChange={(v: 'all' | 'male' | 'female') => setNewGenderEligibility(v)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Employees</SelectItem>
+                              <SelectItem value="female">Female Only</SelectItem>
+                              <SelectItem value="male">Male Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Button onClick={handleCreateLeaveType} disabled={createLeaveType.isPending || !newKey || !newLabel} className="w-full">
                           <Plus className="h-4 w-4 mr-2" />
                           {createLeaveType.isPending ? "Creating..." : "Add Leave Type"}
@@ -434,6 +452,17 @@ export default function Leaves() {
                       <div className="space-y-1">
                         <Label>Default Days</Label>
                         <Input type="number" min={0} value={editingType.default_days} onChange={(e) => setEditingType({ ...editingType, default_days: Number(e.target.value) })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Gender Eligibility</Label>
+                        <Select value={editingType.gender_eligibility || 'all'} onValueChange={(v: 'all' | 'male' | 'female') => setEditingType({ ...editingType, gender_eligibility: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Employees</SelectItem>
+                            <SelectItem value="female">Female Only</SelectItem>
+                            <SelectItem value="male">Male Only</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="flex items-center justify-between">
                         <Label>Active</Label>

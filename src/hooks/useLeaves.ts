@@ -613,7 +613,7 @@ export function useLeaveTypes() {
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as LeaveType[];
+      return (data ?? []) as unknown as LeaveType[];
     },
     enabled: !!user || isDevMode,
   });
@@ -631,7 +631,7 @@ export function useAllLeaveTypes() {
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as LeaveType[];
+      return (data ?? []) as unknown as LeaveType[];
     },
     enabled: !!user,
   });
