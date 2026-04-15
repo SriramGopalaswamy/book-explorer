@@ -1,54 +1,65 @@
 
 
-## Polish & QA Plan — Automation Studio
+## Problem
 
-### Issues Found
+Every database migration triggers a PostgREST schema cache reload. During this ~10-30s window, Supabase queries are slow or fail. The `SubscriptionGuard` has an 8-second hard timeout that **always** redirects to `/subscription/activate` when it fires — regardless of whether the user actually needs activation.
 
-1. **`Workflows.tsx` is orphaned** — 725 lines of dead code. The route redirects to `/financial/automation`, so this file is never rendered. Should be deleted.
+This is the **third time** this has caused a full-app lockout. The root issue: the guard treats "couldn't verify in time" the same as "no subscription exists."
 
-2. **`MessageDebugPanel` React key warning** — Uses `<>` fragments inside `.map()` without keys on the fragment. Should use `<React.Fragment key={msg.id}>`.
+## Root Cause
 
-3. **Automation Dashboard readability** — The Live Automation Tracker table has 10 columns crammed into one horizontal scroll. On typical screens this is hard to scan. Should consolidate secondary info (Last Channel + Last Message Status into one cell, Workflow Step + Next Action into one cell) to reduce to ~7 columns.
+```text
+Migration deployed
+  → PostgREST schema cache reloads (~10-30s)
+  → useUserOrganization / subscription queries slow/fail
+  → SubscriptionGuard timeout fires at 8s
+  → Always redirects to /subscription/activate  ← BUG
+```
 
-4. **Missing tooltips on action buttons** — The tracker table action buttons (Send Email, Send WhatsApp, Mark Acknowledged, View) have no tooltips. Users won't know what the icon-only buttons do.
+## Fix Plan
 
-5. **Invoice detail integration** — `WorkflowStatus` and `InvoiceMessageThread` only render when `organization_id` exists on the invoice object. The cast `(viewingInvoice as any).organization_id` is fragile — should fetch org from `useUserOrganization` instead.
+### 1. SubscriptionGuard: Timeout should let users through, not block them
 
-6. **Empty state polish** — Builder section shows "Finish onboarding" warning when no org, but no empty state for the tracker when org exists but no runs. Current empty state is fine but could use the same rounded card style.
+**Current behavior (line 62-66):** Timeout → redirect to `/subscription/activate`
 
-7. **Table row urgency colors** — `border-l-destructive` and `border-l-warning` reference theme tokens that may not exist. Should use explicit colors `border-l-red-500` / `border-l-amber-500`.
+**New behavior:** Timeout → **let the user through** (render children). The reasoning: a false-positive "let them in" is infinitely better than locking out every user. If there's truly no subscription, the next successful query will redirect them properly.
 
-8. **`acknowledged` status** — `markAcknowledged` mutation updates invoice status to `"acknowledged"` but the invoices table status column may not accept this value if there's a check constraint. This needs validation.
+```typescript
+// If timed out, let users through rather than blocking
+if (timedOut) {
+  console.warn("SubscriptionGuard: timed out — allowing access");
+  return <>{children}</>;
+}
+```
 
-### Plan
+### 2. SubscriptionContext: Treat errors as "no activation needed" not "needs activation"
 
-#### 1. Delete orphaned `Workflows.tsx`
-Remove `src/pages/financial/Workflows.tsx` and its import from `App.tsx`.
+When `orgError` is true (query failed, not "org doesn't exist"), the current code sets `needsActivation: true`. This is wrong — a network error shouldn't trigger activation. Change to only set `needsActivation` when the query **succeeded** but returned no org.
 
-#### 2. Fix MessageDebugPanel React fragment keys
-Replace `<>` with `<React.Fragment key={msg.id}>` in the messages `.map()`.
+```typescript
+// org query errored (network issue) → don't assume needs activation
+if (orgError) {
+  return { ...defaults, loading: false, needsActivation: false };
+}
+// org query succeeded but no org found → needs activation
+if (!org) {
+  return { ...defaults, loading: false, needsActivation: true };
+}
+```
 
-#### 3. Add tooltips to tracker action buttons
-Wrap each icon button in `<Tooltip>` with labels: "Send Email Reminder", "Send WhatsApp Reminder", "Mark Acknowledged", "View Details".
+### 3. useUserOrganization: Add `placeholderData` to survive transient failures
 
-#### 4. Fix invoice detail org fallback
-In `Invoicing.tsx`, use `orgData?.organizationId` from the hook instead of casting `viewingInvoice.organization_id`.
+Already has `placeholderData: (prev) => prev` which is good, but also increase `staleTime` to 30 minutes so cached data survives longer during schema reloads.
 
-#### 5. Fix urgency border colors
-Change `border-l-destructive` → `border-l-red-500`, `border-l-warning` → `border-l-amber-500`, `border-l-success` → `border-l-emerald-500` for guaranteed Tailwind output.
+### Files to change
 
-#### 6. Consolidate tracker table columns
-Merge "Last Channel" + "Last Message Status" into a single "Last Message" column. Merge "Workflow Step" + "Next Action" into a single "Progress" column. Reduces from 10 → 7 columns.
+| File | Change |
+|------|--------|
+| `src/components/auth/SubscriptionGuard.tsx` | Timeout → render children instead of redirect |
+| `src/contexts/SubscriptionContext.tsx` | Separate error vs. empty-result handling |
+| `src/hooks/useUserOrganization.ts` | Increase staleTime to 30 min |
 
-#### 7. Minor polish
-- Add `Tooltip` import to `AutomationDashboard.tsx`
-- Ensure consistent loading skeleton widths
-- Clean up any unused imports after Workflows.tsx removal
+### Why this won't recur
 
-### Files Changed
-- `src/pages/financial/AutomationDashboard.tsx` — tooltips, column consolidation, color fixes
-- `src/components/financial/MessageDebugPanel.tsx` — fragment key fix
-- `src/pages/financial/Invoicing.tsx` — org fallback fix
-- `src/pages/financial/Workflows.tsx` — delete
-- `src/App.tsx` — remove Workflows import
+The fundamental shift: **timeout = permissive** (let users in) instead of **timeout = restrictive** (lock users out). Even if PostgREST takes 60 seconds to reload, users continue working with cached data. The guard only blocks when queries **succeed** and confirm there's no subscription.
 
