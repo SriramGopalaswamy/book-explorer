@@ -31,7 +31,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCurrentRole } from "@/hooks/useRoles";
+
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
@@ -60,7 +60,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Expenses() {
-  const { data: currentRole, isLoading: isCheckingRole } = useCurrentRole();
+  
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
