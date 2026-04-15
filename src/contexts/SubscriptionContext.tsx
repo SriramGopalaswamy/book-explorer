@@ -64,7 +64,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const loading = orgLoading || subLoading;
 
   const state = useMemo<SubscriptionState>(() => {
-    if (loading || !org) {
+    // Still fetching — show loading spinner
+    if (loading) {
       return {
         needsActivation: false,
         readOnlyMode: false,
@@ -73,6 +74,21 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscriptionStatus: null,
         loading: true,
         organizationId: orgId ?? null,
+        enabledModules: null,
+      };
+    }
+
+    // Queries finished but org not found (error or no profile) — treat as needs activation
+    // instead of permanent loading
+    if (!org) {
+      return {
+        needsActivation: true,
+        readOnlyMode: false,
+        onboardingRequired: false,
+        plan: null,
+        subscriptionStatus: null,
+        loading: false,
+        organizationId: null,
         enabledModules: null,
       };
     }
