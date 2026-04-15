@@ -159,10 +159,13 @@ export function useGeneratePayroll() {
         // Fallback: generate entries from payroll_records for this period
         const { data: existingRecords } = await supabase
           .from("payroll_records")
-          .select("*, profiles!profile_id(full_name, email, department, job_title)")
+          .select("*, profiles!profile_id(full_name, email, department, job_title, status)")
           .eq("organization_id", orgId)
           .eq("pay_period", payPeriod)
           .eq("is_superseded", false);
+
+        // Filter out inactive employees
+        const activeRecords = (existingRecords || []).filter((r: any) => r.profiles?.status === 'active');
 
         if (!existingRecords || existingRecords.length === 0) {
           await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
