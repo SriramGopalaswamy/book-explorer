@@ -10209,30 +10209,68 @@ export type Database = {
       }
       user_sessions: {
         Row: {
+          anomaly_reasons: string[] | null
           created_at: string
+          device_info: Json | null
+          email: string | null
+          event_type: string | null
+          full_name: string | null
           id: string
+          ip_address: string | null
+          is_anomaly: boolean
           last_seen_at: string
+          metadata: Json | null
+          organization_id: string | null
+          session_duration_minutes: number | null
           session_id: string
           user_agent: string | null
           user_id: string
         }
         Insert: {
+          anomaly_reasons?: string[] | null
           created_at?: string
+          device_info?: Json | null
+          email?: string | null
+          event_type?: string | null
+          full_name?: string | null
           id?: string
+          ip_address?: string | null
+          is_anomaly?: boolean
           last_seen_at?: string
+          metadata?: Json | null
+          organization_id?: string | null
+          session_duration_minutes?: number | null
           session_id: string
           user_agent?: string | null
           user_id: string
         }
         Update: {
+          anomaly_reasons?: string[] | null
           created_at?: string
+          device_info?: Json | null
+          email?: string | null
+          event_type?: string | null
+          full_name?: string | null
           id?: string
+          ip_address?: string | null
+          is_anomaly?: boolean
           last_seen_at?: string
+          metadata?: Json | null
+          organization_id?: string | null
+          session_duration_minutes?: number | null
           session_id?: string
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendor_credits: {
         Row: {

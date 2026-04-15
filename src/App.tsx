@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { SessionTrackerProvider } from "@/components/auth/SessionTrackerProvider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
@@ -141,6 +142,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="dark">
       <AuthProvider>
+        <SessionTrackerProvider />
         <SubscriptionProvider>
           <TooltipProvider>
             <Toaster />
