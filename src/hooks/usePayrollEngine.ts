@@ -141,6 +141,28 @@ export function useGeneratePayroll() {
         .eq("is_active", true);
       if (sErr) throw sErr;
 
+      // Filter out terminated employees via exit_workflow
+      const terminalStages = ['exit_finalized', 'fnf_calculated', 'fnf_approved', 'fnf_completed', 'archived'];
+      let eligibleStructures = structures || [];
+      if (eligibleStructures.length > 0) {
+        const profileIds = eligibleStructures.map((s: any) => s.profile_id);
+        const { data: exitRows } = await supabase
+          .from("exit_workflow")
+          .select("profile_id, last_working_day, current_stage")
+          .in("profile_id", profileIds);
+        
+        if (exitRows && exitRows.length > 0) {
+          const exitMap = new Map(exitRows.map((e: any) => [e.profile_id, e]));
+          eligibleStructures = eligibleStructures.filter((s: any) => {
+            const ew = exitMap.get(s.profile_id);
+            if (!ew) return true; // no exit workflow
+            if (!terminalStages.includes(ew.current_stage)) return true; // not finalized
+            if (ew.last_working_day && ew.last_working_day >= periodStart) return true; // LWD in this period
+            return false; // terminated before this period
+          });
+        }
+      }
+
       if (!structures || structures.length === 0) {
         // Fallback: generate entries from payroll_records for this period
         const { data: existingRecords } = await supabase
