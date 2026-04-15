@@ -223,6 +223,7 @@ export default function Leaves() {
       color: editingType.color,
       default_days: editingType.default_days,
       is_active: editingType.is_active,
+      gender_eligibility: editingType.gender_eligibility,
     });
     setIsEditOpen(false);
     setEditingType(null);
