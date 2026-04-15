@@ -78,10 +78,8 @@ export default function Expenses() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
-
-  // All org expenses (finance/admin view)
-  const { data: allExpenses = [], isLoading: isLoadingAll, error: allError } = useQuery({
+  // All org expenses (finance/admin view only — this page is behind FinanceRoute)
+  const { data: allExpenses = [], isLoading, error: allError } = useQuery({
     queryKey: ["expenses-all", orgId],
     queryFn: async () => {
       if (!user || !orgId) return [];
@@ -95,34 +93,13 @@ export default function Expenses() {
       if (error) throw error;
       return (data || []) as Expense[];
     },
-    enabled: !!user && !!orgId && isFinanceOrAdmin,
-  });
-
-  // Employee's own expenses
-  const { data: myExpenses = [], isLoading: isLoadingMy, error: myError } = useQuery({
-    queryKey: ["expenses-my", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase
-        .from("expenses")
-        .select("*, profiles:profile_id(full_name, email)")
-        .eq("organization_id", orgId)
-        .eq("user_id", user.id)
-        .eq("is_deleted", false)
-        .order("expense_date", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data || []) as Expense[];
-    },
-    enabled: !!user && !!orgId && !isFinanceOrAdmin,
+    enabled: !!user && !!orgId,
   });
 
   // Log any query errors for debugging
   if (allError) console.error("expenses-all query error:", allError);
-  if (myError) console.error("expenses-my query error:", myError);
 
-  const expenses = isFinanceOrAdmin ? allExpenses : myExpenses;
-  const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
+  const expenses = allExpenses;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId); if (error) throw error; },
