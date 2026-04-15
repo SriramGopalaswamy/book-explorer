@@ -46,6 +46,9 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   if (isExempt) return <>{children}</>;
 
+  // Super admins ALWAYS bypass — check first, even while still loading
+  if (isSuperAdmin) return <>{children}</>;
+
   // Still loading but haven't timed out yet — show spinner
   if ((loading || saLoading) && !timedOut) {
     return (
@@ -58,14 +61,11 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If timed out, log and proceed with safe defaults (treat as needing activation)
+  // If timed out, allow access rather than blocking
   if (timedOut) {
     console.warn("SubscriptionGuard: timed out after", MAX_LOADING_MS, "ms — allowing access");
     return <>{children}</>;
   }
-
-  // Super admins bypass subscription enforcement
-  if (isSuperAdmin) return <>{children}</>;
 
   if (needsActivation) {
     return <Navigate to="/subscription/activate" replace />;
