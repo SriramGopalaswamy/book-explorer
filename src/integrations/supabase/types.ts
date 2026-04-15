@@ -11486,11 +11486,11 @@ export type Database = {
         Returns: number
       }
       provision_all_employees_balances: {
-        Args: { _org_id: string; _year?: number }
+        Args: { _org_id: string; _year: number }
         Returns: number
       }
       provision_leave_balances: {
-        Args: { _org_id: string; _user_id: string; _year?: number }
+        Args: { _org_id: string; _user_id: string; _year: number }
         Returns: number
       }
       recalculate_attendance: {
