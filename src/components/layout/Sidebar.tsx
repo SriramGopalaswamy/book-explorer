@@ -232,7 +232,7 @@ function NavSection({
   const [sectionOpen, setSectionOpen] = useState<boolean>(() => {
     const stored = localStorage.getItem(storageKey);
     if (stored !== null) return stored === "true";
-    return defaultOpen || hasActiveItem;
+    return defaultOpen;
   });
 
   const toggleSection = () => {
@@ -242,6 +242,8 @@ function NavSection({
       return next;
     });
   };
+
+  const isExpanded = collapsed || hasActiveItem || sectionOpen;
 
   if (items.length === 0) return null;
 
@@ -258,7 +260,7 @@ function NavSection({
             <ChevronDown
               className={cn(
                 "h-3.5 w-3.5 transition-transform duration-200",
-                sectionOpen ? "rotate-0" : "-rotate-90"
+                isExpanded ? "rotate-0" : "-rotate-90"
               )}
             />
           </button>
@@ -279,7 +281,7 @@ function NavSection({
           </Tooltip>
         )}
 
-        {(sectionOpen || collapsed) && (
+        {isExpanded && (
           <nav className="space-y-1">
               {items.map((item) => {
                 const isActive = location.pathname === item.path;
