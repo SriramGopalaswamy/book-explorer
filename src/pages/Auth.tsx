@@ -77,7 +77,6 @@ export default function Auth() {
     })();
   }, []);
 
-  const from = location.state?.from?.pathname || "/";
 
   useEffect(() => {
     if (user) {
