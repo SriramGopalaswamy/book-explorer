@@ -11374,6 +11374,10 @@ export type Database = {
         }
         Returns: string
       }
+      process_payroll_batch: {
+        Args: { p_payroll_ids: string[] }
+        Returns: Json
+      }
       recalculate_attendance: {
         Args: { _end_date: string; _org_id: string; _start_date: string }
         Returns: Json
