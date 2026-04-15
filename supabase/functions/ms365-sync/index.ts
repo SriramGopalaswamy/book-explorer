@@ -271,8 +271,7 @@ Deno.serve(async (req) => {
       // Update last sync timestamp
       await supabase
         .from("organization_settings")
-        .update({ last_ms365_sync_at: new Date().toISOString() })
-        .eq("organization_id", DEFAULT_ORG_ID);
+        .upsert({ organization_id: DEFAULT_ORG_ID, last_ms365_sync_at: new Date().toISOString() }, { onConflict: "organization_id" });
 
       console.log(`ms365-sync complete: ${synced} updated, ${skipped} unchanged, ${errors.length} errors`);
 
