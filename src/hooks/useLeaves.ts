@@ -642,7 +642,7 @@ export function useCreateLeaveType() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
+    mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number; gender_eligibility?: string }) => {
       if (!user) throw new Error("Not authenticated");
       if (!leaveType.key?.trim()) throw new Error("Leave type key is required");
       if (!leaveType.label?.trim()) throw new Error("Leave type label is required");
@@ -688,7 +688,7 @@ export function useUpdateLeaveType() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number; gender_eligibility?: string }) => {
       if (!user) throw new Error("Not authenticated");
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
