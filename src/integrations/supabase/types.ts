@@ -8028,61 +8028,97 @@ export type Database = {
       }
       profiles: {
         Row: {
+          archived_at: string | null
+          asset_return_confirmed: boolean | null
           avatar_url: string | null
           created_at: string
           department: string | null
           email: string | null
           employee_id: string | null
           esi_eligible: boolean | null
+          exit_date: string | null
+          exit_interview_completed: boolean | null
+          exit_reason: string | null
+          fnf_status: string | null
           full_name: string | null
           id: string
           job_title: string | null
           join_date: string | null
+          knowledge_transfer_status: string | null
+          last_working_day: string | null
           location: string | null
           manager_id: string | null
+          manager_signoff_at: string | null
+          manager_signoff_by: string | null
+          notice_served: boolean | null
           organization_id: string
           pending_manager_email: string | null
           phone: string | null
+          rehire_eligible: boolean | null
           status: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
+          asset_return_confirmed?: boolean | null
           avatar_url?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
           employee_id?: string | null
           esi_eligible?: boolean | null
+          exit_date?: string | null
+          exit_interview_completed?: boolean | null
+          exit_reason?: string | null
+          fnf_status?: string | null
           full_name?: string | null
           id?: string
           job_title?: string | null
           join_date?: string | null
+          knowledge_transfer_status?: string | null
+          last_working_day?: string | null
           location?: string | null
           manager_id?: string | null
+          manager_signoff_at?: string | null
+          manager_signoff_by?: string | null
+          notice_served?: boolean | null
           organization_id?: string
           pending_manager_email?: string | null
           phone?: string | null
+          rehire_eligible?: boolean | null
           status?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived_at?: string | null
+          asset_return_confirmed?: boolean | null
           avatar_url?: string | null
           created_at?: string
           department?: string | null
           email?: string | null
           employee_id?: string | null
           esi_eligible?: boolean | null
+          exit_date?: string | null
+          exit_interview_completed?: boolean | null
+          exit_reason?: string | null
+          fnf_status?: string | null
           full_name?: string | null
           id?: string
           job_title?: string | null
           join_date?: string | null
+          knowledge_transfer_status?: string | null
+          last_working_day?: string | null
           location?: string | null
           manager_id?: string | null
+          manager_signoff_at?: string | null
+          manager_signoff_by?: string | null
+          notice_served?: boolean | null
           organization_id?: string
           pending_manager_email?: string | null
           phone?: string | null
+          rehire_eligible?: boolean | null
           status?: string | null
           updated_at?: string
           user_id?: string
@@ -8112,6 +8148,27 @@ export type Database = {
           {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]

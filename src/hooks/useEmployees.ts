@@ -16,7 +16,7 @@ export interface Employee {
   avatar_url: string | null;
   job_title: string | null;
   department: string | null;
-  status: "active" | "on_leave" | "inactive";
+  status: "active" | "on_leave" | "inactive" | "exited";
   join_date: string | null;
   date_of_joining: string | null;
   phone: string | null;
@@ -246,7 +246,7 @@ export function useEmployeeStats() {
 
   const stats = {
     total: employees.length,
-    active: employees.filter((e) => e.status !== "inactive").length - onLeaveCount,
+    active: employees.filter((e) => e.status !== "inactive" && e.status !== "exited").length - onLeaveCount,
     onLeave: onLeaveCount,
     inactive: employees.filter((e) => e.status === "inactive").length,
     onLeaveIds: { profileIds: leaveProfileIds, userIds: leaveUserIds },
