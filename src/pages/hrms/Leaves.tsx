@@ -55,7 +55,9 @@ import {
 } from "@/hooks/useLeaves";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
-
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 const iconMap: Record<string, typeof Palmtree> = {
   Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
 };
