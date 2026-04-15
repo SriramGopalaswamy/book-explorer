@@ -5,21 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface SubscriptionState {
-  /** No active subscription exists */
   needsActivation: boolean;
-  /** Subscription expired — UI should be read-only */
   readOnlyMode: boolean;
-  /** Subscription active but org not yet onboarded */
   onboardingRequired: boolean;
-  /** Subscription plan name */
   plan: string | null;
-  /** Raw subscription status */
   subscriptionStatus: string | null;
-  /** Loading state */
   loading: boolean;
-  /** Organization id */
   organizationId: string | null;
-  /** Modules enabled for this subscription */
   enabledModules: string[] | null;
 }
 
@@ -36,11 +28,11 @@ const SubscriptionContext = createContext<SubscriptionState>({
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { data: org, isLoading: orgLoading } = useUserOrganization();
+  const { data: org, isLoading: orgLoading, isError: orgError } = useUserOrganization();
 
   const orgId = org?.organizationId;
 
-  const { data: subscription, isLoading: subLoading } = useQuery({
+  const { data: subscription, isLoading: subLoading, isError: subError } = useQuery({
     queryKey: ["subscription", orgId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -53,18 +45,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       if (error) {
         console.error("Subscription fetch error:", error);
-        return null;
+        throw error; // Let React Query handle retry
       }
       return data;
     },
     enabled: !!user && !!orgId,
     staleTime: 1000 * 60 * 5,
+    retry: 2, // Don't retry indefinitely
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
-  const loading = orgLoading || subLoading;
+  // Treat errors as "done loading" to prevent permanent spinner
+  const loading = orgLoading || (!!orgId && subLoading);
 
   const state = useMemo<SubscriptionState>(() => {
-    // Still fetching — show loading spinner
     if (loading) {
       return {
         needsActivation: false,
@@ -78,9 +72,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Queries finished but org not found (error or no profile) — treat as needs activation
-    // instead of permanent loading
-    if (!org) {
+    // Queries finished but org not found or errored — treat as needs activation
+    if (!org || orgError) {
       return {
         needsActivation: true,
         readOnlyMode: false,
@@ -109,7 +102,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       organizationId: orgId ?? null,
       enabledModules: subscription?.enabled_modules ?? null,
     };
-  }, [loading, org, subscription, orgId]);
+  }, [loading, org, orgError, subscription, orgId]);
 
   return (
     <SubscriptionContext.Provider value={state}>
