@@ -100,14 +100,12 @@ Deno.serve(async (req) => {
 
     const { access_token } = await tokenRes.json();
 
-    // ── Step 2: Fetch all @grx10.com users with their managers from Graph ─────
-    // $expand=manager pulls each user's manager in the same request.
-    // endswith() on userPrincipalName is an advanced query — requires
-    // ConsistencyLevel: eventual + $count=true or Graph returns 400.
+    // ── Step 2: Fetch all @grx10.com users from Graph ──────────────────────
+    // Note: $expand=manager cannot be combined with endsWith filter, so we
+    // fetch users first, then resolve managers individually.
     const usersRes = await fetch(
       `https://graph.microsoft.com/v1.0/users` +
-      `?$select=mail,userPrincipalName,displayName` +
-      `&$expand=manager($select=mail,userPrincipalName,displayName)` +
+      `?$select=id,mail,userPrincipalName,displayName` +
       `&$filter=endswith(userPrincipalName,'@grx10.com')` +
       `&$count=true` +
       `&$top=999`,
@@ -129,6 +127,23 @@ Deno.serve(async (req) => {
     }
 
     const { value: graphUsers } = await usersRes.json();
+
+    // ── Step 2b: Fetch manager for each user individually ────────────────
+    for (const msUser of graphUsers) {
+      try {
+        const mgrRes = await fetch(
+          `https://graph.microsoft.com/v1.0/users/${msUser.id}/manager?$select=mail,userPrincipalName,displayName`,
+          { headers: { Authorization: `Bearer ${access_token}` } }
+        );
+        if (mgrRes.ok) {
+          msUser.manager = await mgrRes.json();
+        } else {
+          msUser.manager = null; // No manager assigned
+        }
+      } catch {
+        msUser.manager = null;
+      }
+    }
 
     // ── Step 3: Load all profiles for the org ────────────────────────────────
     const { data: profiles } = await supabase
