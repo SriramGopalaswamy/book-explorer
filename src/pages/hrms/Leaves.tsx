@@ -82,6 +82,7 @@ export default function Leaves() {
   const [newIcon, setNewIcon] = useState("Briefcase");
   const [newColor, setNewColor] = useState("text-blue-600");
   const [newDefaultDays, setNewDefaultDays] = useState(12);
+  const [newGenderEligibility, setNewGenderEligibility] = useState<'all' | 'male' | 'female'>('all');
 
   const isMyLeavesTab = activeTab === "mine";
   const statusFilter = isMyLeavesTab ? "all" : activeTab;

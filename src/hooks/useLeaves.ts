@@ -586,6 +586,7 @@ export interface LeaveType {
   default_days: number;
   is_active: boolean;
   sort_order: number;
+  gender_eligibility: 'all' | 'male' | 'female';
 }
 
 export function useLeaveTypes() {
