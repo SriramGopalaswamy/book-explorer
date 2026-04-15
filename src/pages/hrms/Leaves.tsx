@@ -159,7 +159,7 @@ export default function Leaves() {
   }, [activeLeaveTypes]);
 
   // Set default leave type when types load
-  const defaultLeaveType = activeLeaveTypes.length > 0 ? activeLeaveTypes[0].key : "casual";
+  const defaultLeaveType = eligibleLeaveTypes.length > 0 ? eligibleLeaveTypes[0].key : "casual";
 
   const handleSubmitLeave = async () => {
     if (!fromDate || !toDate) return;
