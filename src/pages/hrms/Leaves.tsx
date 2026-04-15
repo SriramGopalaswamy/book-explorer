@@ -107,7 +107,7 @@ export default function Leaves() {
     queryKey: ["my-gender", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("employee_details")
         .select("gender")
         .eq("user_id", user.id)
