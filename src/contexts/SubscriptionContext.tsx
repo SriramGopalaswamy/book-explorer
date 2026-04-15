@@ -72,8 +72,22 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Queries finished but org not found or errored — treat as needs activation
-    if (!org || orgError) {
+    // Query errored (network/schema reload) — don't assume needs activation
+    if (orgError) {
+      return {
+        needsActivation: false,
+        readOnlyMode: false,
+        onboardingRequired: false,
+        plan: null,
+        subscriptionStatus: null,
+        loading: false,
+        organizationId: null,
+        enabledModules: null,
+      };
+    }
+
+    // Query succeeded but no org found — needs activation
+    if (!org) {
       return {
         needsActivation: true,
         readOnlyMode: false,
