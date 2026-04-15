@@ -61,7 +61,7 @@ import OrgChart from "./pages/hrms/OrgChart";
 import MyAttendance from "./pages/hrms/MyAttendance";
 import ManagerInbox from "./pages/hrms/ManagerInbox";
 import Reimbursements from "./pages/hrms/Reimbursements";
-import MyExpenses from "./pages/hrms/MyExpenses";
+
 import ReimbursementsFinance from "./pages/financial/ReimbursementsFinance";
 import AutomationDashboard from "./pages/financial/AutomationDashboard";
 
@@ -168,7 +168,7 @@ const App = () => (
                 <Route path="/financial/invoicing" element={<Guarded><FinanceRoute><Invoicing /></FinanceRoute></Guarded>} />
                 <Route path="/financial/invoice-settings" element={<Guarded><FinanceRoute><InvoiceSettings /></FinanceRoute></Guarded>} />
                 <Route path="/financial/quotes" element={<Guarded><FinanceRoute><Quotes /></FinanceRoute></Guarded>} />
-                <Route path="/financial/expenses" element={<Guarded><Expenses /></Guarded>} />
+                <Route path="/financial/expenses" element={<Guarded><FinanceRoute><Expenses /></FinanceRoute></Guarded>} />
                 <Route path="/financial/bills" element={<Guarded><FinanceRoute><Bills /></FinanceRoute></Guarded>} />
                 <Route path="/financial/credit-notes" element={<Guarded><FinanceRoute><CreditNotes /></FinanceRoute></Guarded>} />
                 <Route path="/financial/vendor-credits" element={<Guarded><FinanceRoute><VendorCredits /></FinanceRoute></Guarded>} />
@@ -229,7 +229,7 @@ const App = () => (
                 <Route path="/hrms/my-attendance" element={<Guarded><MyAttendance /></Guarded>} />
                 <Route path="/hrms/inbox" element={<Guarded><ManagerRoute><ManagerInbox /></ManagerRoute></Guarded>} />
                 <Route path="/hrms/reimbursements" element={<Guarded><Reimbursements /></Guarded>} />
-                <Route path="/hrms/my-expenses" element={<Guarded><MyExpenses /></Guarded>} />
+                
                 <Route path="/financial/reimbursements" element={<Guarded><FinanceRoute><ReimbursementsFinance /></FinanceRoute></Guarded>} />
 
                 {/* Performance OS */}

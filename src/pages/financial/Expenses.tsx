@@ -31,7 +31,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCurrentRole } from "@/hooks/useRoles";
+
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
@@ -60,7 +60,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function Expenses() {
-  const { data: currentRole, isLoading: isCheckingRole } = useCurrentRole();
+  
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
@@ -78,10 +78,8 @@ export default function Expenses() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const isFinanceOrAdmin = currentRole === "admin" || currentRole === "finance";
-
-  // All org expenses (finance/admin view)
-  const { data: allExpenses = [], isLoading: isLoadingAll, error: allError } = useQuery({
+  // All org expenses (finance/admin view only — this page is behind FinanceRoute)
+  const { data: allExpenses = [], isLoading, error: allError } = useQuery({
     queryKey: ["expenses-all", orgId],
     queryFn: async () => {
       if (!user || !orgId) return [];
@@ -95,34 +93,13 @@ export default function Expenses() {
       if (error) throw error;
       return (data || []) as Expense[];
     },
-    enabled: !!user && !!orgId && isFinanceOrAdmin,
-  });
-
-  // Employee's own expenses
-  const { data: myExpenses = [], isLoading: isLoadingMy, error: myError } = useQuery({
-    queryKey: ["expenses-my", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase
-        .from("expenses")
-        .select("*, profiles:profile_id(full_name, email)")
-        .eq("organization_id", orgId)
-        .eq("user_id", user.id)
-        .eq("is_deleted", false)
-        .order("expense_date", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data || []) as Expense[];
-    },
-    enabled: !!user && !!orgId && !isFinanceOrAdmin,
+    enabled: !!user && !!orgId,
   });
 
   // Log any query errors for debugging
   if (allError) console.error("expenses-all query error:", allError);
-  if (myError) console.error("expenses-my query error:", myError);
 
-  const expenses = isFinanceOrAdmin ? allExpenses : myExpenses;
-  const isLoading = isFinanceOrAdmin ? isLoadingAll : isLoadingMy;
+  const expenses = allExpenses;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId); if (error) throw error; },
@@ -280,21 +257,9 @@ export default function Expenses() {
     );
   };
 
-  if (isCheckingRole) {
-    return (
-      <MainLayout title="Expenses">
-        <div className="flex items-center justify-center py-24">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-muted-foreground text-sm">Loading...</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
 
-  const pageTitle = isFinanceOrAdmin ? "Expenses" : "My Expenses";
-  const pageSubtitle = isFinanceOrAdmin
+  const pageTitle = true ? "Expenses" : "My Expenses";
+  const pageSubtitle = true
     ? "Manage and process organization expenses"
     : "Track your submitted expenses";
 
@@ -303,7 +268,7 @@ export default function Expenses() {
       <Table>
         <TableHeader>
           <TableRow>
-            {isFinanceOrAdmin && <TableHead>Employee</TableHead>}
+            {true && <TableHead>Employee</TableHead>}
             <TableHead>Category</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Amount</TableHead>
@@ -315,12 +280,12 @@ export default function Expenses() {
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: isFinanceOrAdmin ? 8 : 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
+            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}>{Array.from({ length: true ? 8 : 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
           ) : pagination.paginatedItems.length === 0 ? (
-            <TableRow><TableCell colSpan={isFinanceOrAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
+            <TableRow><TableCell colSpan={true ? 8 : 7} className="text-center py-12 text-muted-foreground">{search ? "No expenses match." : "No expenses in this category."}</TableCell></TableRow>
           ) : pagination.paginatedItems.map((e) => (
             <TableRow key={e.id}>
-              {isFinanceOrAdmin && <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>}
+              {true && <TableCell className="text-sm">{(e.profiles as any)?.full_name || "—"}</TableCell>}
               <TableCell><Badge variant="outline">{e.category}</Badge></TableCell>
               <TableCell className="text-sm max-w-[200px] truncate">{e.description || "—"}</TableCell>
               <TableCell className="font-semibold">{formatCurrency(e.amount)}</TableCell>
@@ -346,10 +311,10 @@ export default function Expenses() {
                     {(e.status === "pending" || e.status === "draft") && e.user_id === user?.id && (
                       <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                     )}
-                    {isFinanceOrAdmin && e.status === "pending" && e.user_id !== user?.id && (
+                    {true && e.status === "pending" && e.user_id !== user?.id && (
                       <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(e.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                     )}
-                    {isFinanceOrAdmin && e.status === "approved" && (
+                    {true && e.status === "approved" && (
                       <DropdownMenuItem onClick={() => markPaidMutation.mutate(e.id)}><Check className="h-4 w-4 mr-2" />Mark as Paid</DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -372,14 +337,14 @@ export default function Expenses() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="Approved Expenses" value={formatCurrency(totalExpenses)} icon={<IndianRupee className="h-4 w-4" />} change={totalExpenses > 0 ? { value: "Approved + Paid", type: "neutral" } : undefined} />
           <StatCard title="Pending Approval" value={formatCurrency(pendingAmount)} icon={<Clock className="h-4 w-4" />} />
-          <StatCard title={isFinanceOrAdmin ? "Approved (Unpaid)" : "Approved"} value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
+          <StatCard title={true ? "Approved (Unpaid)" : "Approved"} value={formatCurrency(approvedAmount)} icon={<Check className="h-4 w-4" />} />
           <StatCard title="Paid" value={formatCurrency(paidAmount)} icon={<CircleDollarSign className="h-4 w-4" />} />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder={isFinanceOrAdmin ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder={true ? "Search by employee, category..." : "Search by category..."} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[160px] h-9 text-sm">
@@ -400,7 +365,7 @@ export default function Expenses() {
             </Button>
           )}
           <div className="ml-auto flex items-center gap-2">
-            {isFinanceOrAdmin && <BulkUploadDialog config={expensesBulkConfig} />}
+            {true && <BulkUploadDialog config={expensesBulkConfig} />}
             <Button onClick={() => { resetForm(); setCreateOpen(true); }} className="gap-2">
               <Plus className="h-4 w-4" /> Create Expense
             </Button>
@@ -415,7 +380,7 @@ export default function Expenses() {
               {pendingExpenses.length > 0 && <span className="ml-1 rounded-full bg-warning/20 text-warning text-xs px-1.5 py-0.5 font-semibold">{pendingExpenses.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="approved" className="gap-2">
-              {isFinanceOrAdmin ? "Ready for Payment" : "Approved"}
+              {true ? "Ready for Payment" : "Approved"}
               {approvedExpenses.length > 0 && <span className="ml-1 rounded-full bg-success/20 text-success text-xs px-1.5 py-0.5 font-semibold">{approvedExpenses.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="paid">Paid ({paidExpenses.length})</TabsTrigger>
@@ -434,7 +399,7 @@ export default function Expenses() {
           </TabsContent>
         </Tabs>
 
-        {isFinanceOrAdmin && <BulkUploadHistory module="expenses" />}
+        {true && <BulkUploadHistory module="expenses" />}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
