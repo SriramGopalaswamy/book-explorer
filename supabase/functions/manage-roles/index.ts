@@ -39,9 +39,7 @@ Deno.serve(async (req) => {
 
   const requestingUserId = callerUser.id;
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const supabase = serviceClient;
 
   // Step 1: resolve caller's org membership
   const membershipResult = await supabase
