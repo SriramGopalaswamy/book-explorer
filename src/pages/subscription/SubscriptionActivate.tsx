@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,11 @@ export default function SubscriptionActivate() {
   const queryClient = useQueryClient();
   const { needsActivation, loading: subLoading } = useSubscription();
   const { data: org } = useUserOrganization();
+  const {
+    data: isSuperAdmin,
+    isLoading: superAdminLoading,
+    isFetching: superAdminFetching,
+  } = useIsSuperAdmin();
 
   const redeemMutation = useMutation({
     mutationFn: async (key: string) => {
@@ -51,8 +57,23 @@ export default function SubscriptionActivate() {
     redeemMutation.mutate(trimmed);
   };
 
-  // If already has active subscription, redirect (via useEffect, not render)
-  if (!subLoading && !needsActivation && org) {
+  if (isSuperAdmin) {
+    return <Navigate to="/platform" replace />;
+  }
+
+  if (superAdminLoading || (superAdminFetching && isSuperAdmin === undefined) || subLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Verifying workspace access…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If already has active subscription, redirect
+  if (!needsActivation && org) {
     const target = org.orgState === "active" ? "/" : "/onboarding";
     return <Navigate to={target} replace />;
   }
