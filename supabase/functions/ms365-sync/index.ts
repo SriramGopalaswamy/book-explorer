@@ -331,6 +331,7 @@ Deno.serve(async (req) => {
               skipped++;
               continue;
             }
+            console.error(`Provision error for ${email}:`, createError.message, createError);
             errors.push(`${email}: ${createError.message}`);
             continue;
           }
