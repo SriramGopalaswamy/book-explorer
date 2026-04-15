@@ -141,22 +141,39 @@ export function useGeneratePayroll() {
         .eq("is_active", true);
       if (sErr) throw sErr;
 
-      if (!structures || structures.length === 0) {
+      // Filter out inactive/terminated employees
+      let eligibleStructures = structures || [];
+      if (eligibleStructures.length > 0) {
+        const profileIds = eligibleStructures.map((s: any) => s.profile_id);
+        const { data: activeProfiles } = await supabase
+          .from("profiles")
+          .select("id, status")
+          .in("id", profileIds)
+          .eq("status", "active");
+        
+        const activeProfileIds = new Set((activeProfiles || []).map((p: any) => p.id));
+        eligibleStructures = eligibleStructures.filter((s: any) => activeProfileIds.has(s.profile_id));
+      }
+
+      if (!eligibleStructures || eligibleStructures.length === 0) {
         // Fallback: generate entries from payroll_records for this period
         const { data: existingRecords } = await supabase
           .from("payroll_records")
-          .select("*, profiles!profile_id(full_name, email, department, job_title)")
+          .select("*, profiles!profile_id(full_name, email, department, job_title, status)")
           .eq("organization_id", orgId)
           .eq("pay_period", payPeriod)
           .eq("is_superseded", false);
 
-        if (!existingRecords || existingRecords.length === 0) {
+        // Filter out inactive employees
+        const activeRecords = (existingRecords || []).filter((r: any) => r.profiles?.status === 'active');
+
+        if (activeRecords.length === 0) {
           await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
           return { run, entriesCount: 0 };
         }
 
         // Map payroll_records to payroll_entries
-        const fallbackEntries = existingRecords.map((r: any) => {
+        const fallbackEntries = activeRecords.map((r: any) => {
           const gross = Number(r.basic_salary || 0) + Number(r.hra || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowances || 0);
           const deductions = Number(r.pf_deduction || 0) + Number(r.tax_deduction || 0) + Number(r.other_deductions || 0);
           const netPay = gross - deductions;
@@ -329,7 +346,7 @@ export function useGeneratePayroll() {
         : 12;
 
       // 4. Generate entries
-      const entries = structures.map((s: any) => {
+      const entries = eligibleStructures.map((s: any) => {
         const components = s.compensation_components || [];
         const lwpDays = lwpMap.get(s.profile_id) || 0;
         const paidDays = Math.max(0, workingDays - lwpDays);

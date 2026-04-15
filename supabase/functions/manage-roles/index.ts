@@ -402,6 +402,14 @@ Deno.serve(async (req) => {
       // Ban user in auth to immediately invalidate future token refreshes (~100 years)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
 
+      // Sync with exit_workflow if a row exists for this profile
+      if (targetProfileDea?.id) {
+        await supabase
+          .from('exit_workflow')
+          .update({ login_revoked: true, updated_at: new Date().toISOString() })
+          .eq('profile_id', targetProfileDea.id);
+      }
+
       return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
