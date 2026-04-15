@@ -67,6 +67,7 @@ function getIcon(iconName: string) {
 }
 
 export default function Leaves() {
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
