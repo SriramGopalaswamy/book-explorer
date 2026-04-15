@@ -130,24 +130,29 @@ export function useLeaveBalances() {
     queryKey: ["leave-balances", currentYear, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockLeaveBalances;
-      if (!orgId) return [];
+      if (!orgId || !user) return [];
+
+      // First, auto-provision missing balances from active leave_types
+      try {
+        await supabase.rpc("provision_leave_balances", {
+          _user_id: user.id,
+          _org_id: orgId,
+          _year: currentYear,
+        });
+      } catch (provErr) {
+        console.warn("Balance provisioning skipped:", provErr);
+      }
+
+      // Now fetch the real balances
       const { data, error } = await supabase
         .from("leave_balances")
         .select("*")
-        .eq("user_id", user?.id)
+        .eq("user_id", user.id)
         .eq("organization_id", orgId)
         .eq("year", currentYear);
 
       if (error) throw error;
-
-      const defaultBalances: LeaveBalance[] = [
-        { id: "1", user_id: user?.id || "", profile_id: null, leave_type: "casual", total_days: 12, used_days: 0, year: currentYear },
-        { id: "2", user_id: user?.id || "", profile_id: null, leave_type: "sick", total_days: 10, used_days: 0, year: currentYear },
-        { id: "3", user_id: user?.id || "", profile_id: null, leave_type: "earned", total_days: 15, used_days: 0, year: currentYear },
-        { id: "4", user_id: user?.id || "", profile_id: null, leave_type: "maternity", total_days: 180, used_days: 0, year: currentYear },
-      ];
-
-      return data.length > 0 ? data as LeaveBalance[] : defaultBalances;
+      return (data ?? []) as LeaveBalance[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
   });
