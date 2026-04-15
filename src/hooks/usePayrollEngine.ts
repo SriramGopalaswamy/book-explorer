@@ -155,7 +155,7 @@ export function useGeneratePayroll() {
         eligibleStructures = eligibleStructures.filter((s: any) => activeProfileIds.has(s.profile_id));
       }
 
-      if (!structures || structures.length === 0) {
+      if (!eligibleStructures || eligibleStructures.length === 0) {
         // Fallback: generate entries from payroll_records for this period
         const { data: existingRecords } = await supabase
           .from("payroll_records")
@@ -343,7 +343,7 @@ export function useGeneratePayroll() {
         : 12;
 
       // 4. Generate entries
-      const entries = structures.map((s: any) => {
+      const entries = eligibleStructures.map((s: any) => {
         const components = s.compensation_components || [];
         const lwpDays = lwpMap.get(s.profile_id) || 0;
         const paidDays = Math.max(0, workingDays - lwpDays);
