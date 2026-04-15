@@ -530,7 +530,7 @@ export default function Leaves() {
                           <SelectValue placeholder="Select leave type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {activeLeaveTypes.map((lt) => (
+                          {eligibleLeaveTypes.map((lt) => (
                             <SelectItem key={lt.key} value={lt.key}>{lt.label}</SelectItem>
                           ))}
                         </SelectContent>
