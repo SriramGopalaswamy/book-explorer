@@ -22,21 +22,22 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify JWT via getClaims (no DB call)
-  const authClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  // Verify JWT via getUser
+  const token = authHeader.replace("Bearer ", "");
+  const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+  const { data: { user: callerUser }, error: userError } = await serviceClient.auth.getUser(token);
 
-  if (claimsError || !claimsData?.claims) {
+  if (userError || !callerUser) {
+    console.error("Auth failed:", userError?.message);
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const requestingUserId = claimsData.claims.sub;
+  const requestingUserId = callerUser.id;
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
