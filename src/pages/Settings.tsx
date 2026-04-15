@@ -1529,7 +1529,7 @@ function UserManagementSection() {
                           </Badge>
                         )}
                         {/* Status: editable Yes/No for active/inactive; read-only badge for others */}
-                        {(u.status === "active" || u.status === "inactive") && !isSelf && u.status !== "exited" ? (
+                        {(u.status === "active" || u.status === "inactive") && !isSelf ? (
                           <Select
                             value={u.status === "active" ? "yes" : "no"}
                             onValueChange={(val) => {
