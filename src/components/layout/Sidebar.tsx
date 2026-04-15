@@ -127,7 +127,6 @@ const hrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
 ];
 
 // Employee-only HRMS items
@@ -137,7 +136,6 @@ const employeeHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
 ];
 
 // Manager HRMS items (same as employee + Inbox)
@@ -147,7 +145,6 @@ const managerHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 
@@ -162,7 +159,7 @@ const financeHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
+  
 ];
 
 const inventoryNav: NavItem[] = [
