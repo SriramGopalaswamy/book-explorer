@@ -373,11 +373,11 @@ Deno.serve(async (req) => {
       // Update provisioned count
       await supabase
         .from("organization_settings")
-        .update({
+        .upsert({
+          organization_id: DEFAULT_ORG_ID,
           ms365_provisioned_count: (existingEmails.size + created),
           last_ms365_sync_at: new Date().toISOString(),
-        })
-        .eq("organization_id", DEFAULT_ORG_ID);
+        }, { onConflict: "organization_id" });
 
       console.log(`ms365-provision complete: ${created} created, ${skipped} skipped, ${errors.length} errors`);
 
