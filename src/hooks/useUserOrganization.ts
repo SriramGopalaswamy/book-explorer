@@ -45,8 +45,9 @@ export function useUserOrganization() {
       };
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 10, // 10 min — org rarely changes
-    // Keep previous data during refetch to prevent undefined flicker during org switching
+    staleTime: 1000 * 60 * 10,
+    retry: 2,
+    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
     placeholderData: (previousData: any) => previousData,
   });
 }

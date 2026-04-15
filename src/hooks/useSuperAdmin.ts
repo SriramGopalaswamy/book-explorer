@@ -28,6 +28,8 @@ export function useIsSuperAdmin() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 2000,
   });
 }
 
