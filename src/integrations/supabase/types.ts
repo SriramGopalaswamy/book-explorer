@@ -11476,6 +11476,23 @@ export type Database = {
         Args: { p_payroll_ids: string[] }
         Returns: Json
       }
+      propagate_leave_type_defaults: {
+        Args: {
+          _leave_type_key: string
+          _new_default_days: number
+          _org_id: string
+          _year?: number
+        }
+        Returns: number
+      }
+      provision_all_employees_balances: {
+        Args: { _org_id: string; _year?: number }
+        Returns: number
+      }
+      provision_leave_balances: {
+        Args: { _org_id: string; _user_id: string; _year?: number }
+        Returns: number
+      }
       recalculate_attendance: {
         Args: { _end_date: string; _org_id: string; _start_date: string }
         Returns: Json
