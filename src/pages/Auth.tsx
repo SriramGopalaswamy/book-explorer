@@ -55,9 +55,27 @@ export default function Auth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
+  const [ssoOnly, setSsoOnly] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const from = location.state?.from?.pathname || "/";
+
+  // Check SSO-only mode from org settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("organization_settings")
+          .select("sso_only")
+          .eq("organization_id", "00000000-0000-0000-0000-000000000001")
+          .maybeSingle();
+        if (data?.sso_only) setSsoOnly(true);
+      } catch { /* ignore */ }
+    })();
+  }, []);
 
   const from = location.state?.from?.pathname || "/";
 
