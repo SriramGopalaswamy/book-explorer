@@ -7074,24 +7074,36 @@ export type Database = {
         Row: {
           favicon_url: string | null
           id: string
+          last_ms365_sync_at: string | null
           logo_url: string | null
+          ms365_provisioned_count: number | null
           organization_id: string
+          sso_domain: string | null
+          sso_only: boolean | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           favicon_url?: string | null
           id?: string
+          last_ms365_sync_at?: string | null
           logo_url?: string | null
+          ms365_provisioned_count?: number | null
           organization_id: string
+          sso_domain?: string | null
+          sso_only?: boolean | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           favicon_url?: string | null
           id?: string
+          last_ms365_sync_at?: string | null
           logo_url?: string | null
+          ms365_provisioned_count?: number | null
           organization_id?: string
+          sso_domain?: string | null
+          sso_only?: boolean | null
           updated_at?: string
           updated_by?: string | null
         }
