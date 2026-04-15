@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       const [profilesResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email")
+          .select("id, user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email, exit_date, exit_reason, last_working_day, fnf_status, archived_at")
           .eq("organization_id", requestingOrgId),
         supabase
           .from("user_roles")
@@ -122,6 +122,11 @@ Deno.serve(async (req) => {
         status: p.status || "active",
         manager_id: p.manager_id,
         pending_manager_email: p.pending_manager_email,
+        exit_date: p.exit_date,
+        exit_reason: p.exit_reason,
+        last_working_day: p.last_working_day,
+        fnf_status: p.fnf_status,
+        archived_at: p.archived_at,
         roles: roleMap.get(p.user_id) || ["employee"],
       }));
 
