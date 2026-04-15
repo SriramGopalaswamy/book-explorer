@@ -654,11 +654,26 @@ export function useCreateLeaveType() {
         .single();
 
       if (error) throw error;
+
+      // Provision balances for all active employees for this new type
+      try {
+        const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+        if (callerProfile?.organization_id) {
+          await supabase.rpc("provision_all_employees_balances", {
+            _org_id: callerProfile.organization_id,
+            _year: new Date().getFullYear(),
+          });
+        }
+      } catch (provErr) {
+        console.warn("Failed to provision balances for new type:", provErr);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leave-types"] });
       queryClient.invalidateQueries({ queryKey: ["leave-types-all"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave type created");
     },
     onError: (error) => {
