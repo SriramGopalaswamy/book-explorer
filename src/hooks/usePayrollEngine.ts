@@ -167,13 +167,13 @@ export function useGeneratePayroll() {
         // Filter out inactive employees
         const activeRecords = (existingRecords || []).filter((r: any) => r.profiles?.status === 'active');
 
-        if (!existingRecords || existingRecords.length === 0) {
+        if (activeRecords.length === 0) {
           await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
           return { run, entriesCount: 0 };
         }
 
         // Map payroll_records to payroll_entries
-        const fallbackEntries = existingRecords.map((r: any) => {
+        const fallbackEntries = activeRecords.map((r: any) => {
           const gross = Number(r.basic_salary || 0) + Number(r.hra || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowances || 0);
           const deductions = Number(r.pf_deduction || 0) + Number(r.tax_deduction || 0) + Number(r.other_deductions || 0);
           const netPay = gross - deductions;
