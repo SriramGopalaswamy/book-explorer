@@ -101,6 +101,33 @@ export default function Leaves() {
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
   const { data: isManager } = useIsManager();
   const showMyLeavesTab = isAdminHROrFinance || isManager;
+
+  // Fetch current user's gender for filtering gender-specific leave types
+  const { data: myGender } = useQuery({
+    queryKey: ["my-gender", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("employee_details")
+        .select("gender")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data?.gender ? (data.gender as string).toLowerCase() : 'unknown';
+    },
+    enabled: !!user,
+  });
+
+  // Filter leave types by gender eligibility for the apply dropdown
+  const eligibleLeaveTypes = useMemo(() => {
+    if (!myGender) return activeLeaveTypes;
+    return activeLeaveTypes.filter((lt) => {
+      const elig = (lt as any).gender_eligibility || 'all';
+      if (elig === 'all') return true;
+      if (elig === 'female' && myGender.startsWith('f')) return true;
+      if (elig === 'male' && myGender.startsWith('m')) return true;
+      return false;
+    });
+  }, [activeLeaveTypes, myGender]);
   
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
