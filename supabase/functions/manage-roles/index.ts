@@ -22,25 +22,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify JWT via getClaims (no DB call)
-  const authClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  // Verify JWT via getUser
+  const token = authHeader.replace("Bearer ", "");
+  const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+  const { data: { user: callerUser }, error: userError } = await serviceClient.auth.getUser(token);
 
-  if (claimsError || !claimsData?.claims) {
+  if (userError || !callerUser) {
+    console.error("Auth failed:", userError?.message);
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const requestingUserId = claimsData.claims.sub;
+  const requestingUserId = callerUser.id;
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const supabase = serviceClient;
 
   // Step 1: resolve caller's org membership
   const membershipResult = await supabase
@@ -90,6 +89,7 @@ Deno.serve(async (req) => {
     // list_users — returns all users in org with status and manager info
     // ─────────────────────────────────────────────
     if (action === "list_users") {
+      console.log("list_users: orgId =", requestingOrgId, "caller =", requestingUserId);
       const [profilesResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
@@ -101,6 +101,11 @@ Deno.serve(async (req) => {
           .eq("organization_id", requestingOrgId),
       ]);
 
+      if (profilesResult.error) {
+        console.error("profiles query error:", profilesResult.error.message);
+      }
+      console.log("list_users: profiles count =", profilesResult.data?.length, "roles count =", rolesResult.data?.length);
+
       const roleMap = new Map<string, string[]>();
       for (const r of rolesResult.data || []) {
         if (!roleMap.has(r.user_id)) roleMap.set(r.user_id, []);
@@ -108,18 +113,19 @@ Deno.serve(async (req) => {
       }
 
       const users = (profilesResult.data || []).map((p) => ({
-        profile_id: p.id,          // profiles.id — used client-side for manager_id resolution
+        profile_id: p.id,
         user_id: p.user_id,
         full_name: p.full_name,
         email: p.email,
         department: p.department,
         job_title: p.job_title,
         status: p.status || "active",
-        manager_id: p.manager_id,  // references profiles.id of the manager
+        manager_id: p.manager_id,
         pending_manager_email: p.pending_manager_email,
         roles: roleMap.get(p.user_id) || ["employee"],
       }));
 
+      console.log("list_users: returning", users.length, "users");
       return new Response(JSON.stringify({ users }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
