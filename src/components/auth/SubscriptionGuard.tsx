@@ -60,10 +60,8 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   // If timed out, log and proceed with safe defaults (treat as needing activation)
   if (timedOut) {
-    console.warn("SubscriptionGuard: timed out after", MAX_LOADING_MS, "ms — proceeding with defaults");
-    // If we at least know we have an org, let them through
-    // Otherwise redirect to activation
-    return <Navigate to="/subscription/activate" replace />;
+    console.warn("SubscriptionGuard: timed out after", MAX_LOADING_MS, "ms — allowing access");
+    return <>{children}</>;
   }
 
   // Super admins bypass subscription enforcement

@@ -45,7 +45,7 @@ export function useUserOrganization() {
       };
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 30,
     retry: 2,
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
     placeholderData: (previousData: any) => previousData,
