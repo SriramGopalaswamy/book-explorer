@@ -11390,6 +11390,10 @@ export type Database = {
       reinitiate_onboarding: { Args: { _org_id: string }; Returns: Json }
       reset_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       reverse_journal_entry: { Args: { p_eid: string }; Returns: string }
+      revoke_employee_login: {
+        Args: { p_profile_id: string }
+        Returns: boolean
+      }
       run_depreciation_batch: {
         Args: { _org_id: string; _period_date: string }
         Returns: Json
