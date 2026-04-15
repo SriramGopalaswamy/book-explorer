@@ -29,7 +29,8 @@ interface SessionFilters {
 
 export function useUserSessions(filters: SessionFilters, page: number, pageSize: number) {
   const { user } = useAuth();
-  const { orgId } = useUserOrganization();
+  const orgQuery = useUserOrganization();
+  const orgId = orgQuery.data?.organizationId;
 
   return useQuery({
     queryKey: ["user-sessions", orgId, filters, page, pageSize],
