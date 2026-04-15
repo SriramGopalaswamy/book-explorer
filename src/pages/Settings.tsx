@@ -52,6 +52,7 @@ import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { ExitProcessingDialog } from "@/components/employees/ExitProcessingDialog";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { Target } from "lucide-react";
@@ -94,6 +95,7 @@ const STATUS_LABELS: Record<string, string> = {
   inactive: "Inactive",
   on_leave: "On Leave",
   pending_approval: "Pending Approval",
+  exited: "Exited",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -101,6 +103,7 @@ const STATUS_COLORS: Record<string, string> = {
   inactive: "bg-red-500/10 text-red-500 border-red-500/20",
   on_leave: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   pending_approval: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  exited: "bg-orange-500/10 text-orange-600 border-orange-500/20",
 };
 
 // ─── Organization Info Section ────────────────────────────────────────────────
@@ -1060,6 +1063,10 @@ function UserManagementSection() {
   const [managerDialogAction, setManagerDialogAction] = useState<"deactivate" | "delete" | null>(null);
   const [replacementManagerId, setReplacementManagerId] = useState<string>("");
 
+  // Exit processing dialog state
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const [exitTarget, setExitTarget] = useState<UserWithRole | null>(null);
+
   // Set manager dialog state
   const [assignManagerDialogOpen, setAssignManagerDialogOpen] = useState(false);
   const [setManagerTarget, setSetManagerTarget] = useState<UserWithRole | null>(null);
@@ -1169,6 +1176,11 @@ function UserManagementSection() {
     setManagerDialogAction(action);
     setReplacementManagerId("");
     setManagerDialogOpen(true);
+  };
+
+  const initiateExit = (targetUser: UserWithRole) => {
+    setExitTarget(targetUser);
+    setExitDialogOpen(true);
   };
 
   const executeDeactivateOrDelete = async () => {
@@ -1517,7 +1529,7 @@ function UserManagementSection() {
                           </Badge>
                         )}
                         {/* Status: editable Yes/No for active/inactive; read-only badge for others */}
-                        {(u.status === "active" || u.status === "inactive") && !isSelf ? (
+                        {(u.status === "active" || u.status === "inactive") && !isSelf && u.status !== "exited" ? (
                           <Select
                             value={u.status === "active" ? "yes" : "no"}
                             onValueChange={(val) => {
@@ -1646,6 +1658,13 @@ function UserManagementSection() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
+                              className="text-orange-600 focus:text-orange-600"
+                              onClick={() => initiateExit(u)}
+                            >
+                              <UserX className="h-4 w-4 mr-2" />
+                              Exit Employee
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => initiateDeactivateOrDelete(u, "delete")}
                             >
@@ -1675,6 +1694,26 @@ function UserManagementSection() {
           )}
         </CardContent>
       </Card>
+
+      <ExitProcessingDialog
+        open={exitDialogOpen}
+        onOpenChange={setExitDialogOpen}
+        targetUser={exitTarget ? {
+          user_id: exitTarget.user_id,
+          profile_id: exitTarget.profile_id,
+          full_name: exitTarget.full_name,
+          email: exitTarget.email,
+        } : null}
+        activeUsers={activeUsers.map((u) => ({
+          user_id: u.user_id,
+          profile_id: u.profile_id,
+          full_name: u.full_name,
+          email: u.email,
+        }))}
+        onComplete={() => {
+          qc.invalidateQueries({ queryKey: ["user-roles"] });
+        }}
+      />
     </div>
   );
 }
