@@ -8041,6 +8041,7 @@ export type Database = {
           location: string | null
           manager_id: string | null
           organization_id: string
+          pending_manager_email: string | null
           phone: string | null
           status: string | null
           updated_at: string
@@ -8060,6 +8061,7 @@ export type Database = {
           location?: string | null
           manager_id?: string | null
           organization_id?: string
+          pending_manager_email?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string
@@ -8079,6 +8081,7 @@ export type Database = {
           location?: string | null
           manager_id?: string | null
           organization_id?: string
+          pending_manager_email?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string
