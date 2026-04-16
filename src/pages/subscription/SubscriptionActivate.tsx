@@ -143,9 +143,23 @@ export default function SubscriptionActivate() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Need a subscription key? Contact your platform administrator.
-        </p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-center text-xs text-muted-foreground">
+            Need a subscription key? Contact your platform administrator.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-destructive"
+            onClick={async () => {
+              await signOut();
+              toast.success("Signed out successfully");
+            }}
+          >
+            <LogOut className="h-3 w-3 mr-1" />
+            Sign out
+          </Button>
+        </div>
       </div>
     </div>
   );
