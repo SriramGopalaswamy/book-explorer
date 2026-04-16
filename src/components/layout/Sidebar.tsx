@@ -356,7 +356,7 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { data: currentRole } = useCurrentRole();
-  const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { data: isSuperAdmin, isLoading: superAdminLoading } = useIsSuperAdmin();
   const { signOut } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
   const { data: orgData, isLoading: orgLoading } = useUserOrganization();
@@ -364,8 +364,9 @@ export function Sidebar() {
 
   // Never blank the navigation while role/org queries settle.
   // Fall back to a safe self-service role until the org-scoped role query resolves.
-  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? "employee";
-  const showingFallbackRole = !isSuperAdmin && currentRole === undefined;
+  const rolesStillLoading = superAdminLoading || orgLoading;
+  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? (rolesStillLoading ? null : "employee");
+  const showingFallbackRole = !isSuperAdmin && effectiveRole === null;
 
   // Restore sidebar scroll position after remount AND after content has rendered
   // We depend on org loading so scroll is restored once the shell is laid out
