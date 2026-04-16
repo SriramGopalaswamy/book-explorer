@@ -418,7 +418,8 @@ Deno.serve(async (req) => {
         // AUTO-ACTIVATE: All MS365 SSO users get "active" status immediately
         await syncProfileFromMS365(supabase, newUser.user!.id, fullName, jobTitle, department, phone, email, managerEmail, "active");
 
-        // Check for inactive duplicate (re-created ex-employee)
+        // Historical inactive profile rows must not block a valid Microsoft 365 user.
+        // The current corporate identity is the source of truth; keep the new user active.
         const { data: inactiveMatch } = await supabase
           .from('profiles')
           .select('id, status')
@@ -429,15 +430,10 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (inactiveMatch) {
-          // This is a re-created ex-employee — block immediately
-          await supabase.from('profiles')
-            .update({ status: 'inactive' })
-            .eq('user_id', newUser.user!.id);
-          await supabase.auth.admin.updateUserById(newUser.user!.id, { ban_duration: '876000h' });
-          return new Response(
-            JSON.stringify({ error: 'This account has been deactivated. Contact your administrator.' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          console.warn('Inactive historical profile found for MS365 user; allowing sign-in', {
+            email: email.toLowerCase(),
+            duplicate_profile_id: inactiveMatch.id,
+          });
         }
 
         // Generate session for ALL new users (no more pending screen)

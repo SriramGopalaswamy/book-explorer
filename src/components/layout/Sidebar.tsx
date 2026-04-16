@@ -353,18 +353,16 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
+  const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const { isModuleEnabled } = useModuleAccess();
-  const { data: orgData, isFetched: orgFetched } = useUserOrganization();
+  const { data: orgData, isLoading: orgLoading } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
-  // Only treat as loading on initial fetch, not on refetches — prevents scroll reset.
-  // IMPORTANT: when orgId is absent (no profile or no org assignment) the role query
-  // is permanently disabled and isFetched stays false forever, making the sidebar
-  // blank indefinitely for those users. Guard: if org data has been fetched and there
-  // is no org, skip the loading gate so the sidebar renders with employee defaults.
-  const isLoading = orgFetched && !orgData ? false : !isFetched;
+  // Only block sidebar rendering while the org lookup is still resolving or while
+  // an org-scoped role query is actually pending. Avoid blank sidebars when the
+  // role query is disabled or when stale org cache briefly reports null.
+  const isLoading = orgLoading || (!!orgData?.organizationId && roleLoading && currentRole === undefined);
 
   // Restore sidebar scroll position after remount AND after content has rendered
   // We depend on isLoading so scroll is restored once nav items are actually in the DOM
