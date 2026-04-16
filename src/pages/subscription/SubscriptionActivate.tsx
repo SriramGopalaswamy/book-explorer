@@ -5,10 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KeyRound, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { KeyRound, Loader2, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import grx10Logo from "@/assets/grx10-logo.webp";
 
