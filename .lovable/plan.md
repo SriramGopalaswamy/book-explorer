@@ -1,65 +1,84 @@
 
 
-## Problem
+## Which Commit Bricked Sign-In
 
-Every database migration triggers a PostgREST schema cache reload. During this ~10-30s window, Supabase queries are slow or fail. The `SubscriptionGuard` has an 8-second hard timeout that **always** redirects to `/subscription/activate` when it fires — regardless of whether the user actually needs activation.
+The three files edited in the last 24 hours were:
+1. `src/components/auth/SubscriptionGuard.tsx` — permissive timeout (safe)
+2. `src/contexts/SubscriptionContext.tsx` — error vs empty handling (safe)
+3. `src/hooks/useUserOrganization.ts` — 30min staleTime (safe)
 
-This is the **third time** this has caused a full-app lockout. The root issue: the guard treats "couldn't verify in time" the same as "no subscription exists."
+**None of these directly bricked sign-in.** The brick is caused by a pre-existing race condition in `AuthCallback.tsx` that was **identified but never fixed** in the previous round. The SubscriptionGuard changes may have shifted timing enough to make it worse.
 
-## Root Cause
+## The Exact Bug (AuthCallback.tsx, lines 74-80)
 
 ```text
-Migration deployed
-  → PostgREST schema cache reloads (~10-30s)
-  → useUserOrganization / subscription queries slow/fail
-  → SubscriptionGuard timeout fires at 8s
-  → Always redirects to /subscription/activate  ← BUG
+setSession() resolves
+  → onAuthStateChange fires (React batches setState)
+  → navigate("/") runs IMMEDIATELY        ← too early
+  → ProtectedRoute reads user = null      ← batch not committed
+  → Redirects to /auth
+  → Auth.tsx useEffect sees user become non-null
+  → Navigates back to "/"
+  → Loop or permanent hang
 ```
 
-## Fix Plan
+## Fix Plan (3 files, root-cause only)
 
-### 1. SubscriptionGuard: Timeout should let users through, not block them
+### 1. AuthCallback.tsx — Wait for auth state before navigating
 
-**Current behavior (line 62-66):** Timeout → redirect to `/subscription/activate`
-
-**New behavior:** Timeout → **let the user through** (render children). The reasoning: a false-positive "let them in" is infinitely better than locking out every user. If there's truly no subscription, the next successful query will redirect them properly.
+Stop calling `navigate("/")` immediately after `setSession()`. Instead, set a flag and let a separate `useEffect` navigate only once `useAuth().user` is confirmed.
 
 ```typescript
-// If timed out, let users through rather than blocking
-if (timedOut) {
-  console.warn("SubscriptionGuard: timed out — allowing access");
-  return <>{children}</>;
-}
+const { user } = useAuth();
+const [authComplete, setAuthComplete] = useState(false);
+
+// After setSession succeeds:
+setAuthComplete(true);
+// Do NOT navigate here
+
+// Separate effect waits for React to commit
+useEffect(() => {
+  if (authComplete && user) {
+    navigate("/", { replace: true });
+  }
+}, [authComplete, user, navigate]);
 ```
 
-### 2. SubscriptionContext: Treat errors as "no activation needed" not "needs activation"
+### 2. Auth.tsx (line 81-85) — Guard against callback redirect loop
 
-When `orgError` is true (query failed, not "org doesn't exist"), the current code sets `needsActivation: true`. This is wrong — a network error shouldn't trigger activation. Change to only set `needsActivation` when the query **succeeded** but returned no org.
+Add a check so Auth.tsx doesn't immediately re-navigate when the user just arrived from the callback:
 
 ```typescript
-// org query errored (network issue) → don't assume needs activation
-if (orgError) {
-  return { ...defaults, loading: false, needsActivation: false };
-}
-// org query succeeded but no org found → needs activation
-if (!org) {
-  return { ...defaults, loading: false, needsActivation: true };
-}
+useEffect(() => {
+  if (user && !location.pathname.startsWith("/auth/callback")) {
+    navigate(from, { replace: true });
+  }
+}, [user, navigate, from, location.pathname]);
 ```
 
-### 3. useUserOrganization: Add `placeholderData` to survive transient failures
+### 3. Index.tsx — Add 10s safety timeout fallback
 
-Already has `placeholderData: (prev) => prev` which is good, but also increase `staleTime` to 30 minutes so cached data survives longer during schema reloads.
+If the guard chain (org → subscription → role) hangs beyond 10 seconds, render Dashboard directly instead of spinning forever:
+
+```typescript
+const [timedOut, setTimedOut] = useState(false);
+useEffect(() => {
+  const t = setTimeout(() => setTimedOut(true), 10_000);
+  return () => clearTimeout(t);
+}, []);
+
+if (timedOut && !isSuperAdmin) return <Dashboard />;
+```
 
 ### Files to change
 
-| File | Change |
-|------|--------|
-| `src/components/auth/SubscriptionGuard.tsx` | Timeout → render children instead of redirect |
-| `src/contexts/SubscriptionContext.tsx` | Separate error vs. empty-result handling |
-| `src/hooks/useUserOrganization.ts` | Increase staleTime to 30 min |
+| File | Change | Risk |
+|------|--------|------|
+| `src/pages/AuthCallback.tsx` | Wait for `user` before navigating | Low |
+| `src/pages/Auth.tsx` | Prevent redirect loop from callback | Low |
+| `src/pages/Index.tsx` | 10s fallback to Dashboard | Low |
 
-### Why this won't recur
+### Why this is the fix
 
-The fundamental shift: **timeout = permissive** (let users in) instead of **timeout = restrictive** (lock users out). Even if PostgREST takes 60 seconds to reload, users continue working with cached data. The guard only blocks when queries **succeed** and confirm there's no subscription.
+The SubscriptionGuard/Context changes from the last 24h are correct and safe. The actual brick is the MS365 `setSession → navigate` race that was diagnosed but never patched. This plan patches it.
 
