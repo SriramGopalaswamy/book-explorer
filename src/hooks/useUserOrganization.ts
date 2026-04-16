@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -45,8 +45,12 @@ export function useUserOrganization() {
       };
     },
     enabled: !!user,
-    // Auth-critical lookup: keep this fresh and never reuse stale nulls across sign-in transitions.
-    staleTime: 15_000,
+    // Prevent undefined flicker during refetches / user transitions.
+    // keepPreviousData ensures the last resolved value stays available
+    // while a new fetch for a different user.id is in flight.
+    placeholderData: keepPreviousData,
+    // Auth-critical lookup: keep cached for 1 minute to reduce refetch noise.
+    staleTime: 1000 * 60,
     retry: 2,
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
   });
