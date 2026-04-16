@@ -19,6 +19,7 @@ export default function SubscriptionActivate() {
   const queryClient = useQueryClient();
   const { needsActivation, loading: subLoading } = useSubscription();
   const { data: org } = useUserOrganization();
+  const { signOut } = useAuth();
   const {
     data: isSuperAdmin,
     isLoading: superAdminLoading,
