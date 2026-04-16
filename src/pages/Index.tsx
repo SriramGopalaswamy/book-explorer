@@ -28,6 +28,11 @@ const Index = () => {
     !!orgData?.organizationId && (roleLoading || (roleFetching && currentRole === undefined));
 
   if (waitingOnSuperAdmin || waitingOnOrganization || waitingOnRole) {
+    // If we've been waiting >10s, just render Dashboard instead of hanging
+    if (timedOut) {
+      console.warn("[Index] Guard chain timed out after 10s — rendering Dashboard as fallback");
+      return <Dashboard />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
