@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   Tooltip,
@@ -68,6 +70,7 @@ import {
    RefreshCw,
    Cpu,
    Upload,
+   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -355,6 +358,7 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { signOut } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
   const { data: orgData, isLoading: orgLoading } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
@@ -561,6 +565,22 @@ export function Sidebar() {
             )}
           </NavLink>
         )}
+
+        {/* Sign out — visible to ALL roles */}
+        <button
+          onClick={async () => {
+            closeMobile();
+            await signOut();
+            toast.success("Signed out successfully");
+          }}
+          className={cn(
+            "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10"
+          )}
+        >
+          <LogOut className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+          {!collapsed && <span>Sign out</span>}
+        </button>
 
         {/* Desktop collapse toggle */}
         <button
