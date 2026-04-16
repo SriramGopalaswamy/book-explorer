@@ -56,7 +56,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   });
 
   // Treat errors as "done loading" to prevent permanent spinner
-  const loading = orgLoading || (!!orgId && subLoading);
+  const loading = orgLoading || (!!orgId && subLoading && !subError);
 
   const state = useMemo<SubscriptionState>(() => {
     if (loading) {
@@ -82,6 +82,21 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         subscriptionStatus: null,
         loading: false,
         organizationId: null,
+        enabledModules: null,
+      };
+    }
+
+    // Subscription query errored — don't assume needs activation, allow through
+    if (subError) {
+      console.warn("SubscriptionContext: subscription query errored — allowing access");
+      return {
+        needsActivation: false,
+        readOnlyMode: false,
+        onboardingRequired: false,
+        plan: null,
+        subscriptionStatus: null,
+        loading: false,
+        organizationId: orgId ?? null,
         enabledModules: null,
       };
     }
