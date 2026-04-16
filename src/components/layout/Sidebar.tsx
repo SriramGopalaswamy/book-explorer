@@ -358,6 +358,7 @@ export function Sidebar() {
   const location = useLocation();
   const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { signOut } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
   const { data: orgData, isLoading: orgLoading } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
