@@ -131,7 +131,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       organizationId: orgId ?? null,
       enabledModules: subscription?.enabled_modules ?? null,
     };
-  }, [loading, org, orgError, subscription, orgId]);
+  }, [loading, org, orgError, subError, subscription, orgId]);
 
   return (
     <SubscriptionContext.Provider value={state}>
