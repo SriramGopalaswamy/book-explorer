@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [authComplete, setAuthComplete] = useState(false);
+
+  // Navigate only after React has committed the auth state
+  useEffect(() => {
+    if (authComplete && user) {
+      navigate("/", { replace: true });
+    }
+  }, [authComplete, user, navigate]);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -32,8 +42,6 @@ export default function AuthCallback() {
       return;
     }
 
-    // Reject on state mismatch — required to prevent CSRF attacks on the OAuth flow.
-    // Both sides must be present and identical; missing state is also a hard failure.
     if (!savedState || stateParam !== savedState) {
       sessionStorage.removeItem("ms365_oauth_state");
       const msg = "Authentication failed: invalid state parameter. Please try signing in again.";
@@ -77,7 +85,9 @@ export default function AuthCallback() {
             refresh_token: data.session.refresh_token,
           });
           toast.success("Signed in with Microsoft 365!");
-          navigate("/", { replace: true });
+          // Don't navigate here — let the useEffect above handle it
+          // once AuthContext has committed the user state
+          setAuthComplete(true);
         } else {
           setError("No session returned");
           setTimeout(() => navigate("/auth", { replace: true }), 3000);

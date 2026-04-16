@@ -79,10 +79,12 @@ export default function Auth() {
 
 
   useEffect(() => {
-    if (user) {
+    // Guard: don't redirect if we just arrived from /auth/callback —
+    // AuthCallback.tsx handles its own navigation after state commits.
+    if (user && !location.pathname.startsWith("/auth/callback")) {
       navigate(from, { replace: true });
     }
-  }, [user, navigate, from]);
+  }, [user, navigate, from, location.pathname]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
