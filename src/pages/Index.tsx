@@ -11,6 +11,13 @@ const Index = () => {
   const { data: orgData, isLoading: orgLoading, isFetching: orgFetching } = useUserOrganization();
   const { data: currentRole, isLoading: roleLoading, isFetching: roleFetching } = useCurrentRole();
 
+  // Safety timeout: if guard chain hangs >10s, render Dashboard rather than spin forever
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 10_000);
+    return () => clearTimeout(t);
+  }, []);
+
   if (isSuperAdmin) return <Navigate to="/platform" replace />;
 
   const waitingOnSuperAdmin =
