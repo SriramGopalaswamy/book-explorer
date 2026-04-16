@@ -91,6 +91,7 @@ export function useSessionTimeout() {
           .from("user_sessions")
           .select("session_id, last_seen_at")
           .eq("user_id", user.id)
+          .is("event_type", null)
           .gte("last_seen_at", new Date(Date.now() - 2 * 60_000).toISOString()) // active within 2 min
           .order("last_seen_at", { ascending: false });
 

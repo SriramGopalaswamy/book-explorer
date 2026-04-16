@@ -18,12 +18,13 @@ const Index = () => {
     return () => clearTimeout(t);
   }, []);
 
-  if (isSuperAdmin) return <Navigate to="/platform" replace />;
+  if (isSuperAdmin) return <Dashboard />;
 
   const waitingOnSuperAdmin =
     superAdminLoading || (superAdminFetching && isSuperAdmin === undefined);
   const waitingOnOrganization =
     orgLoading || (orgFetching && orgData === undefined);
+  const organizationResolved = !orgLoading && !orgFetching;
   const waitingOnRole =
     !!orgData?.organizationId && (roleLoading || (roleFetching && currentRole === undefined));
 
@@ -44,7 +45,9 @@ const Index = () => {
   }
 
   // Organization explicitly missing — let the normal activation flow handle it.
-  if (orgData === null) return <Navigate to="/subscription/activate" replace />;
+  if (organizationResolved && orgData === null) {
+    return <Navigate to="/subscription/activate" replace />;
+  }
 
   if (currentRole === "employee") return <Navigate to="/hrms/my-attendance" replace />;
   if (currentRole === "hr") return <Navigate to="/hrms/employees" replace />;

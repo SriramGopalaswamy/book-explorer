@@ -45,10 +45,10 @@ export function useUserOrganization() {
       };
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 30,
+    // Auth-critical lookup: keep this fresh and never reuse stale nulls across sign-in transitions.
+    staleTime: 15_000,
     retry: 2,
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
-    placeholderData: (previousData: any) => previousData,
   });
 }
 
