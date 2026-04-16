@@ -152,8 +152,11 @@ export default function SubscriptionActivate() {
             size="sm"
             className="text-xs text-muted-foreground hover:text-destructive"
             onClick={async () => {
-              await signOut();
-              toast.success("Signed out successfully");
+              try {
+                await signOut();
+              } finally {
+                window.location.replace("/auth");
+              }
             }}
           >
             <LogOut className="h-3 w-3 mr-1" />

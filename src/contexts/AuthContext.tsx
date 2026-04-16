@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -84,6 +84,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearClientSessionArtifacts = () => {
+    try {
+      sessionStorage.removeItem("grx10_session_id");
+      sessionStorage.removeItem("ms365_oauth_state");
+    } catch {
+      // ignore
+    }
+
+    try {
+      localStorage.removeItem(SIGNIN_LOCKOUT_KEY);
+      localStorage.removeItem(SIGNUP_LOCKOUT_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
   const signUp = async (email: string, password: string, fullName: string) => {
     checkRateLimit(SIGNUP_LOCKOUT_KEY);
     const redirectUrl = `${window.location.origin}/`;
@@ -118,7 +134,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    clearClientSessionArtifacts();
+    setSession(null);
+    setUser(null);
+    setLoading(false);
+
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+
+    if (error) {
+      console.error("[Auth] Local sign out fallback used:", error.message);
+    }
   };
 
   const resetPassword = async (email: string) => {

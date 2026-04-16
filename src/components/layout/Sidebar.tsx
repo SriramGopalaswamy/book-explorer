@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   Tooltip,
@@ -356,7 +355,6 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
   const { data: currentRole } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const { signOut } = useAuth();
@@ -574,9 +572,11 @@ export function Sidebar() {
         <button
           onClick={async () => {
             closeMobile();
-            await signOut();
-            navigate("/auth", { replace: true });
-            toast.success("Signed out successfully");
+            try {
+              await signOut();
+            } finally {
+              window.location.replace("/auth");
+            }
           }}
           className={cn(
             "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
