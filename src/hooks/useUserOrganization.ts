@@ -14,33 +14,24 @@ export function useUserOrganization() {
     queryFn: async () => {
       if (!user) return null;
 
-      // Get org_id from profile
+      // Single query: join profile → organization via foreign key
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("organization_id")
+        .select("organization_id, organizations:organization_id(id, name, status, org_state, created_at)")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (profileError) throw profileError;
       if (!profile?.organization_id) return null;
 
-      const orgId = profile.organization_id;
-
-      // Get org details including org_state
-      const { data: org, error: orgError } = await supabase
-        .from("organizations")
-        .select("id, name, status, org_state, created_at")
-        .eq("id", orgId)
-        .maybeSingle();
-
-      if (orgError) throw orgError;
+      const org = profile.organizations as any;
       if (!org) return null;
 
       return {
-        organizationId: orgId,
+        organizationId: profile.organization_id,
         orgName: org.name ?? null,
         orgStatus: org.status ?? null,
-        orgState: (org as any)?.org_state ?? null,
+        orgState: org.org_state ?? null,
         createdAt: org.created_at ?? null,
       };
     },
