@@ -566,6 +566,22 @@ export function Sidebar() {
           </NavLink>
         )}
 
+        {/* Sign out — visible to ALL roles */}
+        <button
+          onClick={async () => {
+            closeMobile();
+            await signOut();
+            toast.success("Signed out successfully");
+          }}
+          className={cn(
+            "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10"
+          )}
+        >
+          <LogOut className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+          {!collapsed && <span>Sign out</span>}
+        </button>
+
         {/* Desktop collapse toggle */}
         <button
           onClick={handleToggle}
