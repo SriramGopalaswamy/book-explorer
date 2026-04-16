@@ -4,6 +4,34 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 /**
+ * Prefetch ALL roles for the current user in a single query.
+ * Fires immediately on auth (no org dependency), so it runs in parallel
+ * with useUserOrganization instead of waiting for it.
+ */
+function useAllUserRoles() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["user-all-roles", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role, organization_id")
+        .eq("user_id", user.id);
+      if (error) {
+        console.error("Error fetching all user roles:", error);
+        return [];
+      }
+      return data ?? [];
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
  * Hook to check if user has Admin or HR role — ORG-SCOPED
  * Prevents cross-tenant role escalation (e.g. admin in prod != admin in sandbox)
  */
