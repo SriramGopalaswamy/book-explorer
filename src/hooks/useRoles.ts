@@ -4,123 +4,80 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 /**
- * Hook to check if user has Admin or HR role — ORG-SCOPED
- * Prevents cross-tenant role escalation (e.g. admin in prod != admin in sandbox)
+ * Prefetch ALL roles for the current user in a single query.
+ * Fires immediately on auth (no org dependency), so it runs in parallel
+ * with useUserOrganization instead of waiting for it.
  */
-export function useIsAdminOrHR() {
+function useAllUserRoles() {
   const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["user-role", user?.id, "admin-hr", orgId],
+    queryKey: ["user-all-roles", user?.id],
     queryFn: async () => {
-      if (!user || !orgId) return false;
-      
+      if (!user) return [];
       const { data, error } = await supabase
         .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .in("role", ["admin", "hr"])
-        .eq("organization_id", orgId);
-
+        .select("role, organization_id")
+        .eq("user_id", user.id);
       if (error) {
-        console.error("Error checking admin/HR role:", error);
-        return false;
+        console.error("Error fetching all user roles:", error);
+        return [];
       }
-
-      return data && data.length > 0;
+      return data ?? [];
     },
-    enabled: !!user && !!orgId,
+    enabled: !!user,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Helper: get org-scoped roles from the prefetched list.
+ */
+function useOrgRoles() {
+  const { data: allRoles, isLoading } = useAllUserRoles();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  const orgRoles = (allRoles ?? [])
+    .filter((r) => r.organization_id === orgId)
+    .map((r) => r.role);
+
+  return { orgRoles, orgId, isLoading };
+}
+
+/**
+ * Hook to check if user has Admin or HR role — ORG-SCOPED
+ */
+export function useIsAdminOrHR() {
+  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  return {
+    data: orgId ? orgRoles.some((r) => r === "admin" || r === "hr") : false,
+    isLoading,
+  };
 }
 
 /**
  * Hook to check if user has Finance role or Admin role — ORG-SCOPED
  */
 export function useIsFinance() {
-  const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-
-  return useQuery({
-    queryKey: ["user-role", user?.id, "finance", orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return false;
-      
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .in("role", ["admin", "finance"])
-        .eq("organization_id", orgId);
-
-      if (error) {
-        console.error("Error checking finance role:", error);
-        return false;
-      }
-
-      return data && data.length > 0;
-    },
-    enabled: !!user && !!orgId,
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: true,
-  });
+  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  return {
+    data: orgId ? orgRoles.some((r) => r === "admin" || r === "finance") : false,
+    isLoading,
+  };
 }
 
 /**
  * Hook to check if user is a Manager — ORG-SCOPED
+ * Note: direct-report fallback removed for perf; relies on explicit role assignment.
  */
 export function useIsManager() {
-  const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-
-  return useQuery({
-    queryKey: ["user-role", user?.id, "manager", orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return false;
-      
-      // Check user_roles table — org-scoped
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "manager")
-        .eq("organization_id", orgId)
-        .limit(1);
-
-      if (roleData && roleData.length > 0) return true;
-
-      // Fallback: check if anyone in the SAME org reports to this user
-      const { data: myProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!myProfile) return false;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("manager_id", myProfile.id)
-        .eq("organization_id", orgId)
-        .limit(1);
-
-      if (error) {
-        console.error("Error checking manager status:", error);
-        return false;
-      }
-
-      return data && data.length > 0;
-    },
-    enabled: !!user && !!orgId,
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: true,
-  });
+  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  return {
+    data: orgId ? orgRoles.includes("manager") : false,
+    isLoading,
+  };
 }
 
 /**
@@ -129,35 +86,16 @@ export function useIsManager() {
  * privilege escalation across tenant boundaries (production vs sandbox).
  */
 export function useCurrentRole() {
-  const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
+  const { orgRoles, orgId, isLoading } = useOrgRoles();
 
-  return useQuery({
-    queryKey: ["user-role", user?.id, "current-role", orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return null;
+  let role: string | null = null;
+  if (orgId) {
+    if (orgRoles.includes("admin")) role = "admin";
+    else if (orgRoles.includes("hr")) role = "hr";
+    else if (orgRoles.includes("finance")) role = "finance";
+    else if (orgRoles.includes("manager")) role = "manager";
+    else role = "employee";
+  }
 
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("organization_id", orgId);
-
-      if (error) {
-        console.error("Error fetching role:", error);
-        return "employee";
-      }
-
-      const roles = data?.map((r) => r.role) ?? [];
-      if (roles.includes("admin")) return "admin";
-      if (roles.includes("hr")) return "hr";
-      if (roles.includes("finance")) return "finance";
-      if (roles.includes("manager")) return "manager";
-      return "employee";
-    },
-    enabled: !!user && !!orgId,
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: true,
-  });
+  return { data: role, isLoading };
 }

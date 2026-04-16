@@ -9,7 +9,7 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 const Index = () => {
   const { data: isSuperAdmin, isLoading: superAdminLoading, isFetching: superAdminFetching } = useIsSuperAdmin();
   const { data: orgData, isLoading: orgLoading, isFetching: orgFetching } = useUserOrganization();
-  const { data: currentRole, isLoading: roleLoading, isFetching: roleFetching } = useCurrentRole();
+  const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
 
   // Safety timeout: if guard chain hangs >10s, render Dashboard rather than spin forever
   const [timedOut, setTimedOut] = useState(false);
@@ -26,7 +26,7 @@ const Index = () => {
     orgLoading || (orgFetching && orgData === undefined);
   const organizationResolved = !orgLoading && !orgFetching;
   const waitingOnRole =
-    !!orgData?.organizationId && (roleLoading || (roleFetching && currentRole === undefined));
+    !!orgData?.organizationId && (roleLoading && currentRole === undefined);
 
   if (waitingOnSuperAdmin || waitingOnOrganization || waitingOnRole) {
     // If we've been waiting >10s, just render Dashboard instead of hanging
