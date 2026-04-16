@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   Tooltip,
