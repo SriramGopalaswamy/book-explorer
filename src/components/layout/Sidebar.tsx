@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -356,23 +356,24 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
+  const navigate = useNavigate();
+  const { data: currentRole } = useCurrentRole();
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const { signOut } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
   const { data: orgData, isLoading: orgLoading } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
-  // Only block sidebar rendering while the org lookup is still resolving or while
-  // an org-scoped role query is actually pending. Avoid blank sidebars when the
-  // role query is disabled or when stale org cache briefly reports null.
-  const isLoading = orgLoading || (!!orgData?.organizationId && roleLoading && currentRole === undefined);
+  // Never blank the navigation while role/org queries settle.
+  // Fall back to a safe self-service role until the org-scoped role query resolves.
+  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? "employee";
+  const showingFallbackRole = !isSuperAdmin && currentRole === undefined;
 
   // Restore sidebar scroll position after remount AND after content has rendered
-  // We depend on isLoading so scroll is restored once nav items are actually in the DOM
+  // We depend on org loading so scroll is restored once the shell is laid out
   useEffect(() => {
     const el = sidebarScrollRef.current;
-    if (!el || isLoading) return;
+    if (!el || orgLoading) return;
     // Use rAF to ensure the browser has laid out the content before restoring scroll
     const raf = requestAnimationFrame(() => {
       el.scrollTop = savedSidebarScroll;
@@ -383,12 +384,13 @@ export function Sidebar() {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll);
     };
-  }, [isLoading]);
+  }, [orgLoading]);
 
-  const isEmployee = currentRole === "employee";
-  const isManager = currentRole === "manager";
-  const isFinance = currentRole === "finance";
-  const isHR = currentRole === "hr";
+  const isEmployee = effectiveRole === "employee";
+  const isManager = effectiveRole === "manager";
+  const isFinance = effectiveRole === "finance";
+  const isHR = effectiveRole === "hr";
+  const isAdmin = effectiveRole === "admin";
 
   // Expose setter so Header can trigger it
   setMobileMenuOpen = setMobileOpen;
@@ -464,78 +466,80 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-        {!isLoading && (
-          <>
-            {visibleMainNav.length > 0 && (
-              <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleFinancialNav.length > 0 && (
-              <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleInventoryNav.length > 0 && (
-              <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleProcurementNav.length > 0 && (
-              <NavSection title="Procurement" items={visibleProcurementNav} sectionId="procurement" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleSalesNav.length > 0 && (
-              <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleManufacturingNav.length > 0 && (
-              <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleWarehouseNav.length > 0 && (
-              <NavSection title="Warehouse" items={visibleWarehouseNav} sectionId="warehouse" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
-            {visiblePerformanceNav.length > 0 && (
-              <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {(currentRole === "admin" || currentRole === "hr") && (
-              <NavSection
-                title="Admin"
-                items={[
-                  { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
-                  { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
-                  { name: "MCP Tools", path: "/admin/mcp-tools", icon: Cpu },
-                ]}
-                sectionId="admin"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-            {(currentRole === "admin" || isSuperAdmin) && (
-              <NavSection
-                title="Connectors"
-                items={[
-                  { name: "Connectors", path: "/connectors", icon: Plug },
-                ]}
-                sectionId="connectors"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-            {isSuperAdmin && (
-              <NavSection
-                title="Platform"
-                items={[
-                  { name: "Tenants", path: "/platform", icon: Building2 },
-                  { name: "Sandbox Lab", path: "/platform/sandbox", icon: FlaskConical },
-                  { name: "DB Inspector", path: "/platform/db-inspector", icon: Database },
-                  { name: "Audit Log", path: "/platform/audit", icon: ClipboardList },
-                ]}
-                sectionId="platform"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-          </>
+        {showingFallbackRole && !collapsed && (
+          <div className="mb-4 rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 px-3 py-2 text-xs text-sidebar-foreground/60">
+            Syncing workspace access… showing self-service navigation.
+          </div>
+        )}
+
+        {visibleMainNav.length > 0 && (
+          <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleFinancialNav.length > 0 && (
+          <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleInventoryNav.length > 0 && (
+          <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleProcurementNav.length > 0 && (
+          <NavSection title="Procurement" items={visibleProcurementNav} sectionId="procurement" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleSalesNav.length > 0 && (
+          <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleManufacturingNav.length > 0 && (
+          <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleWarehouseNav.length > 0 && (
+          <NavSection title="Warehouse" items={visibleWarehouseNav} sectionId="warehouse" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
+        {visiblePerformanceNav.length > 0 && (
+          <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {(isAdmin || isHR) && (
+          <NavSection
+            title="Admin"
+            items={[
+              { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
+              { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
+              { name: "MCP Tools", path: "/admin/mcp-tools", icon: Cpu },
+            ]}
+            sectionId="admin"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
+        )}
+        {(isAdmin || isSuperAdmin) && (
+          <NavSection
+            title="Connectors"
+            items={[
+              { name: "Connectors", path: "/connectors", icon: Plug },
+            ]}
+            sectionId="connectors"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
+        )}
+        {isSuperAdmin && (
+          <NavSection
+            title="Platform"
+            items={[
+              { name: "Tenants", path: "/platform", icon: Building2 },
+              { name: "Sandbox Lab", path: "/platform/sandbox", icon: FlaskConical },
+              { name: "DB Inspector", path: "/platform/db-inspector", icon: Database },
+              { name: "Audit Log", path: "/platform/audit", icon: ClipboardList },
+            ]}
+            sectionId="platform"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
         )}
       </div>
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
-        {currentRole === "admin" && (
+        {isAdmin && (
           <NavLink
             to="/settings"
             onClick={closeMobile}
@@ -571,6 +575,7 @@ export function Sidebar() {
           onClick={async () => {
             closeMobile();
             await signOut();
+            navigate("/auth", { replace: true });
             toast.success("Signed out successfully");
           }}
           className={cn(
