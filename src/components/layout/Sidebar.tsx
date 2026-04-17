@@ -496,7 +496,7 @@ export function Sidebar() {
         {visiblePerformanceNav.length > 0 && (
           <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
         )}
-        {(isAdmin || isHR || isSuperAdmin) && (
+        {(isAdmin || isSuperAdmin) && (
           <NavSection
             title="Admin"
             items={[

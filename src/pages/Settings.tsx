@@ -41,7 +41,7 @@ import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
   Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  Clock, Mail, Building2, RefreshCw, ExternalLink,
+  Clock, Mail, Building2, RefreshCw, ExternalLink, ShieldCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +58,7 @@ import { TablePagination } from "@/components/ui/TablePagination";
 import { Target } from "lucide-react";
 import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
 import { EmailAlertsConfigSection } from "@/components/settings/EmailAlertsConfigSection";
+import { RolePermissionsTab } from "@/components/settings/RolePermissionsTab";
 
 interface UserWithRole {
   profile_id: string;            // profiles.id — used to resolve manager_id
@@ -1719,56 +1720,10 @@ function UserManagementSection() {
 }
 
 // ─── Main Settings Page ───────────────────────────────────────────────────────
+// Access is enforced at the route level by AdminRoute in App.tsx.
+// No client-side role check needed here.
 export default function Settings() {
-  const { user } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
-  const [activeTab, setActiveTab] = useState("general");
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!data);
-      setCheckingAdmin(false);
-    })();
-  }, [user]);
-
-  if (checkingAdmin) {
-    return (
-      <MainLayout title="Settings">
-        <div className="p-6 space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <MainLayout title="Settings">
-        <div className="p-6 flex items-center justify-center min-h-[60vh]">
-          <Card className="max-w-md w-full">
-            <CardContent className="flex flex-col items-center gap-4 pt-6">
-              <AlertCircle className="h-12 w-12 text-muted-foreground" />
-              <div className="text-center">
-                <h3 className="text-lg font-semibold">Access Restricted</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Only administrators can access settings.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </MainLayout>
-    );
-  }
+  const [activeTab, setActiveTab] = useState("organization");
 
   return (
     <MainLayout title="Settings">
@@ -1823,6 +1778,10 @@ export default function Settings() {
               <Lock className="h-4 w-4" />
               Privacy & Security
             </TabsTrigger>
+            <TabsTrigger value="roles" className="gap-1.5">
+              <ShieldCheck className="h-4 w-4" />
+              Roles & Permissions
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="organization" className="mt-6">
@@ -1863,6 +1822,10 @@ export default function Settings() {
 
           <TabsContent value="privacy" className="mt-6">
             <PrivacySecuritySection />
+          </TabsContent>
+
+          <TabsContent value="roles" className="mt-6">
+            <RolePermissionsTab />
           </TabsContent>
         </Tabs>
       </div>

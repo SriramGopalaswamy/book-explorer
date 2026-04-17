@@ -72,6 +72,7 @@ const Memos = lazy(() => import("./pages/performance/Memos"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 
 import { PlatformRoute } from "@/components/auth/PlatformRoute";
+import { AdminRoute } from "@/components/auth/AdminRoute";
 const PlatformTenants = lazy(() => import("./pages/platform/PlatformTenants"));
 const PlatformTenantDetail = lazy(() => import("./pages/platform/PlatformTenantDetail"));
 const PlatformSandboxLab = lazy(() => import("./pages/platform/PlatformSandboxLab"));
@@ -244,10 +245,10 @@ const App = () => (
                   <Route path="/performance/goals" element={<Guarded><Goals /></Guarded>} />
                   <Route path="/performance/memos" element={<Guarded><Memos /></Guarded>} />
 
-                  {/* Admin */}
-                  <Route path="/admin/audit-log" element={<Guarded><HRAdminRoute><AuditLog /></HRAdminRoute></Guarded>} />
-                  <Route path="/admin/approvals" element={<Guarded><HRAdminRoute><ApprovalWorkflowsPage /></HRAdminRoute></Guarded>} />
-                  <Route path="/admin/mcp-tools" element={<Guarded><HRAdminRoute><MCPToolExplorer /></HRAdminRoute></Guarded>} />
+                  {/* Admin — strictly admin-only; HRAdminRoute previously allowed HR which was incorrect */}
+                  <Route path="/admin/audit-log" element={<Guarded><AdminRoute><AuditLog /></AdminRoute></Guarded>} />
+                  <Route path="/admin/approvals" element={<Guarded><AdminRoute><ApprovalWorkflowsPage /></AdminRoute></Guarded>} />
+                  <Route path="/admin/mcp-tools" element={<Guarded><AdminRoute><MCPToolExplorer /></AdminRoute></Guarded>} />
 
                   {/* Connectors */}
                   <Route path="/connectors" element={<Guarded><FinanceRoute><Connectors /></FinanceRoute></Guarded>} />
@@ -255,7 +256,7 @@ const App = () => (
 
                   {/* Profile & Settings */}
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                  <Route path="/settings" element={<Guarded><AdminRoute><Settings /></AdminRoute></Guarded>} />
 
                   {/* Platform Admin (Super Admin only — exempt from subscription guard) */}
                   <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformTenants /></PlatformRoute></ProtectedRoute>} />
