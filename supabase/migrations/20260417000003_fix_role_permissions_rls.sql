@@ -3,9 +3,13 @@
 -- functions require two arguments (user_id, org_id). Policies created with
 -- the single-argument form would error at runtime with:
 --   "function is_org_admin(uuid) does not exist"
--- This migration is a no-op if the table does not exist yet.
+-- Also back-fills role_permissions for ALL pre-existing orgs, since the
+-- AFTER INSERT trigger on organizations only fires for new orgs.
+-- This migration is a no-op if the role_permissions table does not exist yet.
 
 DO $$
+DECLARE
+  org_row RECORD;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -35,14 +39,16 @@ BEGIN
       USING (is_super_admin(auth.uid()));
   $p$;
 
-  -- Back-fill the seeded default org — the AFTER INSERT trigger only fires for
-  -- new orgs, so pre-existing orgs need a one-time manual seed.
-  IF NOT EXISTS (
-    SELECT 1 FROM public.role_permissions
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-    LIMIT 1
-  ) THEN
-    PERFORM public.seed_default_role_permissions('00000000-0000-0000-0000-000000000001');
-  END IF;
+  -- Back-fill every existing org that has no permissions seeded yet.
+  -- The trigger only fires for newly created orgs, so all pre-existing
+  -- orgs need a one-time seed here.
+  FOR org_row IN
+    SELECT id FROM public.organizations
+    WHERE id NOT IN (
+      SELECT DISTINCT organization_id FROM public.role_permissions
+    )
+  LOOP
+    PERFORM public.seed_default_role_permissions(org_row.id);
+  END LOOP;
 
 END $$;
