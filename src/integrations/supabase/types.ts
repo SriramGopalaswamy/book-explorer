@@ -8827,6 +8827,56 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          can_create: boolean
+          can_delete: boolean
+          can_edit: boolean
+          can_export: boolean
+          can_view: boolean
+          created_at: string
+          id: string
+          organization_id: string
+          resource: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_export?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          organization_id: string
+          resource: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_export?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          organization_id?: string
+          resource?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_order_items: {
         Row: {
           amount: number
@@ -11373,6 +11423,7 @@ export type Database = {
           total_debit: number
         }[]
       }
+      get_user_org_id: { Args: { _user_id: string }; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role:
         | {
@@ -11529,6 +11580,10 @@ export type Database = {
       sandbox_force_reset_tables: {
         Args: { _org_id: string }
         Returns: undefined
+      }
+      seed_default_role_permissions: {
+        Args: { _org_id: string }
+        Returns: number
       }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
