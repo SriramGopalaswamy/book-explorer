@@ -25,8 +25,11 @@ const Index = () => {
   const waitingOnOrganization =
     orgLoading || (orgFetching && orgData === undefined);
   const organizationResolved = !orgLoading && !orgFetching;
+  // roleLoading is useAllUserRoles.isLoading — fires in parallel with org query.
+  // Previous check used `currentRole === undefined` which is never true (the hook
+  // always returns null or a string), so roles never actually blocked the spinner.
   const waitingOnRole =
-    !!orgData?.organizationId && (roleLoading && currentRole === undefined);
+    !!orgData?.organizationId && roleLoading;
 
   if (waitingOnSuperAdmin || waitingOnOrganization || waitingOnRole) {
     // If we've been waiting >10s, just render Dashboard instead of hanging

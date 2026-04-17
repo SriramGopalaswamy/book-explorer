@@ -13,17 +13,25 @@ function useAllUserRoles() {
 
   return useQuery({
     queryKey: ["user-all-roles", user?.id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, organization_id")
-        .eq("user_id", user.id);
-      if (error) {
-        console.error("Error fetching all user roles:", error);
-        return [];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      signal?.addEventListener("abort", () => { clearTimeout(timer); controller.abort(); });
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role, organization_id")
+          .eq("user_id", user.id)
+          .abortSignal(controller.signal);
+        if (error) {
+          console.error("Error fetching all user roles:", error);
+          return [];
+        }
+        return data ?? [];
+      } finally {
+        clearTimeout(timer);
       }
-      return data ?? [];
     },
     enabled: !!user,
     staleTime: 1000 * 60,

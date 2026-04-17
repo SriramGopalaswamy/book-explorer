@@ -11,29 +11,37 @@ export function useUserOrganization() {
 
   return useQuery({
     queryKey: ["user-organization", user?.id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user) return null;
 
-      // Single query: join profile → organization via foreign key
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id, organizations:organization_id(id, name, status, org_state, created_at)")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      signal?.addEventListener("abort", () => { clearTimeout(timer); controller.abort(); });
+      try {
+        // Single query: join profile → organization via foreign key
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("organization_id, organizations:organization_id(id, name, status, org_state, created_at)")
+          .eq("user_id", user.id)
+          .maybeSingle()
+          .abortSignal(controller.signal);
 
-      if (profileError) throw profileError;
-      if (!profile?.organization_id) return null;
+        if (profileError) throw profileError;
+        if (!profile?.organization_id) return null;
 
-      const org = profile.organizations as any;
-      if (!org) return null;
+        const org = profile.organizations as any;
+        if (!org) return null;
 
-      return {
-        organizationId: profile.organization_id,
-        orgName: org.name ?? null,
-        orgStatus: org.status ?? null,
-        orgState: org.org_state ?? null,
-        createdAt: org.created_at ?? null,
-      };
+        return {
+          organizationId: profile.organization_id,
+          orgName: org.name ?? null,
+          orgStatus: org.status ?? null,
+          orgState: org.org_state ?? null,
+          createdAt: org.created_at ?? null,
+        };
+      } finally {
+        clearTimeout(timer);
+      }
     },
     enabled: !!user,
     // Prevent undefined flicker during refetches / user transitions.
