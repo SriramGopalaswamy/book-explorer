@@ -21,8 +21,9 @@ export function useIsSuperAdmin() {
         .eq("role", "super_admin")
         .limit(1);
       if (error) {
-        console.error("Super admin check failed:", error);
-        return false;
+        // Re-throw so React Query retries (retry: 1) rather than silently
+        // returning false and incorrectly denying super_admin access.
+        throw error;
       }
       return (data?.length ?? 0) > 0;
     },

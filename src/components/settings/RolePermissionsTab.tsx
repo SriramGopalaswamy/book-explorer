@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   RESOURCE_GROUPS,
   RESOURCE_LABELS,
@@ -18,8 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { ShieldCheck, Save, RotateCcw, Lock, Info } from "lucide-react";
+import { ShieldCheck, Save, RotateCcw, Lock, Info, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -134,7 +136,9 @@ function PermCheckbox({ value, label, short, onChange, locked }: PermCellProps) 
 // ── Main component ─────────────────────────────────────────────────────────────
 export function RolePermissionsTab() {
   const { data: orgData, isLoading: orgLoading } = useUserOrganization();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
   const orgId = orgData?.organizationId;
+  const isPlatformSuperAdminWithNoOrg = isSuperAdmin && !orgId;
   const qc = useQueryClient();
 
   const { data: dbRows, isLoading: dbLoading } = useOrgPermissionRows(orgId);
@@ -258,6 +262,21 @@ export function RolePermissionsTab() {
         </CardHeader>
       </Card>
 
+      {/* Platform super_admin with no org context — read-only notice */}
+      {isPlatformSuperAdminWithNoOrg && (
+        <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 [&>svg]:text-amber-500">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Viewing in read-only mode</AlertTitle>
+          <AlertDescription>
+            You're logged in as a <strong>Platform Super Admin</strong> without an active organisation
+            context. You can browse the default permission matrix below, but saving is disabled.
+            <br />
+            To edit a specific organisation's permissions, open their tenant from the{" "}
+            <strong>Platform → Tenants</strong> page and manage it from within that org's Settings.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
@@ -363,20 +382,20 @@ export function RolePermissionsTab() {
           size="sm"
           onClick={handleReset}
           className="gap-1.5"
-          disabled={saving}
+          disabled={saving || isPlatformSuperAdminWithNoOrg}
         >
           <RotateCcw className="h-4 w-4" />
           Reset to Defaults
         </Button>
 
         <div className="flex items-center gap-3">
-          {dirty && (
+          {dirty && !isPlatformSuperAdminWithNoOrg && (
             <span className="text-xs text-muted-foreground">Unsaved changes</span>
           )}
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={!dirty || saving}
+            disabled={!dirty || saving || isPlatformSuperAdminWithNoOrg}
             className="gap-1.5"
           >
             {saving ? (
