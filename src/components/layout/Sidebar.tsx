@@ -404,28 +404,31 @@ export function Sidebar() {
   const closeMobile = () => setMobileOpen(false);
 
 
-  // Build visible nav based on role and module access
+  // Build visible nav based on role and module access.
+  // Admins (org admin + super_admin via effectiveRole) always see all modules
+  // regardless of the subscription's enabled_modules list — subscriptions scope
+  // what non-admin tenants can use, not what their own admin can configure.
   const restrictedRole = isEmployee || isManager || isFinance || isHR;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] 
-    : isModuleEnabled("financial") ? financialNav 
+  const visibleFinancialNav = (isEmployee || isManager || isHR) ? []
+    : (isAdmin || isModuleEnabled("financial")) ? financialNav
     : [];
   const visibleInventoryNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? inventoryNav
+    : (isAdmin || isModuleEnabled("financial")) ? inventoryNav
     : [];
   const visibleProcurementNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? procurementNav
+    : (isAdmin || isModuleEnabled("financial")) ? procurementNav
     : [];
   const visibleSalesNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? salesNav
+    : (isAdmin || isModuleEnabled("financial")) ? salesNav
     : [];
   const visibleManufacturingNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? manufacturingNav
+    : (isAdmin || isModuleEnabled("financial")) ? manufacturingNav
     : [];
   const visibleWarehouseNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? warehouseNav
+    : (isAdmin || isModuleEnabled("financial")) ? warehouseNav
     : [];
-  const visibleHrmsNav = !isModuleEnabled("hrms") ? []
+  const visibleHrmsNav = (!isAdmin && !isModuleEnabled("hrms")) ? []
     : isManager
     ? managerHrmsNav
     : isEmployee
@@ -433,7 +436,7 @@ export function Sidebar() {
     : isFinance
     ? financeHrmsNav
     : hrmsNav;
-  const visiblePerformanceNav = isModuleEnabled("performance") ? performanceNav : [];
+  const visiblePerformanceNav = (isAdmin || isModuleEnabled("performance")) ? performanceNav : [];
 
   const sidebarContent = (
     <>
