@@ -90,9 +90,10 @@ export function useCurrentRole() {
 
   let role: string | null = null;
   if (orgId) {
-    if (orgRoles.includes("admin")) role = "admin";
+    if (orgRoles.includes("admin"))   role = "admin";
     else if (orgRoles.includes("hr")) role = "hr";
     else if (orgRoles.includes("finance")) role = "finance";
+    else if (orgRoles.includes("payroll")) role = "payroll";
     else if (orgRoles.includes("manager")) role = "manager";
     else role = "employee";
   }
