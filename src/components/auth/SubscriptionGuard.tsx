@@ -39,6 +39,8 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     "/reset-password",
     "/profile",
     "/settings",
+    "/admin",   // Admin tools must remain accessible regardless of subscription state;
+                // AdminRoute still enforces the role check on each /admin/* page.
   ];
   const isExempt =
     exemptPaths.some((p) => location.pathname.startsWith(p)) ||

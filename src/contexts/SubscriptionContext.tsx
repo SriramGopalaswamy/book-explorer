@@ -101,7 +101,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Query succeeded but no org found — needs activation
+    // No org membership found.
+    // Platform super_admins legitimately have no org — don't block them with needsActivation.
+    // Regular users with no org genuinely need to activate; SubscriptionGuard handles the
+    // distinction via the isSuperAdmin bypass, so we still set needsActivation here and let
+    // the guard sort it out.
     if (!org) {
       return {
         needsActivation: true,
