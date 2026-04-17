@@ -9,6 +9,9 @@ const corsHeaders = {
 // Default organization ID — the seeded GRX10 Solutions org
 const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
+// Module-level cache: sso_domain never changes at runtime, so one DB fetch per cold start is enough.
+let cachedDomain: string | null = null;
+
 // Helper: sync profile fields + manager_id from MS365 data.
 async function syncProfileFromMS365(
   supabase: any,
@@ -112,19 +115,25 @@ async function resolveWaitingManagerRefs(
   }
 }
 
-// Helper: get allowed SSO domain from organization_settings
+// Helper: get allowed SSO domain from organization_settings.
+// Result is cached at module scope — sso_domain does not change at runtime.
 async function getAllowedDomain(supabase: any): Promise<string> {
+  if (cachedDomain) return cachedDomain;
   try {
     const { data } = await supabase
       .from("organization_settings")
       .select("sso_domain")
       .eq("organization_id", DEFAULT_ORG_ID)
       .maybeSingle();
-    if (data?.sso_domain) return data.sso_domain.toLowerCase();
+    if (data?.sso_domain) {
+      cachedDomain = data.sso_domain.toLowerCase();
+      return cachedDomain;
+    }
   } catch {
     // fallback
   }
-  return "grx10.com"; // default fallback
+  cachedDomain = "grx10.com";
+  return cachedDomain;
 }
 
 Deno.serve(async (req) => {
@@ -189,10 +198,13 @@ Deno.serve(async (req) => {
 
       const tokens = await tokenRes.json();
 
-      // Get user profile from Microsoft Graph
-      const profileRes = await fetch("https://graph.microsoft.com/v1.0/me", {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-      });
+      // Fetch profile and manager from MS365 in parallel — both use the same access token
+      // and are independent, so there is no reason to await them sequentially.
+      const authHeader = { Authorization: `Bearer ${tokens.access_token}` };
+      const [profileRes, managerResRaw] = await Promise.all([
+        fetch("https://graph.microsoft.com/v1.0/me", { headers: authHeader }),
+        fetch("https://graph.microsoft.com/v1.0/me/manager", { headers: authHeader }).catch(() => null),
+      ]);
 
       if (!profileRes.ok) {
         return new Response(
@@ -208,14 +220,10 @@ Deno.serve(async (req) => {
       const department = profile.department || null;
       const phone = profile.businessPhones?.[0] || profile.mobilePhone || null;
 
-      // Fetch manager info from MS365
       let managerEmail: string | null = null;
       try {
-        const managerRes = await fetch("https://graph.microsoft.com/v1.0/me/manager", {
-          headers: { Authorization: `Bearer ${tokens.access_token}` },
-        });
-        if (managerRes.ok) {
-          const managerData = await managerRes.json();
+        if (managerResRaw?.ok) {
+          const managerData = await managerResRaw.json();
           managerEmail = managerData.mail || managerData.userPrincipalName || null;
         }
       } catch (mgrErr) {
@@ -242,19 +250,9 @@ Deno.serve(async (req) => {
         .filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
-      // Check if user exists
-      let existingUser = null;
-      let page = 1;
-      const perPage = 1000;
-      while (!existingUser) {
-        const { data: usersPage, error: listErr } = await supabase.auth.admin.listUsers({ page, perPage });
-        if (listErr || !usersPage?.users?.length) break;
-        existingUser = usersPage.users.find(
-          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-        ) || null;
-        if (usersPage.users.length < perPage) break;
-        page++;
-      }
+      // Check if user exists — direct indexed lookup, O(1) regardless of total user count.
+      const { data: existingUserData } = await supabase.auth.admin.getUserByEmail(email);
+      const existingUser = existingUserData?.user ?? null;
 
       let session;
 
@@ -376,8 +374,8 @@ Deno.serve(async (req) => {
             }
             session = sessData2.session;
 
-            const { data: fallbackUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-            const fbUser = fallbackUsers?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+            const { data: fbData } = await supabase.auth.admin.getUserByEmail(email);
+            const fbUser = fbData?.user ?? null;
             if (fbUser) {
               const { data: fbProfile } = await supabase
                 .from("profiles")
