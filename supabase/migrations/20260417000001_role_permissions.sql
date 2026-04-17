@@ -23,15 +23,15 @@ ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "org_admin_manage_role_permissions"
   ON public.role_permissions
   FOR ALL
-  USING     (is_org_admin(organization_id))
-  WITH CHECK(is_org_admin(organization_id));
+  USING     (is_org_admin(auth.uid(), organization_id))
+  WITH CHECK(is_org_admin(auth.uid(), organization_id));
 
 -- All org members can read the full permission matrix for their org
 -- (needed by useRolePermissions hook on every page load)
 CREATE POLICY "org_members_read_role_permissions"
   ON public.role_permissions
   FOR SELECT
-  USING (is_org_member(organization_id));
+  USING (is_org_member(auth.uid(), organization_id));
 
 -- Super admin can read all orgs (for platform tooling)
 CREATE POLICY "super_admin_read_role_permissions"
