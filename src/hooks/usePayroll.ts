@@ -124,10 +124,21 @@ export function useMyPayrollRecords() {
     queryFn: async () => {
       if (!user) return [];
 
+      // Resolve the employee's own profile ID first.
+      // Querying by profile_id (rather than user_id) is resilient to stale
+      // user_id values that can occur after auth-account recreation.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!profile) return [];
+
       const { data, error } = await supabase
         .from("payroll_records")
         .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-        .eq("user_id", user.id)
+        .eq("profile_id", profile.id)
         .order("pay_period", { ascending: false });
 
       if (error) throw error;
