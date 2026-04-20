@@ -21,10 +21,10 @@ export function useUserOrganization() {
         // Single query: join profile → organization via foreign key
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("organization_id, organizations:organization_id(id, name, status, org_state, created_at)")
+          .select("organization_id, organizations!profiles_organization_id_fkey(id, name, status, org_state, created_at)")
           .eq("user_id", user.id)
-          .maybeSingle()
-          .abortSignal(controller.signal);
+          .abortSignal(controller.signal)
+          .maybeSingle();
 
         if (profileError) throw profileError;
         if (!profile?.organization_id) return null;
