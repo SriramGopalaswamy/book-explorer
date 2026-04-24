@@ -45,11 +45,12 @@ export function useUserOrganization() {
     },
     enabled: !!user,
     // Prevent undefined flicker during refetches / user transitions.
-    // keepPreviousData ensures the last resolved value stays available
-    // while a new fetch for a different user.id is in flight.
     placeholderData: keepPreviousData,
-    // Auth-critical lookup: keep cached for 1 minute to reduce refetch noise.
-    staleTime: 1000 * 60,
+    // Auth-critical lookup: cache for 10 minutes. Org membership rarely
+    // changes mid-session — was 1 min, which made every navigation re-fetch.
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     retry: 2,
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
   });
