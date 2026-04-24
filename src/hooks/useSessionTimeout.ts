@@ -3,36 +3,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/**
+ * Idle-timeout only.
+ *
+ * Concurrent-session enforcement (heartbeat upserts + session_policies lookup)
+ * was REMOVED on 2026-04-24 because it caused continuous DB load:
+ *   - 30s upsert + select on user_sessions for every open tab
+ *   - a 400 error on every mount (session_policies.max_concurrent_sessions
+ *     does not exist in the schema)
+ *
+ * If we re-introduce it, do it server-side (cron) rather than per-client.
+ */
+
 const DEFAULT_IDLE_TIMEOUT = 30; // minutes
-const MAX_CONCURRENT_SESSIONS = 3; // max sessions per user
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "mousemove"];
 const CHECK_INTERVAL = 60_000; // check every minute
-const SESSION_HEARTBEAT_INTERVAL = 30_000; // heartbeat every 30s
-const SESSION_KEY = "grx10_session_id";
-
-function generateSessionId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-}
 
 export function useSessionTimeout() {
   const { user, signOut } = useAuth();
   const lastActivityRef = useRef(Date.now());
   const timeoutMinutesRef = useRef(DEFAULT_IDLE_TIMEOUT);
   const warningShownRef = useRef(false);
-  const sessionIdRef = useRef<string>("");
 
-  // Initialize session ID
-  useEffect(() => {
-    if (!user) return;
-    let sid = sessionStorage.getItem(SESSION_KEY);
-    if (!sid) {
-      sid = generateSessionId();
-      sessionStorage.setItem(SESSION_KEY, sid);
-    }
-    sessionIdRef.current = sid;
-  }, [user]);
-
-  // Fetch org session policy
+  // Fetch org session policy (idle timeout only)
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -45,7 +38,7 @@ export function useSessionTimeout() {
 
       const { data } = await (supabase as any)
         .from("session_policies")
-        .select("idle_timeout_minutes, max_concurrent_sessions")
+        .select("idle_timeout_minutes")
         .eq("organization_id", profile.organization_id)
         .maybeSingle();
       if (data?.idle_timeout_minutes) {
@@ -67,74 +60,6 @@ export function useSessionTimeout() {
       ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, resetActivity));
     };
   }, [user, resetActivity]);
-
-  // Concurrent session heartbeat & enforcement
-  useEffect(() => {
-    if (!user) return;
-    const sid = sessionIdRef.current;
-    if (!sid) return;
-
-    const sendHeartbeat = async () => {
-      try {
-        // Register/update this session
-        await (supabase as any)
-          .from("user_sessions")
-          .upsert({
-            user_id: user.id,
-            session_id: sid,
-            last_seen_at: new Date().toISOString(),
-            user_agent: navigator.userAgent.substring(0, 200),
-          }, { onConflict: "user_id,session_id" });
-
-        // Check active sessions count
-        const { data: activeSessions } = await (supabase as any)
-          .from("user_sessions")
-          .select("session_id, last_seen_at")
-          .eq("user_id", user.id)
-          .is("event_type", null)
-          .gte("last_seen_at", new Date(Date.now() - 2 * 60_000).toISOString()) // active within 2 min
-          .order("last_seen_at", { ascending: false });
-
-        if (activeSessions && activeSessions.length > MAX_CONCURRENT_SESSIONS) {
-          // If this session is NOT in the most recent N sessions, force logout
-          const allowedIds = activeSessions
-            .slice(0, MAX_CONCURRENT_SESSIONS)
-            .map((s: any) => s.session_id);
-
-          if (!allowedIds.includes(sid)) {
-            toast.error(
-              "Session terminated: maximum concurrent sessions exceeded. You've been signed in from another device.",
-              { duration: 8000 }
-            );
-            // Clean up this session
-            await (supabase as any)
-              .from("user_sessions")
-              .delete()
-              .eq("user_id", user.id)
-              .eq("session_id", sid);
-            signOut();
-            return;
-          }
-        }
-      } catch {
-        // Silent fail — heartbeat is best-effort
-      }
-    };
-
-    sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, SESSION_HEARTBEAT_INTERVAL);
-
-    // Cleanup on unmount: remove session
-    return () => {
-      clearInterval(interval);
-      (supabase as any)
-        .from("user_sessions")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("session_id", sid)
-        .then(() => {});
-    };
-  }, [user, signOut]);
 
   // Check for idle timeout periodically
   useEffect(() => {

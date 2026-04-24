@@ -173,7 +173,12 @@ export function useDashboardStats() {
       };
     },
     enabled: !!user || isDevMode,
-    staleTime: 30000,
+    // 5 min cache — dashboard stats don't change second-to-second, and this
+    // prevents the 9-query fan-out from re-running on every navigation back
+    // to "/".
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
