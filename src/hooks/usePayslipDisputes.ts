@@ -138,18 +138,18 @@ export function useRaisePayslipDispute() {
 }
 
 /** Manager/HR/Finance: get pending disputes for review */
-export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance") {
+export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance" | null) {
   const { user } = useAuth();
   const statusMap = {
     manager: "pending_manager",
     hr: "pending_hr",
     finance: "pending_finance",
-  };
+  } as const;
 
   return useQuery({
     queryKey: ["payslip-disputes-pending", role, user?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !role) return [];
 
       // For manager role, only fetch disputes from direct reports (exclude own)
       if (role === "manager") {
@@ -186,7 +186,8 @@ export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance") {
       if (error) throw error;
       return (data || []) as unknown as PayslipDispute[];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
+    staleTime: 60_000, // 1 min — disputes are infrequent
   });
 }
 
