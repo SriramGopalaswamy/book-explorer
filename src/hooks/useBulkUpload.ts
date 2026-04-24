@@ -21,6 +21,230 @@ const payrollTemplate = `employee_id,basic_salary,hra,transport_allowance,other_
 emp001,50000,20000,1600,5000,6000,5000,0
 emp002,60000,24000,1600,6000,7200,7000,0`;
 
+// ─── Payroll Register ──────────────────────────────
+const payrollRegisterColumns: BulkUploadColumn[] = [
+  { key: "employee_id", label: "Employee Name/Email", required: true },
+  { key: "basic_salary", label: "Basic Salary", required: true },
+  { key: "hra", label: "HRA" },
+  { key: "transport_allowance", label: "Transport Allowance" },
+  { key: "other_allowances", label: "Other Allowances" },
+  { key: "employer_pf", label: "Employer PF" },
+  { key: "pf_deduction", label: "PF Deduction" },
+  { key: "tax_deduction", label: "Tax Deduction" },
+  { key: "other_deductions", label: "Other Deductions" },
+  { key: "lwp_days", label: "LWP Days" },
+  { key: "working_days", label: "Working Days" },
+];
+
+const payrollRegisterTemplate = `employee_id,basic_salary,hra,transport_allowance,other_allowances,employer_pf,pf_deduction,tax_deduction,other_deductions,lwp_days,working_days
+John Doe,50000,20000,1600,5000,6000,6000,5000,0,0,26
+Jane Smith,60000,24000,1600,6000,7200,7200,7000,0,1,26`;
+
+export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfig {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = currentProfile?.organization_id;
+    if (!orgId) return { success: 0, errors: ["No organization found."] };
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, user_id, email, full_name")
+      .eq("organization_id", orgId);
+
+    const findProfile = (empId: string) => {
+      if (!profiles || !empId) return null;
+      const needle = empId.toLowerCase().trim();
+      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
+      if (match) return match;
+      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      const words = needle.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 0) {
+        match = profiles.find(p => {
+          const name = p.full_name?.toLowerCase() || "";
+          return words.every(w => name.includes(w));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+
+    // Find or create payroll_run for this period
+    const { data: existingRun } = await supabase
+      .from("payroll_runs")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod)
+      .maybeSingle();
+
+    const terminalStatuses = ["under_review", "approved", "locked"];
+    if (existingRun && terminalStatuses.includes(existingRun.status)) {
+      return {
+        success: 0,
+        errors: [
+          `A payroll run for ${payPeriod} already exists with status '${existingRun.status}'. ` +
+          `It cannot be overwritten. Delete it first or choose a different period.`,
+        ],
+      };
+    }
+
+    let runId: string;
+    let createdNewRun = false;
+
+    if (existingRun) {
+      runId = existingRun.id;
+    } else {
+      const { data: newRun, error: runError } = await supabase
+        .from("payroll_runs")
+        .insert({
+          organization_id: orgId,
+          pay_period: payPeriod,
+          generated_by: user.id,
+          status: "completed",
+          notes: "Uploaded via Payroll Register Bulk Upload",
+        })
+        .select("id")
+        .single();
+
+      if (runError || !newRun) {
+        return { success: 0, errors: [`Failed to create payroll run: ${runError?.message}`] };
+      }
+      runId = newRun.id;
+      createdNewRun = true;
+    }
+
+    const errors: string[] = [];
+    let success = 0;
+    const insertedEntryIds: string[] = [];
+
+    for (const row of rows) {
+      const basic = parseFloat(row.basic_salary) || 0;
+      const hra = parseFloat(row.hra) || 0;
+      const transport = parseFloat(row.transport_allowance) || 0;
+      const otherAllow = parseFloat(row.other_allowances) || 0;
+      const employerPf = parseFloat(row.employer_pf) || 0;
+      const pf = parseFloat(row.pf_deduction) || 0;
+      const tax = parseFloat(row.tax_deduction) || 0;
+      const otherDed = parseFloat(row.other_deductions) || 0;
+      const lwpDays = parseInt(row.lwp_days) || 0;
+      const workingDays = parseInt(row.working_days) || 26;
+
+      const gross = basic + hra + transport + otherAllow;
+      const totalDed = pf + tax + otherDed;
+      const netPay = Math.max(gross - totalDed, 0);
+      const paidDays = Math.max(workingDays - lwpDays, 0);
+
+      const earningsBreakdown = [
+        { name: "Basic Salary", monthly: basic, annual: basic * 12, is_taxable: true },
+        ...(hra > 0 ? [{ name: "HRA", monthly: hra, annual: hra * 12, is_taxable: true }] : []),
+        ...(transport > 0 ? [{ name: "Transport Allowance", monthly: transport, annual: transport * 12, is_taxable: true }] : []),
+        ...(otherAllow > 0 ? [{ name: "Other Allowances", monthly: otherAllow, annual: otherAllow * 12, is_taxable: true }] : []),
+        ...(employerPf > 0 ? [{ name: "Employer PF", monthly: employerPf, annual: employerPf * 12, employer_contribution: true }] : []),
+      ];
+
+      const deductionsBreakdown = [
+        ...(pf > 0 ? [{ name: "PF Deduction", monthly: pf, annual: pf * 12, is_taxable: false }] : []),
+        ...(tax > 0 ? [{ name: "Tax Deduction", monthly: tax, annual: tax * 12, is_taxable: false }] : []),
+        ...(otherDed > 0 ? [{ name: "Other Deductions", monthly: otherDed, annual: otherDed * 12, is_taxable: false }] : []),
+      ];
+
+      const profile = findProfile(row.employee_id);
+      if (!profile) {
+        errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+        if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
+          await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+          if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+          return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+        }
+        continue;
+      }
+
+      const { data: entry, error: entryError } = await supabase
+        .from("payroll_entries")
+        .upsert({
+          payroll_run_id: runId,
+          profile_id: profile.id,
+          organization_id: orgId,
+          compensation_structure_id: null,
+          annual_ctc: gross * 12,
+          gross_earnings: gross,
+          total_deductions: totalDed,
+          net_pay: netPay,
+          lwp_days: lwpDays,
+          lwp_deduction: 0,
+          working_days: workingDays,
+          paid_days: paidDays,
+          earnings_breakdown: earningsBreakdown,
+          deductions_breakdown: deductionsBreakdown,
+          status: "computed",
+        }, { onConflict: "payroll_run_id,profile_id" })
+        .select("id")
+        .single();
+
+      if (entryError) {
+        errors.push(`Row ${row.employee_id}: ${entryError.message}`);
+        if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
+          await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+          if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+          return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+        }
+      } else {
+        if (entry?.id) insertedEntryIds.push(entry.id);
+        success++;
+      }
+    }
+
+    // Re-aggregate run totals from all current entries
+    const { data: allEntries } = await supabase
+      .from("payroll_entries")
+      .select("gross_earnings, total_deductions, net_pay")
+      .eq("payroll_run_id", runId);
+
+    if (allEntries && allEntries.length > 0) {
+      const totalGross = allEntries.reduce((s, e) => s + (e.gross_earnings || 0), 0);
+      const totalDeductions = allEntries.reduce((s, e) => s + (e.total_deductions || 0), 0);
+      const totalNet = allEntries.reduce((s, e) => s + (e.net_pay || 0), 0);
+
+      await supabase.from("payroll_runs").update({
+        total_gross: totalGross,
+        total_deductions: totalDeductions,
+        total_net: totalNet,
+        employee_count: allEntries.length,
+        status: "completed",
+      }).eq("id", runId);
+    }
+
+    qc.invalidateQueries({ queryKey: ["payroll-runs"] });
+    qc.invalidateQueries({ queryKey: ["payroll-entries"] });
+    qc.invalidateQueries({ queryKey: ["payroll"] });
+    return { success, errors };
+  }, [user, payPeriod, qc]);
+
+  return {
+    module: "payroll_register",
+    title: "Upload Payroll Register",
+    description: "Upload a pre-computed payroll register. Creates a completed payroll run ready for the approval workflow — no engine calculation needed.",
+    columns: payrollRegisterColumns,
+    templateFileName: "payroll_register_template.csv",
+    templateContent: payrollRegisterTemplate,
+    onUpload,
+  };
+}
+
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
   { key: "employee_id", label: "Employee ID", required: true },

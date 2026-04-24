@@ -45,6 +45,8 @@ import { FileText as FileTextIcon, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -138,6 +140,7 @@ export function PayrollEnginePanel() {
   const frequency = payrollFlags?.payroll_frequency || "monthly";
 
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod(frequency));
+  const registerUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [viewRun, setViewRun] = useState<PayrollRun | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ run: PayrollRun; action: string } | null>(null);
@@ -215,6 +218,8 @@ export function PayrollEnginePanel() {
               <Zap className="h-4 w-4 mr-1" />
               {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
             </Button>
+            <span className="text-muted-foreground text-sm hidden sm:inline">or</span>
+            <BulkUploadDialog config={registerUploadConfig} />
           </div>
         </CardHeader>
         <CardContent>
