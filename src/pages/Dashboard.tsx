@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { subMonths } from "date-fns";
 import { motion } from "framer-motion";
@@ -7,18 +7,30 @@ import { WelcomeHero } from "@/components/dashboard/WelcomeHero";
 import { StatCardEnhanced } from "@/components/dashboard/StatCardEnhanced";
 import { ModuleCardEnhanced } from "@/components/dashboard/ModuleCardEnhanced";
 import { QuickActionsEnhanced } from "@/components/dashboard/QuickActionsEnhanced";
-import { RecentActivityEnhanced } from "@/components/dashboard/RecentActivityEnhanced";
-import { RevenueChart } from "@/components/dashboard/RevenueChart";
-import { ExpenseBreakdownChart } from "@/components/dashboard/ExpenseBreakdownChart";
 import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
 import { useDashboardStats, formatIndianCurrency } from "@/hooks/useDashboardStats";
 import { useSparklineData } from "@/hooks/useSparklineData";
 import { useEmployeeStats } from "@/hooks/useEmployees";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FloatingOrbs } from "@/components/ui/floating-orbs";
-import { ManagerTeamSection } from "@/components/dashboard/ManagerTeamSection";
 import { FinancialIntegrityBadge } from "@/components/dashboard/FinancialIntegrityBadge";
-import { FinancialControlCenter } from "@/components/financial/FinancialControlCenter";
+
+// Heavy widgets — lazy-loaded so first paint isn't blocked by their data hooks.
+const ManagerTeamSection = lazy(() =>
+  import("@/components/dashboard/ManagerTeamSection").then((m) => ({ default: m.ManagerTeamSection }))
+);
+const FinancialControlCenter = lazy(() =>
+  import("@/components/financial/FinancialControlCenter").then((m) => ({ default: m.FinancialControlCenter }))
+);
+const RecentActivityEnhanced = lazy(() =>
+  import("@/components/dashboard/RecentActivityEnhanced").then((m) => ({ default: m.RecentActivityEnhanced }))
+);
+const RevenueChart = lazy(() =>
+  import("@/components/dashboard/RevenueChart").then((m) => ({ default: m.RevenueChart }))
+);
+const ExpenseBreakdownChart = lazy(() =>
+  import("@/components/dashboard/ExpenseBreakdownChart").then((m) => ({ default: m.ExpenseBreakdownChart }))
+);
 
 import {
   Wallet,
