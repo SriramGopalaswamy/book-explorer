@@ -110,9 +110,9 @@ export function usePayrollRecords(payPeriod?: string) {
       return data as PayrollRecord[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
-    staleTime: 10_000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 60_000, // Reduced from 15s to 60s to save bandwidth
+    staleTime: 5 * 60_000, // 5 min — payroll changes are user-driven, no need to poll
+    refetchOnWindowFocus: false,
+    // refetchInterval removed: 60s polling on a joined unfiltered scan was hammering the DB
   });
 }
 
