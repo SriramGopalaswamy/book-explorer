@@ -263,18 +263,22 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Charts Grid */}
+        {/* Charts Grid — lazy */}
         <motion.div
           className="grid gap-6 lg:grid-cols-2"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
         >
-          <RecentActivityEnhanced />
-          <RevenueChart dateRange={filterRange} />
+          <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
+            <RecentActivityEnhanced />
+          </Suspense>
+          <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
+            <RevenueChart dateRange={filterRange} />
+          </Suspense>
         </motion.div>
 
-        {/* Expense Chart */}
+        {/* Expense Chart — lazy */}
         <motion.div
           className="grid gap-6 lg:grid-cols-2"
           initial={{ opacity: 0, y: 20 }}
@@ -282,7 +286,9 @@ export default function Dashboard() {
           transition={{ delay: 0.8 }}
         >
           <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-6 shadow-lg">
-            <ExpenseBreakdownChart dateRange={filterRange} />
+            <Suspense fallback={<Skeleton className="h-72 rounded-2xl" />}>
+              <ExpenseBreakdownChart dateRange={filterRange} />
+            </Suspense>
           </div>
         </motion.div>
       </div>
