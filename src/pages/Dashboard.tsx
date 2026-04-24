@@ -173,11 +173,15 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Manager Team Section */}
-        <ManagerTeamSection />
+        {/* Manager Team Section — lazy */}
+        <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
+          <ManagerTeamSection />
+        </Suspense>
 
-        {/* Financial Risk Monitor */}
-        <FinancialControlCenter />
+        {/* Financial Risk Monitor — lazy */}
+        <Suspense fallback={<Skeleton className="h-48 rounded-2xl" />}>
+          <FinancialControlCenter />
+        </Suspense>
 
         {/* Quick Actions */}
         <QuickActionsEnhanced />
