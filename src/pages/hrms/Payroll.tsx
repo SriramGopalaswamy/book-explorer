@@ -474,14 +474,12 @@ export default function Payroll() {
   const isHRRole = currentRole === "hr" || currentRole === "admin";
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
   // Disputes only matter to HR/Finance reviewers — skip the queries for everyone else
-  const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes(isHRRole ? "hr" : (null as any));
-  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes(isFinanceRole ? "finance" : (null as any));
+  const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes(isHRRole ? "hr" : null);
+  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes(isFinanceRole ? "finance" : null);
   const { data: records = [], isLoading, isError: recordsError } = usePayrollRecords(selectedPeriod);
   // Heavy unfiltered scan — only fetch when the Review tab is open and the user is a reviewer
   const reviewTabActive = activeTab === "review" && (isHRRole || isFinanceRole);
   const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords(reviewTabActive ? undefined : "__never__");
-  // Personal payslips only when the My Payslips tab is open
-  const myTabActive = activeTab === "my";
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
