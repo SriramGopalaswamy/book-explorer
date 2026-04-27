@@ -2,14 +2,19 @@ import { supabase } from "@/integrations/supabase/client";
 import type { PayrollEntry } from "@/hooks/usePayrollEngine";
 
 async function logExport(action: string, metadata: Record<string, unknown>) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase.from("audit_logs").insert({
-    actor_id: user.id,
-    action,
-    entity_type: "payroll_export",
-    metadata,
-  });
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("audit_logs").insert({
+      actor_id: user.id,
+      action,
+      entity_type: "payroll_export",
+      metadata,
+    });
+  } catch {
+    // Audit logging is best-effort — a failure must never block the export itself.
+    console.error("payroll export audit log failed", action, metadata);
+  }
 }
 
 /**
@@ -18,7 +23,7 @@ async function logExport(action: string, metadata: Record<string, unknown>) {
  * Basic is read from earnings_breakdown "Basic Salary" — never re-derived
  * from gross (FMEA 6.1): a re-derived basic would diverge from the locked payslip.
  */
-export async function exportPFECR(entries: PayrollEntry[]) {
+export async function exportPFECR(entries: PayrollEntry[], payPeriod: string) {
   // Fetch UAN data
   const profileIds = entries.map((e) => e.profile_id);
   const { data: empDetails } = await supabase
@@ -67,7 +72,6 @@ export async function exportPFECR(entries: PayrollEntry[]) {
   });
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  const payPeriod = entries[0] ? String((entries[0] as any).pay_period ?? "") : "";
   await logExport("payroll_export_pf_ecr", { employee_count: entries.length, pay_period: payPeriod });
   downloadCSV(csv, "PF_ECR_Export.csv");
 }
@@ -80,6 +84,7 @@ export async function exportPFECR(entries: PayrollEntry[]) {
  */
 export async function exportBankTransferFile(
   entries: PayrollEntry[],
+  payPeriod: string,
   format: string = "generic_neft"
 ): Promise<{ warnings: string[] }> {
   // Fetch bank details
@@ -113,7 +118,6 @@ export async function exportBankTransferFile(
     ];
   });
 
-  const payPeriod = entries[0] ? String((entries[0] as any).pay_period ?? "") : "";
   await logExport("payroll_export_bank_transfer", {
     employee_count: entries.length,
     pay_period: payPeriod,

@@ -419,10 +419,10 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // When email is supplied use exact match only — do NOT fall back to name
       // matching on email failure, as that could silently write to the wrong person.
       let profile;
-      if (row.email_id) {
-        profile = findProfileByEmail(row.email_id);
+      if (row.email_id?.trim()) {
+        profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
           continue;
         }
       } else {
@@ -733,10 +733,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
       // ── Employee matching ─────────────────────────────────────────────────
       let profile;
-      if (row.email_id) {
-        profile = findProfileByEmail(row.email_id);
+      if (row.email_id?.trim()) {
+        profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
           if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
         }

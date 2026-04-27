@@ -47,6 +47,7 @@ import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines"
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
+import { toast } from "sonner";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -525,10 +526,15 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
             </Button>
             {isLocked && (
               <>
-                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
+                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries, run.pay_period)}>
                   <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const { warnings } = await exportBankTransferFile(entries, run.pay_period);
+                  if (warnings.length > 0) {
+                    toast.warning(`Bank transfer exported with ${warnings.length} issue(s):\n${warnings.join("\n")}`);
+                  }
+                }}>
                   <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
                 </Button>
               </>
