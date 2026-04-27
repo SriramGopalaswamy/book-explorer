@@ -824,7 +824,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     title: "Upload Payroll Register",
     description: `Upload a pre-computed payroll register for ${formatPayPeriod(payPeriod)}. Creates a completed payroll run ready for the approval workflow — no engine calculation needed.`,
     columns: payrollColumns,
-    templateFileName: "payroll_template.csv",
+    templateFileName: "payroll_register_template.csv",
     templateContent: payrollTemplate,
     onUpload,
   };
