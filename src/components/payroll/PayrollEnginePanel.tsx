@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -126,7 +126,13 @@ const statusConfig: Record<string, { label: string; class: string; icon: any }> 
   locked: { label: "Locked", class: "bg-primary/10 text-primary border-primary/30", icon: Lock },
 };
 
-export function PayrollEnginePanel() {
+interface PayrollEnginePanelProps {
+  /** Called whenever the selected month changes (YYYY-MM format). Used to keep
+   *  the parent Payroll page KPI cards in sync with the Engine tab period. */
+  onMonthChange?: (monthPeriod: string) => void;
+}
+
+export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = {}) {
   const { data: runs = [], isLoading } = usePayrollRuns();
   const generate = useGeneratePayroll();
   const deleteRun = useDeletePayrollRun();
@@ -140,6 +146,25 @@ export function PayrollEnginePanel() {
   const frequency = payrollFlags?.payroll_frequency || "monthly";
 
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod(frequency));
+
+  // Sync the initial period to the parent KPI cards on mount.
+  // frequency defaults to "monthly" before payrollFlags loads, so the initial
+  // value is always YYYY-MM — safe to extract the month prefix immediately.
+  useEffect(() => {
+    if (onMonthChange) {
+      const monthPeriod = selectedPeriod.split("-").slice(0, 2).join("-");
+      onMonthChange(monthPeriod);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only on mount — subsequent changes go through handlePeriodChange
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    // Notify parent with the YYYY-MM prefix so KPI cards update regardless of
+    // whether the Engine is using weekly ("YYYY-MM-W1") or biweekly ("YYYY-MM-H1").
+    const monthPeriod = period.split("-").slice(0, 2).join("-");
+    onMonthChange?.(monthPeriod);
+  };
   const registerUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [viewRun, setViewRun] = useState<PayrollRun | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
@@ -200,7 +225,7 @@ export function PayrollEnginePanel() {
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
               <SelectTrigger className="w-52">
                 <Calendar className="h-4 w-4 mr-2" />
                 <SelectValue />
@@ -228,11 +253,23 @@ export function PayrollEnginePanel() {
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : runs.filter((r) => r.pay_period === selectedPeriod).length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-8 space-y-2">
               <Zap className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                No payroll run for {periodLabel(selectedPeriod)}. Select a period and generate payroll.
+              <p className="mt-2 font-medium text-foreground">
+                No payroll run for {periodLabel(selectedPeriod)}
               </p>
+              {runs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No payroll runs exist yet for this organisation.
+                  Click <strong>Generate Payroll</strong> above to create one for {periodLabel(selectedPeriod)},
+                  or upload a payroll register via <strong>Upload Register</strong>.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Runs exist for other periods but none for {periodLabel(selectedPeriod)}.
+                  Select a different period from the picker, or generate a new run for {periodLabel(selectedPeriod)}.
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

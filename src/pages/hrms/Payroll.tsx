@@ -448,6 +448,69 @@ function PayslipSummarySection({ loading, payslipData, fmtCurrency }: { loading:
   );
 }
 
+// ─── Debug Banner: explains why the payroll register is empty ─────────────────
+function PayrollRegisterEmptyState({
+  searchQuery,
+  statusFilter,
+  period,
+  totalRecords,
+  currentRole,
+  onAdd,
+}: {
+  searchQuery: string;
+  statusFilter: string;
+  period: string;
+  totalRecords: number;
+  currentRole: string | null | undefined;
+  onAdd: () => void;
+}) {
+  const periodStr = periodLabel(period);
+
+  if (searchQuery || statusFilter !== "all") {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <Search className="mx-auto h-12 w-12 text-muted-foreground" />
+        <p className="mt-3 font-medium text-foreground">No records match your filter</p>
+        <p className="text-sm text-muted-foreground">
+          {searchQuery && `Search "${searchQuery}" returned no results`}
+          {searchQuery && statusFilter !== "all" && " with "}
+          {statusFilter !== "all" && `status filter "${statusFilter}"`}
+          {" "}for {periodStr}. Try clearing the filters.
+        </p>
+      </div>
+    );
+  }
+
+  // No records for this period at all
+  const isPayrollRole = currentRole === "payroll";
+
+  return (
+    <div className="text-center py-12 space-y-2">
+      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+      <p className="mt-3 font-medium text-foreground">
+        No payroll records for {periodStr}
+      </p>
+      {totalRecords === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {isPayrollRole
+            ? "No records exist for this organisation yet. An admin or HR user must generate payroll via the Payroll Engine tab first."
+            : "No records have been added for this period. Use the Payroll Engine tab to generate payroll automatically, or add records individually."}
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Records exist for other periods but none for {periodStr}.
+          Select a different month from the period picker, or generate payroll for {periodStr} via the Payroll Engine tab.
+        </p>
+      )}
+      {!isPayrollRole && totalRecords === 0 && (
+        <Button variant="outline" className="mt-2" onClick={onAdd}>
+          <Plus className="h-4 w-4 mr-1" /> Add First Record
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const bulkUploadConfig = usePayrollBulkUpload(selectedPeriod);
@@ -811,7 +874,7 @@ export default function Payroll() {
               )}
             </TabsList>
             <TabsContent value="engine">
-              <PayrollEnginePanel />
+              <PayrollEnginePanel onMonthChange={setSelectedPeriod} />
             </TabsContent>
             <TabsContent value="register">
               <Card className="glass-card">
@@ -916,17 +979,14 @@ export default function Payroll() {
                       <p className="text-sm text-muted-foreground mt-1">A database schema error occurred. Please contact support or try refreshing.</p>
                     </div>
                   ) : filtered.length === 0 ? (
-                    <div className="text-center py-12">
-                      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <p className="mt-3 text-muted-foreground">
-                        {searchQuery || statusFilter !== "all"
-                          ? "No records match your filter"
-                          : `No payroll records for ${periodLabel(selectedPeriod)}`}
-                      </p>
-                      <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" /> Add First Record
-                      </Button>
-                    </div>
+                    <PayrollRegisterEmptyState
+                      searchQuery={searchQuery}
+                      statusFilter={statusFilter}
+                      period={selectedPeriod}
+                      totalRecords={records.length}
+                      currentRole={currentRole}
+                      onAdd={() => setIsAddOpen(true)}
+                    />
                   ) : (
                     <div>
                       <Table className="min-w-[600px]">
