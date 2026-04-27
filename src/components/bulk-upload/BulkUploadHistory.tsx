@@ -80,6 +80,7 @@ export function BulkUploadHistory({ module }: { module?: string }) {
   const moduleLabel = (m: string) => {
     const labels: Record<string, string> = {
       payroll: "Payroll",
+      payroll_register: "Payroll Register",
       attendance: "Attendance",
       roles: "Roles",
       holidays: "Holidays",

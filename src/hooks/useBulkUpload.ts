@@ -532,6 +532,304 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   };
 }
 
+// ─── Payroll Register ──────────────────────────────
+// Same column format and derivation logic as usePayrollBulkUpload, but writes to
+// payroll_runs + payroll_entries (engine tables) instead of payroll_records.
+// This enables the full approval workflow (submit → HR review → finance → lock).
+export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfig {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+
+  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = currentProfile?.organization_id;
+    if (!orgId) return { success: 0, errors: ["No organization found."] };
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, user_id, email, full_name")
+      .eq("organization_id", orgId);
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    let success = 0;
+
+    const findProfileByEmail = (email: string) => {
+      if (!profiles || !email) return null;
+      return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
+    };
+
+    const findProfileByName = (empId: string) => {
+      if (!profiles || !empId) return null;
+      const needle = empId.toLowerCase().trim();
+      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
+      if (match) return match;
+      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
+      if (match) return match;
+      const words = needle.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 0) {
+        match = profiles.find(p => {
+          const name = p.full_name?.toLowerCase() || "";
+          return words.every(w => name.includes(w));
+        });
+        if (match) return match;
+      }
+      return null;
+    };
+
+    // ── Find or create payroll_run ─────────────────────────────────────────
+    const { data: existingRun } = await supabase
+      .from("payroll_runs")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod)
+      .maybeSingle();
+
+    const terminalStatuses = ["under_review", "approved", "locked"];
+    if (existingRun && terminalStatuses.includes(existingRun.status)) {
+      return {
+        success: 0,
+        errors: [
+          `A payroll run for ${formatPayPeriod(payPeriod)} already exists with status '${existingRun.status}'. ` +
+          `It cannot be overwritten. Delete it first or choose a different period.`,
+        ],
+      };
+    }
+
+    let runId: string;
+    let createdNewRun = false;
+
+    if (existingRun) {
+      runId = existingRun.id;
+    } else {
+      const { data: newRun, error: runError } = await supabase
+        .from("payroll_runs")
+        .insert({
+          organization_id: orgId,
+          pay_period: payPeriod,
+          generated_by: user.id,
+          status: "completed",
+          notes: "Uploaded via Payroll Register Bulk Upload",
+        })
+        .select("id")
+        .single();
+
+      if (runError || !newRun) {
+        return { success: 0, errors: [`Failed to create payroll run: ${runError?.message}`] };
+      }
+      runId = newRun.id;
+      createdNewRun = true;
+    }
+
+    const insertedEntryIds: string[] = [];
+
+    const abortOnThreshold = async () => {
+      if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
+        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+        if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+        return true;
+      }
+      return false;
+    };
+
+    for (const row of rows) {
+      // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
+      const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
+      const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
+      let   other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
+      const total_ded_file   = parseFloat(row.total_deductions_col) || 0;
+      const monthly_gross    = parseFloat(row.monthly_gross) || 0;
+      const grossEarningsExplicit = parseFloat(row.gross_earnings_monthly);
+      const hasExplicitGross = !isNaN(grossEarningsExplicit) && grossEarningsExplicit > 0;
+      const gross_earn       = hasExplicitGross ? grossEarningsExplicit : monthly_gross;
+      const incentive        = parseFloat(row.incentive_monthly) || 0;
+      const bonus            = parseFloat(row.bonus_monthly) || 0;
+      const working_days_val = parseFloat(row.working_days_col) || 26;
+      const paid_days_val    = parseFloat(row.paid_days_col) || working_days_val;
+      const lwp_days_val     = parseFloat(row.lwp_days_col) || 0;
+      const lwp_ded_val      = parseFloat(row.lwp_deduction_col) || 0;
+      const net_from_file    = parseFloat(row.net_pay_file) || 0;
+
+      // ── Derive basic, HRA, other allowances ──────────────────────────────
+      let basic: number;
+      if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
+        basic = Math.round(pf_monthly_raw / 0.12);
+      } else if (pf_monthly_raw >= 1800) {
+        basic = Math.max(Math.round(monthly_gross * 0.62), 15000);
+      } else {
+        basic = Math.round(monthly_gross * 0.62);
+      }
+      const hra = Math.round(monthly_gross * 0.248);
+      const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
+
+      // ── Resolve deduction components via back-calculation ─────────────────
+      let pf_monthly = pf_monthly_raw;
+      let prof_tax   = prof_tax_raw;
+
+      if (pf_monthly === 0 && prof_tax === 0 && total_ded_file > 0) {
+        const grossForPT = gross_earn || monthly_gross;
+        const ptDerived  = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+        const pfActual   = Math.round(Math.min(basic, 15000) * 0.12);
+        const pfCeiling  = 1800;
+        for (const pf of [pfActual, pfCeiling]) {
+          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) { pf_monthly = pf; prof_tax = ptDerived; break; }
+          if (Math.abs(pf - total_ded_file) <= 1) { pf_monthly = pf; break; }
+        }
+        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) prof_tax = ptDerived;
+      }
+
+      // ── Deduction consistency check ───────────────────────────────────────
+      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0 || tds_monthly_raw > 0 || other_ded_raw > 0)) {
+        const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
+        if (componentSum > total_ded_file + 2) {
+          errors.push(`Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) exceed Total Deductions (₹${total_ded_file}).`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          continue;
+        }
+        const gap = total_ded_file - componentSum;
+        if (gap > 2) {
+          if (prof_tax === 0) {
+            const grossForPT = gross_earn || monthly_gross;
+            const ptExpected = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+            if (ptExpected > 0 && gap >= ptExpected) prof_tax = ptExpected;
+          }
+          const remaining = total_ded_file - (pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw);
+          if (remaining > 0) other_ded_raw += remaining;
+        }
+      }
+
+      // ── Net pay cross-check ───────────────────────────────────────────────
+      if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
+        const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
+        if (Math.abs(expectedNet - net_from_file) > 5) {
+          errors.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
+            `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
+            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""} = ₹${expectedNet}, but file says ₹${net_from_file}.`
+          );
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          continue;
+        }
+      }
+
+      const incentives = incentive + bonus;
+      const lwpForCalc = hasExplicitGross ? 0 : lwp_ded_val;
+      const totalDed   = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
+      const net_pay    = net_from_file > 0
+        ? net_from_file
+        : Math.max(0, Math.round(gross_earn - totalDed - lwpForCalc));
+
+      // ── Employee matching ─────────────────────────────────────────────────
+      let profile;
+      if (row.email_id) {
+        profile = findProfileByEmail(row.email_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          continue;
+        }
+      } else {
+        profile = findProfileByName(row.employee_id);
+        if (!profile) {
+          errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          continue;
+        }
+      }
+
+      // ── Build JSONB breakdowns ────────────────────────────────────────────
+      const earningsBreakdown = [
+        { name: "Basic Salary",      monthly: basic,          annual: basic * 12,          is_taxable: true },
+        ...(hra > 0            ? [{ name: "HRA",              monthly: hra,                annual: hra * 12,                is_taxable: true }]  : []),
+        ...(other_allowances > 0 ? [{ name: "Other Allowances", monthly: other_allowances, annual: other_allowances * 12,   is_taxable: true }]  : []),
+        ...(incentives > 0     ? [{ name: "Incentives",       monthly: incentives,         annual: incentives * 12,         is_taxable: true }]  : []),
+      ];
+
+      const deductionsBreakdown = [
+        ...(pf_monthly > 0     ? [{ name: "PF Contribution",  monthly: pf_monthly,         annual: pf_monthly * 12,         is_taxable: false }] : []),
+        ...(prof_tax > 0       ? [{ name: "Professional Tax", monthly: prof_tax,            annual: prof_tax * 12,           is_taxable: false }] : []),
+        ...(tds_monthly_raw > 0 ? [{ name: "TDS",             monthly: tds_monthly_raw,    annual: tds_monthly_raw * 12,    is_taxable: false }] : []),
+        ...(other_ded_raw > 0  ? [{ name: "Other Deductions", monthly: other_ded_raw,      annual: other_ded_raw * 12,      is_taxable: false }] : []),
+      ];
+
+      // ── Upsert payroll_entry ──────────────────────────────────────────────
+      const { data: entry, error: entryError } = await supabase
+        .from("payroll_entries")
+        .upsert({
+          payroll_run_id:            runId,
+          profile_id:                profile.id,
+          organization_id:           orgId,
+          compensation_structure_id: null,
+          annual_ctc:                gross_earn * 12,
+          gross_earnings:            gross_earn,
+          total_deductions:          totalDed,
+          net_pay,
+          lwp_days:                  lwp_days_val,
+          lwp_deduction:             lwp_ded_val,
+          working_days:              working_days_val,
+          paid_days:                 paid_days_val,
+          earnings_breakdown:        earningsBreakdown,
+          deductions_breakdown:      deductionsBreakdown,
+          status:                    "computed",
+        }, { onConflict: "payroll_run_id,profile_id" })
+        .select("id")
+        .single();
+
+      if (entryError) {
+        errors.push(`Row ${row.employee_id || row.email_id}: ${entryError.message}`);
+        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+      } else {
+        if (entry?.id) insertedEntryIds.push(entry.id);
+        success++;
+      }
+    }
+
+    // ── Re-aggregate run totals ───────────────────────────────────────────
+    const { data: allEntries } = await supabase
+      .from("payroll_entries")
+      .select("gross_earnings, total_deductions, net_pay")
+      .eq("payroll_run_id", runId);
+
+    if (allEntries && allEntries.length > 0) {
+      await supabase.from("payroll_runs").update({
+        total_gross:       allEntries.reduce((s, e) => s + (e.gross_earnings || 0), 0),
+        total_deductions:  allEntries.reduce((s, e) => s + (e.total_deductions || 0), 0),
+        total_net:         allEntries.reduce((s, e) => s + (e.net_pay || 0), 0),
+        employee_count:    allEntries.length,
+        status:            "completed",
+      }).eq("id", runId);
+    }
+
+    qc.invalidateQueries({ queryKey: ["payroll-runs"] });
+    qc.invalidateQueries({ queryKey: ["payroll-entries"] });
+    qc.invalidateQueries({ queryKey: ["payroll"] });
+    return { success, errors, warnings };
+  }, [user, payPeriod, qc]);
+
+  return {
+    module: "payroll_register",
+    title: "Upload Payroll Register",
+    description: `Upload a pre-computed payroll register for ${formatPayPeriod(payPeriod)}. Creates a completed payroll run ready for the approval workflow — no engine calculation needed.`,
+    columns: payrollColumns,
+    templateFileName: "payroll_register_template.csv",
+    templateContent: payrollTemplate,
+    onUpload,
+  };
+}
+
 export function useAttendanceBulkUpload(): BulkUploadConfig {
   const { user } = useAuth();
   const qc = useQueryClient();
