@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import pako from "npm:pako@2.1.0";
 
 // ═══════════════════════════════════════════════════════════════
 // GRX10 Books — Biometric Attendance PDF Parser v7
@@ -574,22 +573,8 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
   const decodeBytes = (input: Uint8Array) => new TextDecoder("latin1").decode(input);
 
   const inflate = async (bytes: Uint8Array): Promise<string | null> => {
-    // Primary: pako (most reliable for PDF Flate streams)
-    try {
-      const inflated = pako.inflate(bytes);
-      if (inflated?.length) return decodeBytes(inflated);
-    } catch {
-      // ignore and try next strategy
-    }
-
-    try {
-      const inflatedRaw = pako.inflateRaw(bytes);
-      if (inflatedRaw?.length) return decodeBytes(inflatedRaw);
-    } catch {
-      // ignore and try next strategy
-    }
-
-    // Secondary: native DecompressionStream fallback
+    // Native PDF Flate stream decompression. Avoid npm dependencies so the
+    // function builds reliably in Lovable Cloud's Deno runtime.
     for (const format of ["deflate", "deflate-raw"] as const) {
       try {
         const ds = new DecompressionStream(format);
