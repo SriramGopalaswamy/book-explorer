@@ -580,7 +580,7 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
         const ds = new DecompressionStream(format);
         const writer = ds.writable.getWriter();
         const reader = ds.readable.getReader();
-        writer.write(bytes).catch(() => {});
+        writer.write(bytes.slice() as Uint8Array<ArrayBuffer>).catch(() => {});
         writer.close().catch(() => {});
 
         const chunks: Uint8Array[] = [];
