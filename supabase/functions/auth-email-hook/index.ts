@@ -1,6 +1,48 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { sendLovableEmail, parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js@0.0.3'
+
+type LovableEmailPayload = {
+  version?: string
+  run_id?: string
+  data?: Record<string, any>
+}
+
+type LovableEmailMessage = {
+  run_id: string
+  to: string
+  from: string
+  sender_domain: string
+  subject: string
+  html: string
+  text: string
+  purpose: 'transactional'
+}
+
+function parseEmailWebhookPayload(body: any): LovableEmailPayload {
+  if (!body || typeof body !== 'object' || !body.data || typeof body.data !== 'object') {
+    throw new WebhookError('invalid_payload', 'Webhook payload is missing data')
+  }
+  return body as LovableEmailPayload
+}
+
+async function sendLovableEmail(
+  message: LovableEmailMessage,
+  options: { apiKey: string; sendUrl: string },
+): Promise<{ message_id?: string }> {
+  const response = await fetch(options.sendUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(message),
+  })
+
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
+  if (!response.ok) throw new Error(data?.error || data?.message || `Email API returned ${response.status}`)
+  return data
+}
 // Webhook verification - inline HMAC-SHA256 implementation
 // (Lovable's edge-runtime package is unavailable in Deno; reimplemented using Web Crypto API)
 class WebhookError extends Error {
