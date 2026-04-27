@@ -247,6 +247,8 @@ export function useEmployeeStats() {
       return data || [];
     },
     enabled: !!user && !!statsOrgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const leaveProfileIds = new Set(
