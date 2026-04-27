@@ -219,7 +219,7 @@ export function PayrollEnginePanel() {
               {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
             </Button>
             <span className="text-muted-foreground text-sm hidden sm:inline">or</span>
-            <BulkUploadDialog config={registerUploadConfig} />
+            <BulkUploadDialog config={registerUploadConfig} label="Upload Register" />
           </div>
         </CardHeader>
         <CardContent>
