@@ -225,17 +225,15 @@ async function handlePreview(req: Request): Promise<Response> {
     })
   }
 
-  const EmailTemplate = EMAIL_TEMPLATES[type]
+  const sampleData = SAMPLE_DATA[type] || {}
+  const html = renderEmail(type, sampleData as Record<string, any>)
 
-  if (!EmailTemplate) {
+  if (!html) {
     return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), {
       status: 400,
       headers: { ...previewCorsHeaders, 'Content-Type': 'application/json' },
     })
   }
-
-  const sampleData = SAMPLE_DATA[type] || {}
-  const html = await renderAsync(React.createElement(EmailTemplate, sampleData))
 
   return new Response(html, {
     status: 200,
@@ -322,15 +320,6 @@ async function handleWebhook(req: Request): Promise<Response> {
   const emailType = payload.data.action_type
   console.log('Received auth event', { emailType, email: payload.data.email, run_id })
 
-  const EmailTemplate = EMAIL_TEMPLATES[emailType]
-  if (!EmailTemplate) {
-    console.error('Unknown email type', { emailType, run_id })
-    return new Response(
-      JSON.stringify({ error: `Unknown email type: ${emailType}` }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
   // Build template props from payload.data (HookData structure)
   const templateProps = {
     siteName: SITE_NAME,
@@ -342,11 +331,15 @@ async function handleWebhook(req: Request): Promise<Response> {
     newEmail: payload.data.new_email,
   }
 
-  // Render React Email to HTML and plain text
-  const html = await renderAsync(React.createElement(EmailTemplate, templateProps))
-  const text = await renderAsync(React.createElement(EmailTemplate, templateProps), {
-    plainText: true,
-  })
+  const html = renderEmail(emailType, templateProps)
+  const text = renderEmail(emailType, templateProps, true)
+  if (!html || !text) {
+    console.error('Unknown email type', { emailType, run_id })
+    return new Response(
+      JSON.stringify({ error: `Unknown email type: ${emailType}` }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   // Send email via Lovable Email API
   // The callback URL is provided in the payload by Lovable, ensuring correct routing
