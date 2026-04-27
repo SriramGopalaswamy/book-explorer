@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -146,17 +146,27 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
   const frequency = payrollFlags?.payroll_frequency || "monthly";
 
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod(frequency));
+  const isFirstRender = useRef(true);
 
-  // Sync the initial period to the parent KPI cards on mount.
-  // frequency defaults to "monthly" before payrollFlags loads, so the initial
-  // value is always YYYY-MM — safe to extract the month prefix immediately.
+  // On mount: sync the initial period to the parent KPI cards.
+  // On subsequent frequency changes (payrollFlags loads with a non-default
+  // frequency like "biweekly" or "weekly"): reset selectedPeriod to the
+  // correct format for that frequency so the dropdown shows valid options
+  // and the KPI cards stay in sync.
   useEffect(() => {
-    if (onMonthChange) {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
       const monthPeriod = selectedPeriod.split("-").slice(0, 2).join("-");
-      onMonthChange(monthPeriod);
+      onMonthChange?.(monthPeriod);
+      return;
     }
+    // Frequency changed after mount — reset period to correct format
+    const newPeriod = currentPeriod(frequency);
+    setSelectedPeriod(newPeriod);
+    const monthPeriod = newPeriod.split("-").slice(0, 2).join("-");
+    onMonthChange?.(monthPeriod);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only on mount — subsequent changes go through handlePeriodChange
+  }, [frequency]); // selectedPeriod and onMonthChange intentionally excluded
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);

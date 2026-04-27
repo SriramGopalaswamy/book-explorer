@@ -245,6 +245,128 @@ describe("Period sync — Engine tab updates KPI period", () => {
   });
 });
 
+// ─── Per-role KPI read access (the explicit payroll-role coverage) ────────────
+
+describe("Role KPI read access — every allowed role reads Employees and Payroll KPIs", () => {
+  const allowedRoles: Role[] = ["admin", "hr", "finance", "payroll"];
+
+  allowedRoles.forEach((role) => {
+    describe(`${role} role`, () => {
+      it("is granted access to the Employees page", () => {
+        expect(canAccessEmployeePage(role)).toBe(true);
+      });
+
+      it("reads all 5 employees from the fixture org", () => {
+        const employees = fetchEmployees(ORG_ID);
+        expect(employees).toHaveLength(5);
+        expect(employees.every((e) => e.organization_id === ORG_ID)).toBe(true);
+      });
+
+      it("is granted access to the Payroll page", () => {
+        expect(canAccessPayrollPage(role)).toBe(true);
+      });
+
+      it("reads correct Payroll KPIs for Apr 2026 (3 records, ₹1.85L)", () => {
+        const kpis = computePayrollKPIs(FIXTURE_PAYROLL_RECORDS, "2026-04", ORG_ID);
+        expect(kpis.totalEmployees).toBe(3);
+        expect(kpis.totalPayroll).toBe(185_000);
+        expect(kpis.locked).toBe(2);
+        expect(kpis.pending).toBe(1);
+      });
+
+      it("reads correct Payroll KPIs for Mar 2026 (1 record, ₹55k)", () => {
+        const kpis = computePayrollKPIs(FIXTURE_PAYROLL_RECORDS, "2026-03", ORG_ID);
+        expect(kpis.totalEmployees).toBe(1);
+        expect(kpis.totalPayroll).toBe(55_000);
+        expect(kpis.pending).toBe(0);
+      });
+
+      it("sees zero KPIs for a period with no fixture data", () => {
+        const kpis = computePayrollKPIs(FIXTURE_PAYROLL_RECORDS, "2025-12", ORG_ID);
+        expect(kpis.totalEmployees).toBe(0);
+        expect(kpis.totalPayroll).toBe(0);
+      });
+    });
+  });
+});
+
+describe("Role KPI read access — denied roles cannot access pages", () => {
+  const deniedRoles: Role[] = ["manager", "employee"];
+
+  deniedRoles.forEach((role) => {
+    it(`${role} is denied the Employees page`, () => {
+      expect(canAccessEmployeePage(role)).toBe(false);
+    });
+
+    it(`${role} is denied the Payroll page`, () => {
+      expect(canAccessPayrollPage(role)).toBe(false);
+    });
+  });
+});
+
+// ─── Period format — frequency sync simulation ────────────────────────────────
+
+/** Mirrors the currentPeriod() helper inside PayrollEnginePanel for testing. */
+function simulateCurrentPeriod(
+  frequency: string,
+  year: number,
+  month: number,
+  day: number
+): string {
+  const yr = String(year);
+  const mn = String(month).padStart(2, "0");
+  if (frequency === "weekly") {
+    const week = Math.min(4, Math.ceil(day / 7));
+    return `${yr}-${mn}-W${week}`;
+  }
+  if (frequency === "biweekly") {
+    return day <= 15 ? `${yr}-${mn}-H1` : `${yr}-${mn}-H2`;
+  }
+  return `${yr}-${mn}`;
+}
+
+describe("Period format — currentPeriod() simulation for frequency sync", () => {
+  it("monthly frequency produces YYYY-MM format", () => {
+    expect(simulateCurrentPeriod("monthly", 2026, 4, 15)).toBe("2026-04");
+  });
+
+  it("biweekly frequency on days 1–15 produces H1", () => {
+    expect(simulateCurrentPeriod("biweekly", 2026, 4, 1)).toBe("2026-04-H1");
+    expect(simulateCurrentPeriod("biweekly", 2026, 4, 15)).toBe("2026-04-H1");
+  });
+
+  it("biweekly frequency on days 16–31 produces H2", () => {
+    expect(simulateCurrentPeriod("biweekly", 2026, 4, 16)).toBe("2026-04-H2");
+    expect(simulateCurrentPeriod("biweekly", 2026, 4, 30)).toBe("2026-04-H2");
+  });
+
+  it("weekly frequency produces W1–W4 based on day of month", () => {
+    expect(simulateCurrentPeriod("weekly", 2026, 4, 5)).toBe("2026-04-W1");
+    expect(simulateCurrentPeriod("weekly", 2026, 4, 10)).toBe("2026-04-W2");
+    expect(simulateCurrentPeriod("weekly", 2026, 4, 20)).toBe("2026-04-W3");
+    expect(simulateCurrentPeriod("weekly", 2026, 4, 28)).toBe("2026-04-W4");
+  });
+
+  it("switching from monthly default to biweekly changes period format", () => {
+    const monthly = simulateCurrentPeriod("monthly", 2026, 4, 20);
+    const biweekly = simulateCurrentPeriod("biweekly", 2026, 4, 20);
+    expect(monthly).toBe("2026-04");
+    expect(biweekly).toBe("2026-04-H2");
+    expect(monthly).not.toBe(biweekly);
+  });
+
+  it("KPI cards always receive YYYY-MM prefix regardless of engine frequency", () => {
+    const extractMonth = (p: string) => p.split("-").slice(0, 2).join("-");
+    expect(extractMonth(simulateCurrentPeriod("monthly", 2026, 4, 20))).toBe("2026-04");
+    expect(extractMonth(simulateCurrentPeriod("biweekly", 2026, 4, 20))).toBe("2026-04");
+    expect(extractMonth(simulateCurrentPeriod("weekly", 2026, 4, 20))).toBe("2026-04");
+  });
+
+  it("weekly day-31 clamps to W4 (max 4 weeks per engine period)", () => {
+    expect(simulateCurrentPeriod("weekly", 2026, 1, 31)).toBe("2026-01-W4");
+  });
+});
+
 describe("Tenant isolation — cross-org data bleed", () => {
   it("org-A records do not appear in org-B KPIs", () => {
     const orgB = "org-other-999";

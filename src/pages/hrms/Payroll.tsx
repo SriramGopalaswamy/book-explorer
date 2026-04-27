@@ -454,18 +454,23 @@ function PayrollRegisterEmptyState({
   statusFilter,
   period,
   totalRecords,
+  activeRecords,
   currentRole,
   onAdd,
 }: {
   searchQuery: string;
   statusFilter: string;
   period: string;
+  /** Raw record count for this period including superseded. */
   totalRecords: number;
+  /** Non-superseded record count for this period. */
+  activeRecords: number;
   currentRole: string | null | undefined;
   onAdd: () => void;
 }) {
   const periodStr = periodLabel(period);
 
+  // Case 1: active filter/search — no results match
   if (searchQuery || statusFilter !== "all") {
     return (
       <div className="text-center py-12 space-y-2">
@@ -481,7 +486,31 @@ function PayrollRegisterEmptyState({
     );
   }
 
-  // No records for this period at all
+  // Case 2: records exist for this period but all are superseded (revised via dispute resolution)
+  if (totalRecords > 0 && activeRecords === 0) {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <RefreshCw className="mx-auto h-12 w-12 text-amber-400" />
+        <p className="mt-3 font-medium text-foreground">
+          Payslips for {periodStr} were revised
+        </p>
+        <p className="text-sm text-muted-foreground">
+          The {totalRecords} original record{totalRecords !== 1 ? "s" : ""} for {periodStr}{" "}
+          {totalRecords !== 1 ? "were" : "was"} superseded via the dispute resolution process
+          and are no longer shown in the register. Use the{" "}
+          <strong>Payroll Engine</strong> tab to generate a corrected run, or add a
+          record manually.
+        </p>
+        {currentRole !== "payroll" && (
+          <Button variant="outline" className="mt-2" onClick={onAdd}>
+            <Plus className="h-4 w-4 mr-1" /> Add Corrected Record
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Case 3: no records for this period at all
   const isPayrollRole = currentRole === "payroll";
 
   return (
@@ -491,15 +520,18 @@ function PayrollRegisterEmptyState({
         No payroll records for {periodStr}
       </p>
       {totalRecords === 0 ? (
+        // Case 3a: no records at all in the org for any period
         <p className="text-sm text-muted-foreground">
           {isPayrollRole
             ? "No records exist for this organisation yet. An admin or HR user must generate payroll via the Payroll Engine tab first."
             : "No records have been added for this period. Use the Payroll Engine tab to generate payroll automatically, or add records individually."}
         </p>
       ) : (
+        // Case 3b: records exist for other periods — period mismatch
         <p className="text-sm text-muted-foreground">
           Records exist for other periods but none for {periodStr}.
-          Select a different month from the period picker, or generate payroll for {periodStr} via the Payroll Engine tab.
+          Select a different month from the period picker, or generate payroll for{" "}
+          {periodStr} via the <strong>Payroll Engine</strong> tab.
         </p>
       )}
       {!isPayrollRole && totalRecords === 0 && (
@@ -605,6 +637,7 @@ export default function Payroll() {
 
   const filtered = useMemo(() =>
     records.filter((r) => {
+      if (r.status === "superseded") return false; // never shown in the register
       const name = r.profiles?.full_name?.toLowerCase() || "";
       const dept = r.profiles?.department?.toLowerCase() || "";
       const q = searchQuery.toLowerCase();
@@ -984,6 +1017,7 @@ export default function Payroll() {
                       statusFilter={statusFilter}
                       period={selectedPeriod}
                       totalRecords={records.length}
+                      activeRecords={records.filter((r) => r.status !== "superseded").length}
                       currentRole={currentRole}
                       onAdd={() => setIsAddOpen(true)}
                     />
