@@ -200,17 +200,37 @@ export function useEmployees() {
       }
     },
     enabled: (!!user && !isRoleLoading && !!orgId) || isDevMode,
+    staleTime: 5 * 60_000, // 5 min — employee roster rarely changes mid-session
+    refetchOnWindowFocus: false,
   });
 }
 
-// Get employee stats
+/**
+ * Lightweight stats hook for the Dashboard.
+ * Avoids pulling the full profiles row payload (used to be ~50KB per Dashboard mount)
+ * by selecting only `id, user_id, status` instead of `select('*')`.
+ */
 export function useEmployeeStats() {
-  const { data: employees = [] } = useEmployees();
   const { user } = useAuth();
-
-  // Dynamically count approved leaves for today (matches attendance module logic)
   const { data: orgData } = useUserOrganization();
   const statsOrgId = orgData?.organizationId;
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employee-stats-lite", statsOrgId],
+    queryFn: async () => {
+      if (!statsOrgId) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, user_id, status")
+        .eq("organization_id", statsOrgId)
+        .limit(1000);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; user_id: string | null; status: string | null }>;
+    },
+    enabled: !!user && !!statsOrgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: approvedLeavesToday = [] } = useQuery({
     queryKey: ["employee-stats-leaves-today", statsOrgId],
@@ -227,6 +247,8 @@ export function useEmployeeStats() {
       return data || [];
     },
     enabled: !!user && !!statsOrgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const leaveProfileIds = new Set(
