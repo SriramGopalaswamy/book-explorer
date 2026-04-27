@@ -92,7 +92,7 @@ export function useIsAdminOrHR() {
   });
 }
 
-// Check if user has admin, HR, or finance role
+// Check if user has admin, HR, finance, or payroll role for read access
 export function useIsAdminHROrFinance() {
   const { user } = useAuth();
 
@@ -105,7 +105,7 @@ export function useIsAdminHROrFinance() {
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "hr", "finance"]);
+        .in("role", ["admin", "hr", "finance", "payroll"]);
 
       if (error) {
         console.error("Error checking role:", error);
