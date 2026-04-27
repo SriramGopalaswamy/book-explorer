@@ -54,6 +54,8 @@ export function useDirectReports() {
       return data || [];
     },
     enabled: !!user || isDevMode,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
