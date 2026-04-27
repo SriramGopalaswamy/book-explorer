@@ -74,7 +74,7 @@ export function useIsAdminOrHR() {
     queryKey: ["user-role", user?.id],
     queryFn: async () => {
       if (!user) return false;
-      
+
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -89,6 +89,10 @@ export function useIsAdminOrHR() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    // Stable for 5 min — prevents re-fetch on window focus causing brief hasAccess=undefined
+    // that would make useEmployees re-query with the wrong access level after hard refresh.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -100,7 +104,7 @@ export function useIsAdminHROrFinance() {
     queryKey: ["user-role", user?.id, "admin-hr-finance"],
     queryFn: async () => {
       if (!user) return false;
-      
+
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -115,6 +119,9 @@ export function useIsAdminHROrFinance() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    // Stable for 5 min — same reasoning as useIsAdminOrHR above.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
