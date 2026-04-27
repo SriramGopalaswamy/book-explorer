@@ -1,9 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PayrollEntry } from "@/hooks/usePayrollEngine";
 
+async function logExport(action: string, metadata: Record<string, unknown>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("audit_logs").insert({
+    actor_id: user.id,
+    action,
+    entity_type: "payroll_export",
+    metadata,
+  });
+}
+
 /**
  * PF ECR Export — generates EPFO-compliant CSV from locked payroll entries.
  * Pulls UAN from employee_details.
+ * Basic is read from earnings_breakdown "Basic Salary" — never re-derived
+ * from gross (FMEA 6.1): a re-derived basic would diverge from the locked payslip.
  */
 export async function exportPFECR(entries: PayrollEntry[]) {
   // Fetch UAN data
@@ -23,12 +36,16 @@ export async function exportPFECR(entries: PayrollEntry[]) {
 
   const rows = entries.map((e) => {
     const grossWages = e.gross_earnings;
-    const basicMonthly = (e.earnings_breakdown as any[])?.find(
+    // Use stored Basic Salary from the locked breakdown — do NOT re-derive from gross.
+    const storedBasic = (e.earnings_breakdown as any[])?.find(
       (c: any) => c.name?.toLowerCase().includes("basic")
-    )?.monthly ?? Math.round(grossWages * 0.4);
-    const epfWages = Math.min(basicMonthly, 15000);
+    )?.monthly ?? null;
+    // If basic is absent from the breakdown, epfWages cannot be calculated reliably;
+    // fall back to 0 so the ECR is visibly incomplete rather than silently wrong.
+    const epfWages = storedBasic !== null ? Math.min(storedBasic, 15000) : 0;
     const epsWages = Math.min(epfWages, 15000);
-    const pfEE = e.pf_employee ?? Math.round(epfWages * 0.12);
+    // pf_employee column is the authoritative stored value; never re-derive (FMEA 6.1).
+    const pfEE = e.pf_employee ?? 0;
     const epsER = Math.round(epsWages * 0.0833);
     const epfER = Math.round(epfWages * 0.0367);
     const edli = Math.round(epsWages * 0.005);
@@ -50,17 +67,21 @@ export async function exportPFECR(entries: PayrollEntry[]) {
   });
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const payPeriod = entries[0] ? String((entries[0] as any).pay_period ?? "") : "";
+  await logExport("payroll_export_pf_ecr", { employee_count: entries.length, pay_period: payPeriod });
   downloadCSV(csv, "PF_ECR_Export.csv");
 }
 
 /**
  * Bank Transfer File — generates NEFT-format CSV from locked payroll entries.
  * Pulls bank account details from employee_details.
+ * Entries with no bank account number are included with a blank field and
+ * reported back as warnings so the caller can surface them to the user (FMEA 6.2).
  */
 export async function exportBankTransferFile(
   entries: PayrollEntry[],
   format: string = "generic_neft"
-) {
+): Promise<{ warnings: string[] }> {
   // Fetch bank details
   const profileIds = entries.map((e) => e.profile_id);
   const { data: empDetails } = await supabase
@@ -72,12 +93,16 @@ export async function exportBankTransferFile(
     (empDetails ?? []).map((d: any) => [d.profile_id, d])
   );
 
+  const warnings: string[] = [];
   const headers = [
     "Beneficiary Name", "Account Number", "IFSC Code", "Bank Name", "Amount", "Remarks",
   ];
 
   const rows = entries.map((e) => {
     const bank = bankMap.get(e.profile_id) || {};
+    if (!bank.bank_account_number) {
+      warnings.push(`${e.profiles?.full_name || e.profile_id}: missing bank account — row included with blank account number.`);
+    }
     return [
       e.profiles?.full_name || "",
       bank.bank_account_number || "",
@@ -88,14 +113,22 @@ export async function exportBankTransferFile(
     ];
   });
 
+  const payPeriod = entries[0] ? String((entries[0] as any).pay_period ?? "") : "";
+  await logExport("payroll_export_bank_transfer", {
+    employee_count: entries.length,
+    pay_period: payPeriod,
+    format,
+    missing_accounts: warnings.length,
+  });
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   downloadCSV(csv, `Bank_Transfer_${format}.csv`);
+  return { warnings };
 }
 
 /**
  * Payroll Master CSV — comprehensive export.
  */
-export function exportPayrollMasterCSV(entries: PayrollEntry[], payPeriod: string) {
+export async function exportPayrollMasterCSV(entries: PayrollEntry[], payPeriod: string) {
   const headers = [
     "Employee Name", "Department", "Job Title", "Annual CTC",
     "Gross Earnings", "PF (Employee)", "PF (Employer)", "TDS",
@@ -130,6 +163,7 @@ export function exportPayrollMasterCSV(entries: PayrollEntry[], payPeriod: strin
   ]);
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  await logExport("payroll_export_master_csv", { employee_count: entries.length, pay_period: payPeriod });
   downloadCSV(csv, `Payroll_Master_${payPeriod}.csv`);
 }
 
