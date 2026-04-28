@@ -87,7 +87,6 @@ export default function Expenses() {
         .from("expenses")
         .select("*, profiles:profile_id(full_name, email)")
         .eq("organization_id", orgId)
-        .eq("is_deleted", false)
         .order("expense_date", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -102,7 +101,7 @@ export default function Expenses() {
   const expenses = allExpenses;
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
