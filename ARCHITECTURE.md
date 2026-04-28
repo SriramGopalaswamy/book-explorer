@@ -380,10 +380,14 @@ it is two parallel write paths with overlapping data.
 | Engine run (approval flow) | `payroll_runs` + `payroll_entries` | `usePayrollEngine()` |
 | Engine fallback (no compensation) | Reads `payroll_records` → writes `payroll_entries` | `usePayrollEngine()` line ~208 |
 
-**Root cause of payroll hangs:** The engine fallback (line ~208 of `usePayrollEngine.ts`) reads from
-`payroll_records` and re-inserts into `payroll_entries` on every engine run invocation for employees
-without a compensation structure. This creates duplicate engine entries on repeated runs, bloating
-queries and causing timeouts.
+**Root cause of payroll hangs:** The engine fallback (line ~158 of `usePayrollEngine.ts`) triggers
+when `eligibleStructures.length === 0` for the **entire organisation** — i.e. no active compensation
+structures exist at all. When that condition is true, the fallback reads all active `payroll_records`
+for the period and inserts them into `payroll_entries`. It contains no deduplication check, so
+re-running payroll for the same period attempts duplicate INSERTs into `payroll_entries`, which
+bloats queries and causes timeouts. The separate per-employee edge case (some employees have
+structures, others do not) is handled by the engine silently skipping employees with no structure —
+those employees receive no payroll entry and no warning (tracked in P0 todo item 4).
 
 ### Target State
 
@@ -441,9 +445,9 @@ Bulk CSV upload  ──►  usePayrollEngine.importFromCSV()   ──►  payrol
 | `gross_earnings` | Gross Earnings | Sum of earnings_breakdown |
 | `total_deductions` | Total Deductions | Sum of deductions_breakdown |
 | `net_pay` | Net Pay | gross − total_deductions |
-| `lop_days` | LOP Days | Days without pay |
+| `lwp_days` | LOP Days | Days without pay (column is `lwp_days`, not `lop_days`) |
 | `working_days` | Working Days | Calendar days in period |
-| `paid_days` | Paid Days | working_days − lop_days |
+| `paid_days` | Paid Days | working_days − lwp_days |
 
 ---
 
@@ -459,11 +463,12 @@ Bulk CSV upload  ──►  usePayrollEngine.importFromCSV()   ──►  payrol
 
 **Architecture:**
 ```
-payroll_entries (pf_deduction per employee)
+payroll_entries (pf_employee + pf_employer per entry)
         │
         ▼
 Edge Function: generate-epfo-ecr
   - Reads all approved payroll_entries for the period
+  - Uses pf_employee (employee share) and pf_employer (employer share) columns
   - Validates UAN (employee_details.uan_number) — rejects rows with missing UAN
   - Generates ECR text in EPFO V2 format
   - Stores file in Supabase Storage: statutory/{org_id}/pf/{YYYY-MM}/ECR.txt
@@ -719,7 +724,7 @@ POST /functions/v1/generate-payslip  {entry_id, org_id}
         ├── Use puppeteer-core or @html-pdf-node (headless Chromium in Deno)
         ├── Store PDF in Supabase Storage:
         │     pdfs/{org_id}/payslips/{YYYY-MM}/{employee_id}.pdf
-        ├── Update payroll_entries.pdf_url with signed URL
+        ├── Update payroll_entries.payslip_url with signed URL
         └── Return signed URL (15-min expiry) to client
                 │
                 ▼
