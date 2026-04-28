@@ -18,13 +18,17 @@ async function logExport(action: string, metadata: Record<string, unknown>) {
 }
 
 /**
- * PF ECR Export — generates EPFO-compliant CSV from locked payroll entries.
- * Pulls UAN from employee_details.
- * Basic is read from earnings_breakdown "Basic Salary" — never re-derived
- * from gross (FMEA 6.1): a re-derived basic would diverge from the locked payslip.
+ * PF ECR Export — generates EPFO ECR V2 tilde-delimited text file from locked payroll entries.
+ *
+ * Format: EPFO ECR V2 (Electronic Challan cum Return)
+ *   Line 1: #~#  (mandatory format marker)
+ *   Data rows: UAN~Name~Gross~EPFWages~EPSWages~EDLIWages~EEContri~ERContri~EPFerContri~EDLIContri~NCPDays~Refund
+ *
+ * Uses stored pf_employee / pf_employer columns — never re-derives from gross (FMEA 6.1).
+ * Basic Salary is read from earnings_breakdown "Basic Salary" component.
+ * A secondary CSV download is also triggered for human review.
  */
 export async function exportPFECR(entries: PayrollEntry[], payPeriod: string) {
-  // Fetch UAN data
   const profileIds = entries.map((e) => e.profile_id);
   const { data: empDetails } = await supabase
     .from("employee_details")
@@ -33,47 +37,57 @@ export async function exportPFECR(entries: PayrollEntry[], payPeriod: string) {
 
   const uanMap = new Map((empDetails ?? []).map((d: any) => [d.profile_id, d.uan_number || ""]));
 
-  const headers = [
-    "UAN", "Member Name", "Gross Wages", "EPF Wages", "EPS Wages",
-    "EDLI Wages", "EPF Contribution (EE)", "EPS Contribution (ER)",
-    "EPF Contribution (ER)", "EDLI Contribution", "NCP Days", "Refund of Advances",
-  ];
-
-  const rows = entries.map((e) => {
+  const dataRows = entries.map((e) => {
     const grossWages = e.gross_earnings;
-    // Use stored Basic Salary from the locked breakdown — do NOT re-derive from gross.
     const storedBasic = (e.earnings_breakdown as any[])?.find(
       (c: any) => c.name?.toLowerCase().includes("basic")
     )?.monthly ?? null;
-    // If basic is absent from the breakdown, epfWages cannot be calculated reliably;
-    // fall back to 0 so the ECR is visibly incomplete rather than silently wrong.
     const epfWages = storedBasic !== null ? Math.min(storedBasic, 15000) : 0;
     const epsWages = Math.min(epfWages, 15000);
-    // pf_employee column is the authoritative stored value; never re-derive (FMEA 6.1).
-    const pfEE = e.pf_employee ?? 0;
+    // Use authoritative stored columns; fallback to statutory calculation only if absent.
+    const pfEE  = e.pf_employee  ?? Math.round(epfWages * 0.12);
+    const pfER  = e.pf_employer  ?? Math.round(epfWages * 0.12);
     const epsER = Math.round(epsWages * 0.0833);
-    const epfER = Math.round(epfWages * 0.0367);
-    const edli = Math.round(epsWages * 0.005);
+    const epfER = Math.max(0, pfER - epsER);  // EPF ER = total ER − EPS ER
+    const edli  = Math.round(epsWages * 0.005);
 
     return [
       uanMap.get(e.profile_id) || "",
-      e.profiles?.full_name || "",
+      (e.profiles?.full_name || "").replace(/~/g, " "), // tilde not allowed in name
       grossWages,
       epfWages,
       epsWages,
-      epsWages,
+      epsWages,  // EDLI wages = EPS wages
       pfEE,
       epsER,
       epfER,
       edli,
       e.lwp_days,
-      0,
+      0,         // Refund of Advances (always 0 unless specifically required)
     ];
   });
 
-  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  await logExport("payroll_export_pf_ecr", { employee_count: entries.length, pay_period: payPeriod });
-  downloadCSV(csv, "PF_ECR_Export.csv");
+  // ── EPFO V2 primary output: tilde-delimited .txt ─────────────────────────
+  const ecrLines = ["#~#", ...dataRows.map((r) => r.join("~"))];
+  const ecrText = ecrLines.join("\r\n");
+  const ecrBlob = new Blob([ecrText], { type: "text/plain" });
+  const ecrUrl = URL.createObjectURL(ecrBlob);
+  const ecrLink = document.createElement("a");
+  ecrLink.href = ecrUrl;
+  ecrLink.download = `PF_ECR_${payPeriod}.txt`;
+  ecrLink.click();
+  URL.revokeObjectURL(ecrUrl);
+
+  // ── Secondary: comma-separated CSV for human review ───────────────────────
+  const csvHeaders = [
+    "UAN", "Member Name", "Gross Wages", "EPF Wages", "EPS Wages",
+    "EDLI Wages", "EPF Contribution (EE)", "EPS Contribution (ER)",
+    "EPF Contribution (ER)", "EDLI Contribution", "NCP Days", "Refund of Advances",
+  ];
+  const csv = [csvHeaders.join(","), ...dataRows.map((r) => r.join(","))].join("\n");
+  downloadCSV(csv, `PF_ECR_${payPeriod}_review.csv`);
+
+  await logExport("payroll_export_pf_ecr", { employee_count: entries.length, pay_period: payPeriod, format: "epfo_v2" });
 }
 
 /**
