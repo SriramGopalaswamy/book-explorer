@@ -127,6 +127,21 @@ export function useRaisePayslipDispute() {
         .select("*")
         .single();
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: orgData.organization_id,
+        actor_id: user.id,
+        action: "payslip_dispute_raised",
+        entity_type: "payslip_dispute",
+        entity_id: (data as any)?.id ?? null,
+        target_user_id: profile.id,
+        metadata: {
+          pay_period: input.pay_period,
+          dispute_category: input.dispute_category,
+          payroll_record_id: input.payroll_record_id,
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -294,6 +309,19 @@ export function useHRReviewDispute() {
         .eq("id", disputeId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: `payslip_dispute_hr_${action}`,
+        entity_type: "payslip_dispute",
+        entity_id: disputeId,
+        metadata: {
+          before_state: { status: "pending_manager" },
+          after_state: { status: update.status },
+          notes: notes || null,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });
@@ -360,6 +388,19 @@ export function useFinanceReviewDispute() {
             .eq("organization_id", callerProfile.organization_id);
         }
       }
+
+      await supabase.from("audit_logs").insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: `payslip_dispute_finance_${action}`,
+        entity_type: "payslip_dispute",
+        entity_id: disputeId,
+        metadata: {
+          before_state: { status: "pending_finance" },
+          after_state: { status: update.status },
+          notes: notes || null,
+        },
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });
