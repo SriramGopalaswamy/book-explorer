@@ -51,7 +51,7 @@ import {
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
 import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
+import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
 import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
@@ -530,7 +530,7 @@ function PayrollRegisterEmptyState({
 
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
-  const bulkUploadConfig = usePayrollBulkUpload(selectedPeriod);
+  const bulkUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -1158,7 +1158,7 @@ export default function Payroll() {
 
                   {/* Bulk Upload History inside register tab */}
                   <div className="mt-6">
-                    <BulkUploadHistory module="payroll" />
+                    <BulkUploadHistory />
                   </div>
                 </CardContent>
               </Card>

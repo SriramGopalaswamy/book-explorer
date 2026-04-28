@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,7 +102,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Zoho sync error:", error);
+    logError("zoho-sync", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Sync failed" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

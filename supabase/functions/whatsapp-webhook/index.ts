@@ -39,6 +39,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -455,7 +456,7 @@ Deno.serve(async (req) => {
     reason = procResult.reason ?? "";
   } catch (err) {
     // Fallback: classify inline (mirrors email-webhook fallback pattern)
-    console.warn("[whatsapp-webhook] message-processor unavailable, using inline fallback:", err);
+    logError("whatsapp-webhook", err, { stage: "message-processor" });
     const fallback = await classifyInlineFallback(
       supabase, messageContent, invoice.id, invoice.status, messageRow?.id ?? null
     );

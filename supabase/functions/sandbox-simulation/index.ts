@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Simulation error:", err);
+    logError("sandbox-simulation", err);
     return new Response(
       JSON.stringify({ error: (err as Error).message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
