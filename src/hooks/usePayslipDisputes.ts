@@ -347,11 +347,13 @@ export function useFinanceReviewDispute() {
           .single();
         const disputeData = dispute as any;
         if (disputeData?.payroll_record_id) {
-          // Mark existing record as superseded
+          // Mark existing record as superseded — set BOTH fields so the
+          // engine fallback query (is_superseded=false) correctly excludes it.
           await supabase
             .from("payroll_records")
             .update({
               status: "superseded",
+              is_superseded: true,
               updated_at: new Date().toISOString(),
             } as any)
             .eq("id", disputeData.payroll_record_id)
