@@ -127,6 +127,21 @@ export function useRaisePayslipDispute() {
         .select("*")
         .single();
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: orgData.organization_id,
+        actor_id: user.id,
+        action: "payslip_dispute_raised",
+        entity_type: "payslip_dispute",
+        entity_id: (data as any)?.id ?? null,
+        target_user_id: profile.id,
+        metadata: {
+          pay_period: input.pay_period,
+          dispute_category: input.dispute_category,
+          payroll_record_id: input.payroll_record_id,
+        },
+      });
+
       return data;
     },
     onSuccess: () => {
@@ -294,6 +309,19 @@ export function useHRReviewDispute() {
         .eq("id", disputeId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: `payslip_dispute_hr_${action}`,
+        entity_type: "payslip_dispute",
+        entity_id: disputeId,
+        metadata: {
+          before_state: { status: "pending_manager" },
+          after_state: { status: update.status },
+          notes: notes || null,
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });
@@ -347,17 +375,32 @@ export function useFinanceReviewDispute() {
           .single();
         const disputeData = dispute as any;
         if (disputeData?.payroll_record_id) {
-          // Mark existing record as superseded
+          // Mark existing record as superseded — set BOTH fields so the
+          // engine fallback query (is_superseded=false) correctly excludes it.
           await supabase
             .from("payroll_records")
             .update({
               status: "superseded",
+              is_superseded: true,
               updated_at: new Date().toISOString(),
             } as any)
             .eq("id", disputeData.payroll_record_id)
             .eq("organization_id", callerProfile.organization_id);
         }
       }
+
+      await supabase.from("audit_logs").insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: `payslip_dispute_finance_${action}`,
+        entity_type: "payslip_dispute",
+        entity_id: disputeId,
+        metadata: {
+          before_state: { status: "pending_finance" },
+          after_state: { status: update.status },
+          notes: notes || null,
+        },
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["payslip-disputes-pending"] });

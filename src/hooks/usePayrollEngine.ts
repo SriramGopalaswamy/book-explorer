@@ -120,7 +120,22 @@ export function useGeneratePayroll() {
       if (!orgId) throw new Error("Organization not found");
       const f = flags || { pf_applicable: false, esi_applicable: false, professional_tax_applicable: false, gratuity_applicable: false } as PayrollFlags;
 
-      // 1. Create payroll run
+      // 1. Guard: reject if a non-failed run already exists for this org+period
+      const { data: existingRuns } = await supabase
+        .from("payroll_runs")
+        .select("id, status")
+        .eq("organization_id", orgId)
+        .eq("pay_period", payPeriod)
+        .not("status", "in", '("failed","cancelled")');
+      if (existingRuns && existingRuns.length > 0) {
+        const s = existingRuns[0].status;
+        throw new Error(
+          `A payroll run for ${payPeriod} already exists (status: ${s}). ` +
+          `Delete or cancel the existing run before generating a new one.`
+        );
+      }
+
+      // 2. Create payroll run
       const { data: run, error: runErr } = await supabase
         .from("payroll_runs")
         .insert({
@@ -133,7 +148,7 @@ export function useGeneratePayroll() {
         .single();
       if (runErr) throw runErr;
 
-      // 2. Fetch all active compensation structures for this org
+      // 3. Fetch all active compensation structures for this org
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
@@ -164,12 +179,25 @@ export function useGeneratePayroll() {
           .eq("pay_period", payPeriod)
           .eq("is_superseded", false);
 
-        // Filter out inactive employees
-        const activeRecords = (existingRecords || []).filter((r: any) => r.profiles?.status === 'active');
+        // Filter out inactive employees; collect names for caller warning
+        const allFallbackRecords = existingRecords || [];
+        const activeRecords = allFallbackRecords.filter((r: any) => r.profiles?.status === 'active');
+        const skippedNames = allFallbackRecords
+          .filter((r: any) => r.profiles?.status !== 'active')
+          .map((r: any) => r.profiles?.full_name || r.profile_id);
+
+        const warnings: string[] = [];
+        if (skippedNames.length > 0) {
+          warnings.push(`Skipped ${skippedNames.length} inactive employee(s): ${skippedNames.join(", ")}`);
+        }
 
         if (activeRecords.length === 0) {
           await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
-          return { run, entriesCount: 0 };
+          warnings.push(
+            `No payroll records found for ${payPeriod}. ` +
+            `Ensure employees have compensation structures or manual payroll records for this period.`
+          );
+          return { run, entriesCount: 0, warnings };
         }
 
         // Map payroll_records to payroll_entries
@@ -224,10 +252,10 @@ export function useGeneratePayroll() {
           total_net: fbNet,
         }).eq("id", run.id);
 
-        return { run, entriesCount: fallbackEntries.length };
+        return { run, entriesCount: fallbackEntries.length, warnings };
       }
 
-      // 3. Fetch LWP for the period from leave_requests AND attendance_daily
+      // 4. Fetch LWP for the period from leave_requests AND attendance_daily
       // Parse period: "2026-03", "2026-03-H1", "2026-03-W2"
       const periodParts = payPeriod.split("-");
       const year = parseInt(periodParts[0]);
@@ -345,7 +373,7 @@ export function useGeneratePayroll() {
         : periodSuffix?.startsWith("H") ? 24
         : 12;
 
-      // 4. Generate entries
+      // 5. Generate entries
       const entries = eligibleStructures.map((s: any) => {
         const components = s.compensation_components || [];
         const lwpDays = lwpMap.get(s.profile_id) || 0;
@@ -479,7 +507,7 @@ export function useGeneratePayroll() {
         }
       }
 
-      // 5. Update run totals
+      // 6. Update run totals
       const totalGross = entries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
       const totalDed = entries.reduce((s: number, e: any) => s + e.total_deductions, 0);
       const totalNet = entries.reduce((s: number, e: any) => s + e.net_pay, 0);
@@ -492,12 +520,13 @@ export function useGeneratePayroll() {
         total_net: totalNet,
       }).eq("id", run.id);
 
-      return { run, entriesCount: entries.length };
+      return { run, entriesCount: entries.length, warnings: [] as string[] };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-entries"] });
       toast.success(`Payroll generated for ${data.entriesCount} employees`);
+      data.warnings?.forEach((w) => toast.warning(w));
     },
     onError: (err: any) => {
       if (err.message?.includes("duplicate key")) {

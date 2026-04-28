@@ -79,6 +79,13 @@ with ±₹1 tolerance. Falls back to "Salary Deductions" catch-all when pattern 
 
 ## Architecture Notes
 
+### financial_records write rule (item 23)
+`financial_records` rows with a non-null `journal_entry_id` are **owned by the trigger**
+`trg_sync_financial_records` (migration 20260428180000). Do NOT write to these rows
+directly from application code — the trigger recalculates them from `journal_lines`
+on every journal_line INSERT/UPDATE. Only rows without a `journal_entry_id` (legacy
+pre-GL records) may be written directly.
+
 ### Two payroll paths
 1. **Legacy**: `payroll_records` with flat columns → `normalizeLegacyRecord()`
 2. **Engine**: `payroll_entries` with `earnings_breakdown` / `deductions_breakdown` JSON
@@ -100,6 +107,46 @@ invisible in dark mode. Use conditional tint: `style={i % 2 !== 0 ? { background
 - Brand color + legal name + address: `organization_compliance` table
   (`registered_address + state + pincode` → joined with `", "`)
 - Fallback for company name: `organizations.name`
+
+---
+
+## Dual user_id / profile_id Audit (as of 2026-04-28)
+
+Four tables carry both `user_id` (auth.users FK) and `profile_id` (profiles FK).
+Status per table:
+
+| Table | profile_id present? | Backfill migration | Remaining user_id usage |
+|---|---|---|---|
+| `attendance_records` | ✓ | 20260224051635 | None — all hooks use profile_id |
+| `expenses` | ✓ | 20260224051635 (trigger) | None — `Expenses.tsx:175` queries profiles.user_id to LOOK UP profile_id, then uses profile_id for the insert |
+| `payroll_records` | ✓ | pre-existing | None — all hooks use profile_id |
+| `reimbursement_requests` | ✓ | pre-existing FK | `Reimbursements.tsx:115` queries `.eq("user_id", user.id)` for employee self-view — OK while user_id column exists; will break when item-36 drops it |
+
+### Action required before dropping user_id (item 36, P2):
+- `Reimbursements.tsx:115`: change to `.eq("profile_id", myProfileId)` where `myProfileId`
+  is fetched once via `profiles.user_id = user.id`. Verify all `reimbursement_requests` rows
+  have non-null `profile_id` before this migration runs.
+
+---
+
+## Address Field Standard (item 43)
+
+All **new** tables must use the following address columns — never a single `address` text field:
+
+```sql
+address_line1  TEXT,
+address_line2  TEXT,            -- optional
+city           TEXT NOT NULL,
+state          TEXT NOT NULL,   -- full state name (e.g. "Karnataka")
+pincode        TEXT NOT NULL,   -- 6-digit postal code
+country        TEXT NOT NULL DEFAULT 'India',
+```
+
+`state_code` (e.g. "KA") is a GST-specific derived column that should be computed from `state` when needed for e-invoice/GSTN APIs — it is NOT a stored column on address tables.
+
+**Logo field location**
+- `organization_settings.logo_url` is the canonical location. `organization_compliance` has no logo_url column and should not receive one.
+- The ARCHITECTURE.md note about "Brand color + legal name + address: organization_compliance" refers only to branding colors and legal entity identity fields, NOT the logo image.
 
 ---
 

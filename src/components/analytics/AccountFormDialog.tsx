@@ -33,34 +33,28 @@ export function AccountFormDialog({ open, onOpenChange, account }: AccountFormDi
   const isEditing = !!account;
 
   const [form, setForm] = useState<ChartAccountInput>({
-    account_code: "",
-    account_name: "",
+    code: "",
+    name: "",
     account_type: "asset",
     description: "",
-    opening_balance: 0,
-    current_balance: 0,
     is_active: true,
   });
 
   useEffect(() => {
     if (account) {
       setForm({
-        account_code: account.account_code,
-        account_name: account.account_name,
+        code: account.code,
+        name: account.name,
         account_type: account.account_type,
         description: account.description || "",
-        opening_balance: account.opening_balance,
-        current_balance: account.current_balance,
         is_active: account.is_active,
       });
     } else {
       setForm({
-        account_code: "",
-        account_name: "",
+        code: "",
+        name: "",
         account_type: "asset",
         description: "",
-        opening_balance: 0,
-        current_balance: 0,
         is_active: true,
       });
     }
@@ -68,7 +62,7 @@ export function AccountFormDialog({ open, onOpenChange, account }: AccountFormDi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.account_code.trim() || !form.account_name.trim()) {
+    if (!form.code.trim() || !form.name.trim()) {
       toast.error("Account code and name are required");
       return;
     }
@@ -98,12 +92,12 @@ export function AccountFormDialog({ open, onOpenChange, account }: AccountFormDi
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="account_code">Account Code</Label>
+              <Label htmlFor="code">Account Code</Label>
               <Input
-                id="account_code"
+                id="code"
                 placeholder="e.g. 1100"
-                value={form.account_code}
-                onChange={(e) => setForm((p) => ({ ...p, account_code: e.target.value }))}
+                value={form.code}
+                onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
                 maxLength={10}
                 required
               />
@@ -127,12 +121,12 @@ export function AccountFormDialog({ open, onOpenChange, account }: AccountFormDi
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="account_name">Account Name</Label>
+            <Label htmlFor="name">Account Name</Label>
             <Input
-              id="account_name"
+              id="name"
               placeholder="e.g. Cash in Hand"
-              value={form.account_name}
-              onChange={(e) => setForm((p) => ({ ...p, account_name: e.target.value }))}
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               maxLength={100}
               required
             />
@@ -148,27 +142,6 @@ export function AccountFormDialog({ open, onOpenChange, account }: AccountFormDi
               maxLength={500}
               rows={2}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
-              <Input
-                id="opening_balance"
-                type="number"
-                value={form.opening_balance}
-                onChange={(e) => setForm((p) => ({ ...p, opening_balance: Number(e.target.value) }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="current_balance">Current Balance (₹)</Label>
-              <Input
-                id="current_balance"
-                type="number"
-                value={form.current_balance}
-                onChange={(e) => setForm((p) => ({ ...p, current_balance: Number(e.target.value) }))}
-              />
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
