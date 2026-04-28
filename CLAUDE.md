@@ -122,6 +122,27 @@ Status per table:
 
 ---
 
+## Address Field Standard (item 43)
+
+All **new** tables must use the following address columns — never a single `address` text field:
+
+```sql
+address_line1  TEXT,
+address_line2  TEXT,            -- optional
+city           TEXT NOT NULL,
+state          TEXT NOT NULL,   -- full state name (e.g. "Karnataka")
+pincode        TEXT NOT NULL,   -- 6-digit postal code
+country        TEXT NOT NULL DEFAULT 'India',
+```
+
+`state_code` (e.g. "KA") is a GST-specific derived column that should be computed from `state` when needed for e-invoice/GSTN APIs — it is NOT a stored column on address tables.
+
+**Logo field location**
+- `organization_settings.logo_url` is the canonical location. `organization_compliance` has no logo_url column and should not receive one.
+- The ARCHITECTURE.md note about "Brand color + legal name + address: organization_compliance" refers only to branding colors and legal entity identity fields, NOT the logo image.
+
+---
+
 ## Running Tests
 ```
 npm run test          # all test files via Vitest
