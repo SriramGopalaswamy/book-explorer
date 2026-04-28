@@ -382,8 +382,6 @@ export function useUpdatePayroll() {
 
   return useMutation({
     mutationFn: async ({ id, ...data }: UpdatePayrollData) => {
-      // ── State machine enforcement ──────────────────────────
-      // Resolve caller's org for tenant isolation
       const { data: callerProfile } = await supabase
         .from("profiles")
         .select("organization_id")
@@ -392,6 +390,60 @@ export function useUpdatePayroll() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
+      // Check if this id belongs to payroll_entries (engine path) or payroll_records (legacy)
+      const { data: engineCheck } = await supabase
+        .from("payroll_entries")
+        .select("id, status, payroll_run_id")
+        .eq("id", id)
+        .eq("organization_id", callerOrgId)
+        .maybeSingle();
+
+      if (engineCheck) {
+        // ── Engine path: update payroll_entries ─────────────────────────────
+        if (PAYROLL_TERMINAL.includes(engineCheck.status)) {
+          throw new Error(`Cannot modify a "${engineCheck.status}" payroll record.`);
+        }
+        const gross =
+          Number(data.basic_salary ?? 0) + Number(data.hra ?? 0) +
+          Number(data.transport_allowance ?? 0) + Number(data.other_allowances ?? 0);
+        const totalDed =
+          Number(data.pf_deduction ?? 0) + Number(data.tax_deduction ?? 0) +
+          Number(data.other_deductions ?? 0) + Number(data.lop_deduction ?? 0);
+
+        const earningsBreakdown = [
+          { name: "Basic Salary", monthly: Number(data.basic_salary ?? 0) },
+          { name: "HRA", monthly: Number(data.hra ?? 0) },
+          { name: "Incentives", monthly: Number(data.transport_allowance ?? 0) },
+          { name: "Other Allowances", monthly: Number(data.other_allowances ?? 0) },
+        ].filter((e) => e.monthly > 0);
+        const deductionsBreakdown = [
+          { name: "PF Contribution", monthly: Number(data.pf_deduction ?? 0) },
+          { name: "TDS", monthly: Number(data.tax_deduction ?? 0) },
+          { name: "Other Deductions", monthly: Number(data.other_deductions ?? 0) + Number(data.lop_deduction ?? 0) },
+        ].filter((d) => d.monthly > 0);
+
+        const { error } = await supabase
+          .from("payroll_entries")
+          .update({
+            gross_earnings: gross,
+            total_deductions: totalDed,
+            net_pay: data.net_pay ?? gross - totalDed,
+            annual_ctc: gross * 12,
+            lwp_days: data.lop_days ?? 0,
+            lwp_deduction: data.lop_deduction ?? 0,
+            working_days: data.working_days ?? 0,
+            paid_days: data.paid_days ?? 0,
+            earnings_breakdown: earningsBreakdown,
+            deductions_breakdown: deductionsBreakdown,
+            ...(data.status ? { status: data.status } : {}),
+          })
+          .eq("id", id)
+          .eq("organization_id", callerOrgId);
+        if (error) throw error;
+        return { id };
+      }
+
+      // ── Legacy path: update payroll_records ─────────────────────────────
       if (data.status) {
         const { data: current, error: fetchErr } = await supabase
           .from("payroll_records")
@@ -402,22 +454,16 @@ export function useUpdatePayroll() {
         if (fetchErr) throw fetchErr;
         if (!current) throw new Error("Payroll record not found in your organization.");
         const currentStatus = current?.status as string;
-
         if (PAYROLL_TERMINAL.includes(currentStatus)) {
           throw new Error(`Cannot modify a "${currentStatus}" payroll record.`);
         }
-
         const allowed = PAYROLL_TRANSITIONS[currentStatus];
         if (allowed && !allowed.includes(data.status)) {
           throw new Error(`Cannot transition payroll from "${currentStatus}" to "${data.status}".`);
         }
       }
-
       const updateData: Record<string, unknown> = { ...data };
-      if (data.status === "processed") {
-        updateData.processed_at = new Date().toISOString();
-      }
-
+      if (data.status === "processed") updateData.processed_at = new Date().toISOString();
       const { data: record, error } = await supabase
         .from("payroll_records")
         .update(updateData as any)
@@ -425,7 +471,6 @@ export function useUpdatePayroll() {
         .eq("organization_id", callerOrgId)
         .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
         .single();
-
       if (error) throw error;
       return record;
     },
@@ -446,7 +491,6 @@ export function useDeletePayroll() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Resolve caller's org for tenant isolation
       const { data: callerProfile } = await supabase
         .from("profiles")
         .select("organization_id")
@@ -455,24 +499,40 @@ export function useDeletePayroll() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      // ── Only draft/cancelled records can be deleted ────────
-      const { data: check, error: checkErr } = await supabase
-        .from("payroll_records")
-        .select("status")
+      // Check which table owns this id
+      const { data: engineEntry } = await supabase
+        .from("payroll_entries")
+        .select("id, status, payroll_run_id")
         .eq("id", id)
         .eq("organization_id", callerOrgId)
-        .single();
+        .maybeSingle();
+
+      if (engineEntry) {
+        const deletableStatuses = ["computed", "draft", "cancelled"];
+        if (!deletableStatuses.includes(engineEntry.status)) {
+          throw new Error(`Cannot delete a "${engineEntry.status}" payroll record. Only draft/computed records can be deleted.`);
+        }
+        const { error } = await supabase.from("payroll_entries").delete().eq("id", id).eq("organization_id", callerOrgId);
+        if (error) throw error;
+        // Clean up orphaned payroll_run if this was the only entry
+        if (engineEntry.payroll_run_id) {
+          const { count } = await supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("payroll_run_id", engineEntry.payroll_run_id);
+          if ((count ?? 0) === 0) {
+            await supabase.from("payroll_runs").delete().eq("id", engineEntry.payroll_run_id);
+          }
+        }
+        return;
+      }
+
+      // Legacy path
+      const { data: check, error: checkErr } = await supabase
+        .from("payroll_records").select("status").eq("id", id).eq("organization_id", callerOrgId).single();
       if (checkErr) throw checkErr;
       const status = check?.status as string;
       if (status && !["draft", "cancelled"].includes(status)) {
         throw new Error(`Cannot delete a "${status}" payroll record. Only draft or cancelled records can be deleted.`);
       }
-
-      const { error } = await supabase
-        .from("payroll_records")
-        .delete()
-        .eq("id", id)
-        .eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("payroll_records").delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -502,29 +562,42 @@ export function useBulkDeletePayroll() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      // Fetch statuses for all requested IDs, scoped to org
-      const { data: checks, error: checkErr } = await supabase
-        .from("payroll_records")
-        .select("id, status")
-        .in("id", ids)
-        .eq("organization_id", callerOrgId);
-      if (checkErr) throw checkErr;
+      // Split ids by source table
+      const { data: engineChecks } = await supabase
+        .from("payroll_entries").select("id, status, payroll_run_id").in("id", ids).eq("organization_id", callerOrgId);
+      const engineIds = new Set((engineChecks ?? []).map((e: any) => e.id));
+      const legacyIds = ids.filter((id) => !engineIds.has(id));
 
-      const deletableIds = (checks ?? [])
-        .filter((r) => ["draft", "cancelled"].includes(r.status as string))
-        .map((r) => r.id);
-      const skipped = ids.length - deletableIds.length;
-
-      if (deletableIds.length > 0) {
-        const { error } = await supabase
-          .from("payroll_records")
-          .delete()
-          .in("id", deletableIds)
-          .eq("organization_id", callerOrgId);
-        if (error) throw error;
+      // Engine deletions
+      const deletableEngine = (engineChecks ?? [])
+        .filter((e: any) => ["computed", "draft", "cancelled"].includes(e.status))
+        .map((e: any) => e);
+      if (deletableEngine.length > 0) {
+        await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
+        for (const e of deletableEngine) {
+          if (e.payroll_run_id) {
+            const { count } = await supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("payroll_run_id", e.payroll_run_id);
+            if ((count ?? 0) === 0) await supabase.from("payroll_runs").delete().eq("id", e.payroll_run_id);
+          }
+        }
       }
 
-      return { deleted: deletableIds.length, skipped };
+      // Legacy deletions
+      let legacyDeleted = 0;
+      if (legacyIds.length > 0) {
+        const { data: legacyChecks } = await supabase
+          .from("payroll_records").select("id, status").in("id", legacyIds).eq("organization_id", callerOrgId);
+        const deletableLegacy = (legacyChecks ?? [])
+          .filter((r: any) => ["draft", "cancelled"].includes(r.status)).map((r: any) => r.id);
+        if (deletableLegacy.length > 0) {
+          await supabase.from("payroll_records").delete().in("id", deletableLegacy).eq("organization_id", callerOrgId);
+          legacyDeleted = deletableLegacy.length;
+        }
+      }
+
+      const deleted = deletableEngine.length + legacyDeleted;
+      const skipped = ids.length - deleted;
+      return { deleted, skipped };
     },
     onSuccess: ({ deleted, skipped }) => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
