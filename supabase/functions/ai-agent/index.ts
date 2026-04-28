@@ -683,6 +683,19 @@ serve(async (req) => {
     const orgId = profile.organization_id;
     const userId = user.id;
 
+    // Per-org monthly quota: reject after 500 AI requests / org / month
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const { data: newCount, error: quotaErr } = await client.rpc("increment_ai_usage", {
+      p_org_id: orgId,
+      p_month: currentMonth,
+    });
+    if (!quotaErr && typeof newCount === "number" && newCount > 500) {
+      return new Response(
+        JSON.stringify({ error: "AI usage quota exceeded (500 requests/month). Contact your administrator to increase the limit." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fetch the user's roles for server-side permission enforcement on write tools
     const { data: roleRows } = await client
       .from("user_roles")
