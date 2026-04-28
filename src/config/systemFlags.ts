@@ -8,20 +8,18 @@ const isProduction = NODE_ENV === 'production';
 
 /**
  * DEV_MODE - Controls developer tools visibility and features
- * - Default: true in development, false in production
- * - Can be explicitly enabled in production via VITE_DEV_MODE=true
- * - Enables: Role impersonation, permission matrix debugging, live governance
+ * SECURITY: Hard-coded OFF in production builds. Vite sets MODE='production'
+ * for all `npm run build` output; no env var can override this.
+ * Enables: Role impersonation, permission matrix debugging, live governance.
  */
-export const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' || (!isProduction && import.meta.env.VITE_DEV_MODE !== 'false');
+export const DEV_MODE = !isProduction && import.meta.env.VITE_DEV_MODE !== 'false';
 
 /**
  * ALLOW_PERMISSION_EDITING - Controls runtime permission modification
- * - Default: true in development, false in production
- * - Can be explicitly enabled in production via VITE_ALLOW_PERMISSION_EDITING=true
- * - Requires: SuperAdmin role
- * - Audited: All changes logged
+ * SECURITY: Hard-coded OFF in production builds (same guarantee as DEV_MODE).
+ * Requires: SuperAdmin role. Audited: All changes logged.
  */
-export const ALLOW_PERMISSION_EDITING = import.meta.env.VITE_ALLOW_PERMISSION_EDITING === 'true' || (!isProduction && import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false');
+export const ALLOW_PERMISSION_EDITING = !isProduction && import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false';
 
 /**
  * AI_CHAT_ENABLED - DECOMMISSIONED

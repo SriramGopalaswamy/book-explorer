@@ -15,6 +15,8 @@ import { ManagerRoute } from "@/components/auth/ManagerRoute";
 import { PayrollRoute } from "@/components/auth/PayrollRoute";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { RESOURCES } from "@/lib/permissions";
 
 // Lazy-loaded page components — reduces initial bundle by ~80%
 const Index = lazy(() => import("./pages/Index"));
@@ -143,6 +145,23 @@ function Guarded({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Guarded + RBAC matrix enforcement.
+ * Role-based guards (HRAdminRoute, etc.) handle coarse access;
+ * this enforces the admin-configurable role_permissions matrix on top.
+ */
+function GuardedWithPermission({ resource, children }: { resource: string; children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <SubscriptionGuard>
+        <PermissionGate resource={resource as any} pageLevelGate>
+          {children}
+        </PermissionGate>
+      </SubscriptionGuard>
+    </ProtectedRoute>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="dark">
@@ -226,23 +245,23 @@ const App = () => (
                   <Route path="/warehouse/counts" element={<Guarded><FinanceRoute><InventoryCountsPage /></FinanceRoute></Guarded>} />
 
                   {/* HRMS */}
-                  <Route path="/hrms/employees" element={<Guarded><Employees /></Guarded>} />
-                  <Route path="/hrms/attendance" element={<Guarded><HRAdminRoute><Attendance /></HRAdminRoute></Guarded>} />
-                  <Route path="/hrms/attendance-import" element={<Guarded><HRAdminRoute><AttendanceImport /></HRAdminRoute></Guarded>} />
-                  <Route path="/hrms/leaves" element={<Guarded><Leaves /></Guarded>} />
-                  <Route path="/hrms/payroll" element={<Guarded><PayrollRoute><Payroll /></PayrollRoute></Guarded>} />
-                  <Route path="/hrms/ctc-components" element={<Guarded><FinanceRoute><CTCComponents /></FinanceRoute></Guarded>} />
-                  <Route path="/hrms/my-payslips" element={<Guarded><MyPayslips /></Guarded>} />
-                  <Route path="/hrms/holidays" element={<Guarded><HRAdminRoute><Holidays /></HRAdminRoute></Guarded>} />
-                  <Route path="/hrms/org-chart" element={<Guarded><OrgChart /></Guarded>} />
-                  <Route path="/hrms/my-attendance" element={<Guarded><MyAttendance /></Guarded>} />
-                  <Route path="/hrms/inbox" element={<Guarded><ManagerRoute><ManagerInbox /></ManagerRoute></Guarded>} />
-                  <Route path="/hrms/reimbursements" element={<Guarded><Reimbursements /></Guarded>} />
-                  
+                  <Route path="/hrms/employees" element={<GuardedWithPermission resource={RESOURCES.HRMS_EMPLOYEES}><Employees /></GuardedWithPermission>} />
+                  <Route path="/hrms/attendance" element={<Guarded><HRAdminRoute><PermissionGate resource={RESOURCES.HRMS_ATTENDANCE} pageLevelGate><Attendance /></PermissionGate></HRAdminRoute></Guarded>} />
+                  <Route path="/hrms/attendance-import" element={<Guarded><HRAdminRoute><PermissionGate resource={RESOURCES.HRMS_ATTENDANCE} pageLevelGate><AttendanceImport /></PermissionGate></HRAdminRoute></Guarded>} />
+                  <Route path="/hrms/leaves" element={<GuardedWithPermission resource={RESOURCES.HRMS_LEAVES}><Leaves /></GuardedWithPermission>} />
+                  <Route path="/hrms/payroll" element={<Guarded><PayrollRoute><PermissionGate resource={RESOURCES.HRMS_PAYROLL} pageLevelGate><Payroll /></PermissionGate></PayrollRoute></Guarded>} />
+                  <Route path="/hrms/ctc-components" element={<Guarded><FinanceRoute><PermissionGate resource={RESOURCES.HRMS_CTC_COMPONENTS} pageLevelGate><CTCComponents /></PermissionGate></FinanceRoute></Guarded>} />
+                  <Route path="/hrms/my-payslips" element={<GuardedWithPermission resource={RESOURCES.HRMS_MY_PAYSLIPS}><MyPayslips /></GuardedWithPermission>} />
+                  <Route path="/hrms/holidays" element={<Guarded><HRAdminRoute><PermissionGate resource={RESOURCES.HRMS_HOLIDAYS} pageLevelGate><Holidays /></PermissionGate></HRAdminRoute></Guarded>} />
+                  <Route path="/hrms/org-chart" element={<GuardedWithPermission resource={RESOURCES.HRMS_ORG_CHART}><OrgChart /></GuardedWithPermission>} />
+                  <Route path="/hrms/my-attendance" element={<GuardedWithPermission resource={RESOURCES.HRMS_ATTENDANCE}><MyAttendance /></GuardedWithPermission>} />
+                  <Route path="/hrms/inbox" element={<Guarded><ManagerRoute><PermissionGate resource={RESOURCES.HRMS_MANAGER_INBOX} pageLevelGate><ManagerInbox /></PermissionGate></ManagerRoute></Guarded>} />
+                  <Route path="/hrms/reimbursements" element={<GuardedWithPermission resource={RESOURCES.HRMS_REIMBURSEMENTS}><Reimbursements /></GuardedWithPermission>} />
+
                   <Route path="/financial/reimbursements" element={<Guarded><FinanceRoute><ReimbursementsFinance /></FinanceRoute></Guarded>} />
 
                   {/* Performance OS */}
-                  <Route path="/performance/goals" element={<Guarded><Goals /></Guarded>} />
+                  <Route path="/performance/goals" element={<GuardedWithPermission resource={RESOURCES.GOALS}><Goals /></GuardedWithPermission>} />
                   <Route path="/performance/memos" element={<Guarded><Memos /></Guarded>} />
 
                   {/* Admin — strictly admin-only; HRAdminRoute previously allowed HR which was incorrect */}

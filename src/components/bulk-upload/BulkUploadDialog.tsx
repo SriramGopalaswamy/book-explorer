@@ -28,6 +28,8 @@ export interface BulkUploadConfig {
   templateFileName: string;
   templateContent: string;
   onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
+  /** Optional check run before upload. Return a non-null string to show a destructive-action warning that the user must confirm before data is written. Return null to proceed without warning. */
+  existingRecordCheck?: () => Promise<string | null>;
 }
 
 interface ParsedRow {
@@ -150,6 +152,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const [uploadSummary, setUploadSummary] = useState<{
     success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
   } | null>(null);
+  const [pendingWarning, setPendingWarning] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -157,6 +160,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     setHeaders([]);
     setFileName("");
     setUploadSummary(null);
+    setPendingWarning(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -334,17 +338,13 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
   const validCount = parsedRows.length - errorCount;
 
-  const handleUpload = async () => {
-    if (validCount === 0) {
-      toast.error("No valid rows to upload");
-      return;
-    }
-
+  const executeUpload = async () => {
     setUploading(true);
+    setPendingWarning(null);
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
       let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
-      
+
       try {
         result = await config.onUpload(validRows);
       } catch (uploadErr: any) {
@@ -352,7 +352,6 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
       }
 
-      // Always log to bulk_upload_history, even on partial/full failure
       if (user) {
         try {
           const { data: profile } = await supabase
@@ -403,6 +402,24 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleUpload = async () => {
+    if (validCount === 0) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+
+    // If a pre-upload check is configured, run it and gate on user confirmation
+    if (config.existingRecordCheck) {
+      const warning = await config.existingRecordCheck();
+      if (warning) {
+        setPendingWarning(warning);
+        return;
+      }
+    }
+
+    await executeUpload();
   };
 
   return (
@@ -620,13 +637,32 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           )}
         </div>
 
+        {/* Destructive-action confirmation banner — shown when existingRecordCheck returns a warning */}
+        {pendingWarning && (
+          <div className="mx-6 mb-2 rounded-lg border border-destructive/60 bg-destructive/10 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-destructive">Overwrite existing data?</p>
+                <p className="text-sm text-muted-foreground">{pendingWarning}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setPendingWarning(null)}>Cancel</Button>
+              <Button variant="destructive" size="sm" onClick={executeUpload} disabled={uploading}>
+                {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : "Yes, overwrite"}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
           {uploadSummary ? (
             <Button onClick={() => { reset(); setOpen(false); }}>Done</Button>
           ) : (
             <>
               <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
-              <Button onClick={handleUpload} disabled={uploading || validCount === 0}>
+              <Button onClick={handleUpload} disabled={uploading || validCount === 0 || !!pendingWarning}>
                 {uploading ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
                 ) : (

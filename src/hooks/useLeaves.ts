@@ -648,6 +648,15 @@ export function useCreateLeaveType() {
       if (!leaveType.label?.trim()) throw new Error("Leave type label is required");
       if (leaveType.default_days < 0) throw new Error("Default days cannot be negative");
 
+      // Role guard: HR/Admin only
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      if (!userRoles.some((r: string) => ["admin", "hr"].includes(r))) {
+        throw new Error("Only HR or Admin can create leave types.");
+      }
+
       const { data, error } = await supabase
         .from("leave_types")
         .insert(leaveType as any)
@@ -692,6 +701,13 @@ export function useUpdateLeaveType() {
       if (!user) throw new Error("Not authenticated");
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Role guard: HR/Admin only
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      if (!userRoles.some((r: string) => ["admin", "hr"].includes(r))) {
+        throw new Error("Only HR or Admin can update leave types.");
+      }
 
       // Get current leave type info before updating
       const { data: currentType } = await supabase

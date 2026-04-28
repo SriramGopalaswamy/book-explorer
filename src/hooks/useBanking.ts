@@ -90,6 +90,12 @@ export function useCreateBankAccount() {
     mutationFn: async (data: CreateBankAccountData) => {
       if (!user) throw new Error("Not authenticated");
       const validated = createBankAccountSchema.parse(data);
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
       const { data: account, error } = await supabase
         .from("bank_accounts")
         .insert({
@@ -99,6 +105,7 @@ export function useCreateBankAccount() {
           balance: validated.balance,
           bank_name: validated.bank_name ?? null,
           user_id: user.id,
+          organization_id: callerProfile.organization_id,
         })
         .select()
         .single();

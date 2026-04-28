@@ -181,7 +181,7 @@ export default function ReimbursementsFinance() {
       if (expErr) throw expErr;
 
       // 2. Also record as a financial_records expense so it appears in the Accounting module
-      const { error: frErr } = await supabase
+      const { data: frData, error: frErr } = await supabase
         .from("financial_records")
         .insert({
           user_id: approveDialog.user_id,
@@ -191,9 +191,15 @@ export default function ReimbursementsFinance() {
           amount: approveDialog.amount,
           description: `[Reimbursement] ${approveDialog.vendor_name}${approveDialog.profiles?.full_name ? ` (${approveDialog.profiles.full_name})` : ""} — ${approveDialog.description || ""}`,
           record_date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
-        });
+        })
+        .select("id")
+        .single();
 
-      if (frErr) console.warn("financial_records insert failed:", frErr.message);
+      if (frErr) {
+        // financial_records failure is fatal — roll back the expense record and abort
+        await supabase.from("expenses").delete().eq("id", expense.id);
+        throw new Error(`Accounting sync failed: ${frErr.message}. Approval rolled back.`);
+      }
 
       // 3. Update reimbursement status to paid
       const { error: updErr } = await supabase
@@ -208,8 +214,9 @@ export default function ReimbursementsFinance() {
         .eq("id", approveDialog.id);
 
       if (updErr) {
-        // Rollback: delete orphan expense record to prevent inconsistent state
+        // Roll back both expense and the specific financial_records row by captured ID
         await supabase.from("expenses").delete().eq("id", expense.id);
+        if (frData?.id) await supabase.from("financial_records").delete().eq("id", frData.id);
         throw updErr;
       }
 

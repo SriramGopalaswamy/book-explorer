@@ -116,6 +116,28 @@ export function usePayrollRecords(payPeriod?: string) {
   });
 }
 
+export function usePayrollOrgRecordCount() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["payroll-org-count", orgId],
+    queryFn: async () => {
+      if (!user || !orgId) return 0;
+      const { count, error } = await supabase
+        .from("payroll_records")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useMyPayrollRecords() {
   const { user } = useAuth();
 
