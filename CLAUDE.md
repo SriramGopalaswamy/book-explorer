@@ -103,6 +103,25 @@ invisible in dark mode. Use conditional tint: `style={i % 2 !== 0 ? { background
 
 ---
 
+## Dual user_id / profile_id Audit (as of 2026-04-28)
+
+Four tables carry both `user_id` (auth.users FK) and `profile_id` (profiles FK).
+Status per table:
+
+| Table | profile_id present? | Backfill migration | Remaining user_id usage |
+|---|---|---|---|
+| `attendance_records` | ✓ | 20260224051635 | None — all hooks use profile_id |
+| `expenses` | ✓ | 20260224051635 (trigger) | None — `Expenses.tsx:175` queries profiles.user_id to LOOK UP profile_id, then uses profile_id for the insert |
+| `payroll_records` | ✓ | pre-existing | None — all hooks use profile_id |
+| `reimbursement_requests` | ✓ | pre-existing FK | `Reimbursements.tsx:115` queries `.eq("user_id", user.id)` for employee self-view — OK while user_id column exists; will break when item-36 drops it |
+
+### Action required before dropping user_id (item 36, P2):
+- `Reimbursements.tsx:115`: change to `.eq("profile_id", myProfileId)` where `myProfileId`
+  is fetched once via `profiles.user_id = user.id`. Verify all `reimbursement_requests` rows
+  have non-null `profile_id` before this migration runs.
+
+---
+
 ## Running Tests
 ```
 npm run test          # all test files via Vitest
