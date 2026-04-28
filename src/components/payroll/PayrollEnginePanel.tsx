@@ -47,6 +47,7 @@ import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines"
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
+import { toast } from "sonner";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -520,15 +521,28 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
             <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
               <Download className="h-4 w-4 mr-1" /> Payroll CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <Button variant="outline" size="sm" onClick={async () => {
+              try { await exportPayrollMasterCSV(entries, run.pay_period); }
+              catch (err) { toast.error(`Master CSV export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+            }} disabled={entries.length === 0}>
               <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
             </Button>
             {isLocked && (
               <>
-                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  try { await exportPFECR(entries, run.pay_period); }
+                  catch (err) { toast.error(`PF ECR export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+                }}>
                   <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  try {
+                    const { warnings } = await exportBankTransferFile(entries, run.pay_period);
+                    if (warnings.length > 0) {
+                      toast.warning(`Bank transfer exported with ${warnings.length} issue(s):\n${warnings.join("\n")}`);
+                    }
+                  } catch (err) { toast.error(`Bank transfer export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+                }}>
                   <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
                 </Button>
               </>

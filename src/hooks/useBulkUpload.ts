@@ -241,6 +241,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId)
       : supabase.from("profiles").select("id, user_id, email, full_name"));
     const errors: string[] = [];
+    const warnings: string[] = [];
     let success = 0;
 
     const findProfileByEmail = (email: string) => {
@@ -248,26 +249,13 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
     };
 
+    // Exact full_name match only — fuzzy tiers (startsWith / includes / email-prefix /
+    // word-split) are intentionally omitted for financial records: a partial match
+    // silently writes pay data to the wrong employee (FMEA 2.1).
     const findProfileByName = (empId: string) => {
       if (!profiles || !empId) return null;
       const needle = empId.toLowerCase().trim();
-      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
-      if (match) return match;
-      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      const words = needle.split(/\s+/).filter(w => w.length > 1);
-      if (words.length > 0) {
-        match = profiles.find(p => {
-          const name = p.full_name?.toLowerCase() || "";
-          return words.every(w => name.includes(w));
-        });
-        if (match) return match;
-      }
-      return null;
+      return profiles.find(p => p.full_name?.toLowerCase().trim() === needle) ?? null;
     };
 
     const insertedIds: string[] = [];
@@ -348,8 +336,14 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
         if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) {
           prof_tax = ptDerived;
         }
-        // If no pattern matched, leave pf_monthly and prof_tax as 0 —
-        // the display layer will still show the correct total via net_pay reconciliation.
+        // Warn whenever components were reconstructed so the user can verify (FMEA 2.2).
+        if (pf_monthly > 0 || prof_tax > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: PF (₹${pf_monthly}) and PT (₹${prof_tax}) ` +
+            `were derived from Total Deductions (₹${total_ded_file}) — ` +
+            `verify these match the employee's actual deductions.`
+          );
+        }
       }
 
       // ── Deduction consistency checks ───────────────────────────────────────
@@ -385,11 +379,13 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // (2) Net pay cross-check: gross − total_deductions ≈ net_pay.
       //     When Gross Earnings was explicitly provided, LWP is already factored in
       //     (Gross = Fixed − LWP + variable), so we must NOT subtract it again.
-      //     A mismatch > ₹5 suggests a data entry error worth flagging.
+      //     Mismatch > ₹5: hard error (data entry mistake). ≤ ₹5: warn but continue
+      //     so the user sees the discrepancy instead of it being silently absorbed (FMEA 2.3).
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
         const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
         const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
-        if (Math.abs(expectedNet - net_from_file) > 5) {
+        const diff = Math.abs(expectedNet - net_from_file);
+        if (diff > 5) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
             `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file})` +
@@ -397,6 +393,11 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
             `but file says ₹${net_from_file}. Please verify.`
           );
           continue;
+        } else if (diff > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay rounding gap of ₹${diff} ` +
+            `(expected ₹${expectedNet}, file has ₹${net_from_file}) — saved using file value.`
+          );
         }
       }
 
@@ -418,10 +419,10 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       // When email is supplied use exact match only — do NOT fall back to name
       // matching on email failure, as that could silently write to the wrong person.
       let profile;
-      if (row.email_id) {
-        profile = findProfileByEmail(row.email_id);
+      if (row.email_id?.trim()) {
+        profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
           continue;
         }
       } else {
@@ -518,7 +519,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     }
 
     qc.invalidateQueries({ queryKey: ["payroll"] });
-    return { success, errors };
+    return { success, errors, warnings };
   }, [user, payPeriod, qc]);
 
   return {
@@ -566,26 +567,11 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
     };
 
+    // Exact full_name match only — fuzzy tiers omitted for financial records (FMEA 2.1).
     const findProfileByName = (empId: string) => {
       if (!profiles || !empId) return null;
       const needle = empId.toLowerCase().trim();
-      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
-      if (match) return match;
-      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      const words = needle.split(/\s+/).filter(w => w.length > 1);
-      if (words.length > 0) {
-        match = profiles.find(p => {
-          const name = p.full_name?.toLowerCase() || "";
-          return words.every(w => name.includes(w));
-        });
-        if (match) return match;
-      }
-      return null;
+      return profiles.find(p => p.full_name?.toLowerCase().trim() === needle) ?? null;
     };
 
     // ── Find or create payroll_run ─────────────────────────────────────────
@@ -688,6 +674,13 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           if (Math.abs(pf - total_ded_file) <= 1) { pf_monthly = pf; break; }
         }
         if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) prof_tax = ptDerived;
+        if (pf_monthly > 0 || prof_tax > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: PF (₹${pf_monthly}) and PT (₹${prof_tax}) ` +
+            `were derived from Total Deductions (₹${total_ded_file}) — ` +
+            `verify these match the employee's actual deductions.`
+          );
+        }
       }
 
       // ── Deduction consistency check ───────────────────────────────────────
@@ -714,7 +707,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
         const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
         const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
-        if (Math.abs(expectedNet - net_from_file) > 5) {
+        const diff = Math.abs(expectedNet - net_from_file);
+        if (diff > 5) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
             `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
@@ -722,6 +716,11 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           );
           if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
+        } else if (diff > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay rounding gap of ₹${diff} ` +
+            `(expected ₹${expectedNet}, file has ₹${net_from_file}) — saved using file value.`
+          );
         }
       }
 
@@ -734,10 +733,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
       // ── Employee matching ─────────────────────────────────────────────────
       let profile;
-      if (row.email_id) {
-        profile = findProfileByEmail(row.email_id);
+      if (row.email_id?.trim()) {
+        profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
           if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
         }
@@ -1031,26 +1030,17 @@ export function useExpensesBulkUpload(): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
+    // Expenses are financial — exact match only (FMEA 2.1 adjacency).
+    // Column label is "Employee Name/Email": if the value contains "@" treat
+    // it as an email (exact match); otherwise exact full_name match.
+    // Fuzzy tiers (startsWith / includes / word-split) are intentionally omitted.
     const findProfile = (empId: string) => {
-      if (!profiles || !empId) return null;
-      const needle = empId.toLowerCase().trim();
-      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
-      if (match) return match;
-      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      const words = needle.split(/\s+/).filter(w => w.length > 1);
-      if (words.length > 0) {
-        match = profiles.find(p => {
-          const name = p.full_name?.toLowerCase() || "";
-          return words.every(w => name.includes(w));
-        });
-        if (match) return match;
+      if (!profiles || !empId?.trim()) return null;
+      const needle = empId.trim().toLowerCase();
+      if (needle.includes("@")) {
+        return profiles.find(p => p.email?.toLowerCase() === needle) ?? null;
       }
-      return null;
+      return profiles.find(p => p.full_name?.toLowerCase().trim() === needle) ?? null;
     };
 
     for (const row of rows) {
