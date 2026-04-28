@@ -38,14 +38,16 @@ export function useProfileSearch(searchTerm: string) {
     queryKey: ["profile-search", searchTerm, user?.id],
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
+      // profiles_safe is a restricted view that does not expose organization_id;
+      // use the full profiles table for org-scoped recipient search instead.
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user!.id).maybeSingle();
       if (!callerProfile?.organization_id) return [];
       const { data, error } = await supabase
-        .from("profiles_safe")
+        .from("profiles")
         .select("id, full_name, department, job_title")
         .eq("organization_id", callerProfile.organization_id)
-        .ilike("full_name", `%${searchTerm}%`)
         .eq("status", "active")
+        .ilike("full_name", `%${searchTerm}%`)
         .limit(10);
       if (error) throw error;
       return data as { id: string; full_name: string | null; department: string | null; job_title: string | null }[];

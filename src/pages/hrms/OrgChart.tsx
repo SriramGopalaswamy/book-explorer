@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
 import { useIsFinance } from "@/hooks/useRoles";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
+import { useAuth } from "@/contexts/AuthContext";
 import { mockEmployees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -621,6 +622,7 @@ function OrgChartCanvas({
 // ─── Page ─────────────────────────────────────────────────────────────
 export default function OrgChart() {
   const isDevMode = useIsDevModeWithoutAuth();
+  const { user } = useAuth();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
   const { data: isFinance, isLoading: financeLoading } = useIsFinance();
   const [searchQuery, setSearchQuery] = useState("");
@@ -628,7 +630,7 @@ export default function OrgChart() {
   const [expandAllTrigger, setExpandAllTrigger] = useState(0);
 
   const { data: profiles = [], isLoading } = useQuery({
-    queryKey: ["org-chart-profiles", isDevMode],
+    queryKey: ["org-chart-profiles", isDevMode, user?.id],
     queryFn: async () => {
       if (isDevMode) {
         return mockEmployees.map((e) => ({
@@ -644,7 +646,8 @@ export default function OrgChart() {
           join_date: e.join_date ?? null,
         })) as RawProfile[];
       }
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!user) return [] as RawProfile[];
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) return [] as RawProfile[];
       const { data, error } = await supabase
         .from("profiles")
@@ -654,7 +657,7 @@ export default function OrgChart() {
       if (error) throw error;
       return data as RawProfile[];
     },
-    enabled: isDevMode || true,
+    enabled: isDevMode || !!user,
   });
 
   const tree = useMemo(() => buildTree(profiles), [profiles]);

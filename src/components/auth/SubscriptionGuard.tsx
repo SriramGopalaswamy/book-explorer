@@ -6,16 +6,43 @@ import { useState, useEffect } from "react";
 
 const MAX_LOADING_MS = 8000; // 8 seconds hard cap — never hang longer
 
+// Maps URL path prefixes to the module name stored in subscriptions.enabled_modules.
+// If a path prefix matches and the module is NOT in enabled_modules, access is denied.
+// Paths not listed here are always accessible (dashboard, profile, etc.).
+const MODULE_PATH_MAP: [string, string][] = [
+  ["/financial", "FINANCIAL"],
+  ["/inventory", "INVENTORY"],
+  ["/manufacturing", "MANUFACTURING"],
+  ["/procurement", "PROCUREMENT"],
+  ["/sales", "SALES"],
+  ["/warehouse", "WAREHOUSE"],
+  ["/hrms", "HRMS"],
+  ["/performance", "PERFORMANCE"],
+  ["/connectors", "FINANCIAL"], // Connectors are part of the financial suite
+];
+
+function isModuleAllowed(pathname: string, enabledModules: string[] | null): boolean {
+  // null means no restriction (plan includes everything or not yet loaded)
+  if (!enabledModules || enabledModules.length === 0) return true;
+  for (const [prefix, moduleName] of MODULE_PATH_MAP) {
+    if (pathname.startsWith(prefix)) {
+      return enabledModules.includes(moduleName);
+    }
+  }
+  return true; // core pages (/, /profile, etc.) always allowed
+}
+
 /**
  * Centralized lifecycle guard. Wraps all protected routes.
  * - No subscription → /subscription/activate
  * - Expired → allows access in read-only mode
  * - Active but org not onboarded → /onboarding
+ * - Module not in enabled_modules → /subscription/activate with module context
  * - Super admins bypass all guards
  * - Hard timeout prevents permanent spinner
  */
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
-  const { needsActivation, onboardingRequired, loading } = useSubscription();
+  const { needsActivation, onboardingRequired, loading, enabledModules } = useSubscription();
   const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
   const location = useLocation();
 
@@ -75,6 +102,12 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   if (onboardingRequired) {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // Module-level gating: if this org's plan doesn't include the module for this path,
+  // redirect to activation so they can upgrade. Only enforced once subscription is loaded.
+  if (!loading && !isModuleAllowed(location.pathname, enabledModules)) {
+    return <Navigate to="/subscription/activate" replace state={{ moduleRequired: true, from: location.pathname }} />;
   }
 
   return <>{children}</>;

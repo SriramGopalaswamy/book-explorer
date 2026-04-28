@@ -29,11 +29,14 @@ export function PermissionGate({
 }: PermissionGateProps) {
   const { hasPermission, isLoading } = useRolePermissions();
 
-  if (pageLevelGate && isLoading) {
-    return (
+  if (isLoading) {
+    return pageLevelGate ? (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    ) : (
+      // Render children while loading to avoid flash-of-denied for authorized users
+      <>{children}</>
     );
   }
 

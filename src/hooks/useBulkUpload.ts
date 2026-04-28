@@ -224,6 +224,28 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
   const { user } = useAuth();
   const qc = useQueryClient();
 
+  const existingRecordCheck = useCallback(async (): Promise<string | null> => {
+    if (!user) return null;
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const orgId = currentProfile?.organization_id;
+    if (!orgId) return null;
+
+    const { count } = await supabase
+      .from("payroll_records")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod);
+
+    if (count && count > 0) {
+      return `${count} payroll record${count === 1 ? "" : "s"} already exist for ${formatPayPeriod(payPeriod)}. Uploading will overwrite them. This cannot be undone.`;
+    }
+    return null;
+  }, [user, payPeriod]);
+
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
@@ -530,6 +552,7 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     templateFileName: "payroll_template.csv",
     templateContent: payrollTemplate,
     onUpload,
+    existingRecordCheck,
   };
 }
 

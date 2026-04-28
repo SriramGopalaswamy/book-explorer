@@ -28,6 +28,29 @@ export interface GoalStats {
   delayed: number;
 }
 
+interface CallerContext {
+  profileId: string;
+  organizationId: string;
+  isPrivileged: boolean;
+  isManager: boolean;
+}
+
+// Fetches profile + roles in parallel — reused by useUpdateGoal, useUpdateGoalProgress, useDeleteGoal
+async function getCallerContext(userId: string): Promise<CallerContext> {
+  const [{ data: profile }, { data: roles }] = await Promise.all([
+    supabase.from("profiles").select("id, organization_id").eq("user_id", userId).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", userId),
+  ]);
+  if (!profile?.organization_id) throw new Error("Organization not found");
+  const userRoles = (roles ?? []).map((r: any) => r.role as string);
+  return {
+    profileId: profile.id,
+    organizationId: profile.organization_id,
+    isPrivileged: userRoles.some((r) => ["admin", "hr"].includes(r)),
+    isManager: userRoles.includes("manager"),
+  };
+}
+
 export function useGoals() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
@@ -198,28 +221,21 @@ export function useUpdateGoal() {
         }
       }
 
-      // Resolve caller org + profile id for ownership checks
-      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const [caller, goalResult] = await Promise.all([
+        getCallerContext(user.id),
+        supabase.from("goals").select("status, user_id, organization_id").eq("id", id).single(),
+      ]);
+      const { profileId, organizationId, isPrivileged, isManager } = caller;
+      if (goalResult.error) throw goalResult.error;
+      const current = goalResult.data;
 
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
-      const userRoles = (roles ?? []).map((r: any) => r.role);
-      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
-      const isManager = userRoles.includes("manager");
-
-      const { data: current, error: fetchErr } = await supabase
-        .from("goals")
-        .select("status, user_id")
-        .eq("id", id)
-        .eq("organization_id", callerProfile.organization_id)
-        .single();
-      if (fetchErr) throw fetchErr;
+      if (current.organization_id !== organizationId) throw new Error("Goal not found.");
 
       // Ownership: employee can only edit their own; manager can edit own + direct reports'
       if (!isPrivileged) {
         if (current?.user_id !== user.id) {
           if (isManager) {
-            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", current?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", current?.user_id).eq("manager_id", profileId).eq("organization_id", organizationId).maybeSingle();
             if (!report) throw new Error("You can only edit your own goals or your direct reports' goals.");
           } else {
             throw new Error("You can only edit your own goals.");
@@ -240,7 +256,7 @@ export function useUpdateGoal() {
         .from("goals")
         .update(updates)
         .eq("id", id)
-        .eq("organization_id", callerProfile.organization_id)
+        .eq("organization_id", organizationId)
         .select()
         .single();
 
@@ -269,19 +285,20 @@ export function useUpdateGoalProgress() {
       const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
       const status = clampedProgress >= 100 ? "completed" : undefined;
 
-      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const [caller, goalResult] = await Promise.all([
+        getCallerContext(user.id),
+        supabase.from("goals").select("user_id, organization_id").eq("id", id).single(),
+      ]);
+      const { profileId, organizationId, isPrivileged, isManager } = caller;
+      if (goalResult.error) throw goalResult.error;
+      const goal = goalResult.data;
 
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
-      const userRoles = (roles ?? []).map((r: any) => r.role);
-      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
-      const isManager = userRoles.includes("manager");
+      if (goal.organization_id !== organizationId) throw new Error("Goal not found.");
 
       if (!isPrivileged) {
-        const { data: goal } = await supabase.from("goals").select("user_id").eq("id", id).eq("organization_id", callerProfile.organization_id).single();
-        if (goal?.user_id !== user.id) {
+        if (goal.user_id !== user.id) {
           if (isManager) {
-            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal.user_id).eq("manager_id", profileId).eq("organization_id", organizationId).maybeSingle();
             if (!report) throw new Error("You can only update progress on your own goals or your direct reports' goals.");
           } else {
             throw new Error("You can only update progress on your own goals.");
@@ -296,7 +313,7 @@ export function useUpdateGoalProgress() {
           ...(status && { status }),
         })
         .eq("id", id)
-        .eq("organization_id", callerProfile.organization_id)
+        .eq("organization_id", organizationId)
         .select()
         .single();
 
@@ -321,26 +338,20 @@ export function useDeleteGoal() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const [caller, goalResult] = await Promise.all([
+        getCallerContext(user.id),
+        supabase.from("goals").select("status, user_id, organization_id").eq("id", id).single(),
+      ]);
+      const { profileId, organizationId, isPrivileged, isManager } = caller;
+      if (goalResult.error) throw goalResult.error;
+      const goal = goalResult.data;
 
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
-      const userRoles = (roles ?? []).map((r: any) => r.role);
-      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
-      const isManager = userRoles.includes("manager");
-
-      const { data: goal, error: fetchErr } = await supabase
-        .from("goals")
-        .select("status, user_id")
-        .eq("id", id)
-        .eq("organization_id", callerProfile.organization_id)
-        .single();
-      if (fetchErr) throw fetchErr;
+      if (goal.organization_id !== organizationId) throw new Error("Goal not found.");
 
       if (!isPrivileged) {
-        if (goal?.user_id !== user.id) {
+        if (goal.user_id !== user.id) {
           if (isManager) {
-            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal.user_id).eq("manager_id", profileId).eq("organization_id", organizationId).maybeSingle();
             if (!report) throw new Error("You can only delete your own goals or your direct reports' goals.");
           } else {
             throw new Error("You can only delete your own goals.");
@@ -348,14 +359,14 @@ export function useDeleteGoal() {
         }
       }
 
-      if (goal?.status === "completed") {
+      if (goal.status === "completed") {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }
       const { error } = await supabase
         .from("goals")
         .delete()
         .eq("id", id)
-        .eq("organization_id", callerProfile.organization_id);
+        .eq("organization_id", organizationId);
 
       if (error) throw error;
     },

@@ -146,7 +146,10 @@ const emptyLineItem: LineItem = {
 
 function isInterstateSupply(placeOfSupply: string, orgState: string | null | undefined): boolean {
   if (!placeOfSupply || !orgState) return false;
-  return !placeOfSupply.toLowerCase().startsWith(orgState.toLowerCase());
+  // Strip trailing state codes like " (29)" before comparing to avoid prefix collisions
+  // (e.g. "Goa" vs "Goalpara", or "Karnataka (29)" vs "Karnataka")
+  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s*\(.*\)$/, "");
+  return normalize(placeOfSupply) !== normalize(orgState);
 }
 
 function calculateLineItemTotals(items: LineItem[], interstate = false) {
