@@ -82,6 +82,48 @@ export interface UpdatePayrollData extends Partial<CreatePayrollData> {
   id: string;
 }
 
+// ── Engine entry → PayrollRecord shape mapper ──────────────────────────────
+function engineEntryToPayrollRecord(e: any): PayrollRecord {
+  const getComp = (breakdown: any[], ...names: string[]) => {
+    for (const n of names) {
+      const item = (breakdown ?? []).find((c: any) =>
+        c.name?.toLowerCase().includes(n.toLowerCase())
+      );
+      if (item) return Number(item.monthly ?? 0);
+    }
+    return 0;
+  };
+  const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
+  return {
+    id: e.id,
+    user_id: "",
+    profile_id: e.profile_id,
+    pay_period: run?.pay_period ?? "",
+    basic_salary: getComp(e.earnings_breakdown, "basic"),
+    hra: getComp(e.earnings_breakdown, "hra"),
+    transport_allowance: getComp(e.earnings_breakdown, "incentiv", "transport"),
+    other_allowances: getComp(e.earnings_breakdown, "other allowance"),
+    pf_deduction: e.pf_employee ?? getComp(e.deductions_breakdown, "pf"),
+    tax_deduction: e.tds_amount ?? getComp(e.deductions_breakdown, "tds", "tax"),
+    other_deductions:
+      getComp(e.deductions_breakdown, "professional tax") +
+      getComp(e.deductions_breakdown, "other deduction"),
+    lop_days: e.lwp_days,
+    lop_deduction: e.lwp_deduction,
+    working_days: e.working_days,
+    paid_days: e.paid_days,
+    net_pay: e.net_pay,
+    status: e.status,
+    processed_at: null,
+    notes: run?.notes ?? null,
+    created_at: e.created_at,
+    updated_at: e.updated_at,
+    profiles: e.profiles ?? null,
+    // engine-path marker (used by PaySlipDialog to choose download path)
+    payroll_run_id: run?.id ?? null,
+  } as any;
+}
+
 export function usePayrollRecords(payPeriod?: string) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
@@ -97,22 +139,43 @@ export function usePayrollRecords(payPeriod?: string) {
       }
       if (!user || !orgId) return [];
 
-      let query = supabase
+      // ── Engine entries (primary, canonical) ──────────────────────────────
+      let engineQ = supabase
+        .from("payroll_entries")
+        .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+        .eq("organization_id", orgId)
+        .not("payroll_runs.pay_period", "is", null)
+        .order("created_at", { ascending: false });
+      if (payPeriod) engineQ = engineQ.eq("payroll_runs.pay_period", payPeriod);
+      const { data: engineData } = await engineQ;
+
+      // ── Legacy records (historical, from payroll_records still in use) ───
+      let legacyQ = supabase
         .from("payroll_records")
         .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
         .eq("organization_id", orgId)
+        .eq("is_superseded", false)
         .order("created_at", { ascending: false });
+      if (payPeriod) legacyQ = legacyQ.eq("pay_period", payPeriod);
+      const { data: legacyData } = await legacyQ;
 
-      if (payPeriod) query = query.eq("pay_period", payPeriod);
+      // De-duplicate: engine record wins when same (profile_id, pay_period) exists in both
+      const engineKeys = new Set(
+        (engineData ?? []).map((e: any) => {
+          const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
+          return `${e.profile_id}:${run?.pay_period}`;
+        })
+      );
+      const filteredLegacy = (legacyData ?? []).filter(
+        (r: any) => !engineKeys.has(`${r.profile_id}:${r.pay_period}`)
+      );
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PayrollRecord[];
+      const engineRecords = (engineData ?? []).map(engineEntryToPayrollRecord);
+      return [...engineRecords, ...filteredLegacy] as PayrollRecord[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
-    staleTime: 5 * 60_000, // 5 min — payroll changes are user-driven, no need to poll
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    // refetchInterval removed: 60s polling on a joined unfiltered scan was hammering the DB
   });
 }
 
@@ -125,12 +188,11 @@ export function usePayrollOrgRecordCount() {
     queryKey: ["payroll-org-count", orgId],
     queryFn: async () => {
       if (!user || !orgId) return 0;
-      const { count, error } = await supabase
-        .from("payroll_records")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId);
-      if (error) throw error;
-      return count ?? 0;
+      const [{ count: engineCount }, { count: legacyCount }] = await Promise.all([
+        supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+        supabase.from("payroll_records").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_superseded", false),
+      ]);
+      return (engineCount ?? 0) + (legacyCount ?? 0);
     },
     enabled: !!user && !!orgId,
     staleTime: 5 * 60_000,
@@ -146,25 +208,39 @@ export function useMyPayrollRecords() {
     queryFn: async () => {
       if (!user) return [];
 
-      // Resolve the employee's own profile ID first.
-      // Querying by profile_id (rather than user_id) is resilient to stale
-      // user_id values that can occur after auth-account recreation.
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
-
       if (!profile) return [];
 
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-        .eq("profile_id", profile.id)
-        .order("pay_period", { ascending: false });
+      // Fetch from both engine and legacy in parallel
+      const [engineRes, legacyRes] = await Promise.all([
+        supabase
+          .from("payroll_entries")
+          .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+          .eq("profile_id", profile.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("payroll_records")
+          .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+          .eq("profile_id", profile.id)
+          .order("pay_period", { ascending: false }),
+      ]);
 
-      if (error) throw error;
-      return data as PayrollRecord[];
+      const engineKeys = new Set(
+        (engineRes.data ?? []).map((e: any) => {
+          const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
+          return `${e.profile_id}:${run?.pay_period}`;
+        })
+      );
+      const filteredLegacy = (legacyRes.data ?? []).filter(
+        (r: any) => !engineKeys.has(`${r.profile_id}:${r.pay_period}`)
+      );
+
+      const engineRecords = (engineRes.data ?? []).map(engineEntryToPayrollRecord);
+      return [...engineRecords, ...filteredLegacy] as PayrollRecord[];
     },
     enabled: !!user,
   });
