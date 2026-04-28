@@ -165,7 +165,7 @@ export function useCreateRevisionRequest() {
         .maybeSingle();
       if (!reqProfile?.organization_id) throw new Error("Organization not found");
 
-      const { error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
+      const { data: inserted, error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
         profile_id: data.profile_id,
         requested_by: user.id,
         requested_by_role: data.requested_by_role,
@@ -175,8 +175,23 @@ export function useCreateRevisionRequest() {
         effective_from: data.effective_from,
         proposed_components: data.proposed_components,
         organization_id: reqProfile.organization_id,
-      });
+      }).select("id").single();
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: reqProfile.organization_id,
+        actor_id: user.id,
+        action: "compensation_revision_requested",
+        entity_type: "compensation_revision_request",
+        entity_id: (inserted as any)?.id ?? null,
+        target_user_id: data.profile_id,
+        metadata: {
+          current_ctc: data.current_ctc,
+          proposed_ctc: data.proposed_ctc,
+          effective_from: data.effective_from,
+          reason: data.revision_reason.trim(),
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["compensation-revision-requests"] });
@@ -235,6 +250,19 @@ export function useReviewRevisionRequest() {
         .eq("id", data.id)
         .eq("organization_id", callerOrgId);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        organization_id: callerOrgId,
+        actor_id: user.id,
+        action: `compensation_revision_${data.status}`,
+        entity_type: "compensation_revision_request",
+        entity_id: data.id,
+        metadata: {
+          before_state: { status: "pending" },
+          after_state: { status: data.status },
+          reviewer_notes: data.reviewer_notes || null,
+        },
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["compensation-revision-requests"] });
