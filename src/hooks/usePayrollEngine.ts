@@ -120,7 +120,22 @@ export function useGeneratePayroll() {
       if (!orgId) throw new Error("Organization not found");
       const f = flags || { pf_applicable: false, esi_applicable: false, professional_tax_applicable: false, gratuity_applicable: false } as PayrollFlags;
 
-      // 1. Create payroll run
+      // 1. Guard: reject if a non-failed run already exists for this org+period
+      const { data: existingRuns } = await supabase
+        .from("payroll_runs")
+        .select("id, status")
+        .eq("organization_id", orgId)
+        .eq("pay_period", payPeriod)
+        .not("status", "in", '("failed","cancelled")');
+      if (existingRuns && existingRuns.length > 0) {
+        const s = existingRuns[0].status;
+        throw new Error(
+          `A payroll run for ${payPeriod} already exists (status: ${s}). ` +
+          `Delete or cancel the existing run before generating a new one.`
+        );
+      }
+
+      // 2. Create payroll run
       const { data: run, error: runErr } = await supabase
         .from("payroll_runs")
         .insert({
@@ -133,7 +148,7 @@ export function useGeneratePayroll() {
         .single();
       if (runErr) throw runErr;
 
-      // 2. Fetch all active compensation structures for this org
+      // 3. Fetch all active compensation structures for this org
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
@@ -227,7 +242,7 @@ export function useGeneratePayroll() {
         return { run, entriesCount: fallbackEntries.length };
       }
 
-      // 3. Fetch LWP for the period from leave_requests AND attendance_daily
+      // 4. Fetch LWP for the period from leave_requests AND attendance_daily
       // Parse period: "2026-03", "2026-03-H1", "2026-03-W2"
       const periodParts = payPeriod.split("-");
       const year = parseInt(periodParts[0]);
@@ -345,7 +360,7 @@ export function useGeneratePayroll() {
         : periodSuffix?.startsWith("H") ? 24
         : 12;
 
-      // 4. Generate entries
+      // 5. Generate entries
       const entries = eligibleStructures.map((s: any) => {
         const components = s.compensation_components || [];
         const lwpDays = lwpMap.get(s.profile_id) || 0;
@@ -479,7 +494,7 @@ export function useGeneratePayroll() {
         }
       }
 
-      // 5. Update run totals
+      // 6. Update run totals
       const totalGross = entries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
       const totalDed = entries.reduce((s: number, e: any) => s + e.total_deductions, 0);
       const totalNet = entries.reduce((s: number, e: any) => s + e.net_pay, 0);
