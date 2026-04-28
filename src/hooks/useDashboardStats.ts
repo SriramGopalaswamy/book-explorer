@@ -93,8 +93,6 @@ export function useDashboardStats() {
         .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", lastMonthStartDate)
         .lte("journal_entries.entry_date", lastMonthEndDate);
-      if (orgId) lastLinesQ = lastLinesQ.eq("journal_entries.organization_id", orgId);
-      const { data: lastMonthLines } = await lastLinesQ;
 
       // ── Other stats ────────────────────────────────────────────────────────
       // Pending = sent to client but not yet paid (excludes draft, includes
@@ -113,6 +111,8 @@ export function useDashboardStats() {
         paidInvCurrQ  = paidInvCurrQ.eq("organization_id", orgId);
         paidInvLastQ  = paidInvLastQ.eq("organization_id", orgId);
         glQuery       = glQuery.eq("organization_id", orgId);
+        currLinesQ    = currLinesQ.eq("journal_entries.organization_id", orgId);
+        lastLinesQ    = lastLinesQ.eq("journal_entries.organization_id", orgId);
         empQ          = empQ.eq("organization_id", orgId);
         invPendQ      = invPendQ.eq("organization_id", orgId);
         invPendLastQ  = invPendLastQ.eq("organization_id", orgId);
