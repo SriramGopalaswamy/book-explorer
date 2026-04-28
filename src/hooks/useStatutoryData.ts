@@ -2,6 +2,109 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+// ── Dual-source payroll helpers ───────────────────────────────────────────────
+
+/** Expand a date range into an array of "YYYY-MM" pay period strings. */
+function dateRangeToPayPeriods(from: string, to: string): string[] {
+  const toDate = new Date(to);
+  const periods: string[] = [];
+  const d = new Date(new Date(from).getFullYear(), new Date(from).getMonth(), 1);
+  while (d <= toDate) {
+    periods.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    d.setMonth(d.getMonth() + 1);
+  }
+  return periods;
+}
+
+function getComp(breakdown: any[], ...names: string[]): number {
+  for (const n of names) {
+    const item = (breakdown ?? []).find((c: any) =>
+      c.name?.toLowerCase().includes(n.toLowerCase())
+    );
+    if (item) return Number(item.monthly ?? 0);
+  }
+  return 0;
+}
+
+/** Map a payroll_entries row to the flat shape used by statutory computations. */
+function normalizeEngineStatutory(e: any, payPeriod: string) {
+  return {
+    id: e.id,
+    profile_id: e.profile_id,
+    pay_period: payPeriod,
+    basic_salary: getComp(e.earnings_breakdown, "basic"),
+    hra: getComp(e.earnings_breakdown, "hra"),
+    transport_allowance: getComp(e.earnings_breakdown, "incentiv", "transport"),
+    other_allowances: getComp(e.earnings_breakdown, "other allowance"),
+    pf_deduction: e.pf_employee ?? getComp(e.deductions_breakdown, "pf"),
+    tax_deduction: e.tds_amount ?? getComp(e.deductions_breakdown, "tds", "tax"),
+    other_deductions:
+      getComp(e.deductions_breakdown, "professional tax") +
+      getComp(e.deductions_breakdown, "other deduction"),
+    status: e.status,
+    profiles: e.profiles ?? null,
+  };
+}
+
+/**
+ * Fetch payroll data from both engine (payroll_entries) and legacy (payroll_records)
+ * for the given date range, deduplicated by (profile_id, pay_period) with engine winning.
+ * Returns flat objects compatible with the statutory hook row mappers.
+ */
+async function fetchDualSourceStatutoryPayroll(
+  from: string,
+  to: string,
+  statuses: string[],
+  profileSelectExtra = ""
+): Promise<any[]> {
+  const payPeriods = dateRangeToPayPeriods(from, to);
+  if (payPeriods.length === 0) return [];
+
+  const profileSelect = `full_name${profileSelectExtra ? ", " + profileSelectExtra : ""}`;
+
+  // ── Engine path: look up run IDs for the pay periods, then fetch entries ──
+  const { data: runs } = await supabase
+    .from("payroll_runs")
+    .select("id, pay_period")
+    .in("pay_period", payPeriods);
+
+  const runMap = new Map<string, string>(); // runId → pay_period
+  for (const r of runs ?? []) runMap.set(r.id, r.pay_period);
+  const runIds = Array.from(runMap.keys());
+
+  let engineRows: any[] = [];
+  if (runIds.length > 0) {
+    const { data: entries } = await supabase
+      .from("payroll_entries")
+      .select(
+        `id, profile_id, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, status, payroll_run_id, profiles!profile_id(${profileSelect})`
+      )
+      .in("payroll_run_id", runIds)
+      .in("status", statuses);
+    engineRows = (entries ?? []).map((e: any) =>
+      normalizeEngineStatutory(e, runMap.get(e.payroll_run_id) ?? "")
+    );
+  }
+
+  // ── Legacy path ───────────────────────────────────────────────────────────
+  const { data: legacyRows } = await supabase
+    .from("payroll_records")
+    .select(`*, profiles!profile_id(${profileSelect})`)
+    .gte("created_at", from)
+    .lte("created_at", to + "T23:59:59")
+    .in("status", statuses);
+
+  // De-duplicate: engine row wins for same (profile_id, pay_period)
+  const engineKeys = new Set(
+    engineRows.map((r) => `${r.profile_id}:${r.pay_period}`)
+  );
+  const filteredLegacy = (legacyRows ?? []).filter(
+    (r: any) => !engineKeys.has(`${r.profile_id}:${r.pay_period}`)
+  );
+
+  return [...engineRows, ...filteredLegacy];
+}
+
 // ── GSTR-1: Outward supplies (B2B + B2C) from invoices ──
 export interface GSTR1Row {
   id: string;
@@ -318,30 +421,23 @@ export function useGSTR3BData(from: string, to: string) {
   });
 }
 
-// ── TDS 24Q: Salary TDS from payroll records ──
+// ── TDS 24Q: Salary TDS from payroll records (dual-source) ──
 export function useTDS24QData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["tds24q", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name)")
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .in("status", ["processed", "approved", "locked"]);
-      if (error) throw error;
-
-      return (data || []).map((p: any): TDS24QRow => {
+      const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed", "approved", "locked"]);
+      return data.map((p): TDS24QRow => {
         const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
         return {
           id: p.id,
           employee_name: p.profiles?.full_name || "Unknown",
-          employee_pan: "", // PAN not stored; placeholder
+          employee_pan: "",
           pay_period: p.pay_period,
           gross_salary: gross,
-          hra_exempt: Number(p.hra) * 0.4, // Simplified 40% HRA exemption
-          standard_deduction: 75000 / 12, // ₹75,000 annual / 12
+          hra_exempt: Number(p.hra) * 0.4,
+          standard_deduction: 75000 / 12,
           taxable_income: gross - (Number(p.hra) * 0.4) - (75000 / 12),
           tds_deducted: Number(p.tax_deduction),
           surcharge: 0,
@@ -393,27 +489,20 @@ export function useTDS26QData(from: string, to: string) {
   });
 }
 
-// ── PF ECR: From payroll data ──
+// ── PF ECR: From payroll data (dual-source) ──
 export function usePFECRData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["pf_ecr", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name)")
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .eq("status", "processed");
-      if (error) throw error;
-
-      return (data || []).map((p: any): PFECRRow => {
+      const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
+      return data.map((p): PFECRRow => {
         const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
-        const epfWages = Math.min(Number(p.basic_salary), 15000); // PF wage ceiling
+        const epfWages = Math.min(Number(p.basic_salary), 15000);
         const epsWages = Math.min(epfWages, 15000);
         return {
           id: p.id,
-          uan: "", // Not stored
+          uan: "",
           employee_name: p.profiles?.full_name || "Unknown",
           gross_wages: gross,
           epf_wages: epfWages,
@@ -432,37 +521,29 @@ export function usePFECRData(from: string, to: string) {
   });
 }
 
-// ── ESI: From payroll (auto-inferred ≤ ₹21,000 + manual override via profiles.esi_eligible) ──
+// ── ESI: From payroll (dual-source; auto-inferred ≤ ₹21,000 + manual override) ──
 export function useESIData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["esi", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name, esi_eligible)")
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .in("status", ["processed", "approved", "locked"]);
-      if (error) throw error;
-
-      return (data || [])
-        .map((p: any) => {
+      const data = await fetchDualSourceStatutoryPayroll(
+        from, to, ["processed", "approved", "locked"], "esi_eligible"
+      );
+      return data
+        .map((p) => {
           const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
           const manualFlag = p.profiles?.esi_eligible;
-          // Manual override: true = always eligible, false = never eligible, null = auto (≤21000)
           const isEligible = manualFlag === true ? true : manualFlag === false ? false : gross <= 21000;
           if (!isEligible) return null;
           const empContrib = Math.round(gross * 0.0075);
           const erContrib = Math.round(gross * 0.0325);
-          // Calculate working days from pay_period (e.g. "2025-02")
           const payPeriod = p.pay_period || "";
           let workingDays = 30;
           if (payPeriod) {
             const [yr, mo] = payPeriod.split("-").map(Number);
             if (yr && mo) {
               const daysInMonth = new Date(yr, mo, 0).getDate();
-              // Approximate working days: exclude Sundays (roughly daysInMonth - Math.floor(daysInMonth/7))
               workingDays = daysInMonth - Math.floor(daysInMonth / 7);
             }
           }
@@ -484,33 +565,24 @@ export function useESIData(from: string, to: string) {
   });
 }
 
-// ── Professional Tax: From payroll ──
+// ── Professional Tax: From payroll (dual-source) ──
 export function useProfTaxData(from: string, to: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["prof_tax", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name)")
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .eq("status", "processed");
-      if (error) throw error;
-
-      return (data || []).map((p: any): ProfTaxRow => {
+      const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
+      return data.map((p): ProfTaxRow => {
         const gross = Number(p.basic_salary) + Number(p.hra) + Number(p.transport_allowance) + Number(p.other_allowances);
-        // Karnataka PT slab (common example)
         let pt = 0;
         if (gross > 15000) pt = 200;
         else if (gross > 10000) pt = 150;
-        else if (gross > 5000) pt = 0; // Varies by state
         return {
           id: p.id,
           employee_name: p.profiles?.full_name || "Unknown",
           gross_salary: gross,
           pt_amount: pt,
-          state: "Karnataka", // Default
+          state: "Karnataka",
           month: p.pay_period,
         };
       });
