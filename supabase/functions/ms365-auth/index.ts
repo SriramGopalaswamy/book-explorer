@@ -103,7 +103,7 @@ async function syncProfileFromMS365(
       .update(profileData)
       .eq("user_id", userId);
   } catch (err) {
-    console.warn("MS365 profile enrichment failed (non-critical):", err);
+    logError("ms365-auth", err, { stage: "profile_enrichment" });
   }
 }
 
@@ -115,7 +115,7 @@ async function resolveWaitingManagerRefs(supabase: any, email: string, profileId
       .update({ manager_id: profileId, pending_manager_email: null })
       .eq("pending_manager_email", email.toLowerCase());
   } catch (err) {
-    console.warn("Failed to resolve pending manager references:", err);
+    logError("ms365-auth", err, { stage: "resolve_manager_refs" });
   }
 }
 
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
           managerEmail = mgr.mail || mgr.userPrincipalName || null;
         }
       } catch (e) {
-        console.warn("Could not fetch manager from MS365:", e);
+        logError("ms365-auth", e, { stage: "fetch_manager" });
       }
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {

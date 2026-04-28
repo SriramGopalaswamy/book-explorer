@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
             },
           });
         } catch (err) {
-          console.warn(`[whatsapp-status] Failed to fire ${eventType} event:`, err);
+          logError("whatsapp-status-webhook", err, { event_type: eventType });
         }
       }
     } catch (err: any) {
