@@ -207,14 +207,16 @@ export function useManagerReviewDispute() {
       // Double-review guard
       const { data: check } = await supabase
         .from("payslip_disputes" as any)
-        .select("status, employee_id")
+        .select("status, profile_id")
         .eq("id", disputeId)
         .single();
       if ((check as any)?.status !== "pending_manager") {
         throw new Error("This dispute has already been reviewed or is no longer pending manager review");
       }
-      // Self-review guard: manager cannot review their own dispute
-      if ((check as any)?.employee_id === user.id) {
+      // Self-review guard: manager cannot approve a dispute for themselves
+      // Compare via profiles to map profile_id → user_id
+      const { data: disputantProfile } = await supabase.from("profiles").select("user_id").eq("id", (check as any)?.profile_id).maybeSingle();
+      if (disputantProfile?.user_id === user.id) {
         throw new Error("You cannot review your own payslip dispute.");
       }
 

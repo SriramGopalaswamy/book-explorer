@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
@@ -103,6 +103,7 @@ function useOrgPermissionRows(orgId: string | undefined) {
     },
     enabled: !!orgId,
     staleTime: 1000 * 60,
+    refetchOnWindowFocus: false, // prevent tab-switch from wiping unsaved edits
   });
 }
 
@@ -179,6 +180,9 @@ export function RolePermissionsTab() {
     if (!orgId) return;
     setSaving(true);
     try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const updatedBy = currentUser?.id ?? null;
+
       const rows: {
         organization_id: string;
         role: string;
@@ -189,6 +193,7 @@ export function RolePermissionsTab() {
         can_delete: boolean;
         can_export: boolean;
         updated_at: string;
+        updated_by: string | null;
       }[] = [];
 
       for (const role of CONFIGURABLE_ROLES) {
@@ -205,6 +210,7 @@ export function RolePermissionsTab() {
               can_delete: cell.can_delete,
               can_export: cell.can_export,
               updated_at: new Date().toISOString(),
+              updated_by: updatedBy,
             });
           }
         }
@@ -323,9 +329,9 @@ export function RolePermissionsTab() {
               </thead>
               <tbody>
                 {RESOURCE_GROUPS.map((group) => (
-                  <>
+                  <Fragment key={group.label}>
                     {/* Group header row */}
-                    <tr key={`group-${group.label}`} className="border-t-2 border-border/60">
+                    <tr className="border-t-2 border-border/60">
                       <td
                         colSpan={CONFIGURABLE_ROLES.length + 1}
                         className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/20"
@@ -367,7 +373,7 @@ export function RolePermissionsTab() {
                         })}
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

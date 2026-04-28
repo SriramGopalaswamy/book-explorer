@@ -78,6 +78,7 @@ import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
 import { InvoiceMessageThread } from "@/components/financial/InvoiceMessageThread";
 
@@ -143,10 +144,16 @@ const emptyLineItem: LineItem = {
   sgst_rate: "0",
 };
 
-function calculateLineItemTotals(items: LineItem[]) {
+function isInterstateSupply(placeOfSupply: string, orgState: string | null | undefined): boolean {
+  if (!placeOfSupply || !orgState) return false;
+  return !placeOfSupply.toLowerCase().startsWith(orgState.toLowerCase());
+}
+
+function calculateLineItemTotals(items: LineItem[], interstate = false) {
   let subtotal = 0;
   let cgstTotal = 0;
   let sgstTotal = 0;
+  let igstTotal = 0;
 
   const computed = items.map(item => {
     const qty = parseInt(item.quantity) || 1;
@@ -154,17 +161,24 @@ function calculateLineItemTotals(items: LineItem[]) {
     const amount = qty * rate;
     const cgstRate = parseFloat(item.cgst_rate) || 0;
     const sgstRate = parseFloat(item.sgst_rate) || 0;
-    const cgstAmt = amount * cgstRate / 100;
-    const sgstAmt = amount * sgstRate / 100;
 
     subtotal += amount;
+
+    if (interstate) {
+      const igstRate = cgstRate + sgstRate;
+      const igstAmt = amount * igstRate / 100;
+      igstTotal += igstAmt;
+      return { ...item, amount, cgstAmt: 0, sgstAmt: 0, igstRate, igstAmt };
+    }
+
+    const cgstAmt = amount * cgstRate / 100;
+    const sgstAmt = amount * sgstRate / 100;
     cgstTotal += cgstAmt;
     sgstTotal += sgstAmt;
-
-    return { ...item, amount, cgstAmt, sgstAmt };
+    return { ...item, amount, cgstAmt, sgstAmt, igstRate: 0, igstAmt: 0 };
   });
 
-  return { computed, subtotal, cgstTotal, sgstTotal, total: subtotal + cgstTotal + sgstTotal };
+  return { computed, subtotal, cgstTotal, sgstTotal, igstTotal, total: subtotal + cgstTotal + sgstTotal + igstTotal };
 }
 
 export default function Invoicing() {
@@ -172,6 +186,8 @@ export default function Invoicing() {
   const navigate = useNavigate();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { data: orgData } = useUserOrganization();
+  const { data: compliance } = useOnboardingCompliance();
+  const orgState = compliance?.state ?? null;
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
@@ -300,7 +316,8 @@ export default function Invoicing() {
       return;
     }
 
-    const { computed, subtotal, cgstTotal, sgstTotal, total } = calculateLineItemTotals(lineItems);
+    const interstate = isInterstateSupply(formMeta.placeOfSupply, orgState);
+    const { computed, subtotal, cgstTotal, sgstTotal, igstTotal, total } = calculateLineItemTotals(lineItems, interstate);
 
     createInvoice.mutate(
       {
@@ -316,6 +333,7 @@ export default function Invoicing() {
         subtotal,
         cgst_total: cgstTotal,
         sgst_total: sgstTotal,
+        igst_total: igstTotal,
         total_amount: total,
         notes: formMeta.notes,
         customer_gstin: formMeta.customerGstin,
@@ -326,12 +344,12 @@ export default function Invoicing() {
           rate: parseFloat(c.rate) || 0,
           amount: c.amount,
           hsn_sac: c.hsn_sac,
-          cgst_rate: parseFloat(c.cgst_rate) || 0,
-          sgst_rate: parseFloat(c.sgst_rate) || 0,
-          igst_rate: 0,
+          cgst_rate: interstate ? 0 : parseFloat(c.cgst_rate) || 0,
+          sgst_rate: interstate ? 0 : parseFloat(c.sgst_rate) || 0,
+          igst_rate: interstate ? c.igstRate : 0,
           cgst_amount: c.cgstAmt,
           sgst_amount: c.sgstAmt,
-          igst_amount: 0,
+          igst_amount: c.igstAmt,
         })),
       },
       {
@@ -390,7 +408,8 @@ export default function Invoicing() {
       return;
     }
 
-    const { computed, subtotal, cgstTotal, sgstTotal, total } = calculateLineItemTotals(editLineItems);
+    const editInterstate = isInterstateSupply(editFormMeta.placeOfSupply, orgState);
+    const { computed, subtotal, cgstTotal, sgstTotal, igstTotal, total } = calculateLineItemTotals(editLineItems, editInterstate);
 
     updateInvoice.mutate(
       {
@@ -406,6 +425,7 @@ export default function Invoicing() {
         subtotal,
         cgst_total: cgstTotal,
         sgst_total: sgstTotal,
+        igst_total: igstTotal,
         total_amount: total,
         notes: editFormMeta.notes,
         customer_gstin: editFormMeta.customerGstin,
@@ -416,12 +436,12 @@ export default function Invoicing() {
           rate: parseFloat(c.rate) || 0,
           amount: c.amount,
           hsn_sac: c.hsn_sac,
-          cgst_rate: parseFloat(c.cgst_rate) || 0,
-          sgst_rate: parseFloat(c.sgst_rate) || 0,
-          igst_rate: 0,
+          cgst_rate: editInterstate ? 0 : parseFloat(c.cgst_rate) || 0,
+          sgst_rate: editInterstate ? 0 : parseFloat(c.sgst_rate) || 0,
+          igst_rate: editInterstate ? c.igstRate : 0,
           cgst_amount: c.cgstAmt,
           sgst_amount: c.sgstAmt,
-          igst_amount: 0,
+          igst_amount: c.igstAmt,
         })),
       },
       {
@@ -456,8 +476,10 @@ export default function Invoicing() {
     deleteInvoice.mutate(invoiceId);
   };
 
-  const { subtotal: createSubtotal, cgstTotal: createCgst, sgstTotal: createSgst, total: createTotal } = calculateLineItemTotals(lineItems);
-  const { subtotal: editSubtotal, cgstTotal: editCgst, sgstTotal: editSgst, total: editTotal } = calculateLineItemTotals(editLineItems);
+  const createInterstate = isInterstateSupply(formMeta.placeOfSupply, orgState);
+  const editInterstate = isInterstateSupply(editFormMeta.placeOfSupply, orgState);
+  const { subtotal: createSubtotal, cgstTotal: createCgst, sgstTotal: createSgst, igstTotal: createIgst, total: createTotal } = calculateLineItemTotals(lineItems, createInterstate);
+  const { subtotal: editSubtotal, cgstTotal: editCgst, sgstTotal: editSgst, igstTotal: editIgst, total: editTotal } = calculateLineItemTotals(editLineItems, editInterstate);
 
   const renderLineItemsForm = (
     items: LineItem[],
@@ -467,6 +489,7 @@ export default function Invoicing() {
     subtotal: number,
     cgst: number,
     sgst: number,
+    igst: number,
     total: number
   ) => (
     <div className="space-y-3">
@@ -500,17 +523,26 @@ export default function Invoicing() {
           <span className="text-muted-foreground">Subtotal</span>
           <span>{formatCurrency(subtotal)}</span>
         </div>
-        {cgst > 0 && (
+        {igst > 0 ? (
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">CGST</span>
-            <span>{formatCurrency(cgst)}</span>
+            <span className="text-muted-foreground">IGST (Interstate)</span>
+            <span>{formatCurrency(igst)}</span>
           </div>
-        )}
-        {sgst > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">SGST</span>
-            <span>{formatCurrency(sgst)}</span>
-          </div>
+        ) : (
+          <>
+            {cgst > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">CGST</span>
+                <span>{formatCurrency(cgst)}</span>
+              </div>
+            )}
+            {sgst > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">SGST</span>
+                <span>{formatCurrency(sgst)}</span>
+              </div>
+            )}
+          </>
         )}
         <div className="flex justify-between text-base font-semibold border-t pt-1.5">
           <span>Total</span>
@@ -675,7 +707,7 @@ export default function Invoicing() {
                       </div>
                     </div>
 
-                    {renderLineItemsForm(lineItems, updateLineItem, addLineItem, removeLineItem, createSubtotal, createCgst, createSgst, createTotal)}
+                    {renderLineItemsForm(lineItems, updateLineItem, addLineItem, removeLineItem, createSubtotal, createCgst, createSgst, createIgst, createTotal)}
 
                     <div className="grid gap-2">
                       <Label>Notes (Optional)</Label>
@@ -770,7 +802,7 @@ export default function Invoicing() {
                       </div>
                     </div>
 
-                    {renderLineItemsForm(editLineItems, updateEditLineItem, addEditLineItem, removeEditLineItem, editSubtotal, editCgst, editSgst, editTotal)}
+                    {renderLineItemsForm(editLineItems, updateEditLineItem, addEditLineItem, removeEditLineItem, editSubtotal, editCgst, editSgst, editIgst, editTotal)}
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>

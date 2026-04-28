@@ -644,9 +644,12 @@ export default function OrgChart() {
           join_date: e.join_date ?? null,
         })) as RawProfile[];
       }
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
+      if (!callerProfile?.organization_id) return [] as RawProfile[];
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, department, job_title, avatar_url, manager_id, status, email, phone, join_date")
+        .eq("organization_id", callerProfile.organization_id)
         .order("full_name");
       if (error) throw error;
       return data as RawProfile[];

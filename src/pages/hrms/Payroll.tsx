@@ -45,6 +45,7 @@ import {
 import {
   usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
   useDeletePayroll, useBulkDeletePayroll, useProcessPayroll, useMyPayrollRecords,
+  usePayrollOrgRecordCount,
   type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
@@ -572,6 +573,7 @@ export default function Payroll() {
   const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes(isHRRole ? "hr" : null);
   const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes(isFinanceRole ? "finance" : null);
   const { data: records = [], isLoading, isError: recordsError } = usePayrollRecords(selectedPeriod);
+  const { data: orgRecordCount = 0 } = usePayrollOrgRecordCount();
   // Heavy unfiltered scan — only fetch when the Review tab is open and the user is a reviewer
   const reviewTabActive = activeTab === "review" && (isHRRole || isFinanceRole);
   const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords(reviewTabActive ? undefined : "__never__");
@@ -1016,7 +1018,7 @@ export default function Payroll() {
                       searchQuery={searchQuery}
                       statusFilter={statusFilter}
                       period={selectedPeriod}
-                      totalRecords={records.length}
+                      totalRecords={orgRecordCount}
                       activeRecords={records.filter((r) => r.status !== "superseded").length}
                       currentRole={currentRole}
                       onAdd={() => setIsAddOpen(true)}

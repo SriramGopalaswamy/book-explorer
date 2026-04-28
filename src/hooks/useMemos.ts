@@ -31,16 +31,19 @@ export interface MemoStats {
   pending: number;
 }
 
-// Hook to search profiles by name for recipient autocomplete
+// Hook to search profiles by name for recipient autocomplete — org-scoped, no cross-org leakage
 export function useProfileSearch(searchTerm: string) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["profile-search", searchTerm],
+    queryKey: ["profile-search", searchTerm, user?.id],
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user!.id).maybeSingle();
+      if (!callerProfile?.organization_id) return [];
       const { data, error } = await supabase
         .from("profiles_safe")
         .select("id, full_name, department, job_title")
+        .eq("organization_id", callerProfile.organization_id)
         .ilike("full_name", `%${searchTerm}%`)
         .eq("status", "active")
         .limit(10);
@@ -61,13 +64,14 @@ export function useMemos(status?: string) {
       if (isDevMode) return [] as Memo[];
       if (!user) return [] as Memo[];
 
-      // Check if user is admin/hr/manager
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-      const userRoles = roles?.map(r => r.role) ?? [];
-      const isPrivileged = userRoles.some(r => ["admin", "hr", "manager"].includes(r));
+      // Resolve caller org — all queries are org-scoped
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const orgId = callerProfile?.organization_id;
+      if (!orgId) return [] as Memo[];
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", orgId);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      const isPrivileged = userRoles.some((r: string) => ["admin", "hr", "manager"].includes(r));
 
       if (status && status !== "all") {
         const statusMap: Record<string, string> = {
@@ -79,19 +83,19 @@ export function useMemos(status?: string) {
         const dbStatus = statusMap[status] || status;
 
         if (dbStatus === "published" || isPrivileged) {
-          // Published memos visible to all; privileged users see all of any status
           const { data, error } = await supabase
             .from("memos")
             .select("*")
+            .eq("organization_id", orgId)
             .eq("status", dbStatus)
             .order("created_at", { ascending: false });
           if (error) throw error;
           return data as unknown as Memo[];
         } else {
-          // Non-privileged: only own memos for non-published statuses
           const { data, error } = await supabase
             .from("memos")
             .select("*")
+            .eq("organization_id", orgId)
             .eq("status", dbStatus)
             .eq("user_id", user.id)
             .order("created_at", { ascending: false });
@@ -105,14 +109,15 @@ export function useMemos(status?: string) {
         const { data, error } = await supabase
           .from("memos")
           .select("*")
+          .eq("organization_id", orgId)
           .order("created_at", { ascending: false });
         if (error) throw error;
         return data as unknown as Memo[];
       } else {
-        // Non-privileged: own memos + published memos
         const { data: ownMemos, error: e1 } = await supabase
           .from("memos")
           .select("*")
+          .eq("organization_id", orgId)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (e1) throw e1;
@@ -120,12 +125,12 @@ export function useMemos(status?: string) {
         const { data: publishedMemos, error: e2 } = await supabase
           .from("memos")
           .select("*")
+          .eq("organization_id", orgId)
           .eq("status", "published")
           .neq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (e2) throw e2;
 
-        // Merge and sort
         const all = [...(ownMemos || []), ...(publishedMemos || [])];
         all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         return all as unknown as Memo[];
@@ -145,35 +150,25 @@ export function useMemoStats() {
       if (isDevMode) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
       if (!user) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
 
-      // Check privilege
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-      const userRoles = roles?.map(r => r.role) ?? [];
-      const isPrivileged = userRoles.some(r => ["admin", "hr", "manager"].includes(r));
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const orgId = callerProfile?.organization_id;
+      if (!orgId) return { total: 0, published: 0, drafts: 0, pending: 0 } as MemoStats;
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", orgId);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      const isPrivileged = userRoles.some((r: string) => ["admin", "hr", "manager"].includes(r));
 
       let data: { status: string }[];
 
       if (isPrivileged) {
-        const { data: d, error } = await supabase.from("memos").select("status");
+        const { data: d, error } = await supabase.from("memos").select("status").eq("organization_id", orgId);
         if (error) throw error;
         data = d;
       } else {
-        // Own memos + published
-        const { data: own, error: e1 } = await supabase
-          .from("memos")
-          .select("status")
-          .eq("user_id", user.id);
+        const { data: own, error: e1 } = await supabase.from("memos").select("status").eq("organization_id", orgId).eq("user_id", user.id);
         if (e1) throw e1;
-
-        const { data: pub, error: e2 } = await supabase
-          .from("memos")
-          .select("status")
-          .eq("status", "published")
-          .neq("user_id", user.id);
+        const { data: pub, error: e2 } = await supabase.from("memos").select("status").eq("organization_id", orgId).eq("status", "published").neq("user_id", user.id);
         if (e2) throw e2;
-
         data = [...(own || []), ...(pub || [])];
       }
 
@@ -188,9 +183,14 @@ export function useMemoStats() {
   });
 }
 
-// Upload a file to memo-attachments bucket, returns public signed URL path
+const ALLOWED_ATTACHMENT_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg", "gif", "txt"];
+
+// Upload a file to memo-attachments bucket, returns storage path
 export async function uploadMemoAttachment(file: File, userId: string): Promise<string> {
-  const ext = file.name.split(".").pop();
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+  if (!ALLOWED_ATTACHMENT_EXTENSIONS.includes(ext)) {
+    throw new Error(`File type .${ext} is not allowed. Permitted types: ${ALLOWED_ATTACHMENT_EXTENSIONS.join(", ")}`);
+  }
   const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   
   const { error } = await supabase.storage

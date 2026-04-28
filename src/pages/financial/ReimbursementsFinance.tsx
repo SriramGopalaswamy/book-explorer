@@ -193,7 +193,11 @@ export default function ReimbursementsFinance() {
           record_date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
         });
 
-      if (frErr) console.warn("financial_records insert failed:", frErr.message);
+      if (frErr) {
+        // financial_records failure is fatal — roll back the expense record and abort
+        await supabase.from("expenses").delete().eq("id", expense.id);
+        throw new Error(`Accounting sync failed: ${frErr.message}. Approval rolled back.`);
+      }
 
       // 3. Update reimbursement status to paid
       const { error: updErr } = await supabase
@@ -208,8 +212,9 @@ export default function ReimbursementsFinance() {
         .eq("id", approveDialog.id);
 
       if (updErr) {
-        // Rollback: delete orphan expense record to prevent inconsistent state
+        // Roll back both expense and financial_records entries
         await supabase.from("expenses").delete().eq("id", expense.id);
+        await supabase.from("financial_records").delete().eq("description", `[Reimbursement] ${approveDialog.vendor_name}${approveDialog.profiles?.full_name ? ` (${approveDialog.profiles.full_name})` : ""} — ${approveDialog.description || ""}`).eq("organization_id", orgId);
         throw updErr;
       }
 

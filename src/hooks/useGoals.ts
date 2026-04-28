@@ -35,16 +35,62 @@ export function useGoals() {
   const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["goals", orgId, isDevMode],
+    queryKey: ["goals", orgId, user?.id, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockGoals;
-      if (!orgId) return [];
+      if (!orgId || !user) return [];
+
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!callerProfile?.organization_id) return [];
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r) => r.role);
+      const isPrivileged = userRoles.some((r) => ["admin", "hr"].includes(r));
+      const isManager = userRoles.includes("manager");
+
+      if (isPrivileged) {
+        const { data, error } = await supabase
+          .from("goals")
+          .select("*")
+          .eq("organization_id", orgId)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data as Goal[];
+      }
+
+      if (isManager) {
+        const { data: reports } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("manager_id", callerProfile.id)
+          .eq("organization_id", orgId);
+        const reportUserIds = (reports ?? []).map((r: any) => r.user_id).filter(Boolean);
+        const visibleUserIds = [user.id, ...reportUserIds];
+        const { data, error } = await supabase
+          .from("goals")
+          .select("*")
+          .eq("organization_id", orgId)
+          .in("user_id", visibleUserIds)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data as Goal[];
+      }
+
+      // Employee sees only their own goals
       const { data, error } = await supabase
         .from("goals")
         .select("*")
         .eq("organization_id", orgId)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-
       if (error) throw error;
       return data as Goal[];
     },
@@ -152,18 +198,35 @@ export function useUpdateGoal() {
         }
       }
 
-      // Prevent editing completed goals (except to reopen)
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      // Resolve caller org + profile id for ownership checks
+      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
+      const isManager = userRoles.includes("manager");
 
       const { data: current, error: fetchErr } = await supabase
         .from("goals")
-        .select("status")
+        .select("status, user_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
+
+      // Ownership: employee can only edit their own; manager can edit own + direct reports'
+      if (!isPrivileged) {
+        if (current?.user_id !== user.id) {
+          if (isManager) {
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", current?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            if (!report) throw new Error("You can only edit your own goals or your direct reports' goals.");
+          } else {
+            throw new Error("You can only edit your own goals.");
+          }
+        }
+      }
+
       if (current?.status === "completed" && updates.status !== "on_track" && updates.status !== "at_risk" && updates.status !== "delayed") {
         throw new Error("Completed goals cannot be modified. Reopen the goal first by changing its status.");
       }
@@ -205,14 +268,30 @@ export function useUpdateGoalProgress() {
       // Clamp progress to 0-100
       const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
       const status = clampedProgress >= 100 ? "completed" : undefined;
-      
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+
+      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
+      const isManager = userRoles.includes("manager");
+
+      if (!isPrivileged) {
+        const { data: goal } = await supabase.from("goals").select("user_id").eq("id", id).eq("organization_id", callerProfile.organization_id).single();
+        if (goal?.user_id !== user.id) {
+          if (isManager) {
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            if (!report) throw new Error("You can only update progress on your own goals or your direct reports' goals.");
+          } else {
+            throw new Error("You can only update progress on your own goals.");
+          }
+        }
+      }
 
       const { data, error } = await supabase
         .from("goals")
-        .update({ 
+        .update({
           progress: clampedProgress,
           ...(status && { status }),
         })
@@ -242,18 +321,33 @@ export function useDeleteGoal() {
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Prevent deleting completed goals — they should be archived
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      const isPrivileged = userRoles.some((r: string) => ["admin", "hr"].includes(r));
+      const isManager = userRoles.includes("manager");
 
       const { data: goal, error: fetchErr } = await supabase
         .from("goals")
-        .select("status")
+        .select("status, user_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr) throw fetchErr;
+
+      if (!isPrivileged) {
+        if (goal?.user_id !== user.id) {
+          if (isManager) {
+            const { data: report } = await supabase.from("profiles").select("id").eq("user_id", goal?.user_id).eq("manager_id", callerProfile.id).eq("organization_id", callerProfile.organization_id).maybeSingle();
+            if (!report) throw new Error("You can only delete your own goals or your direct reports' goals.");
+          } else {
+            throw new Error("You can only delete your own goals.");
+          }
+        }
+      }
+
       if (goal?.status === "completed") {
         throw new Error("Completed goals cannot be deleted. They are part of the performance record.");
       }

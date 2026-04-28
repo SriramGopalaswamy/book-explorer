@@ -157,9 +157,7 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      const monthPeriod = selectedPeriod.split("-").slice(0, 2).join("-");
-      onMonthChange?.(monthPeriod);
-      return;
+      return; // Don't override parent period on Engine tab mount
     }
     // Frequency changed after mount — reset period to correct format
     const newPeriod = currentPeriod(frequency);

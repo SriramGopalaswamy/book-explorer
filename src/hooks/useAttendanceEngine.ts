@@ -102,61 +102,73 @@ export interface UploadParseResult {
 
 export function useAttendanceDaily(dateRange?: { from: string; to: string }) {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
   const today = new Date().toISOString().split("T")[0];
   const from = dateRange?.from || today;
   const to = dateRange?.to || today;
 
   return useQuery({
-    queryKey: ["attendance-daily", from, to],
+    queryKey: ["attendance-daily", from, to, org?.organizationId],
     queryFn: async () => {
+      const orgId = org?.organizationId;
+      if (!orgId) return [] as AttendanceDaily[];
       const { data, error } = await supabase
         .from("attendance_daily")
         .select("*, profiles!profile_id(full_name, department, job_title)")
+        .eq("organization_id", orgId)
         .gte("attendance_date", from)
         .lte("attendance_date", to)
         .order("attendance_date", { ascending: false });
       if (error) throw error;
       return (data ?? []) as AttendanceDaily[];
     },
-    enabled: !!user,
+    enabled: !!user && !!org?.organizationId,
   });
 }
 
 export function useAttendancePunches(date?: string) {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
   const today = date || new Date().toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["attendance-punches", today],
+    queryKey: ["attendance-punches", today, org?.organizationId],
     queryFn: async () => {
+      const orgId = org?.organizationId;
+      if (!orgId) return [] as AttendancePunch[];
       const { data, error } = await supabase
         .from("attendance_punches")
         .select("*")
+        .eq("organization_id", orgId)
         .gte("punch_datetime", `${today}T00:00:00`)
         .lte("punch_datetime", `${today}T23:59:59`)
         .order("punch_datetime", { ascending: true });
       if (error) throw error;
       return (data ?? []) as AttendancePunch[];
     },
-    enabled: !!user,
+    enabled: !!user && !!org?.organizationId,
   });
 }
 
 export function useAttendanceUploadLogs() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
 
   return useQuery({
-    queryKey: ["attendance-upload-logs"],
+    queryKey: ["attendance-upload-logs", org?.organizationId],
     queryFn: async () => {
+      const orgId = org?.organizationId;
+      if (!orgId) return [] as AttendanceUploadLog[];
       const { data, error } = await supabase
         .from("attendance_upload_logs")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
       return (data ?? []) as AttendanceUploadLog[];
     },
-    enabled: !!user,
+    enabled: !!user && !!org?.organizationId,
   });
 }
 
@@ -276,19 +288,23 @@ export function useRecalculateAttendance() {
 
 export function usePayrollAttendanceSummary(month?: string) {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
 
   return useQuery({
-    queryKey: ["payroll-attendance-summary", month],
+    queryKey: ["payroll-attendance-summary", month, org?.organizationId],
     queryFn: async () => {
       if (!month) return [];
+      const orgId = org?.organizationId;
+      if (!orgId) return [];
       const monthDate = `${month}-01`;
       const { data, error } = await supabase
         .from("payroll_attendance_summary" as any)
         .select("*")
+        .eq("organization_id", orgId)
         .eq("month", monthDate);
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user && !!month,
+    enabled: !!user && !!month && !!org?.organizationId,
   });
 }
