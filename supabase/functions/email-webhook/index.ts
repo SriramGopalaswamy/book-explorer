@@ -81,7 +81,7 @@ async function fireWorkflowEvent(
       body: { event_type: eventType, entity_type: entityType, entity_id: entityId, organization_id: organizationId, payload },
     });
   } catch (err) {
-    console.warn(`[email-webhook] Failed to fire ${eventType}:`, err);
+    logError("email-webhook", err, { event_type: eventType });
   }
 }
 

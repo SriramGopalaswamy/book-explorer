@@ -94,7 +94,7 @@ async function fireWorkflowEvent(
       },
     });
   } catch (err) {
-    console.warn(`[whatsapp-webhook] Failed to fire ${eventType}:`, err);
+    logError("whatsapp-webhook", err, { event_type: eventType });
   }
 }
 

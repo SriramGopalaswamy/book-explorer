@@ -239,7 +239,7 @@ async function executeAction(
           messageId = msgResult?.message_id ?? null;
         }
       } catch (err) {
-        console.warn("[workflow-engine] Failed to invoke messaging-service:", err);
+        logError("workflow-engine", err, { stage: "messaging-service", channel: "email" });
       }
 
       // 3. Write to legacy email_logs (backward compatibility — unchanged behaviour)
@@ -327,7 +327,7 @@ async function executeAction(
           waMessageId = msgResult?.message_id ?? null;
         }
       } catch (err) {
-        console.warn("[workflow-engine] Failed to invoke messaging-service (whatsapp):", err);
+        logError("workflow-engine", err, { stage: "messaging-service", channel: "whatsapp" });
       }
 
       // Log WhatsApp action result to workflow_events (parity with email logging)
