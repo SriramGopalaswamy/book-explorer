@@ -4,6 +4,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEnqueueJob, useJobSubscription } from "@/hooks/useJobQueue";
 
 export interface BulkUploadColumn {
   key: string;
@@ -142,6 +144,7 @@ function extractCellValue(val: ExcelJS.CellValue): string {
 export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: BulkUploadConfig; label?: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const enqueueJob = useEnqueueJob();
   const [open, setOpen] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -153,6 +156,8 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
   } | null>(null);
   const [pendingWarning, setPendingWarning] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const { job: activeJob } = useJobSubscription(activeJobId);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -341,6 +346,26 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const executeUpload = async () => {
     setUploading(true);
     setPendingWarning(null);
+
+    // Enqueue a job_queue row for audit + Realtime progress tracking.
+    // Falls through silently if enqueue fails (no org context yet, etc.)
+    let jobId: string | null = null;
+    try {
+      jobId = await enqueueJob("bulk_upload", {
+        module: config.module,
+        file_name: fileName,
+        total_rows: parsedRows.length,
+      });
+      setActiveJobId(jobId);
+      // Mark job as running
+      await supabase
+        .from("job_queue")
+        .update({ status: "running", progress: 5, progress_label: "Processing rows…" })
+        .eq("id", jobId);
+    } catch {
+      // Job queue unavailable — continue without progress tracking
+    }
+
     try {
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
       let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
@@ -350,6 +375,18 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       } catch (uploadErr: any) {
         console.error("[BulkUpload] onUpload threw:", uploadErr);
         result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+      }
+
+      // Update job to terminal state
+      if (jobId) {
+        const failed = result.errors.length > 0 && result.success === 0;
+        await supabase.from("job_queue").update({
+          status: failed ? "failed" : "completed",
+          progress: 100,
+          progress_label: failed ? "Failed" : `${result.success} rows uploaded`,
+          result: { success: result.success, errors: result.errors.slice(0, 20) },
+          error_message: failed ? result.errors[0] ?? "Upload failed" : null,
+        }).eq("id", jobId);
       }
 
       if (user) {
@@ -398,9 +435,16 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         toast.success(`Successfully uploaded ${result.success} rows`);
       }
     } catch (err: any) {
+      if (jobId) {
+        await supabase.from("job_queue").update({
+          status: "failed", progress: 0,
+          error_message: (err as Error).message || "Unexpected error",
+        }).eq("id", jobId).catch(() => {});
+      }
       toast.error(err.message || "Upload failed");
     } finally {
       setUploading(false);
+      setActiveJobId(null);
     }
   };
 
@@ -653,6 +697,17 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                 {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : "Yes, overwrite"}
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Progress bar — visible while a job is active */}
+        {uploading && (
+          <div className="px-6 pb-2 space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{activeJob?.progress_label ?? "Processing…"}</span>
+              <span>{activeJob?.progress ?? 5}%</span>
+            </div>
+            <Progress value={activeJob?.progress ?? 5} className="h-2" />
           </div>
         )}
 

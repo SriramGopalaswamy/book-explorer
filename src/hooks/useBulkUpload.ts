@@ -281,6 +281,13 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
     };
 
     const insertedIds: string[] = [];
+    const enginePayloads: {
+      profile_id: string; gross_earnings: number; total_deductions: number;
+      net_pay: number; lwp_days: number; lwp_deduction: number;
+      working_days: number; paid_days: number;
+      earnings_breakdown: { name: string; monthly: number }[];
+      deductions_breakdown: { name: string; monthly: number }[];
+    }[] = [];
 
     for (const row of rows) {
       // ── Parse monthly inputs from file ──────────────────────────────────────
@@ -533,6 +540,30 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       } else if (data?.[0]?.id) {
         insertedIds.push(data[0].id);
         success++;
+        // Collect for engine dual-write
+        const grossForEngine = gross_earn > 0 ? gross_earn : monthly_gross;
+        const totalDedEngine = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw + lwp_ded_val;
+        enginePayloads.push({
+          profile_id: profile.id,
+          gross_earnings: grossForEngine,
+          total_deductions: totalDedEngine,
+          net_pay,
+          lwp_days: lwp_days_val,
+          lwp_deduction: lwp_ded_val,
+          working_days: working_days_val,
+          paid_days: paid_days_val,
+          earnings_breakdown: [
+            { name: "Basic Salary", monthly: basic },
+            { name: "HRA", monthly: hra },
+            { name: "Incentives", monthly: incentives },
+            { name: "Other Allowances", monthly: other_allowances },
+          ].filter((e) => e.monthly > 0),
+          deductions_breakdown: [
+            { name: "PF Contribution", monthly: pf_monthly },
+            { name: "TDS", monthly: tds_monthly_raw },
+            { name: "Other Deductions", monthly: prof_tax + other_ded_raw },
+          ].filter((d) => d.monthly > 0),
+        });
       } else {
         // Insert/update went through but Supabase returned no row — likely an RLS
         // visibility issue on the RETURNING clause. Count as error so the user knows.
@@ -540,7 +571,53 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       }
     }
 
+    // ── Engine dual-write ────────────────────────────────────────────────────
+    // After all payroll_records writes succeed, also write to payroll_runs +
+    // payroll_entries so engine path has the canonical data.
+    // Failures here are logged but do not roll back the payroll_records writes.
+    if (success > 0 && orgId && enginePayloads.length > 0) {
+      try {
+        const { data: runRow } = await supabase
+          .from("payroll_runs")
+          .insert({
+            organization_id: orgId,
+            pay_period: payPeriod,
+            generated_by: user.id,
+            status: "draft",
+            employee_count: enginePayloads.length,
+            total_gross: enginePayloads.reduce((s, p) => s + p.gross_earnings, 0),
+            total_deductions: enginePayloads.reduce((s, p) => s + p.total_deductions, 0),
+            total_net: enginePayloads.reduce((s, p) => s + p.net_pay, 0),
+          })
+          .select("id")
+          .single();
+
+        if (runRow?.id) {
+          const entryInserts = enginePayloads.map((p) => ({
+            payroll_run_id: runRow.id,
+            profile_id: p.profile_id,
+            organization_id: orgId,
+            gross_earnings: p.gross_earnings,
+            total_deductions: p.total_deductions,
+            net_pay: p.net_pay,
+            annual_ctc: p.gross_earnings * 12,
+            lwp_days: p.lwp_days,
+            lwp_deduction: p.lwp_deduction,
+            working_days: p.working_days,
+            paid_days: p.paid_days,
+            earnings_breakdown: p.earnings_breakdown,
+            deductions_breakdown: p.deductions_breakdown,
+            status: "computed",
+          }));
+          await supabase.from("payroll_entries").insert(entryInserts);
+        }
+      } catch (engineErr) {
+        console.error("[BulkUpload] Engine dual-write failed (payroll_records write succeeded):", engineErr);
+      }
+    }
+
     qc.invalidateQueries({ queryKey: ["payroll"] });
+    qc.invalidateQueries({ queryKey: ["payroll-runs"] });
     return { success, errors, warnings };
   }, [user, payPeriod, qc]);
 
