@@ -521,12 +521,12 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
             <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
               <Download className="h-4 w-4 mr-1" /> Payroll CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <Button variant="outline" size="sm" onClick={async () => { await exportPayrollMasterCSV(entries, run.pay_period); }} disabled={entries.length === 0}>
               <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
             </Button>
             {isLocked && (
               <>
-                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries, run.pay_period)}>
+                <Button variant="outline" size="sm" onClick={async () => { await exportPFECR(entries, run.pay_period); }}>
                   <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
                 </Button>
                 <Button variant="outline" size="sm" onClick={async () => {

@@ -36,6 +36,14 @@ export function useSubmitForReview() {
         .eq("id", runId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        actor_id: user.id,
+        action: "payroll_submitted_for_review",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: { organization_id: callerProfile.organization_id },
+      }).catch(() => {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -94,6 +102,14 @@ export function useApprovePayroll() {
         .eq("id", runId)
         .eq("organization_id", profile.organization_id);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        actor_id: user.id,
+        action: "payroll_approved",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: { organization_id: profile.organization_id, roles: roles.map((r: any) => r.role) },
+      }).catch(() => {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -134,6 +150,14 @@ export function useLockApprovedPayroll() {
         .eq("id", runId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        actor_id: user.id,
+        action: "payroll_locked",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: { organization_id: callerProfile.organization_id },
+      }).catch(() => {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });

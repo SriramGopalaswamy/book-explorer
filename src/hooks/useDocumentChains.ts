@@ -6,7 +6,8 @@ import { postGoodsReceiptStock, postDeliveryNoteStock } from "@/lib/stock-ledger
 
 // ─── Helper: resolve caller org ──────────────────────────────────
 async function resolveCallerOrg(userId: string) {
-  const { data } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
   if (!data?.organization_id) throw new Error("Organization not found");
   return data.organization_id;
 }
