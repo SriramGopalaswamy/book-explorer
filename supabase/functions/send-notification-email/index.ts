@@ -81,7 +81,7 @@ async function getMsGraphToken(creds: { tenantId: string; clientId: string; clie
     }
     return token;
   } catch (err) {
-    console.warn("getMsGraphToken exception:", err);
+    logError("send-notification-email", err);
     return null;
   }
 }
@@ -156,7 +156,7 @@ async function resolveCredsAndSend(
     }
     return true;
   } catch (err) {
-    console.warn("sendEmail exception:", err);
+    logError("send-notification-email", err);
     return false;
   }
 }
@@ -195,7 +195,7 @@ async function insertNotification(
     });
     if (error) console.warn("Failed to insert notification:", error.message);
   } catch (err) {
-    console.warn("insertNotification exception:", err);
+    logError("send-notification-email", err);
   }
 }
 
@@ -353,7 +353,7 @@ Deno.serve(async (req) => {
           }
         }
       } catch (emailErr) {
-        console.warn("memo_published: email send failed (in-app notifications already created):", emailErr);
+        logError("send-notification-email", emailErr, { event: "memo_published", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true, sent_to: recipientEmails.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -411,7 +411,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `📋 Leave Request Submitted — Awaiting Approval`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("leave_request_created: email send failed (in-app notifications already created):", emailErr);
+        logError("send-notification-email", emailErr, { event: "leave_request_created", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -475,7 +475,7 @@ Deno.serve(async (req) => {
           await send([{ email: manager.email, name: manager.full_name || undefined }], `${statusIcon} Confirmation: Leave ${statusText} for ${employeeName}`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("leave_request_decided: email send failed (in-app notifications already created):", emailErr);
+        logError("send-notification-email", emailErr, { event: "leave_request_decided", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

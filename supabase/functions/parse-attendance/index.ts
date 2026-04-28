@@ -949,7 +949,7 @@ Deno.serve(async (req) => {
             console.log(`[MAIN] Regex fallback parsed: ${result.employees.length} employees`);
           }
         } catch (regexErr: any) {
-          console.error(`[MAIN] Regex fallback failed: ${regexErr.message}`);
+          logError("parse-attendance", regexErr);
         }
       }
 
@@ -960,7 +960,7 @@ Deno.serve(async (req) => {
           result = await parseWithGeminiVision(body.file_data);
           console.log(`[MAIN] Vision parsed: ${result.employees.length} employees`);
         } catch (visionErr: any) {
-          console.error(`[MAIN] Vision also failed: ${visionErr.message}`);
+          logError("parse-attendance", visionErr);
 
           // Both failed
           return new Response(JSON.stringify({
@@ -1182,7 +1182,7 @@ Deno.serve(async (req) => {
             _end_date: uniqueDates[uniqueDates.length - 1],
           });
         } catch (e: any) {
-          console.error(`[AGGREGATE] ${e.message}`);
+          logError("parse-attendance", e);
         }
       }
     }
@@ -1204,7 +1204,7 @@ Deno.serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err: any) {
-    console.error(`[MAIN] Unhandled error:`, err);
+    logError("parse-attendance", err);
     return new Response(JSON.stringify({
       success: false,
       error: err.message || "Internal server error",
