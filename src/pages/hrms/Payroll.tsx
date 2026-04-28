@@ -60,7 +60,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
 import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchPayslipForDispute } from "@/lib/payroll-dispute-utils";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -146,15 +146,7 @@ function PayrollHRDisputes() {
     setPayslipData(null);
     setLoadingPayslip(true);
     try {
-      let data: any = null;
-      if (dispute.payroll_record_id) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("id", dispute.payroll_record_id).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
-      if (!data && dispute.profile_id && dispute.pay_period) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("profile_id", dispute.profile_id).eq("pay_period", dispute.pay_period).order("version", { ascending: false }).limit(1).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
+      const data = await fetchPayslipForDispute(dispute);
       if (data) setPayslipData(data);
     } catch (err) { console.warn("Failed to fetch payroll record:", err); }
     finally { setLoadingPayslip(false); }
@@ -253,15 +245,7 @@ function PayrollFinanceDisputes() {
     setPayslipData(null);
     setLoadingPayslip(true);
     try {
-      let data: any = null;
-      if (dispute.payroll_record_id) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("id", dispute.payroll_record_id).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
-      if (!data && dispute.profile_id && dispute.pay_period) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("profile_id", dispute.profile_id).eq("pay_period", dispute.pay_period).order("version", { ascending: false }).limit(1).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
+      const data = await fetchPayslipForDispute(dispute);
       if (data) setPayslipData(data);
     } catch (err) { console.warn("Failed to fetch payroll record:", err); }
     finally { setLoadingPayslip(false); }
