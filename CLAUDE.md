@@ -79,6 +79,13 @@ with ±₹1 tolerance. Falls back to "Salary Deductions" catch-all when pattern 
 
 ## Architecture Notes
 
+### financial_records write rule (item 23)
+`financial_records` rows with a non-null `journal_entry_id` are **owned by the trigger**
+`trg_sync_financial_records` (migration 20260428180000). Do NOT write to these rows
+directly from application code — the trigger recalculates them from `journal_lines`
+on every journal_line INSERT/UPDATE. Only rows without a `journal_entry_id` (legacy
+pre-GL records) may be written directly.
+
 ### Two payroll paths
 1. **Legacy**: `payroll_records` with flat columns → `normalizeLegacyRecord()`
 2. **Engine**: `payroll_entries` with `earnings_breakdown` / `deductions_breakdown` JSON
