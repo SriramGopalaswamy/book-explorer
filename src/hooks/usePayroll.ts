@@ -621,31 +621,15 @@ export function useProcessPayroll() {
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      // Resolve caller's org — mirrors the server-side guard in process_payroll_batch RPC
-      const { data: callerProfile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
-        .maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization context required");
+      if (ids.length === 0) return { processed: 0, skipped: 0, total: 0 };
 
-      // Verify every supplied ID belongs to the caller's org before hitting the RPC
-      const { data: ownerCheck, error: ownerErr } = await supabase
-        .from("payroll_records")
-        .select("id, organization_id")
-        .in("id", ids);
-      if (ownerErr) throw ownerErr;
-      const crossTenant = (ownerCheck ?? []).filter(
-        (r: { id: string; organization_id: string }) =>
-          r.organization_id !== callerProfile.organization_id
+      // Cross-org guard and state-machine transition handled server-side by the RPC.
+      // Use process_payroll_entries_batch which handles both engine (payroll_entries)
+      // and legacy (payroll_records) ids in a single atomic call.
+      const { data, error } = await (supabase as any).rpc(
+        "process_payroll_entries_batch",
+        { p_payroll_ids: ids }
       );
-      if (crossTenant.length > 0) {
-        throw new Error("Cannot process payroll records from another organization.");
-      }
-
-      const { data, error } = await (supabase as any).rpc("process_payroll_batch", {
-        p_payroll_ids: ids,
-      });
 
       if (error) {
         if (error.message.includes("already processed")) {
@@ -660,7 +644,6 @@ export function useProcessPayroll() {
         throw error;
       }
 
-      // Check RPC-level errors
       if (data?.processed === 0 && data?.skipped > 0) {
         throw new Error("All selected records were already processed.");
       }
