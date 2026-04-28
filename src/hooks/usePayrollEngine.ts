@@ -179,12 +179,25 @@ export function useGeneratePayroll() {
           .eq("pay_period", payPeriod)
           .eq("is_superseded", false);
 
-        // Filter out inactive employees
-        const activeRecords = (existingRecords || []).filter((r: any) => r.profiles?.status === 'active');
+        // Filter out inactive employees; collect names for caller warning
+        const allFallbackRecords = existingRecords || [];
+        const activeRecords = allFallbackRecords.filter((r: any) => r.profiles?.status === 'active');
+        const skippedNames = allFallbackRecords
+          .filter((r: any) => r.profiles?.status !== 'active')
+          .map((r: any) => r.profiles?.full_name || r.profile_id);
+
+        const warnings: string[] = [];
+        if (skippedNames.length > 0) {
+          warnings.push(`Skipped ${skippedNames.length} inactive employee(s): ${skippedNames.join(", ")}`);
+        }
 
         if (activeRecords.length === 0) {
           await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
-          return { run, entriesCount: 0 };
+          warnings.push(
+            `No payroll records found for ${payPeriod}. ` +
+            `Ensure employees have compensation structures or manual payroll records for this period.`
+          );
+          return { run, entriesCount: 0, warnings };
         }
 
         // Map payroll_records to payroll_entries
@@ -239,7 +252,7 @@ export function useGeneratePayroll() {
           total_net: fbNet,
         }).eq("id", run.id);
 
-        return { run, entriesCount: fallbackEntries.length };
+        return { run, entriesCount: fallbackEntries.length, warnings };
       }
 
       // 4. Fetch LWP for the period from leave_requests AND attendance_daily
@@ -507,12 +520,13 @@ export function useGeneratePayroll() {
         total_net: totalNet,
       }).eq("id", run.id);
 
-      return { run, entriesCount: entries.length };
+      return { run, entriesCount: entries.length, warnings: [] as string[] };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-entries"] });
       toast.success(`Payroll generated for ${data.entriesCount} employees`);
+      data.warnings?.forEach((w) => toast.warning(w));
     },
     onError: (err: any) => {
       if (err.message?.includes("duplicate key")) {
