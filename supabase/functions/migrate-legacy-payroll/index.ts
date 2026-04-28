@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { logError } from "../_shared/logger.ts";
 
 // migrate-legacy-payroll
 //
@@ -176,6 +177,7 @@ serve(async (req) => {
 
     return json({ migrated, skipped, errors });
   } catch (err) {
+    logError("migrate-legacy-payroll", err);
     return json({ error: (err as Error).message }, 500);
   }
 });

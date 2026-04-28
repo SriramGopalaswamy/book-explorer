@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { logError } from "../_shared/logger.ts";
 
 // generate-salary-file
 //
@@ -187,6 +188,7 @@ serve(async (req) => {
       validation_errors: validationErrors,
     });
   } catch (err) {
+    logError("generate-salary-file", err);
     return json({ error: (err as Error).message }, 500);
   }
 });

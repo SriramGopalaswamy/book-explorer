@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { logError } from "../_shared/logger.ts";
 
 // generate-form-24q
 //
@@ -291,6 +292,7 @@ serve(async (req) => {
       warnings,
     });
   } catch (err) {
+    logError("generate-form-24q", err);
     return json({ error: (err as Error).message }, 500);
   }
 });

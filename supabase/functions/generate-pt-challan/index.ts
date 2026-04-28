@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { logError } from "../_shared/logger.ts";
 
 // generate-pt-challan
 //
@@ -218,6 +219,7 @@ serve(async (req) => {
       warnings,
     });
   } catch (err) {
+    logError("generate-pt-challan", err);
     return json({ error: (err as Error).message }, 500);
   }
 });
