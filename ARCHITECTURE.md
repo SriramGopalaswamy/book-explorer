@@ -158,12 +158,12 @@ Key functions:
 - No env var (`VITE_DEV_MODE=true`) can re-enable in production builds.
 
 ### Known security gaps (open)
-| Gap | Risk | Fix |
+| Gap | Risk | Status |
 |---|---|---|
-| `ms365-auth` hardcodes `DEFAULT_ORG_ID` | All MS365 tokens written to org `000...001` — broken for any second tenant | Resolve org from authenticated user's profile |
-| `shopify-webhook` / `whatsapp-webhook` — no HMAC verification | Unauthenticated callers can inject fake events | Verify `X-Shopify-Hmac-Sha256` / `X-Hub-Signature` headers |
-| `ai-agent` — no rate limiting | Prompt injection or abuse could exhaust LLM budget | Add per-org request quota in Edge Function |
-| Seed data — no production guard (partially fixed) | `seed.sql` could be run against live instance | Guard checks for real orgs (added 2026-04-28); other seed files unguarded |
+| `ai-agent` — no rate limiting | Prompt injection or abuse could exhaust LLM budget | **Open** — add per-org request quota in Edge Function |
+| Seed data — no production guard (partially fixed) | `seed.sql` could be run against live instance | Mitigated — org-name guard added 2026-04-28; other seed files unguarded |
+| `ms365-auth` hardcodes `DEFAULT_ORG_ID` | All MS365 tokens written to org `000...001` — broken for any second tenant | **Fixed 2026-04-28** — resolves org from `organization_settings.sso_domain` via email domain lookup |
+| `shopify-webhook` / `whatsapp-webhook` — no HMAC verification | Unauthenticated callers can inject fake events | **Not a gap** — HMAC verification already implemented in both functions |
 
 ---
 
@@ -181,8 +181,8 @@ Scoring: **S** = Severity (1–10), **O** = Occurrence likelihood (1–10), **D*
 | 6 | Rollback deletes wrong financial_records row | ReimbursementsFinance | 8 | 3 | 8 | 192 | Fixed — rollback by captured ID (PR #197) |
 | 7 | Module access bypassed (subscription not enforced) | SubscriptionGuard | 7 | 6 | 6 | 252 | Fixed — MODULE_PATH_MAP enforcement added 2026-04-28 |
 | 8 | DevMode enabled in production via env var | systemFlags.ts | 9 | 2 | 5 | 90 | Fixed — hard-coded off in production build |
-| 9 | MS365 tokens always written to org 000…001 | ms365-auth Edge Fn | 9 | 8 | 3 | 216 | **Open** — breaks any second tenant |
-| 10 | Webhook events injected without HMAC check | shopify/whatsapp webhooks | 7 | 5 | 6 | 210 | **Open** |
+| 9 | MS365 tokens always written to org 000…001 | ms365-auth Edge Fn | 9 | 8 | 3 | 216 | Fixed 2026-04-28 — org resolved from email domain via organization_settings |
+| 10 | Webhook events injected without HMAC check | shopify/whatsapp webhooks | 7 | 5 | 6 | 210 | Not a gap — HMAC verification already present in both functions |
 | 11 | ai-agent has no rate limit — budget exhaustion / prompt injection | ai-agent Edge Fn | 7 | 4 | 7 | 196 | **Open** |
 | 12 | GL double-entry not auto-posted from operational events | financial-engine | 8 | 7 | 4 | 224 | **Open** — triggers partially wired |
 | 13 | financial_records diverges from gl_accounts (stale CQRS) | DB triggers | 7 | 5 | 7 | 245 | **Open** — trigger coverage incomplete |
@@ -190,7 +190,7 @@ Scoring: **S** = Severity (1–10), **O** = Occurrence likelihood (1–10), **D*
 | 15 | Flash-of-denied for authorized users (PermissionGate) | PermissionGate.tsx | 4 | 9 | 5 | 180 | Fixed — loading guard for inline mode (PR #197) |
 | 16 | Payroll totalRecords shows filtered count not org-wide count | usePayroll.ts | 5 | 8 | 6 | 240 | Fixed — usePayrollOrgRecordCount hook |
 | 17 | PayrollEnginePanel overrides parent period on tab mount | PayrollEnginePanel | 6 | 8 | 7 | 336 | Fixed — removed onMonthChange on mount |
-| 18 | 382 migrations with timestamp collisions — replay risk | supabase/migrations | 6 | 3 | 6 | 108 | **Open** — needs squashing |
+| 18 | 382 migrations with timestamp collisions — replay risk | supabase/migrations | 6 | 3 | 6 | 108 | Partially fixed 2026-04-28 — 3 collision pairs renamed; full squash requires live DB dump (playbook in supabase/README.md) |
 | 19 | seed.sql runnable against production instance | supabase/seed.sql | 9 | 2 | 5 | 90 | Mitigated — org-name guard added 2026-04-28 |
 | 20 | SuperAdmin cannot write role_permissions (SELECT-only RLS) | role_permissions | 7 | 10 | 4 | 280 | Fixed — FOR ALL policy (migration 20260428100000) |
 
@@ -200,12 +200,12 @@ Scoring: **S** = Severity (1–10), **O** = Occurrence likelihood (1–10), **D*
 
 ### P0 — Live risks (fix before next customer onboarding)
 
-| Item | Why urgent |
-|---|---|
-| MS365 `DEFAULT_ORG_ID` → resolve from user profile | Breaks all MS365 features for any org except org `000…001` |
-| Webhook HMAC verification (Shopify + WhatsApp) | Unauthenticated event injection — data integrity risk |
-| `ai-agent` rate limiting (per-org quota) | Uncapped LLM spend + prompt injection surface |
-| GL double-entry auto-posting triggers (Tier 1 → Tier 2) | Financial reports diverge from operational data — compliance risk |
+| Item | Why urgent | Status |
+|---|---|---|
+| `ai-agent` rate limiting (per-org quota) | Uncapped LLM spend + prompt injection surface | **Open** |
+| GL double-entry auto-posting triggers (Tier 1 → Tier 2) | Financial reports diverge from operational data — compliance risk | **Open** |
+| MS365 `DEFAULT_ORG_ID` → resolve from user profile | Breaks all MS365 features for any org except org `000…001` | **Fixed 2026-04-28** |
+| Webhook HMAC verification (Shopify + WhatsApp) | Unauthenticated event injection — data integrity risk | **Not a gap** — already implemented |
 
 ### P1 — High value, low risk (next sprint)
 
@@ -243,7 +243,7 @@ Scoring: **S** = Severity (1–10), **O** = Occurrence likelihood (1–10), **D*
 | 382 migrations, some with timestamp collisions | `supabase/migrations/` | Slow environment setup, replay risk | High — requires `supabase db dump` on live |
 | `journal_entries` + `journal_entry_lines` not formally deprecated | Multiple migrations | Confusion about canonical GL | Medium |
 | `chart_of_accounts` not formally deprecated | Multiple hooks | Dead code used in some dashboard queries | Low |
-| `ms365-auth` hardcodes `DEFAULT_ORG_ID` (5 occurrences) | `supabase/functions/ms365-auth/index.ts` | Breaks multi-tenant MS365 | Medium |
+| `ms365-auth` multi-tenant fix | `supabase/functions/ms365-auth/index.ts` | Fixed 2026-04-28 — org resolved from email domain | ✅ Done |
 | RBAC matrix in `role_permissions` not used by RLS policies | `supabase/migrations/20260417*` | Two parallel permission systems | High |
 | `ai-chat` and `ai-analytics` Edge Functions still deployed | `supabase/functions/ai-chat/` | Dead surface area, security scan noise | Low |
 | 50+ stale architecture markdown files (being deleted) | Root directory | Misleads developers | Low (in progress) |
