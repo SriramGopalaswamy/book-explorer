@@ -321,6 +321,14 @@ Deno.serve(async (req) => {
               }
               if (fbProfile?.status === "pending_approval") await supabase.from("profiles").update({ status: "active" }).eq("user_id", fbUser.id);
               await syncProfileFromMS365(supabase, fbUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
+              const { data: fbRole } = await supabase.from("user_roles").select("id").eq("user_id", fbUser.id).maybeSingle();
+              if (!fbRole) {
+                await supabase.from("user_roles").insert({
+                  user_id: fbUser.id,
+                  role: isAdminEmail ? "admin" : "employee",
+                  organization_id: organizationId,
+                });
+              }
             }
             return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
