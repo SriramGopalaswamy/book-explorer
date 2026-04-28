@@ -43,7 +43,7 @@ export function useSubmitForReview() {
         entity_type: "payroll_run",
         entity_id: runId,
         metadata: { organization_id: callerProfile.organization_id },
-      }).catch(() => {});
+      }).catch((err) => console.error("audit log failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -109,7 +109,7 @@ export function useApprovePayroll() {
         entity_type: "payroll_run",
         entity_id: runId,
         metadata: { organization_id: profile.organization_id, roles: roles.map((r: any) => r.role) },
-      }).catch(() => {});
+      }).catch((err) => console.error("audit log failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -157,7 +157,7 @@ export function useLockApprovedPayroll() {
         entity_type: "payroll_run",
         entity_id: runId,
         metadata: { organization_id: callerProfile.organization_id },
-      }).catch(() => {});
+      }).catch((err) => console.error("audit log failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
