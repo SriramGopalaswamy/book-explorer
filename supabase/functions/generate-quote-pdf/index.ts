@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -402,7 +403,7 @@ serve(async (req) => {
       },
     });
   } catch (error) {
-    console.error("Error generating quote PDF:", error);
+    logError("generate-quote-pdf", error);
     return new Response(
       JSON.stringify({ error: (error as Error).message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

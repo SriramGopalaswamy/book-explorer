@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 // ═══════════════════════════════════════════════════════════════
 // GRX10 Books — Biometric Attendance PDF Parser v7
@@ -292,7 +293,7 @@ Call extract_attendance with the data.`;
       try {
         return await parseWithGeminiText(assistantText);
       } catch (e: any) {
-        console.error(`[VISION] Text-parser fallback failed: ${e.message}`);
+        logError("parse-attendance", e);
       }
     }
 
@@ -390,7 +391,7 @@ function extractToolCallResult(result: any): any | null {
         ? JSON.parse(toolCall.function.arguments)
         : toolCall.function.arguments;
     } catch (e) {
-      console.error(`[PARSE] Tool call JSON parse failed: ${e}`);
+      logError("parse-attendance", e);
     }
   }
   // Fallback: try content
@@ -895,7 +896,7 @@ Deno.serve(async (req) => {
         extractedText = text.replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
         console.log(`[MAIN] Text extracted: ${extractedText.length} chars`);
       } catch (e: any) {
-        console.error(`[MAIN] Text extraction failed: ${e.message}`);
+        logError("parse-attendance", e);
       }
 
       // Step 1b: If local extraction is weak, run vision OCR-to-text first
@@ -908,7 +909,7 @@ Deno.serve(async (req) => {
           }
           console.log(`[MAIN] Vision OCR text extracted: ${visionText.length} chars`);
         } catch (ocrErr: any) {
-          console.error(`[MAIN] Vision OCR text failed: ${ocrErr.message}`);
+          logError("parse-attendance", ocrErr);
         }
       }
 
@@ -919,7 +920,7 @@ Deno.serve(async (req) => {
           result = await parseWithGeminiText(extractedText);
           console.log(`[MAIN] Gemini text parsed: ${result.employees.length} employees`);
         } catch (textErr: any) {
-          console.error(`[MAIN] Gemini text failed: ${textErr.message}`);
+          logError("parse-attendance", textErr);
           // Fall through to local regex and then vision
         }
       }

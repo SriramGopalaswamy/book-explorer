@@ -1,6 +1,7 @@
 // deno-lint-ignore-file
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,7 +247,7 @@ Deno.serve(async (req) => {
     // Accept organization_id at top level or inside payload
     requestOrgId = body.organization_id || (payload as any)?.organization_id || null;
   } catch (err) {
-    console.error("Failed to parse request body:", err);
+    logError("send-notification-email", err, { stage: "parse_body" });
     return new Response(
       JSON.stringify({ error: "Invalid JSON body" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -335,7 +336,7 @@ Deno.serve(async (req) => {
         const { data: rp } = await supabase.from("profiles").select("user_id, email").in("email", recipientEmails).not("user_id", "is", null);
         recipientProfiles = rp || [];
       } catch (err) {
-        console.error("memo_published: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "memo_published", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -378,7 +379,7 @@ Deno.serve(async (req) => {
           manager = mgr;
         }
       } catch (err) {
-        console.error("leave_request_created: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "leave_request_created", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -436,7 +437,7 @@ Deno.serve(async (req) => {
           manager = mgr;
         }
       } catch (err) {
-        console.error("leave_request_decided: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "leave_request_decided", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -500,7 +501,7 @@ Deno.serve(async (req) => {
           manager = mgr;
         }
       } catch (err) {
-        console.error("correction_request_created: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "correction_request_created", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -557,7 +558,7 @@ Deno.serve(async (req) => {
           manager = mgr;
         }
       } catch (err) {
-        console.error("correction_request_decided: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "correction_request_decided", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -614,7 +615,7 @@ Deno.serve(async (req) => {
           manager = mgr;
         }
       } catch (err) {
-        console.error("reimbursement_submitted: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "reimbursement_submitted", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -667,7 +668,7 @@ Deno.serve(async (req) => {
         if (rErr || !data) throw new Error(`Reimbursement not found: ${rErr?.message}`);
         reimbursement = data;
       } catch (err) {
-        console.error("reimbursement_manager_decided: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "reimbursement_manager_decided", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -744,7 +745,7 @@ Deno.serve(async (req) => {
         if (rErr || !data) throw new Error(`Reimbursement not found: ${rErr?.message}`);
         reimbursement = data;
       } catch (err) {
-        console.error("reimbursement_finance_decided: data fetch failed:", err);
+        logError("send-notification-email", err, { event: "reimbursement_finance_decided", stage: "data_fetch" });
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -843,7 +844,7 @@ Deno.serve(async (req) => {
           );
         }
       } catch (err) {
-        console.error("invoice_status_changed error:", err);
+        logError("send-notification-email", err, { event: "invoice_status_changed" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -876,7 +877,7 @@ Deno.serve(async (req) => {
           await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `${icon} Bill ${bill.bill_number} — ${statusLabel}`, htmlBody);
         }
       } catch (err) {
-        console.error("bill_status_changed error:", err);
+        logError("send-notification-email", err, { event: "bill_status_changed" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -903,7 +904,7 @@ Deno.serve(async (req) => {
           await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🏷️ New Asset Registered — ${asset.name}`, htmlBody);
         }
       } catch (err) {
-        console.error("asset_registered error:", err);
+        logError("send-notification-email", err, { event: "asset_registered" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -923,7 +924,7 @@ Deno.serve(async (req) => {
           await insertNotification(supabase, fu.user_id, `📉 Depreciation Posted`, `${asset.name} (${asset.asset_tag}): ${depStr} depreciated. Book value: ${bvStr}`, "finance", "/financial/assets");
         }
       } catch (err) {
-        console.error("asset_depreciation_posted error:", err);
+        logError("send-notification-email", err, { event: "asset_depreciation_posted" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -950,7 +951,7 @@ Deno.serve(async (req) => {
           await send([{ email: creatorProfile.email, name: creatorProfile.full_name || undefined }], `🗑️ Asset Disposed — ${asset.name}`, htmlBody);
         }
       } catch (err) {
-        console.error("asset_disposed error:", err);
+        logError("send-notification-email", err, { event: "asset_disposed" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -989,7 +990,7 @@ Deno.serve(async (req) => {
           }
         }
       } catch (err) {
-        console.error("memo_submitted_for_approval error:", err);
+        logError("send-notification-email", err, { event: "memo_submitted_for_approval" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -1023,7 +1024,7 @@ Deno.serve(async (req) => {
           await send([{ email: authorProfile.email, name: authorName }], `✅ Memo Approved — "${memo.title}"`, htmlBody);
         }
       } catch (err) {
-        console.error("memo_approved error:", err);
+        logError("send-notification-email", err, { event: "memo_approved" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -1057,7 +1058,7 @@ Deno.serve(async (req) => {
           await send([{ email: authorProfile.email, name: authorName }], `❌ Memo Rejected — "${memo.title}"`, htmlBody);
         }
       } catch (err) {
-        console.error("memo_rejected error:", err);
+        logError("send-notification-email", err, { event: "memo_rejected" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -1142,7 +1143,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `${statusIcon} Payslip Dispute ${statusText} — ${dispute.pay_period}`, htmlBody);
         }
       } catch (err) {
-        console.error("payslip_dispute_reviewed error:", err);
+        logError("send-notification-email", err, { event: "payslip_dispute_reviewed" });
       }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -1153,7 +1154,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
-    console.error("send-notification-email unhandled error:", err);
+    logError("send-notification-email", err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

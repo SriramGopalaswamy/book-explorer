@@ -1,3 +1,5 @@
+import { logError } from "../_shared/logger.ts";
+
 type LovableEmailPayload = {
   version?: string
   run_id?: string
@@ -271,14 +273,14 @@ async function handleWebhook(req: Request): Promise<Response> {
         case 'missing_timestamp':
         case 'invalid_timestamp':
         case 'stale_timestamp':
-          console.error('Invalid webhook signature', { error: error.message })
+          logError("auth-email-hook", error, { code: "invalid_signature" });
           return new Response(JSON.stringify({ error: 'Invalid signature' }), {
             status: 401,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
         case 'invalid_payload':
         case 'invalid_json':
-          console.error('Invalid webhook payload', { error: error.message })
+          logError("auth-email-hook", error, { code: "invalid_payload" });
           return new Response(
             JSON.stringify({ error: 'Invalid webhook payload' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -286,7 +288,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
     }
 
-    console.error('Webhook verification failed', { error })
+    logError("auth-email-hook", error, { stage: "verification" });
     return new Response(
       JSON.stringify({ error: 'Invalid webhook payload' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
