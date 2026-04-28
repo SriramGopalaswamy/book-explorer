@@ -81,16 +81,14 @@ export function useDashboardStats() {
       // Current month journal lines — posted & non-deleted entries only
       let currLinesQ = supabase
         .from("journal_lines")
-        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
         .eq("journal_entries.is_posted", true)
-        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", currentMonthStartDate)
         .lte("journal_entries.entry_date", currentMonthEndDate);
       let lastLinesQ = supabase
         .from("journal_lines")
-        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
         .eq("journal_entries.is_posted", true)
-        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", lastMonthStartDate)
         .lte("journal_entries.entry_date", lastMonthEndDate);
 
