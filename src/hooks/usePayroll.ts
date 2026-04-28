@@ -270,33 +270,11 @@ export function useCreatePayroll() {
         }
       }
 
-      // ── Legacy path: write to payroll_records for Payroll Register UI ────
-      const { data: record, error } = await supabase
-        .from("payroll_records")
-        .insert({
-          profile_id: validated.profile_id,
-          pay_period: validated.pay_period,
-          basic_salary: validated.basic_salary,
-          hra: validated.hra,
-          transport_allowance: validated.transport_allowance,
-          other_allowances: validated.other_allowances,
-          pf_deduction: validated.pf_deduction,
-          tax_deduction: validated.tax_deduction,
-          other_deductions: validated.other_deductions,
-          lop_days: validated.lop_days ?? 0,
-          lop_deduction: validated.lop_deduction ?? 0,
-          working_days: validated.working_days ?? 0,
-          paid_days: validated.paid_days ?? 0,
-          net_pay: validated.net_pay,
-          status: validated.status ?? "draft",
-          notes: validated.notes ?? null,
-          user_id: profileRow?.user_id || user.id,
-        })
-        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-        .single();
-
-      if (error) throw error;
-      return record;
+      // payroll_records write removed (item 46): new manual entries now live only
+      // in payroll_runs + payroll_entries (engine path above). The legacy Register
+      // tab (Payroll.tsx) still reads payroll_records for historical data; bulk-upload
+      // continues writing payroll_records until the Register UI migrates to engine.
+      return { profile_id: validated.profile_id, pay_period: validated.pay_period };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });

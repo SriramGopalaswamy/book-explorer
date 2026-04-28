@@ -463,7 +463,6 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       }
 
       const payload = {
-        user_id: profile.user_id,
         profile_id: profile.id,
         organization_id: orgId || null,
         pay_period: payPeriod,
