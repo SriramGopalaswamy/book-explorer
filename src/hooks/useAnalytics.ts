@@ -3,30 +3,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 
-// ─── Re-export Chart of Accounts CRUD (used by AccountFormDialog, ChartOfAccountsTable) ───
+// ─── Chart of Accounts CRUD — backed by gl_accounts (canonical) ─────────────
+// gl_accounts is the single source of truth for the chart of accounts.
+// chart_of_accounts is deprecated and must not be written to.
 
 export interface ChartAccount {
   id: string;
-  user_id: string;
-  account_code: string;
-  account_name: string;
+  organization_id: string;
+  code: string;        // was account_code in chart_of_accounts
+  name: string;        // was account_name in chart_of_accounts
   account_type: string;
   parent_id: string | null;
   description: string | null;
   is_active: boolean;
-  opening_balance: number;
-  current_balance: number;
+  is_system: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export type ChartAccountInput = {
-  account_code: string;
-  account_name: string;
+  code: string;
+  name: string;
   account_type: string;
   description?: string | null;
-  opening_balance?: number;
-  current_balance?: number;
   is_active?: boolean;
   parent_id?: string | null;
 };
@@ -35,25 +34,38 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function useChartOfAccounts() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["chart-of-accounts", user?.id],
+    queryKey: ["chart-of-accounts", orgId],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from("chart_of_accounts").select("*").order("account_code");
+      if (!user || !orgId) return [];
+      const { data, error } = await supabase
+        .from("gl_accounts")
+        .select("id, organization_id, code, name, account_type, parent_id, description, is_active, is_system, created_at, updated_at")
+        .eq("organization_id", orgId)
+        .order("code");
       if (error) throw error;
-      return data as ChartAccount[];
+      return (data ?? []) as ChartAccount[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
 export function useCreateAccount() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ChartAccountInput) => {
       if (!user) throw new Error("Not authenticated");
-      const { data, error } = await supabase.from("chart_of_accounts").insert({ ...input, user_id: user.id }).select().single();
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
+      const { data, error } = await supabase
+        .from("gl_accounts")
+        .insert({ ...input, organization_id: orgId, is_system: false })
+        .select()
+        .single();
       if (error) throw error;
       return data;
     },
@@ -62,10 +74,19 @@ export function useCreateAccount() {
 }
 
 export function useUpdateAccount() {
+  const { data: orgData } = useUserOrganization();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...input }: ChartAccountInput & { id: string }) => {
-      const { data, error } = await supabase.from("chart_of_accounts").update(input).eq("id", id).select().single();
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
+      const { data, error } = await supabase
+        .from("gl_accounts")
+        .update(input)
+        .eq("id", id)
+        .eq("organization_id", orgId)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     },
@@ -74,10 +95,18 @@ export function useUpdateAccount() {
 }
 
 export function useDeleteAccount() {
+  const { data: orgData } = useUserOrganization();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id);
+      const orgId = orgData?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
+      const { error } = await supabase
+        .from("gl_accounts")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", orgId)
+        .eq("is_system", false);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chart-of-accounts"] }),
