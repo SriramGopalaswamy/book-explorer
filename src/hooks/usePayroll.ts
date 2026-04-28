@@ -197,12 +197,80 @@ export function useCreatePayroll() {
 
       const validated = createPayrollSchema.parse(data);
 
-      const { data: profile } = await supabase
+      const { data: profileRow } = await supabase
         .from("profiles")
-        .select("user_id")
+        .select("user_id, organization_id")
         .eq("id", validated.profile_id)
         .single();
 
+      const orgId = profileRow?.organization_id;
+
+      // ── Engine path: create payroll_run + payroll_entry ──────────────────
+      // This is the canonical record going forward. The payroll_records write
+      // below is kept for UI backwards-compat while the Register tab still reads
+      // from payroll_records. Remove payroll_records write when Register migrates.
+      if (orgId) {
+        const grossEarnings =
+          Number(validated.basic_salary) +
+          Number(validated.hra) +
+          Number(validated.transport_allowance) +
+          Number(validated.other_allowances);
+        const totalDeductions =
+          Number(validated.pf_deduction) +
+          Number(validated.tax_deduction) +
+          Number(validated.other_deductions) +
+          Number(validated.lop_deduction ?? 0);
+        const netPay = Number(validated.net_pay);
+
+        const { data: runRow } = await supabase
+          .from("payroll_runs")
+          .insert({
+            organization_id: orgId,
+            pay_period: validated.pay_period,
+            generated_by: user.id,
+            status: "draft",
+            employee_count: 1,
+            total_gross: grossEarnings,
+            total_deductions: totalDeductions,
+            total_net: netPay,
+          })
+          .select("id")
+          .single();
+
+        if (runRow?.id) {
+          const earningsBreakdown = [
+            { name: "Basic Salary", monthly: Number(validated.basic_salary) },
+            { name: "HRA", monthly: Number(validated.hra) },
+            { name: "Incentives", monthly: Number(validated.transport_allowance) },
+            { name: "Other Allowances", monthly: Number(validated.other_allowances) },
+          ].filter((e) => e.monthly > 0);
+
+          const deductionsBreakdown = [
+            { name: "PF Contribution", monthly: Number(validated.pf_deduction) },
+            { name: "TDS", monthly: Number(validated.tax_deduction) },
+            { name: "Other Deductions", monthly: Number(validated.other_deductions) + Number(validated.lop_deduction ?? 0) },
+          ].filter((d) => d.monthly > 0);
+
+          await supabase.from("payroll_entries").insert({
+            payroll_run_id: runRow.id,
+            profile_id: validated.profile_id,
+            organization_id: orgId,
+            gross_earnings: grossEarnings,
+            total_deductions: totalDeductions,
+            net_pay: netPay,
+            annual_ctc: grossEarnings * 12,
+            lwp_days: validated.lop_days ?? 0,
+            lwp_deduction: validated.lop_deduction ?? 0,
+            working_days: validated.working_days ?? 0,
+            paid_days: validated.paid_days ?? 0,
+            earnings_breakdown: earningsBreakdown,
+            deductions_breakdown: deductionsBreakdown,
+            status: "computed",
+          });
+        }
+      }
+
+      // ── Legacy path: write to payroll_records for Payroll Register UI ────
       const { data: record, error } = await supabase
         .from("payroll_records")
         .insert({
@@ -222,7 +290,7 @@ export function useCreatePayroll() {
           net_pay: validated.net_pay,
           status: validated.status ?? "draft",
           notes: validated.notes ?? null,
-          user_id: profile?.user_id || user.id,
+          user_id: profileRow?.user_id || user.id,
         })
         .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
         .single();
