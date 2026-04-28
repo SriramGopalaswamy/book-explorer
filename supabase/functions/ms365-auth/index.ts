@@ -190,6 +190,12 @@ Deno.serve(async (req) => {
 
       const ms365Profile = await profileRes.json();
       const email      = ms365Profile.mail || ms365Profile.userPrincipalName;
+      if (!email) {
+        return new Response(
+          JSON.stringify({ error: "Microsoft profile did not return an email address" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       const fullName   = ms365Profile.displayName || "";
       const jobTitle   = ms365Profile.jobTitle || null;
       const department = ms365Profile.department || null;
