@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
 
   } catch (procCallErr) {
     // Fallback: classify inline AND update invoice.status (message-processor didn't run)
-    console.warn("[email-webhook] message-processor unavailable, using inline fallback:", procCallErr);
+    logError("email-webhook", procCallErr, { stage: "message-processor" });
     const fallback = await classifyAndUpdateInline(
       supabase, subject, bodyText, invoice.id, invoice.status
     );

@@ -371,8 +371,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       { apiKey, sendUrl: callbackUrl }
     )
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send email'
-    console.error('Email API error', { error: message, run_id })
+    logError("auth-email-hook", error, { stage: "email_send", run_id });
     return new Response(JSON.stringify({ error: 'Failed to send email' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -404,7 +403,7 @@ Deno.serve(async (req) => {
   try {
     return await handleWebhook(req)
   } catch (error) {
-    console.error('Webhook handler error:', error)
+    logError("auth-email-hook", error);
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

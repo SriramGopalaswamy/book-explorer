@@ -213,7 +213,7 @@ async function sendViaMeta(
       return { sent: true, externalId: messageId, error: null };
     });
   } catch (err: any) {
-    console.warn("[messaging-service] Meta WhatsApp API exception:", err);
+    logError("messaging-service", err, { provider: "meta" });
     return { sent: false, externalId: null, error: err.message };
   }
 }
@@ -287,7 +287,7 @@ async function sendViaTwilio(
       return { sent: true, externalId: data.sid || null, error: null };
     });
   } catch (err: any) {
-    console.warn("[messaging-service] Twilio API exception:", err);
+    logError("messaging-service", err, { provider: "twilio" });
     return { sent: false, externalId: null, error: err.message };
   }
 }
@@ -367,7 +367,7 @@ async function sendViaGupshup(
       return { sent: true, externalId: data.messageId || null, error: null };
     });
   } catch (err: any) {
-    console.warn("[messaging-service] Gupshup API exception:", err);
+    logError("messaging-service", err, { provider: "gupshup" });
     return { sent: false, externalId: null, error: err.message };
   }
 }
@@ -482,7 +482,7 @@ Deno.serve(async (req) => {
         status = sendResult?.email_sent ? "sent" : "failed";
       }
     } catch (err) {
-      console.warn("[messaging-service] Failed to invoke send-notification-email:", err);
+      logError("messaging-service", err, { channel: "email", stage: "invoke" });
       status = "failed";
     }
 

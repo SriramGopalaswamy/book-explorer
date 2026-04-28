@@ -456,7 +456,7 @@ Deno.serve(async (req) => {
     reason = procResult.reason ?? "";
   } catch (err) {
     // Fallback: classify inline (mirrors email-webhook fallback pattern)
-    console.warn("[whatsapp-webhook] message-processor unavailable, using inline fallback:", err);
+    logError("whatsapp-webhook", err, { stage: "message-processor" });
     const fallback = await classifyInlineFallback(
       supabase, messageContent, invoice.id, invoice.status, messageRow?.id ?? null
     );
