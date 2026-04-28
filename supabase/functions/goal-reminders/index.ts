@@ -51,7 +51,7 @@ async function getMsGraphToken(): Promise<string | null> {
     tokenExpiresAt = Date.now() + (data.expires_in * 1000);
     return cachedToken;
   } catch (err) {
-    console.warn("getMsGraphToken exception:", err);
+    logError("goal-reminders", err);
     return null;
   }
 }
@@ -97,7 +97,7 @@ async function sendEmail(
     }
     return true;
   } catch (err) {
-    console.warn("sendEmail exception:", err);
+    logError("goal-reminders", err);
     return false;
   }
 }
@@ -120,7 +120,7 @@ async function insertNotification(
     });
     if (error) console.warn("Failed to insert notification:", error.message);
   } catch (err) {
-    console.warn("insertNotification exception:", err);
+    logError("goal-reminders", err);
   }
 }
 
