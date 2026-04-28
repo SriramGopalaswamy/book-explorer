@@ -288,6 +288,26 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   };
 
   const handleDownload = async () => {
+    const r = record as any;
+
+    // Engine path: payroll_entries records carry payroll_run_id.
+    // Use server-side PDF generation and open the returned signed URL.
+    if (r.payroll_run_id) {
+      try {
+        const { data, error } = await supabase.functions.invoke("generate-payslip", {
+          body: { entry_id: record.id },
+        });
+        if (!error && data?.signed_url) {
+          window.open(data.signed_url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        console.error("Server PDF generation failed:", error ?? data);
+      } catch (err) {
+        console.error("Edge Function invoke failed:", err);
+      }
+    }
+
+    // Legacy path (payroll_records) or fallback: client-side html2pdf.js
     const container = document.createElement("div");
     container.style.cssText = "position:fixed;left:-10000px;top:0;width:700px;background:#ffffff;z-index:-1;";
     document.body.appendChild(container);
@@ -307,7 +327,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
         if (img && !img.complete) {
           img.onload = () => resolve();
           img.onerror = () => resolve();
-          setTimeout(resolve, 2000); // hard cap
+          setTimeout(resolve, 2000);
         } else {
           setTimeout(resolve, 400);
         }

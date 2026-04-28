@@ -22,6 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useEInvoices, EInvoiceItem } from "@/hooks/useEInvoices";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 
 const INDIAN_STATES: Record<string, string> = {
@@ -167,7 +168,7 @@ export default function EInvoices() {
     setCancelRemark("");
   }
 
-  function downloadEInvoicePDF(inv: any) {
+  async function downloadEInvoicePDF(inv: any) {
     const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const isInter = inv.seller_state_code && inv.buyer_state_code && inv.seller_state_code !== inv.buyer_state_code;
     const lineItems = (inv.items || []) as EInvoiceItem[];
@@ -272,6 +273,27 @@ export default function EInvoices() {
       </body></html>
     `;
 
+    // Try server-side PDF generation first via generate-invoice-pdf Edge Function
+    try {
+      const { data: pdfBlob, error: fnErr } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoiceId: inv.id },
+      });
+      if (!fnErr && pdfBlob instanceof Blob && pdfBlob.size > 0) {
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `E-Invoice-${String(inv.doc_number).replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("E-Invoice PDF downloaded");
+        return;
+      }
+      console.error("generate-invoice-pdf failed, falling back to client-side:", fnErr ?? "empty blob");
+    } catch (fnEx) {
+      console.error("Edge Function invoke failed, falling back to client-side:", fnEx);
+    }
+
+    // Fallback: client-side html2pdf.js
     import("html2pdf.js").then((html2pdfModule) => {
       const html2pdf = html2pdfModule.default;
       const container = document.createElement("div");
@@ -284,8 +306,6 @@ export default function EInvoices() {
       container.style.pointerEvents = "none";
       document.body.appendChild(container);
 
-      // Use Shadow DOM so the invoice <style> rules are scoped and cannot
-      // leak into the live page — same pattern used by PaySlipDialog.tsx.
       const shadow = container.attachShadow({ mode: "open" });
       const parsed = new DOMParser().parseFromString(html, "text/html");
       const style = parsed.querySelector("style");
