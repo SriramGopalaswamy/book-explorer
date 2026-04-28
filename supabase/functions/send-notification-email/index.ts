@@ -532,7 +532,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `📋 Correction Request Submitted`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("correction_request_created: email send failed (in-app notifications already created):", emailErr);
+        logError("send-notification-email", emailErr, { event: "correction_request_created", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -589,7 +589,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `${icon} Attendance Correction ${statusText}`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("correction_request_decided: email send failed:", emailErr);
+        logError("send-notification-email", emailErr, { event: "correction_request_decided", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -648,7 +648,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `📋 Reimbursement Submitted — Awaiting Manager Approval`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("reimbursement_submitted: email send failed:", emailErr);
+        logError("send-notification-email", emailErr, { event: "reimbursement_submitted", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -703,7 +703,7 @@ Deno.serve(async (req) => {
             );
           }
         } catch (err) {
-          console.warn("Failed to notify Finance users of manager-approved reimbursement:", err);
+          logError("send-notification-email", err, { event: "reimbursement_manager_decided", stage: "finance_notify" });
         }
       }
 
@@ -725,7 +725,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("reimbursement_manager_decided: email send failed:", emailErr);
+        logError("send-notification-email", emailErr, { event: "reimbursement_manager_decided", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -782,7 +782,7 @@ Deno.serve(async (req) => {
           await send([{ email: employeeEmail, name: employeeName }], `${icon} Reimbursement ${statusText} — ${amountStr}`, htmlBody);
         }
       } catch (emailErr) {
-        console.warn("reimbursement_finance_decided: email send failed:", emailErr);
+        logError("send-notification-email", emailErr, { event: "reimbursement_finance_decided", stage: "email_send" });
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
