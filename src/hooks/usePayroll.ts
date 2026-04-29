@@ -424,6 +424,8 @@ export function useUpdatePayroll() {
           { name: "Incentives", monthly: Number(data.transport_allowance ?? 0) },
           { name: "Other Allowances", monthly: Number(data.other_allowances ?? 0) },
         ].filter((e) => e.monthly > 0);
+        // deductionsBreakdown is derived from the same data fields as pf_employee/tds_amount
+        // below — both written in one update call, so they can never drift.
         const deductionsBreakdown = [
           { name: "PF Contribution", monthly: Number(data.pf_deduction ?? 0) },
           { name: "TDS", monthly: Number(data.tax_deduction ?? 0) },

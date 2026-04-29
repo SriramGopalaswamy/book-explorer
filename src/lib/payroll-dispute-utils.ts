@@ -24,10 +24,15 @@ export async function fetchPayslipForDispute(dispute: {
   // column filter — avoids relying on PostgREST embedded-resource filter syntax
   // (.eq("payroll_runs.pay_period", …)) which may silently no-op on older versions.
   if (dispute.profile_id && dispute.pay_period) {
+    // order + limit(1) makes the lookup deterministic when multiple runs share the
+    // same pay_period (e.g. admin re-runs); maybeSingle() without limit returns null
+    // silently when >1 row matches, which would drop us to the legacy path.
     const { data: run } = await supabase
       .from("payroll_runs")
       .select("id")
       .eq("pay_period", dispute.pay_period)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (run?.id) {

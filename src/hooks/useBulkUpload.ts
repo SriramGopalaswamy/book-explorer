@@ -227,7 +227,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const existingRecordCheck = useCallback(async (): Promise<string | null> => {
+  const existingRecordCheck = useCallback(async (): Promise<{ message: string; canOverride: boolean } | null> => {
     if (!user) return null;
     const { data: profile } = await supabase
       .from("profiles")
@@ -242,14 +242,21 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       .select("id, status")
       .eq("organization_id", orgId)
       .eq("pay_period", payPeriod)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (!run) return null;
 
-    // Terminal runs are hard-blocked by onUpload with their own error message.
-    // Don't show a "Yes, overwrite" confirmation for something that can't be overwritten.
+    // Terminal runs cannot be overwritten — surface a proactive block message so the
+    // user learns before clicking Upload rather than after the upload fails.
     const terminalStatuses = ["under_review", "approved", "locked"];
-    if (terminalStatuses.includes(run.status)) return null;
+    if (terminalStatuses.includes(run.status)) {
+      return {
+        message: `The payroll run for ${formatPayPeriod(payPeriod)} is ${run.status} and cannot be overwritten.`,
+        canOverride: false,
+      };
+    }
 
     const { count } = await supabase
       .from("payroll_entries")
@@ -257,7 +264,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       .eq("payroll_run_id", run.id);
 
     if (count && count > 0) {
-      return `${count} payroll entr${count === 1 ? "y" : "ies"} already exist for ${formatPayPeriod(payPeriod)}. Uploading will overwrite them. This cannot be undone.`;
+      return {
+        message: `${count} payroll entr${count === 1 ? "y" : "ies"} already exist for ${formatPayPeriod(payPeriod)}. Uploading will overwrite them. This cannot be undone.`,
+        canOverride: true,
+      };
     }
     return null;
   }, [user, payPeriod]);
