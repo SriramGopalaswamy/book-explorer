@@ -246,11 +246,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
     if (!run) return null;
 
-    // Terminal runs are already blocked by onUpload — only warn for editable runs
+    // Terminal runs are hard-blocked by onUpload with their own error message.
+    // Don't show a "Yes, overwrite" confirmation for something that can't be overwritten.
     const terminalStatuses = ["under_review", "approved", "locked"];
-    if (terminalStatuses.includes(run.status)) {
-      return `A payroll run for ${formatPayPeriod(payPeriod)} is already ${run.status} and cannot be modified.`;
-    }
+    if (terminalStatuses.includes(run.status)) return null;
 
     const { count } = await supabase
       .from("payroll_entries")
