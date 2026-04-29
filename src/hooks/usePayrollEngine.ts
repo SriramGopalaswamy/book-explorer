@@ -154,7 +154,10 @@ export function useGeneratePayroll() {
       //      effective_to   >= first day of period (or null → no end bound)
       const payPeriodStart = `${payPeriod}-01`;
       const [pyStr, pmStr] = payPeriod.split("-").map(Number);
-      const payPeriodEnd = new Date(pyStr, pmStr, 0).toISOString().slice(0, 10);
+      // Use getDate() on a local Date and format directly — toISOString() would
+      // convert local midnight to UTC and shift the day back in UTC+ timezones.
+      const lastDay = new Date(pyStr, pmStr, 0).getDate();
+      const payPeriodEnd = `${pyStr}-${String(pmStr).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
