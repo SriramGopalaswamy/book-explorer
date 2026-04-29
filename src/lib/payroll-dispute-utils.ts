@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Fetch the payslip display record for a dispute review dialog.
  *
- * Strategy (two-path, engine wins):
- *  1. If payroll_record_id given → try payroll_records (legacy FK constraint requires this)
- *  2. If profile_id + pay_period given → also probe payroll_entries (engine path);
- *     the engine entry is preferred because it carries richer breakdown JSON.
+ * Strategy (engine wins):
+ *  1. If profile_id + pay_period given → probe payroll_entries first (engine path);
+ *     preferred because it carries richer breakdown JSON.
+ *  2. Fall back to payroll_records via payroll_record_id (legacy FK) or
+ *     profile_id + pay_period (legacy row).
  *
  * Returns a flat PayrollRecord-shaped object (as `any`) with `profiles` nested,
  * suitable for the PayslipSummarySection / dispute review inline summary.
