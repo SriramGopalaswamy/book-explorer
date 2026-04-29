@@ -227,6 +227,42 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
   const { user } = useAuth();
   const qc = useQueryClient();
 
+  const existingRecordCheck = useCallback(async (): Promise<string | null> => {
+    if (!user) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const orgId = profile?.organization_id;
+    if (!orgId) return null;
+
+    const { data: run } = await supabase
+      .from("payroll_runs")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod)
+      .maybeSingle();
+
+    if (!run) return null;
+
+    // Terminal runs are already blocked by onUpload — only warn for editable runs
+    const terminalStatuses = ["under_review", "approved", "locked"];
+    if (terminalStatuses.includes(run.status)) {
+      return `A payroll run for ${formatPayPeriod(payPeriod)} is already ${run.status} and cannot be modified.`;
+    }
+
+    const { count } = await supabase
+      .from("payroll_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("payroll_run_id", run.id);
+
+    if (count && count > 0) {
+      return `${count} payroll entr${count === 1 ? "y" : "ies"} already exist for ${formatPayPeriod(payPeriod)}. Uploading will overwrite them. This cannot be undone.`;
+    }
+    return null;
+  }, [user, payPeriod]);
+
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
@@ -512,6 +548,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     templateFileName: "payroll_register_template.csv",
     templateContent: payrollTemplate,
     onUpload,
+    existingRecordCheck,
   };
 }
 
