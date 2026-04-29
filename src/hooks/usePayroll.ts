@@ -366,6 +366,7 @@ export function useCreatePayroll() {
 
 // ── Payroll lifecycle state-machine ──────────────────────────
 const PAYROLL_TRANSITIONS: Record<string, string[]> = {
+  computed: ["draft", "pending", "processed", "cancelled"], // engine-only initial status
   draft: ["under_review", "cancelled"],
   under_review: ["approved", "draft", "cancelled"],
   approved: ["pending", "cancelled"],
@@ -403,6 +404,13 @@ export function useUpdatePayroll() {
         if (PAYROLL_TERMINAL.includes(engineCheck.status)) {
           throw new Error(`Cannot modify a "${engineCheck.status}" payroll record.`);
         }
+        // Enforce state machine for status transitions (same rules as legacy path)
+        if (data.status && data.status !== engineCheck.status) {
+          const allowed = PAYROLL_TRANSITIONS[engineCheck.status];
+          if (allowed && !allowed.includes(data.status)) {
+            throw new Error(`Cannot transition payroll from "${engineCheck.status}" to "${data.status}".`);
+          }
+        }
         const gross =
           Number(data.basic_salary ?? 0) + Number(data.hra ?? 0) +
           Number(data.transport_allowance ?? 0) + Number(data.other_allowances ?? 0);
@@ -435,6 +443,9 @@ export function useUpdatePayroll() {
             paid_days: data.paid_days ?? 0,
             earnings_breakdown: earningsBreakdown,
             deductions_breakdown: deductionsBreakdown,
+            // Keep denormalized columns in sync so statutory hooks don't read stale values
+            pf_employee: Number(data.pf_deduction ?? 0),
+            tds_amount: Number(data.tax_deduction ?? 0),
             ...(data.status ? { status: data.status } : {}),
           })
           .eq("id", id)
@@ -573,7 +584,8 @@ export function useBulkDeletePayroll() {
         .filter((e: any) => ["computed", "draft", "cancelled"].includes(e.status))
         .map((e: any) => e);
       if (deletableEngine.length > 0) {
-        await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
+        const { error: delErr } = await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
+        if (delErr) throw delErr;
         for (const e of deletableEngine) {
           if (e.payroll_run_id) {
             const { count } = await supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("payroll_run_id", e.payroll_run_id);
@@ -590,7 +602,8 @@ export function useBulkDeletePayroll() {
         const deletableLegacy = (legacyChecks ?? [])
           .filter((r: any) => ["draft", "cancelled"].includes(r.status)).map((r: any) => r.id);
         if (deletableLegacy.length > 0) {
-          await supabase.from("payroll_records").delete().in("id", deletableLegacy).eq("organization_id", callerOrgId);
+          const { error: legDelErr } = await supabase.from("payroll_records").delete().in("id", deletableLegacy).eq("organization_id", callerOrgId);
+          if (legDelErr) throw legDelErr;
           legacyDeleted = deletableLegacy.length;
         }
       }

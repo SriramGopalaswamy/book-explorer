@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Fetch the payslip display record for a dispute review dialog.
  *
- * Strategy (two-path, engine wins):
- *  1. If payroll_record_id given → try payroll_records (legacy FK constraint requires this)
- *  2. If profile_id + pay_period given → also probe payroll_entries (engine path);
- *     the engine entry is preferred because it carries richer breakdown JSON.
+ * Strategy (engine wins):
+ *  1. If profile_id + pay_period given → probe payroll_entries first (engine path);
+ *     preferred because it carries richer breakdown JSON.
+ *  2. Fall back to payroll_records via payroll_record_id (legacy FK) or
+ *     profile_id + pay_period (legacy row).
  *
  * Returns a flat PayrollRecord-shaped object (as `any`) with `profiles` nested,
  * suitable for the PayslipSummarySection / dispute review inline summary.
@@ -19,20 +20,31 @@ export async function fetchPayslipForDispute(dispute: {
   const profileSelect = "full_name, department, job_title";
 
   // ── Try engine path first if we have profile+period ──────────────────────
+  // Two-step lookup: resolve payroll_run_id first, then query entries by direct
+  // column filter — avoids relying on PostgREST embedded-resource filter syntax
+  // (.eq("payroll_runs.pay_period", …)) which may silently no-op on older versions.
   if (dispute.profile_id && dispute.pay_period) {
-    const { data: entry } = await supabase
-      .from("payroll_entries")
-      .select(
-        "id, profile_id, gross_earnings, total_deductions, net_pay, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, created_at, updated_at, payroll_runs!inner(pay_period), profiles!profile_id(" + profileSelect + ")"
-      )
-      .eq("profile_id", dispute.profile_id)
-      .eq("payroll_runs.pay_period", dispute.pay_period)
-      .order("created_at", { ascending: false })
-      .limit(1)
+    const { data: run } = await supabase
+      .from("payroll_runs")
+      .select("id")
+      .eq("pay_period", dispute.pay_period)
       .maybeSingle();
 
-    if (entry) {
-      return normalizeEngineForDisplay(entry);
+    if (run?.id) {
+      const { data: entry } = await supabase
+        .from("payroll_entries")
+        .select(
+          "id, profile_id, gross_earnings, total_deductions, net_pay, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, created_at, updated_at, profiles!profile_id(" + profileSelect + ")"
+        )
+        .eq("profile_id", dispute.profile_id)
+        .eq("payroll_run_id", run.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (entry) {
+        return normalizeEngineForDisplay(entry, dispute.pay_period);
+      }
     }
   }
 
@@ -61,7 +73,7 @@ export async function fetchPayslipForDispute(dispute: {
   return null;
 }
 
-function normalizeEngineForDisplay(e: any): any {
+function normalizeEngineForDisplay(e: any, payPeriod: string): any {
   const getComp = (breakdown: any[], ...names: string[]) => {
     for (const n of names) {
       const item = (breakdown ?? []).find((c: any) =>
@@ -75,7 +87,7 @@ function normalizeEngineForDisplay(e: any): any {
   return {
     id: e.id,
     profile_id: e.profile_id,
-    pay_period: e.payroll_runs?.pay_period ?? "",
+    pay_period: payPeriod,
     basic_salary: getComp(e.earnings_breakdown, "basic"),
     hra: getComp(e.earnings_breakdown, "hra"),
     transport_allowance: getComp(e.earnings_breakdown, "incentiv", "transport"),
