@@ -443,6 +443,9 @@ export function useUpdatePayroll() {
             paid_days: data.paid_days ?? 0,
             earnings_breakdown: earningsBreakdown,
             deductions_breakdown: deductionsBreakdown,
+            // Keep denormalized columns in sync so statutory hooks don't read stale values
+            pf_employee: Number(data.pf_deduction ?? 0),
+            tds_amount: Number(data.tax_deduction ?? 0),
             ...(data.status ? { status: data.status } : {}),
           })
           .eq("id", id)
@@ -599,7 +602,8 @@ export function useBulkDeletePayroll() {
         const deletableLegacy = (legacyChecks ?? [])
           .filter((r: any) => ["draft", "cancelled"].includes(r.status)).map((r: any) => r.id);
         if (deletableLegacy.length > 0) {
-          await supabase.from("payroll_records").delete().in("id", deletableLegacy).eq("organization_id", callerOrgId);
+          const { error: legDelErr } = await supabase.from("payroll_records").delete().in("id", deletableLegacy).eq("organization_id", callerOrgId);
+          if (legDelErr) throw legDelErr;
           legacyDeleted = deletableLegacy.length;
         }
       }
