@@ -366,6 +366,7 @@ export function useCreatePayroll() {
 
 // ── Payroll lifecycle state-machine ──────────────────────────
 const PAYROLL_TRANSITIONS: Record<string, string[]> = {
+  computed: ["draft", "pending", "processed", "cancelled"], // engine-only initial status
   draft: ["under_review", "cancelled"],
   under_review: ["approved", "draft", "cancelled"],
   approved: ["pending", "cancelled"],
