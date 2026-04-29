@@ -149,11 +149,13 @@ export function useGeneratePayroll() {
       if (runErr) throw runErr;
 
       // 3. Fetch all active compensation structures for this org
+      const payPeriodStart = `${payPeriod}-01`;
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
         .eq("organization_id", orgId)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .or(`effective_to.is.null,effective_to.gte.${payPeriodStart}`);
       if (sErr) throw sErr;
 
       // Filter out inactive/terminated employees

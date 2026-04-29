@@ -43,7 +43,7 @@ import {
   type PayslipDispute,
 } from "@/hooks/usePayslipDisputes";
 import {
-  usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
+  usePayrollRecords, usePayrollStats, useUpdatePayroll,
   useDeletePayroll, useBulkDeletePayroll, useProcessPayroll, useMyPayrollRecords,
   usePayrollOrgRecordCount,
   type PayrollRecord, type CreatePayrollData,
@@ -111,8 +111,14 @@ const periods24 = () => {
 const statusStyles: Record<string, string> = {
   locked: "bg-green-500/10 text-green-600 border-green-500/30",
   approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  hr_approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  finance_approved: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30",
   under_review: "bg-amber-500/10 text-amber-600 border-amber-500/30",
   draft: "bg-muted text-muted-foreground border-border",
+  processing: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  completed: "bg-green-500/10 text-green-600 border-green-500/30",
+  failed: "bg-destructive/10 text-destructive border-destructive/30",
+  cancelled: "bg-muted text-muted-foreground border-border",
   // Legacy fallbacks
   processed: "bg-green-500/10 text-green-600 border-green-500/30",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/30",
@@ -451,7 +457,7 @@ function PayrollRegisterEmptyState({
   /** Non-superseded record count for this period. */
   activeRecords: number;
   currentRole: string | null | undefined;
-  onAdd: () => void;
+  onAdd?: () => void;
 }) {
   const periodStr = periodLabel(period);
 
@@ -486,7 +492,7 @@ function PayrollRegisterEmptyState({
           <strong>Payroll Engine</strong> tab to generate a corrected run, or add a
           record manually.
         </p>
-        {currentRole !== "payroll" && (
+        {currentRole !== "payroll" && onAdd && (
           <Button variant="outline" className="mt-2" onClick={onAdd}>
             <Plus className="h-4 w-4 mr-1" /> Add Corrected Record
           </Button>
@@ -519,7 +525,7 @@ function PayrollRegisterEmptyState({
           {periodStr} via the <strong>Payroll Engine</strong> tab.
         </p>
       )}
-      {!isPayrollRole && totalRecords === 0 && (
+      {!isPayrollRole && totalRecords === 0 && onAdd && (
         <Button variant="outline" className="mt-2" onClick={onAdd}>
           <Plus className="h-4 w-4 mr-1" /> Add First Record
         </Button>
@@ -535,7 +541,6 @@ export default function Payroll() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRecord | null>(null);
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
@@ -566,7 +571,6 @@ export default function Payroll() {
   const { data: employees = [] } = useEmployees();
   // Get the current user's profile_id for declarations
   const myProfile = employees.find(e => e.user_id === user?.id);
-  const createPayroll = useCreatePayroll();
   const updatePayroll = useUpdatePayroll();
   const deletePayroll = useDeletePayroll();
   const bulkDeletePayroll = useBulkDeletePayroll();
@@ -654,29 +658,6 @@ export default function Payroll() {
 
   const toggleAll = () =>
     setSelectedIds((prev) => prev.length === filtered.length ? [] : filtered.map((r) => r.id));
-
-  const handleAdd = () => {
-    if (!form.profile_id) return;
-    // Check for existing payslip for same employee & period
-    const existing = records.find(
-      (r) => r.profile_id === form.profile_id && !((r as any).is_superseded)
-    );
-    if (existing) {
-      // Check if there's an approved dispute allowing a revision
-      const hasDispute = (existing as any)._hasApprovedDispute;
-      toast.error(
-        `A payslip already exists for this employee for ${periodLabel(selectedPeriod)}.` +
-        (existing.status === "locked"
-          ? " The employee must raise a dispute and get it approved before a revised payslip can be generated."
-          : " Edit the existing record instead.")
-      );
-      return;
-    }
-    createPayroll.mutate(
-      { ...form, pay_period: selectedPeriod, status: "draft" } as CreatePayrollData,
-      { onSuccess: () => { setIsAddOpen(false); setForm({ profile_id: "", ...defaultForm }); } }
-    );
-  };
 
   const openEdit = (r: PayrollRecord) => {
     setEditTarget(r);
@@ -963,27 +944,6 @@ export default function Payroll() {
                     </Button>
 
                     <BulkUploadDialog config={bulkUploadConfig} />
-                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Record
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-md glass-morphism">
-                        <DialogHeader>
-                          <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
-                          <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
-                        </DialogHeader>
-                        {salaryFormFields}
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                          <Button onClick={handleAdd} disabled={createPayroll.isPending}>
-                            {createPayroll.isPending ? "Adding..." : "Add Record"}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1005,7 +965,6 @@ export default function Payroll() {
                       totalRecords={orgRecordCount}
                       activeRecords={records.filter((r) => r.status !== "superseded").length}
                       currentRole={currentRole}
-                      onAdd={() => setIsAddOpen(true)}
                     />
                   ) : (
                     <div>

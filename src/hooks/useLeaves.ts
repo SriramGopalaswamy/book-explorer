@@ -342,27 +342,9 @@ export function useApproveLeaveRequest() {
 
       if (error) throw error;
 
-      // ── CRITICAL: Decrement leave balance ──────────────────────
-      try {
-        const currentYear = new Date().getFullYear();
-        const { data: balance } = await supabase
-          .from("leave_balances")
-          .select("id, used_days")
-          .eq("user_id", data.user_id)
-          .eq("leave_type", data.leave_type)
-          .eq("year", currentYear)
-          .maybeSingle();
-
-        if (balance) {
-          const newUsed = Number(balance.used_days) + Number(data.days);
-          await supabase
-            .from("leave_balances")
-            .update({ used_days: newUsed })
-            .eq("id", balance.id);
-        }
-      } catch (balErr) {
-        console.warn("Failed to update leave balance:", balErr);
-      }
+      // Balance decrement is handled by trg_leave_balance_on_status (SECURITY DEFINER)
+      // so it works regardless of the caller's role (managers were excluded from the
+      // leave_balances UPDATE RLS policy and silently failed here).
 
       // Create attendance_records with status='leave' for each day in the leave range
       try {
@@ -508,28 +490,9 @@ export function useDeleteLeaveRequest() {
 
       const wasApproved = check.status === "approved";
 
-      // If approved, restore leave balance and clean up attendance
+      // If approved, clean up attendance (balance restore handled by
+      // trg_leave_balance_on_delete trigger on the DELETE below)
       if (wasApproved) {
-        try {
-          const currentYear = new Date().getFullYear();
-          const { data: balance } = await supabase
-            .from("leave_balances")
-            .select("id, used_days")
-            .eq("user_id", user.id)
-            .eq("leave_type", check.leave_type)
-            .eq("year", currentYear)
-            .maybeSingle();
-          if (balance) {
-            const restoredUsed = Math.max(0, Number(balance.used_days) - Number(check.days));
-            await supabase
-              .from("leave_balances")
-              .update({ used_days: restoredUsed })
-              .eq("id", balance.id);
-          }
-        } catch (balErr) {
-          console.warn("Failed to restore leave balance:", balErr);
-        }
-
         // Delete attendance records created for this leave
         try {
           if (check.profile_id) {
