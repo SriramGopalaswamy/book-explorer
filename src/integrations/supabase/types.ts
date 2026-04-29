@@ -298,6 +298,53 @@ export type Database = {
           },
         ]
       }
+      ai_usage_quotas: {
+        Row: {
+          alert_sent_at: string | null
+          alert_threshold_pct: number
+          created_at: string
+          id: string
+          monthly_token_limit: number
+          organization_id: string
+          period_end: string
+          period_start: string
+          tokens_used: number
+          updated_at: string
+        }
+        Insert: {
+          alert_sent_at?: string | null
+          alert_threshold_pct?: number
+          created_at?: string
+          id?: string
+          monthly_token_limit?: number
+          organization_id: string
+          period_end: string
+          period_start: string
+          tokens_used?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_sent_at?: string | null
+          alert_threshold_pct?: number
+          created_at?: string
+          id?: string
+          monthly_token_limit?: number
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          tokens_used?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_quotas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_vendor_profiles: {
         Row: {
           avg_delivery_days: number | null
@@ -3742,6 +3789,44 @@ export type Database = {
           },
           {
             foreignKeyName: "e_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_unlock_audit: {
+        Row: {
+          id: string
+          organization_id: string
+          payroll_entry_id: string | null
+          payroll_run_id: string | null
+          reason: string
+          unlocked_at: string
+          unlocked_by: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          payroll_entry_id?: string | null
+          payroll_run_id?: string | null
+          reason: string
+          unlocked_at?: string
+          unlocked_by: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          payroll_entry_id?: string | null
+          payroll_run_id?: string | null
+          reason?: string
+          unlocked_at?: string
+          unlocked_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_unlock_audit_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
