@@ -25,6 +25,11 @@ function validateIfsc(ifsc: string): boolean {
   return IFSC_RE.test(ifsc.trim().toUpperCase());
 }
 
+// Wrap every CSV cell in quotes and escape embedded quotes — prevents formula injection.
+function csvEsc(v: string): string {
+  return `"${String(v).replace(/"/g, '""')}"`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -134,17 +139,15 @@ serve(async (req) => {
       }
 
       rowCount++;
-      // Escape commas in name
-      const safeName = `"${String(name).replace(/"/g, '""')}"`;
       csvRows.push([
         rowCount,
-        safeName,
-        det.bank_account_number,
-        det.bank_ifsc.toUpperCase(),
-        `"${(det.bank_name ?? "").replace(/"/g, '""')}"`,
+        csvEsc(name),
+        csvEsc(det.bank_account_number),
+        csvEsc(det.bank_ifsc.toUpperCase()),
+        csvEsc(det.bank_name ?? ""),
         Number(entry.net_pay).toFixed(2),
         "NEFT",
-        `"Salary ${run.pay_period}"`,
+        csvEsc(`Salary ${run.pay_period}`),
       ].join(","));
     }
 

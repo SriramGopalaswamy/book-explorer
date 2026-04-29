@@ -515,12 +515,16 @@ export default function Bills() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from("bills")
         .delete()
         .eq("id", id)
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId)
+        .select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) {
+        throw new Error("Bill could not be deleted. Only draft bills can be deleted.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
