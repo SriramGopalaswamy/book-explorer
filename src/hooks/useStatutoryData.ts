@@ -60,12 +60,23 @@ async function fetchDualSourceStatutoryPayroll(
   const payPeriods = dateRangeToPayPeriods(from, to);
   if (payPeriods.length === 0) return [];
 
+  // Resolve caller's org once — used to scope payroll_runs explicitly
+  // (defense-in-depth on top of RLS)
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+    .maybeSingle();
+  const orgId = callerProfile?.organization_id;
+  if (!orgId) return [];
+
   const profileSelect = `full_name${profileSelectExtra ? ", " + profileSelectExtra : ""}`;
 
   // ── Engine path: look up run IDs for the pay periods, then fetch entries ──
   const { data: runs } = await supabase
     .from("payroll_runs")
     .select("id, pay_period")
+    .eq("organization_id", orgId)
     .in("pay_period", payPeriods);
 
   const runMap = new Map<string, string>(); // runId → pay_period
