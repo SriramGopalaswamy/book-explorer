@@ -7478,6 +7478,94 @@ export type Database = {
           },
         ]
       }
+      payroll_events: {
+        Row: {
+          actor_id: string
+          actor_role: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          employee_id: string | null
+          entry_id: string | null
+          event_type: string
+          id: string
+          organization_id: string
+          payroll_run_id: string | null
+          reason: string | null
+        }
+        Insert: {
+          actor_id: string
+          actor_role?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          employee_id?: string | null
+          entry_id?: string | null
+          event_type: string
+          id?: string
+          organization_id: string
+          payroll_run_id?: string | null
+          reason?: string | null
+        }
+        Update: {
+          actor_id?: string
+          actor_role?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          employee_id?: string | null
+          entry_id?: string | null
+          event_type?: string
+          id?: string
+          organization_id?: string
+          payroll_run_id?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_records: {
         Row: {
           basic_salary: number
