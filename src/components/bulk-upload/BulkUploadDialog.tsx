@@ -30,8 +30,13 @@ export interface BulkUploadConfig {
   templateFileName: string;
   templateContent: string;
   onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
-  /** Optional check run before upload. Return a non-null string to show a destructive-action warning that the user must confirm before data is written. Return null to proceed without warning. */
-  existingRecordCheck?: () => Promise<string | null>;
+  /**
+   * Optional check run before upload.
+   * - null → no warning; proceed immediately.
+   * - { canOverride: true } → show destructive "Yes, overwrite" confirmation.
+   * - { canOverride: false } → show non-dismissable info banner; upload is blocked.
+   */
+  existingRecordCheck?: () => Promise<{ message: string; canOverride: boolean } | null>;
 }
 
 interface ParsedRow {
@@ -155,7 +160,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const [uploadSummary, setUploadSummary] = useState<{
     success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
   } | null>(null);
-  const [pendingWarning, setPendingWarning] = useState<string | null>(null);
+  const [pendingWarning, setPendingWarning] = useState<{ message: string; canOverride: boolean } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const { job: activeJob } = useJobSubscription(activeJobId);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -688,21 +693,32 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           )}
         </div>
 
-        {/* Destructive-action confirmation banner — shown when existingRecordCheck returns a warning */}
+        {/* Pre-upload check banner */}
         {pendingWarning && (
-          <div className="mx-6 mb-2 rounded-lg border border-destructive/60 bg-destructive/10 p-4 space-y-3">
+          <div className={cn(
+            "mx-6 mb-2 rounded-lg border p-4 space-y-3",
+            pendingWarning.canOverride
+              ? "border-destructive/60 bg-destructive/10"
+              : "border-warning/60 bg-warning/10"
+          )}>
             <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <AlertTriangle className={cn("h-5 w-5 shrink-0 mt-0.5", pendingWarning.canOverride ? "text-destructive" : "text-warning")} />
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-destructive">Overwrite existing data?</p>
-                <p className="text-sm text-muted-foreground">{pendingWarning}</p>
+                <p className={cn("text-sm font-semibold", pendingWarning.canOverride ? "text-destructive" : "text-warning")}>
+                  {pendingWarning.canOverride ? "Overwrite existing data?" : "Upload blocked"}
+                </p>
+                <p className="text-sm text-muted-foreground">{pendingWarning.message}</p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setPendingWarning(null)}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={executeUpload} disabled={uploading}>
-                {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : "Yes, overwrite"}
+              <Button variant="outline" size="sm" onClick={() => setPendingWarning(null)}>
+                {pendingWarning.canOverride ? "Cancel" : "Got it"}
               </Button>
+              {pendingWarning.canOverride && (
+                <Button variant="destructive" size="sm" onClick={executeUpload} disabled={uploading}>
+                  {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : "Yes, overwrite"}
+                </Button>
+              )}
             </div>
           </div>
         )}
