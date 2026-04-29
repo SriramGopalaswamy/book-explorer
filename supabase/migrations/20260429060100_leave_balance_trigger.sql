@@ -52,6 +52,13 @@ BEGIN
     AND leave_type = COALESCE(NEW.leave_type, OLD.leave_type)
     AND year       = v_year;
 
+  IF NOT FOUND THEN
+    RAISE WARNING 'leave_balances row not found for profile_id=%, leave_type=%, year=% — balance not updated on leave status change',
+      COALESCE(NEW.profile_id, OLD.profile_id),
+      COALESCE(NEW.leave_type, OLD.leave_type),
+      v_year;
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -87,6 +94,13 @@ BEGIN
   WHERE profile_id = OLD.profile_id
     AND leave_type = OLD.leave_type
     AND year       = v_year;
+
+  IF NOT FOUND THEN
+    RAISE WARNING 'leave_balances row not found for profile_id=%, leave_type=%, year=% — balance not restored on leave delete',
+      OLD.profile_id,
+      OLD.leave_type,
+      v_year;
+  END IF;
 
   RETURN OLD;
 END;

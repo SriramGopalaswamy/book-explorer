@@ -148,13 +148,19 @@ export function useGeneratePayroll() {
         .single();
       if (runErr) throw runErr;
 
-      // 3. Fetch all active compensation structures for this org
+      // 3. Fetch active compensation structures effective during this pay period.
+      //    A structure is included when its window overlaps the period month:
+      //      effective_from <= last day of period  (or null → no start bound)
+      //      effective_to   >= first day of period (or null → no end bound)
       const payPeriodStart = `${payPeriod}-01`;
+      const [pyStr, pmStr] = payPeriod.split("-").map(Number);
+      const payPeriodEnd = new Date(pyStr, pmStr, 0).toISOString().slice(0, 10);
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
         .eq("organization_id", orgId)
         .eq("is_active", true)
+        .or(`effective_from.is.null,effective_from.lte.${payPeriodEnd}`)
         .or(`effective_to.is.null,effective_to.gte.${payPeriodStart}`);
       if (sErr) throw sErr;
 
