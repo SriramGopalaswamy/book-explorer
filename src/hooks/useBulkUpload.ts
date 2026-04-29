@@ -311,6 +311,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       .select("id, status")
       .eq("organization_id", orgId)
       .eq("pay_period", payPeriod)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     const terminalStatuses = ["under_review", "approved", "locked"];
