@@ -190,31 +190,14 @@ export function usePayrollOrgRecordCount() {
     queryKey: ["payroll-org-count", orgId],
     queryFn: async () => {
       if (!user || !orgId) return 0;
-
-      // Fetch minimal key columns from both tables, then de-duplicate in JS.
-      // A simple sum of two COUNT queries over-counts records that exist in both
-      // tables for the same (profile_id, pay_period) during the migration window.
-      const [engineRes, legacyRes] = await Promise.all([
-        supabase
-          .from("payroll_entries")
-          .select("profile_id, payroll_runs!inner(pay_period)")
-          .eq("organization_id", orgId),
-        supabase
-          .from("payroll_records")
-          .select("profile_id, pay_period")
-          .eq("organization_id", orgId)
-          .eq("is_superseded", false),
-      ]);
-
-      const seen = new Set<string>();
-      for (const e of engineRes.data ?? []) {
-        const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
-        if (run?.pay_period) seen.add(`${e.profile_id}:${run.pay_period}`);
-      }
-      for (const r of legacyRes.data ?? []) {
-        seen.add(`${r.profile_id}:${r.pay_period}`);
-      }
-      return seen.size;
+      // Server-side UNION de-dup — O(1) network transfer regardless of row count.
+      // Migration 20260429060300 defines get_payroll_unique_record_count().
+      const { data, error } = await (supabase as any).rpc(
+        "get_payroll_unique_record_count",
+        { p_org_id: orgId }
+      );
+      if (error) throw error;
+      return Number(data ?? 0);
     },
     enabled: !!user && !!orgId,
     staleTime: 5 * 60_000,
@@ -366,8 +349,11 @@ export function useCreatePayroll() {
           status: "computed",
         });
         if (entryErr) {
-          // Rollback orphaned run
-          await supabase.from("payroll_runs").delete().eq("id", runRow.id);
+          // Best-effort rollback: delete orphaned run; log if it fails so the
+          // dangling row is detectable in Supabase logs (no DB transaction here).
+          const { error: rbErr } = await supabase
+            .from("payroll_runs").delete().eq("id", runRow.id);
+          if (rbErr) console.error("Failed to rollback orphaned payroll_run", runRow.id, rbErr);
           throw entryErr;
         }
       }
