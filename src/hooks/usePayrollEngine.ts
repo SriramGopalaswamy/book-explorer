@@ -126,7 +126,8 @@ export function useGeneratePayroll() {
         .select("id, status")
         .eq("organization_id", orgId)
         .eq("pay_period", payPeriod)
-        .not("status", "in", '("failed","cancelled")');
+        .neq("status", "failed")
+        .neq("status", "cancelled");
       if (existingRuns && existingRuns.length > 0) {
         const s = existingRuns[0].status;
         throw new Error(
@@ -148,12 +149,23 @@ export function useGeneratePayroll() {
         .single();
       if (runErr) throw runErr;
 
-      // 3. Fetch all active compensation structures for this org
+      // 3. Fetch active compensation structures effective during this pay period.
+      //    A structure is included when its window overlaps the period month:
+      //      effective_from <= last day of period  (or null → no start bound)
+      //      effective_to   >= first day of period (or null → no end bound)
+      const payPeriodStart = `${payPeriod}-01`;
+      const [pyStr, pmStr] = payPeriod.split("-").map(Number);
+      // Use getDate() on a local Date and format directly — toISOString() would
+      // convert local midnight to UTC and shift the day back in UTC+ timezones.
+      const lastDay = new Date(pyStr, pmStr, 0).getDate();
+      const payPeriodEnd = `${pyStr}-${String(pmStr).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
       const { data: structures, error: sErr } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
         .eq("organization_id", orgId)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .or(`effective_from.is.null,effective_from.lte.${payPeriodEnd}`)
+        .or(`effective_to.is.null,effective_to.gte.${payPeriodStart}`);
       if (sErr) throw sErr;
 
       // Filter out inactive/terminated employees
