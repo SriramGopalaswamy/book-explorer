@@ -493,7 +493,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           profile_id:                profile.id,
           organization_id:           orgId,
           compensation_structure_id: null,
-          annual_ctc:                gross_earn * 12,
+          annual_ctc:                gross_earn * 12, // approximation: bulk upload has no annual CTC column; gross × 12 is a placeholder
           gross_earnings:            gross_earn,
           total_deductions:          totalDed,
           net_pay,
