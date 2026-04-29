@@ -4425,8 +4425,10 @@ export type Database = {
           amount: number
           category: string
           created_at: string
+          currency_code: string
           deleted_at: string | null
           description: string | null
+          exchange_rate: number
           expense_date: string
           id: string
           is_deleted: boolean
@@ -4445,8 +4447,10 @@ export type Database = {
           amount: number
           category: string
           created_at?: string
+          currency_code?: string
           deleted_at?: string | null
           description?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_deleted?: boolean
@@ -4465,8 +4469,10 @@ export type Database = {
           amount?: number
           category?: string
           created_at?: string
+          currency_code?: string
           deleted_at?: string | null
           description?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_deleted?: boolean
@@ -6155,6 +6161,68 @@ export type Database = {
           },
         ]
       }
+      job_queue: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_retries: number
+          organization_id: string
+          payload: Json
+          progress: number
+          progress_label: string | null
+          result: Json | null
+          retry_count: number
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type: string
+          max_retries?: number
+          organization_id: string
+          payload?: Json
+          progress?: number
+          progress_label?: string | null
+          result?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          max_retries?: number
+          organization_id?: string
+          payload?: Json
+          progress?: number
+          progress_label?: string | null
+          result?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           created_at: string
@@ -7351,10 +7419,12 @@ export type Database = {
           annual_ctc_snapshot: number | null
           compensation_structure_id: string | null
           created_at: string
+          currency_code: string
           deductions_breakdown: Json
           earnings_breakdown: Json
           esi_employee: number | null
           esi_employer: number | null
+          exchange_rate: number
           gross_earnings: number
           id: string
           lwp_days: number
@@ -7380,10 +7450,12 @@ export type Database = {
           annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
+          currency_code?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
           esi_employee?: number | null
           esi_employer?: number | null
+          exchange_rate?: number
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -7409,10 +7481,12 @@ export type Database = {
           annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
+          currency_code?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
           esi_employee?: number | null
           esi_employer?: number | null
+          exchange_rate?: number
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -7478,10 +7552,100 @@ export type Database = {
           },
         ]
       }
+      payroll_events: {
+        Row: {
+          actor_id: string
+          actor_role: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          employee_id: string | null
+          entry_id: string | null
+          event_type: string
+          id: string
+          organization_id: string
+          payroll_run_id: string | null
+          reason: string | null
+        }
+        Insert: {
+          actor_id: string
+          actor_role?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          employee_id?: string | null
+          entry_id?: string | null
+          event_type: string
+          id?: string
+          organization_id: string
+          payroll_run_id?: string | null
+          reason?: string | null
+        }
+        Update: {
+          actor_id?: string
+          actor_role?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          employee_id?: string | null
+          entry_id?: string | null
+          event_type?: string
+          id?: string
+          organization_id?: string
+          payroll_run_id?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_events_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_records: {
         Row: {
           basic_salary: number
           created_at: string
+          currency_code: string
+          exchange_rate: number
           hra: number
           id: string
           is_superseded: boolean
@@ -7510,6 +7674,8 @@ export type Database = {
         Insert: {
           basic_salary?: number
           created_at?: string
+          currency_code?: string
+          exchange_rate?: number
           hra?: number
           id?: string
           is_superseded?: boolean
@@ -7538,6 +7704,8 @@ export type Database = {
         Update: {
           basic_salary?: number
           created_at?: string
+          currency_code?: string
+          exchange_rate?: number
           hra?: number
           id?: string
           is_superseded?: boolean
@@ -9488,6 +9656,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "shopify_customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopify_invoice_map: {
+        Row: {
+          invoice_id: string
+          organization_id: string
+          shopify_order_id: string
+          sync_error: string | null
+          sync_status: string
+          synced_at: string
+        }
+        Insert: {
+          invoice_id: string
+          organization_id: string
+          shopify_order_id: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string
+        }
+        Update: {
+          invoice_id?: string
+          organization_id?: string
+          shopify_order_id?: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_invoice_map_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shopify_invoice_map_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
