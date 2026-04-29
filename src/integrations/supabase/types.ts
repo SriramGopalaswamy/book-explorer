@@ -9645,6 +9645,48 @@ export type Database = {
           },
         ]
       }
+      shopify_invoice_map: {
+        Row: {
+          invoice_id: string
+          organization_id: string
+          shopify_order_id: string
+          sync_error: string | null
+          sync_status: string
+          synced_at: string
+        }
+        Insert: {
+          invoice_id: string
+          organization_id: string
+          shopify_order_id: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string
+        }
+        Update: {
+          invoice_id?: string
+          organization_id?: string
+          shopify_order_id?: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_invoice_map_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shopify_invoice_map_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shopify_orders: {
         Row: {
           created_at: string
