@@ -6155,6 +6155,68 @@ export type Database = {
           },
         ]
       }
+      job_queue: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_retries: number
+          organization_id: string
+          payload: Json
+          progress: number
+          progress_label: string | null
+          result: Json | null
+          retry_count: number
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type: string
+          max_retries?: number
+          organization_id: string
+          payload?: Json
+          progress?: number
+          progress_label?: string | null
+          result?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          max_retries?: number
+          organization_id?: string
+          payload?: Json
+          progress?: number
+          progress_label?: string | null
+          result?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           created_at: string
