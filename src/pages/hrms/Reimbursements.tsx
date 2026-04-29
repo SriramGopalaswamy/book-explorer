@@ -259,6 +259,10 @@ export default function Reimbursements() {
       toast.error("Please upload a bill document first.");
       return;
     }
+    if (!myProfile?.id) {
+      toast.error("Profile not loaded. Please refresh and try again.");
+      return;
+    }
     if (!form.vendor_name || !form.amount || !form.category || !form.description) {
       toast.error("Please fill in all required fields.");
       return;
@@ -269,7 +273,7 @@ export default function Reimbursements() {
       const { data: inserted, error } = await supabase
         .from("reimbursement_requests")
         .insert({
-          profile_id: myProfile?.id ?? null,
+          profile_id: myProfile.id,
           attachment_url: uploadedFile.url,
           file_name: uploadedFile.name,
           file_type: uploadedFile.type,
