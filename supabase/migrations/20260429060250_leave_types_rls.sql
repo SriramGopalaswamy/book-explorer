@@ -10,6 +10,12 @@
 
 ALTER TABLE public.leave_types ENABLE ROW LEVEL SECURITY;
 
+-- Drop the legacy FOR ALL policy (migration 20260223102730) before adding
+-- role-split policies. RLS is permissive by default, so the old policy would
+-- keep authorising HR deletes and make the new Admin-only DELETE restriction
+-- ineffective if left in place.
+DROP POLICY IF EXISTS "HR and Admin can manage leave types" ON public.leave_types;
+
 -- SELECT: all org members can read leave types
 DROP POLICY IF EXISTS "Org members can view leave types" ON public.leave_types;
 CREATE POLICY "Org members can view leave types"

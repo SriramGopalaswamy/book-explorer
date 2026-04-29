@@ -8,11 +8,16 @@
 -- Called by usePayrollOrgRecordCount to avoid fetching every row to JS just
 -- to count them (previous approach had an O(n) network transfer for a scalar).
 
+-- SECURITY INVOKER (default): the function executes with the caller's
+-- privileges, so the existing RLS policies on payroll_entries and
+-- payroll_records enforce org-scoped visibility automatically.
+-- A SECURITY DEFINER function accepting a caller-supplied p_org_id would
+-- bypass RLS and expose counts from any org to any authenticated user.
 CREATE OR REPLACE FUNCTION public.get_payroll_unique_record_count(p_org_id uuid)
 RETURNS bigint
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
   SELECT COUNT(*) FROM (
@@ -32,6 +37,4 @@ AS $$
   ) t;
 $$;
 
--- Grant execute to authenticated users; RLS on the underlying tables still
--- enforces tenant isolation for the rows each user can read.
 GRANT EXECUTE ON FUNCTION public.get_payroll_unique_record_count(uuid) TO authenticated;
