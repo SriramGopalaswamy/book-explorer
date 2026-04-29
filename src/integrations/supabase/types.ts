@@ -4425,8 +4425,10 @@ export type Database = {
           amount: number
           category: string
           created_at: string
+          currency_code: string
           deleted_at: string | null
           description: string | null
+          exchange_rate: number
           expense_date: string
           id: string
           is_deleted: boolean
@@ -4445,8 +4447,10 @@ export type Database = {
           amount: number
           category: string
           created_at?: string
+          currency_code?: string
           deleted_at?: string | null
           description?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_deleted?: boolean
@@ -4465,8 +4469,10 @@ export type Database = {
           amount?: number
           category?: string
           created_at?: string
+          currency_code?: string
           deleted_at?: string | null
           description?: string | null
+          exchange_rate?: number
           expense_date?: string
           id?: string
           is_deleted?: boolean
@@ -7413,10 +7419,12 @@ export type Database = {
           annual_ctc_snapshot: number | null
           compensation_structure_id: string | null
           created_at: string
+          currency_code: string
           deductions_breakdown: Json
           earnings_breakdown: Json
           esi_employee: number | null
           esi_employer: number | null
+          exchange_rate: number
           gross_earnings: number
           id: string
           lwp_days: number
@@ -7442,10 +7450,12 @@ export type Database = {
           annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
+          currency_code?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
           esi_employee?: number | null
           esi_employer?: number | null
+          exchange_rate?: number
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -7471,10 +7481,12 @@ export type Database = {
           annual_ctc_snapshot?: number | null
           compensation_structure_id?: string | null
           created_at?: string
+          currency_code?: string
           deductions_breakdown?: Json
           earnings_breakdown?: Json
           esi_employee?: number | null
           esi_employer?: number | null
+          exchange_rate?: number
           gross_earnings?: number
           id?: string
           lwp_days?: number
@@ -7632,6 +7644,8 @@ export type Database = {
         Row: {
           basic_salary: number
           created_at: string
+          currency_code: string
+          exchange_rate: number
           hra: number
           id: string
           is_superseded: boolean
@@ -7660,6 +7674,8 @@ export type Database = {
         Insert: {
           basic_salary?: number
           created_at?: string
+          currency_code?: string
+          exchange_rate?: number
           hra?: number
           id?: string
           is_superseded?: boolean
@@ -7688,6 +7704,8 @@ export type Database = {
         Update: {
           basic_salary?: number
           created_at?: string
+          currency_code?: string
+          exchange_rate?: number
           hra?: number
           id?: string
           is_superseded?: boolean
