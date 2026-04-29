@@ -28,7 +28,7 @@ export interface Profile {
 
 export interface PayrollRecord {
   id: string;
-  user_id: string;
+  user_id: string | null;
   profile_id: string | null;
   pay_period: string;
   basic_salary: number;
@@ -96,7 +96,7 @@ function engineEntryToPayrollRecord(e: any): PayrollRecord {
   const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
   return {
     id: e.id,
-    user_id: "",
+    user_id: null,
     profile_id: e.profile_id,
     pay_period: run?.pay_period ?? "",
     basic_salary: getComp(e.earnings_breakdown, "basic"),
@@ -147,7 +147,8 @@ export function usePayrollRecords(payPeriod?: string) {
         .not("payroll_runs.pay_period", "is", null)
         .order("created_at", { ascending: false });
       if (payPeriod) engineQ = engineQ.eq("payroll_runs.pay_period", payPeriod);
-      const { data: engineData } = await engineQ;
+      const { data: engineData, error: engineErr } = await engineQ;
+      if (engineErr) throw engineErr;
 
       // ── Legacy records (historical, from payroll_records still in use) ───
       let legacyQ = supabase
@@ -157,7 +158,8 @@ export function usePayrollRecords(payPeriod?: string) {
         .eq("is_superseded", false)
         .order("created_at", { ascending: false });
       if (payPeriod) legacyQ = legacyQ.eq("pay_period", payPeriod);
-      const { data: legacyData } = await legacyQ;
+      const { data: legacyData, error: legacyErr } = await legacyQ;
+      if (legacyErr) throw legacyErr;
 
       // De-duplicate: engine record wins when same (profile_id, pay_period) exists in both
       const engineKeys = new Set(
@@ -188,11 +190,31 @@ export function usePayrollOrgRecordCount() {
     queryKey: ["payroll-org-count", orgId],
     queryFn: async () => {
       if (!user || !orgId) return 0;
-      const [{ count: engineCount }, { count: legacyCount }] = await Promise.all([
-        supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
-        supabase.from("payroll_records").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_superseded", false),
+
+      // Fetch minimal key columns from both tables, then de-duplicate in JS.
+      // A simple sum of two COUNT queries over-counts records that exist in both
+      // tables for the same (profile_id, pay_period) during the migration window.
+      const [engineRes, legacyRes] = await Promise.all([
+        supabase
+          .from("payroll_entries")
+          .select("profile_id, payroll_runs!inner(pay_period)")
+          .eq("organization_id", orgId),
+        supabase
+          .from("payroll_records")
+          .select("profile_id, pay_period")
+          .eq("organization_id", orgId)
+          .eq("is_superseded", false),
       ]);
-      return (engineCount ?? 0) + (legacyCount ?? 0);
+
+      const seen = new Set<string>();
+      for (const e of engineRes.data ?? []) {
+        const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
+        if (run?.pay_period) seen.add(`${e.profile_id}:${run.pay_period}`);
+      }
+      for (const r of legacyRes.data ?? []) {
+        seen.add(`${r.profile_id}:${r.pay_period}`);
+      }
+      return seen.size;
     },
     enabled: !!user && !!orgId,
     staleTime: 5 * 60_000,
@@ -298,7 +320,7 @@ export function useCreatePayroll() {
           Number(validated.lop_deduction ?? 0);
         const netPay = Number(validated.net_pay);
 
-        const { data: runRow } = await supabase
+        const { data: runRow, error: runErr } = await supabase
           .from("payroll_runs")
           .insert({
             organization_id: orgId,
@@ -312,37 +334,41 @@ export function useCreatePayroll() {
           })
           .select("id")
           .single();
+        if (runErr) throw runErr;
 
-        if (runRow?.id) {
-          const earningsBreakdown = [
-            { name: "Basic Salary", monthly: Number(validated.basic_salary) },
-            { name: "HRA", monthly: Number(validated.hra) },
-            { name: "Incentives", monthly: Number(validated.transport_allowance) },
-            { name: "Other Allowances", monthly: Number(validated.other_allowances) },
-          ].filter((e) => e.monthly > 0);
+        const earningsBreakdown = [
+          { name: "Basic Salary", monthly: Number(validated.basic_salary) },
+          { name: "HRA", monthly: Number(validated.hra) },
+          { name: "Incentives", monthly: Number(validated.transport_allowance) },
+          { name: "Other Allowances", monthly: Number(validated.other_allowances) },
+        ].filter((e) => e.monthly > 0);
 
-          const deductionsBreakdown = [
-            { name: "PF Contribution", monthly: Number(validated.pf_deduction) },
-            { name: "TDS", monthly: Number(validated.tax_deduction) },
-            { name: "Other Deductions", monthly: Number(validated.other_deductions) + Number(validated.lop_deduction ?? 0) },
-          ].filter((d) => d.monthly > 0);
+        const deductionsBreakdown = [
+          { name: "PF Contribution", monthly: Number(validated.pf_deduction) },
+          { name: "TDS", monthly: Number(validated.tax_deduction) },
+          { name: "Other Deductions", monthly: Number(validated.other_deductions) + Number(validated.lop_deduction ?? 0) },
+        ].filter((d) => d.monthly > 0);
 
-          await supabase.from("payroll_entries").insert({
-            payroll_run_id: runRow.id,
-            profile_id: validated.profile_id,
-            organization_id: orgId,
-            gross_earnings: grossEarnings,
-            total_deductions: totalDeductions,
-            net_pay: netPay,
-            annual_ctc: grossEarnings * 12,
-            lwp_days: validated.lop_days ?? 0,
-            lwp_deduction: validated.lop_deduction ?? 0,
-            working_days: validated.working_days ?? 0,
-            paid_days: validated.paid_days ?? 0,
-            earnings_breakdown: earningsBreakdown,
-            deductions_breakdown: deductionsBreakdown,
-            status: "computed",
-          });
+        const { error: entryErr } = await supabase.from("payroll_entries").insert({
+          payroll_run_id: runRow.id,
+          profile_id: validated.profile_id,
+          organization_id: orgId,
+          gross_earnings: grossEarnings,
+          total_deductions: totalDeductions,
+          net_pay: netPay,
+          annual_ctc: grossEarnings * 12,
+          lwp_days: validated.lop_days ?? 0,
+          lwp_deduction: validated.lop_deduction ?? 0,
+          working_days: validated.working_days ?? 0,
+          paid_days: validated.paid_days ?? 0,
+          earnings_breakdown: earningsBreakdown,
+          deductions_breakdown: deductionsBreakdown,
+          status: "computed",
+        });
+        if (entryErr) {
+          // Rollback orphaned run
+          await supabase.from("payroll_runs").delete().eq("id", runRow.id);
+          throw entryErr;
         }
       }
 
@@ -366,7 +392,10 @@ export function useCreatePayroll() {
 
 // ── Payroll lifecycle state-machine ──────────────────────────
 const PAYROLL_TRANSITIONS: Record<string, string[]> = {
-  computed: ["draft", "pending", "processed", "cancelled"], // engine-only initial status
+  // "computed" is the engine-only initial status for auto-generated entries.
+  // Finance/admin can promote directly to "processed" without going through the
+  // HR approval cycle when the engine run has already been reviewed at the run level.
+  computed: ["draft", "pending", "processed", "cancelled"],
   draft: ["under_review", "cancelled"],
   under_review: ["approved", "draft", "cancelled"],
   approved: ["pending", "cancelled"],
@@ -588,10 +617,19 @@ export function useBulkDeletePayroll() {
       if (deletableEngine.length > 0) {
         const { error: delErr } = await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
         if (delErr) throw delErr;
-        for (const e of deletableEngine) {
-          if (e.payroll_run_id) {
-            const { count } = await supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("payroll_run_id", e.payroll_run_id);
-            if ((count ?? 0) === 0) await supabase.from("payroll_runs").delete().eq("id", e.payroll_run_id);
+
+        // Batch orphan-run cleanup: collect distinct run ids, check remaining
+        // entries once per run (not once per entry) to avoid N+1 queries.
+        const runIds = [...new Set(deletableEngine.map((e: any) => e.payroll_run_id).filter(Boolean))];
+        if (runIds.length > 0) {
+          const { data: remaining } = await supabase
+            .from("payroll_entries")
+            .select("payroll_run_id")
+            .in("payroll_run_id", runIds);
+          const stillUsed = new Set((remaining ?? []).map((r: any) => r.payroll_run_id));
+          const orphanRunIds = runIds.filter((rid) => !stillUsed.has(rid));
+          if (orphanRunIds.length > 0) {
+            await supabase.from("payroll_runs").delete().in("id", orphanRunIds);
           }
         }
       }

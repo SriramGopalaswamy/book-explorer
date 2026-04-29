@@ -126,7 +126,8 @@ export function useGeneratePayroll() {
         .select("id, status")
         .eq("organization_id", orgId)
         .eq("pay_period", payPeriod)
-        .not("status", "in", '("failed","cancelled")');
+        .neq("status", "failed")
+        .neq("status", "cancelled");
       if (existingRuns && existingRuns.length > 0) {
         const s = existingRuns[0].status;
         throw new Error(

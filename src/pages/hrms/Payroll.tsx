@@ -1117,7 +1117,7 @@ export default function Payroll() {
 
                   {/* Bulk Upload History inside register tab */}
                   <div className="mt-6">
-                    <BulkUploadHistory />
+                    <BulkUploadHistory module="payroll" />
                   </div>
                 </CardContent>
               </Card>
