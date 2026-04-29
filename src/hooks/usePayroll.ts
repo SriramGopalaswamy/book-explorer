@@ -403,6 +403,13 @@ export function useUpdatePayroll() {
         if (PAYROLL_TERMINAL.includes(engineCheck.status)) {
           throw new Error(`Cannot modify a "${engineCheck.status}" payroll record.`);
         }
+        // Enforce state machine for status transitions (same rules as legacy path)
+        if (data.status && data.status !== engineCheck.status) {
+          const allowed = PAYROLL_TRANSITIONS[engineCheck.status];
+          if (allowed && !allowed.includes(data.status)) {
+            throw new Error(`Cannot transition payroll from "${engineCheck.status}" to "${data.status}".`);
+          }
+        }
         const gross =
           Number(data.basic_salary ?? 0) + Number(data.hra ?? 0) +
           Number(data.transport_allowance ?? 0) + Number(data.other_allowances ?? 0);
@@ -573,7 +580,8 @@ export function useBulkDeletePayroll() {
         .filter((e: any) => ["computed", "draft", "cancelled"].includes(e.status))
         .map((e: any) => e);
       if (deletableEngine.length > 0) {
-        await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
+        const { error: delErr } = await supabase.from("payroll_entries").delete().in("id", deletableEngine.map((e: any) => e.id)).eq("organization_id", callerOrgId);
+        if (delErr) throw delErr;
         for (const e of deletableEngine) {
           if (e.payroll_run_id) {
             const { count } = await supabase.from("payroll_entries").select("id", { count: "exact", head: true }).eq("payroll_run_id", e.payroll_run_id);

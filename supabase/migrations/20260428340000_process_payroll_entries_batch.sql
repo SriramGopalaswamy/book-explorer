@@ -35,6 +35,11 @@ BEGIN
     RAISE EXCEPTION 'Organization context required';
   END IF;
 
+  -- Guard: empty input → return zeroes immediately (array_length returns NULL for empty array)
+  IF array_length(p_payroll_ids, 1) IS NULL THEN
+    RETURN jsonb_build_object('processed', 0, 'engine_processed', 0, 'legacy_processed', 0, 'skipped', 0, 'total', 0);
+  END IF;
+
   -- Cross-org guard: engine path
   SELECT COUNT(*) INTO v_cross_org_engine
   FROM public.payroll_entries
