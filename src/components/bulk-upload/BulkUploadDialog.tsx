@@ -370,6 +370,13 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
       let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
 
+      // Advance to 30% so the bar visibly moves before onUpload starts.
+      if (jobId) {
+        await supabase.from("job_queue")
+          .update({ progress: 30, progress_label: "Uploading rows…" })
+          .eq("id", jobId).catch(() => {});
+      }
+
       try {
         result = await config.onUpload(validRows);
       } catch (uploadErr: any) {
@@ -707,7 +714,10 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
               <span>{activeJob?.progress_label ?? "Processing…"}</span>
               <span>{activeJob?.progress ?? 5}%</span>
             </div>
-            <Progress value={activeJob?.progress ?? 5} className="h-2" />
+            <Progress
+              value={activeJob?.progress ?? 5}
+              className={cn("h-2", activeJob?.status === "running" && activeJob.progress < 100 && "animate-pulse")}
+            />
           </div>
         )}
 

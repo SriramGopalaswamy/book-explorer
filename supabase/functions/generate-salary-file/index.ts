@@ -170,6 +170,18 @@ serve(async (req) => {
       .from("erp-documents")
       .createSignedUrl(storagePath, 3600);
 
+    // Mark run as finance_approved once the salary file is successfully generated.
+    // This prevents silent duplicate generation: a second call on a finance_approved run
+    // still succeeds (explicit regeneration by finance/admin is valid) but the status
+    // change provides a clear audit trail that a file has already been produced.
+    if (run.status === "locked") {
+      await supabase
+        .from("payroll_runs")
+        .update({ status: "finance_approved" })
+        .eq("id", payroll_run_id)
+        .catch(() => {});
+    }
+
     // Audit log
     await supabase.from("audit_logs").insert({
       actor_id: userId,
