@@ -466,6 +466,10 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       return;
     }
 
+    // Flip button to "Uploading…" immediately so the click registers visually,
+    // even before the (potentially slow) existingRecordCheck network roundtrip.
+    setUploading(true);
+
     // If a pre-upload check is configured, run it and gate on user confirmation.
     // Wrap in try/catch — handleUpload is awaited from onClick, and any
     // unhandled rejection here would otherwise vanish silently (the user just
@@ -473,7 +477,13 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     if (config.existingRecordCheck) {
       console.log("[BulkUpload] running existingRecordCheck…");
       try {
-        const warning = await config.existingRecordCheck();
+        // 15s ceiling so a hung Supabase query can't leave the button stuck.
+        const warning = await Promise.race([
+          config.existingRecordCheck(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Pre-upload check timed out after 15s")), 15000)
+          ),
+        ]);
         console.log("[BulkUpload] existingRecordCheck result:", warning);
         if (warning) {
           setPendingWarning(warning);
@@ -484,11 +494,13 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           } else {
             toast.error(warning.message);
           }
+          setUploading(false);
           return;
         }
       } catch (err: any) {
         console.error("[BulkUpload] existingRecordCheck threw:", err);
         toast.error(`Pre-upload check failed: ${err?.message ?? "Unknown error"}`);
+        setUploading(false);
         return;
       }
     }
