@@ -9,11 +9,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import ExcelJS from "exceljs";
+import type ExcelJSType from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEnqueueJob, useJobSubscription } from "@/hooks/useJobQueue";
+
+// exceljs is ~200 KB minified — don't pull it into the bundle for users
+// who never click "Bulk Upload". Loaded on demand inside handlers.
+let exceljsPromise: Promise<typeof ExcelJSType> | null = null;
+function loadExcelJS() {
+  if (!exceljsPromise) {
+    exceljsPromise = import("exceljs").then((m) => m.default);
+  }
+  return exceljsPromise;
+}
 
 export interface BulkUploadColumn {
   key: string;
@@ -120,7 +130,7 @@ function maybeConvertExcelTime(value: string): string {
  * Handles rich-text, hyperlink, formula-result, and error objects
  * that would otherwise stringify to "[object Object]".
  */
-function extractCellValue(val: ExcelJS.CellValue): string {
+function extractCellValue(val: ExcelJSType.CellValue): string {
   if (val == null) return "";
   if (val instanceof Date) {
     const y = val.getFullYear();
@@ -176,6 +186,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
 
   const downloadTemplate = async () => {
     const rows = parseCSV(config.templateContent);
+    const ExcelJS = await loadExcelJS();
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Template");
     ws.addRows(rows);
@@ -304,6 +315,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const data = ev.target?.result as ArrayBuffer;
+        const ExcelJS = await loadExcelJS();
         const wb = new ExcelJS.Workbook();
         await wb.xlsx.load(data);
         const ws = wb.worksheets[0];
