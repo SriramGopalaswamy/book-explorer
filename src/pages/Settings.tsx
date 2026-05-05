@@ -32,7 +32,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
@@ -42,7 +41,7 @@ import {
   Shield, Users, AlertCircle, Trash2, Search, Image, Upload, X,
   Settings as SettingsIcon, Palette, DollarSign, UserCheck, Link2,
   Cloud, CheckCircle2, Loader2, Save, History, Lock, UserX, ChevronDown,
-  UserCog, Clock, Mail, Building2,
+  Clock, Mail, Building2, RefreshCw, ExternalLink, ShieldCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,13 +52,16 @@ import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { ExitProcessingDialog } from "@/components/employees/ExitProcessingDialog";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { Target } from "lucide-react";
 import { PrivacySecuritySection } from "@/components/settings/PrivacySecuritySection";
 import { EmailAlertsConfigSection } from "@/components/settings/EmailAlertsConfigSection";
-import { usePagination } from "@/hooks/usePagination";
-import { TablePagination } from "@/components/ui/TablePagination";
+import { RolePermissionsTab } from "@/components/settings/RolePermissionsTab";
 
 interface UserWithRole {
+  profile_id: string;            // profiles.id — used to resolve manager_id
   user_id: string;
   full_name: string | null;
   email: string | null;
@@ -67,7 +69,7 @@ interface UserWithRole {
   job_title: string | null;
   roles: string[];
   status: string;
-  manager_id: string | null;
+  manager_id: string | null;     // references profiles.id of the manager
   pending_manager_email: string | null;
 }
 
@@ -76,6 +78,7 @@ const ROLE_LABELS: Record<string, string> = {
   hr: "HR",
   manager: "Manager",
   finance: "Finance",
+  payroll: "Payroll",
   employee: "Employee",
 };
 
@@ -84,6 +87,7 @@ const ROLE_COLORS: Record<string, string> = {
   hr: "bg-primary/10 text-primary border-primary/20",
   manager: "bg-accent/50 text-accent-foreground border-accent",
   finance: "bg-chart-2/10 text-chart-2 border-chart-2/20",
+  payroll: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   employee: "bg-muted text-muted-foreground border-border",
 };
 
@@ -92,6 +96,7 @@ const STATUS_LABELS: Record<string, string> = {
   inactive: "Inactive",
   on_leave: "On Leave",
   pending_approval: "Pending Approval",
+  exited: "Exited",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -99,6 +104,7 @@ const STATUS_COLORS: Record<string, string> = {
   inactive: "bg-red-500/10 text-red-500 border-red-500/20",
   on_leave: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   pending_approval: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  exited: "bg-orange-500/10 text-orange-600 border-orange-500/20",
 };
 
 // ─── Organization Info Section ────────────────────────────────────────────────
@@ -827,49 +833,191 @@ function LeadershipRolesSection() {
 
 // ─── Integrations Section ─────────────────────────────────────────────────────
 function IntegrationsSection() {
+  const [status, setStatus] = useState<any>(null);
+  const [checking, setChecking] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [ssoDomain, setSsoDomain] = useState("");
+  const [ssoOnly, setSsoOnly] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setChecking(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("ms365-sync", {
+          body: { action: "check_status" },
+        });
+        if (!error && data && !data.error) {
+          setStatus(data);
+          setSsoDomain(data.domain || "");
+          setSsoOnly(data.sso_only || false);
+        } else {
+          setStatus({ connected: false, reason: data?.error || error?.message || "Could not check status" });
+        }
+      } catch {
+        setStatus({ connected: false, reason: "Failed to check connection" });
+      }
+      setChecking(false);
+    })();
+  }, []);
+
+  const handleSyncManagers = async () => {
+    setIsSyncing(true);
+    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+      body: { action: "sync_managers" },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Sync failed");
+    } else {
+      toast.success(`Sync complete — ${data.synced} manager assignment(s) updated.`);
+    }
+    setIsSyncing(false);
+  };
+
+  const handleProvision = async () => {
+    setIsProvisioning(true);
+    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+      body: { action: "provision_users" },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Provisioning failed");
+    } else {
+      const { created = 0, skipped = 0, errors = [] } = data;
+      if (errors.length > 0) {
+        toast.warning(`Provisioned ${created} user(s), ${errors.length} error(s). Check logs.`);
+      } else {
+        toast.success(`Provisioned ${created} new user(s). ${skipped} already existed.`);
+      }
+    }
+    setIsProvisioning(false);
+  };
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+      body: { action: "update_sso_settings", sso_domain: ssoDomain, sso_only: ssoOnly },
+    });
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Failed to save settings");
+    } else {
+      toast.success("SSO settings saved");
+    }
+    setSavingSettings(false);
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Link2 className="h-5 w-5" />
-          Integrations
-        </CardTitle>
-        <CardDescription>
-          Connect third-party services to enable SSO, calendar sync, and more.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-border p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[hsl(210,80%,50%)]/10 flex items-center justify-center">
-              <Cloud className="h-5 w-5 text-[hsl(210,80%,50%)]" />
+    <div className="space-y-6">
+      {/* Microsoft 365 Integration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cloud className="h-5 w-5 text-[hsl(210,80%,50%)]" />
+            Microsoft 365 Integration
+          </CardTitle>
+          <CardDescription>
+            Azure AD SSO, user provisioning, and organization chart sync.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Connection Status */}
+          {checking ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking connection…
             </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Microsoft 365</p>
-              <p className="text-xs text-muted-foreground">Azure AD SSO, Outlook, Teams</p>
+          ) : status?.connected ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <span className="text-sm font-medium text-green-600">Connected</span>
+                <Badge variant="outline" className="text-xs ml-2">@{status.domain}</Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-2xl font-bold">{status.ms365_user_count || 0}</p>
+                  <p className="text-xs text-muted-foreground">MS365 Users</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-2xl font-bold">{status.provisioned_count || 0}</p>
+                  <p className="text-xs text-muted-foreground">Provisioned</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Last Sync</p>
+                  <p className="text-sm font-medium mt-1">
+                    {status.last_sync_at
+                      ? new Date(status.last_sync_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                      : "Never"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={handleSyncManagers} disabled={isSyncing} className="gap-2">
+                  {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {isSyncing ? "Syncing…" : "Sync Managers"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleProvision} disabled={isProvisioning} className="gap-2">
+                  {isProvisioning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                  {isProvisioning ? "Provisioning…" : "Provision All Users"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <span className="text-sm text-destructive">{status?.reason || "Not connected"}</span>
+            </div>
+          )}
+
+          {/* SSO Settings */}
+          <div className="border-t border-border pt-4 space-y-4">
+            <h4 className="text-sm font-medium">SSO Configuration</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Email Domain</Label>
+                <Input
+                  value={ssoDomain}
+                  onChange={(e) => setSsoDomain(e.target.value)}
+                  placeholder="grx10.com"
+                />
+                <p className="text-xs text-muted-foreground">Only users with this email domain can sign in via MS365.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>SSO-Primary Mode</Label>
+                <div className="flex items-center gap-2 pt-1">
+                  <Switch checked={ssoOnly} onCheckedChange={setSsoOnly} />
+                  <span className="text-sm text-muted-foreground">
+                    {ssoOnly ? "MS365 is primary login (email/password as fallback)" : "All login methods equally visible"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" onClick={handleSaveSettings} disabled={savingSettings}>
+                {savingSettings ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                Save Settings
+              </Button>
             </div>
           </div>
-          <Badge variant="outline" className="text-xs">Coming Soon</Badge>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex items-center justify-between rounded-lg border border-border p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[hsl(217,89%,61%)]/10 flex items-center justify-center">
-              <Link2 className="h-5 w-5 text-[hsl(217,89%,61%)]" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Google Workspace</p>
-              <p className="text-xs text-muted-foreground">Google SSO, Calendar, Drive</p>
-            </div>
-          </div>
+      {/* Google Workspace placeholder */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-[hsl(217,89%,61%)]" />
+            Google Workspace
+          </CardTitle>
+          <CardDescription>Google SSO, Calendar, Drive</CardDescription>
+        </CardHeader>
+        <CardContent>
           <Badge variant="outline" className="text-xs">Coming Soon</Badge>
-        </div>
-
-        <p className="text-xs text-muted-foreground italic">
-          OAuth integration will require server-side token exchange. Configuration will be available when these integrations launch.
-        </p>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -877,26 +1025,49 @@ function IntegrationsSection() {
 function UserManagementSection() {
   const { user } = useAuth();
   const bulkUploadConfig = useUsersAndRolesBulkUpload();
-  const { data: users = [], isLoading: loading, refetch: refreshUsers } = useQuery({
+  const { data: users = [], isLoading: loading, refetch: refreshUsers, error: usersError } = useQuery({
     queryKey: ["user-roles"],
     queryFn: async () => {
-      const { data } = await supabase.functions.invoke("manage-roles", {
+      const { data, error } = await supabase.functions.invoke("manage-roles", {
         body: { action: "list_users" },
       });
+      if (error) {
+        const msg = error.message || "Failed to load users";
+        throw new Error(msg);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return (data?.users || []) as UserWithRole[];
     },
     enabled: !!user,
+    retry: 1,
   });
+
+  // Surface errors to the user
+  useEffect(() => {
+    if (usersError) {
+      toast.error(`User list failed: ${(usersError as Error).message}`);
+    }
+  }, [usersError]);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [actionUser, setActionUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Role picker state for the Pending Activation section (keyed by user_id)
+  const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
+  // MS365 manager sync state
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Manager reassignment dialog state
   const [managerDialogOpen, setManagerDialogOpen] = useState(false);
   const [managerDialogTarget, setManagerDialogTarget] = useState<UserWithRole | null>(null);
   const [managerDialogAction, setManagerDialogAction] = useState<"deactivate" | "delete" | null>(null);
   const [replacementManagerId, setReplacementManagerId] = useState<string>("");
+
+  // Exit processing dialog state
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const [exitTarget, setExitTarget] = useState<UserWithRole | null>(null);
 
   // Set manager dialog state
   const [assignManagerDialogOpen, setAssignManagerDialogOpen] = useState(false);
@@ -911,10 +1082,27 @@ function UserManagementSection() {
     [users]
   );
 
+  // Always visible regardless of search — shown in the Pending Activation banner
+  const pendingUsers = useMemo(
+    () => users.filter((u) => u.status === "pending_approval"),
+    [users]
+  );
+
+  // Map from profiles.id → display name — used to resolve manager_id to a name
+  const profileIdToName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of users) {
+      if (u.profile_id) map.set(u.profile_id, u.full_name || u.email || "Unknown");
+    }
+    return map;
+  }, [users]);
+
+  // Excludes pending_approval — those are handled in their own section above
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users;
+    const nonPending = users.filter((u) => u.status !== "pending_approval");
+    if (!searchQuery.trim()) return nonPending;
     const q = searchQuery.toLowerCase();
-    return users.filter(
+    return nonPending.filter(
       (u) =>
         u.full_name?.toLowerCase().includes(q) ||
         u.email?.toLowerCase().includes(q) ||
@@ -925,7 +1113,20 @@ function UserManagementSection() {
     );
   }, [users, searchQuery]);
 
-  const pagination = usePagination(filteredUsers, 10);
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: pagedUsers,
+    from,
+    to,
+  } = usePagination(filteredUsers, 10);
+
+  // Reset to page 1 whenever the search query changes
+  useEffect(() => { setPage(1); }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
@@ -949,7 +1150,7 @@ function UserManagementSection() {
       // Reactivate
       setUpdatingStatus(u.user_id);
       const { data, error } = await supabase.functions.invoke("manage-roles", {
-        body: { action: "reactivate_user", user_id: u.user_id },
+        body: { action: "activate_user", user_id: u.user_id },
       });
       if (error || data?.error) {
         toast.error(data?.error || "Failed to reactivate user");
@@ -984,6 +1185,11 @@ function UserManagementSection() {
     setManagerDialogOpen(true);
   };
 
+  const initiateExit = (targetUser: UserWithRole) => {
+    setExitTarget(targetUser);
+    setExitDialogOpen(true);
+  };
+
   const executeDeactivateOrDelete = async () => {
     if (!managerDialogTarget || !managerDialogAction) return;
     const userId = managerDialogTarget.user_id;
@@ -1015,24 +1221,35 @@ function UserManagementSection() {
     setManagerDialogAction(null);
   };
 
-  const handleSetManager = async () => {
-    if (!setManagerTarget) return;
-    setUpdatingManager(true);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: {
-        action: "update_manager",
-        user_id: setManagerTarget.user_id,
-        manager_user_id: newManagerUserId || undefined,
-      },
+  const handleSyncManagers = async () => {
+    setIsSyncing(true);
+    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+      body: { action: "sync_managers" },
     });
     if (error || data?.error) {
-      toast.error(data?.error || "Failed to update manager");
+      // data?.error covers versions where non-2xx body is returned in data.
+      // For versions where it's null, read the response body from error.context.
+      let msg: string = data?.error ?? "";
+      if (!msg && error) {
+        try {
+          const body = await (error as any).context?.json?.();
+          msg = body?.error ?? "";
+        } catch {
+          // context already consumed or not JSON
+        }
+        if (!msg) msg = error.message;
+      }
+      toast.error(msg || "Sync failed. Check Supabase function logs for details.");
     } else {
-      toast.success("Manager updated successfully");
-      setAssignManagerDialogOpen(false);
-      await refreshUsers();
+      const { synced = 0, errors = [] } = data;
+      if (errors.length > 0) {
+        toast.warning(`Sync complete: ${synced} updated, ${errors.length} error(s). Check function logs.`);
+      } else {
+        toast.success(`Sync complete — ${synced} manager assignment${synced !== 1 ? "s" : ""} updated from Microsoft 365.`);
+      }
+      qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
-    setUpdatingManager(false);
+    setIsSyncing(false);
   };
 
   if (loading) {
@@ -1098,45 +1315,51 @@ function UserManagementSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Set Manager Dialog */}
+      {/* Manager Info Dialog — points admin to MS365 instead of manual override */}
       <Dialog open={assignManagerDialogOpen} onOpenChange={setAssignManagerDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set Manager for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
+            <DialogTitle>Manager assignment for {setManagerTarget?.full_name || setManagerTarget?.email}</DialogTitle>
             <DialogDescription>
-              Manually assign a manager. This overrides the MS365 org chart.
+              Manager assignments are controlled by your Microsoft 365 organisation chart and synced automatically.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>Manager</Label>
-            <Select value={newManagerUserId} onValueChange={setNewManagerUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select manager..." />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUsers
-                  .filter((u) => u.user_id !== setManagerTarget?.user_id)
-                  .map((u) => (
-                    <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.full_name || u.email}
-                      {u.job_title ? ` · ${u.job_title}` : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            {setManagerTarget?.pending_manager_email && (
-              <p className="text-xs text-yellow-600">
-                Waiting on MS365 sync for: {setManagerTarget.pending_manager_email}
-              </p>
+          <div className="space-y-3 py-3">
+            {setManagerTarget?.manager_id && profileIdToName.get(setManagerTarget.manager_id) ? (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm">
+                Current manager: <span className="font-medium">{profileIdToName.get(setManagerTarget.manager_id)}</span>
+              </div>
+            ) : setManagerTarget?.pending_manager_email ? (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-700">
+                Manager assigned in MS365 as <span className="font-medium">{setManagerTarget.pending_manager_email}</span> — will resolve once they log in, or click <strong>Sync from MS365</strong>.
+              </div>
+            ) : (
+              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                No manager assigned in Microsoft 365.
+              </div>
             )}
+            <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-700 space-y-1">
+              <p className="font-medium">To change this employee's manager:</p>
+              <ol className="list-decimal list-inside space-y-1 text-blue-600">
+                <li>Open the Microsoft 365 Admin Center</li>
+                <li>Go to <strong>Users → Active users</strong></li>
+                <li>Select the employee and edit their profile</li>
+                <li>Update the <strong>Manager</strong> field</li>
+                <li>Return here and click <strong>Sync from MS365</strong></li>
+              </ol>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setAssignManagerDialogOpen(false)}>
-              Cancel
+              Close
             </Button>
-            <Button onClick={handleSetManager} disabled={updatingManager}>
-              {updatingManager && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => window.open("https://admin.microsoft.com/Adminportal/Home#/users", "_blank")}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open MS365 Admin
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1150,12 +1373,130 @@ function UserManagementSection() {
               User Management
             </CardTitle>
             <CardDescription>
-              Manage user access, roles, and org hierarchy. Pending users must be approved before they can sign in.
+              Employees appear here after signing in with Microsoft 365. Activate them and assign a role to grant access.
             </CardDescription>
           </div>
-          <BulkUploadDialog config={bulkUploadConfig} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncManagers}
+              disabled={isSyncing}
+              className="gap-2"
+              title="Pull latest manager assignments from Microsoft 365 org chart"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {isSyncing ? "Syncing…" : "Sync from MS365"}
+            </Button>
+            <BulkUploadDialog config={bulkUploadConfig} />
+          </div>
         </CardHeader>
         <CardContent>
+          {/* ── Pending Activation Banner ── */}
+          {pendingUsers.length > 0 && (
+            <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="h-4 w-4 text-amber-500" />
+                <h3 className="text-sm font-semibold text-amber-600">
+                  Pending Activation ({pendingUsers.length})
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {pendingUsers.map((u) => {
+                  const selectedRole = pendingRoles[u.user_id] ?? (u.roles[0] || "employee");
+                  return (
+                    <div
+                      key={u.user_id}
+                      className="flex items-center justify-between gap-4 rounded-md border border-amber-500/20 bg-background p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">
+                          {u.full_name || "Unnamed User"}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        {u.department && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {u.department}{u.job_title ? ` · ${u.job_title}` : ""}
+                          </p>
+                        )}
+                        {u.manager_id && profileIdToName.get(u.manager_id) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Reports to: {profileIdToName.get(u.manager_id)}
+                          </p>
+                        )}
+                        {!u.manager_id && u.pending_manager_email && (
+                          <p className="text-xs text-yellow-600 mt-0.5">
+                            Manager pending sync: {u.pending_manager_email}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Select
+                          value={selectedRole}
+                          onValueChange={(val) =>
+                            setPendingRoles((prev) => ({ ...prev, [u.user_id]: val }))
+                          }
+                          disabled={actionUser === u.user_id}
+                        >
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="finance">Finance</SelectItem>
+                            <SelectItem value="hr">HR</SelectItem>
+                            <SelectItem value="payroll">Payroll</SelectItem>
+                            <SelectItem value="employee">Employee</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                          disabled={actionUser === u.user_id}
+                          onClick={() => handleApproveUser(u.user_id, selectedRole)}
+                        >
+                          {actionUser === u.user_id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Activate
+                            </>
+                          )}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              disabled={actionUser === u.user_id}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => initiateDeactivateOrDelete(u, "delete")}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove permanently
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -1169,11 +1510,11 @@ function UserManagementSection() {
             {filteredUsers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
                 {users.length === 0
-                  ? "No users found. Users will appear here after they sign in or are created by an admin."
+                  ? "No users yet. Employees will appear here as they sign in with Microsoft 365."
                   : "No users match your search."}
               </p>
             ) : (
-              pagination.paginatedItems.map((u) => {
+              pagedUsers.map((u) => {
                 const currentRole = u.roles[0] || "employee";
                 const isSelf = u.user_id === user?.id;
                 const isPending = u.status === "pending_approval";
@@ -1194,15 +1535,13 @@ function UserManagementSection() {
                             You
                           </Badge>
                         )}
-                        {isPending && (
-                          <Badge
-                            variant="outline"
-                            className={`text-xs shrink-0 ${STATUS_COLORS.pending_approval}`}
-                          >
-                            <Clock className="h-3 w-3 mr-1 inline" />
-                            {STATUS_LABELS.pending_approval}
-                          </Badge>
-                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
+                        >
+                          {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
+                          {STATUS_LABELS[u.status] || u.status}
+                        </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {u.email}
@@ -1212,9 +1551,14 @@ function UserManagementSection() {
                           {u.department} {u.job_title ? `· ${u.job_title}` : ""}
                         </p>
                       )}
-                      {u.pending_manager_email && (
+                      {u.manager_id && profileIdToName.get(u.manager_id) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Reports to: {profileIdToName.get(u.manager_id)}
+                        </p>
+                      )}
+                      {!u.manager_id && u.pending_manager_email && (
                         <p className="text-xs text-yellow-600 mt-0.5">
-                          Manager pending: {u.pending_manager_email}
+                          Manager pending sync: {u.pending_manager_email}
                         </p>
                       )}
                     </div>
@@ -1278,25 +1622,25 @@ function UserManagementSection() {
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="finance">Finance</SelectItem>
                             <SelectItem value="hr">HR</SelectItem>
+                            <SelectItem value="payroll">Payroll</SelectItem>
                             <SelectItem value="employee">Employee</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Set Manager button */}
+                      {/* Manager info button — opens dialog with MS365 guidance */}
                       {!isSelf && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground self-end"
-                          title="Set Manager"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          title="Manager info"
                           onClick={() => {
                             setSetManagerTarget(u);
-                            setNewManagerUserId("");
                             setAssignManagerDialogOpen(true);
                           }}
                         >
-                          <UserCog className="h-4 w-4" />
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                       )}
 
@@ -1315,6 +1659,13 @@ function UserManagementSection() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
+                              className="text-orange-600 focus:text-orange-600"
+                              onClick={() => initiateExit(u)}
+                            >
+                              <UserX className="h-4 w-4 mr-2" />
+                              Exit Employee
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => initiateDeactivateOrDelete(u, "delete")}
                             >
@@ -1330,73 +1681,49 @@ function UserManagementSection() {
               })
             )}
           </div>
-          <TablePagination
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            totalItems={pagination.totalItems}
-            from={pagination.from}
-            to={pagination.to}
-            pageSize={pagination.pageSize}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
-          />
+          {totalPages > 1 && (
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              from={from}
+              to={to}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </CardContent>
       </Card>
+
+      <ExitProcessingDialog
+        open={exitDialogOpen}
+        onOpenChange={setExitDialogOpen}
+        targetUser={exitTarget ? {
+          user_id: exitTarget.user_id,
+          profile_id: exitTarget.profile_id,
+          full_name: exitTarget.full_name,
+          email: exitTarget.email,
+        } : null}
+        activeUsers={activeUsers.map((u) => ({
+          user_id: u.user_id,
+          profile_id: u.profile_id,
+          full_name: u.full_name,
+          email: u.email,
+        }))}
+        onComplete={() => {
+          qc.invalidateQueries({ queryKey: ["user-roles"] });
+        }}
+      />
     </div>
   );
 }
 
 // ─── Main Settings Page ───────────────────────────────────────────────────────
+// Access is enforced at the route level by AdminRoute in App.tsx.
+// No client-side role check needed here.
 export default function Settings() {
-  const { user } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
-  const [activeTab, setActiveTab] = useState("general");
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!data);
-      setCheckingAdmin(false);
-    })();
-  }, [user]);
-
-  if (checkingAdmin) {
-    return (
-      <MainLayout title="Settings">
-        <div className="p-6 space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <MainLayout title="Settings">
-        <div className="p-6 flex items-center justify-center min-h-[60vh]">
-          <Card className="max-w-md w-full">
-            <CardContent className="flex flex-col items-center gap-4 pt-6">
-              <AlertCircle className="h-12 w-12 text-muted-foreground" />
-              <div className="text-center">
-                <h3 className="text-lg font-semibold">Access Restricted</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Only administrators can access settings.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </MainLayout>
-    );
-  }
+  const [activeTab, setActiveTab] = useState("organization");
 
   return (
     <MainLayout title="Settings">
@@ -1451,6 +1778,10 @@ export default function Settings() {
               <Lock className="h-4 w-4" />
               Privacy & Security
             </TabsTrigger>
+            <TabsTrigger value="roles" className="gap-1.5">
+              <ShieldCheck className="h-4 w-4" />
+              Roles & Permissions
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="organization" className="mt-6">
@@ -1491,6 +1822,10 @@ export default function Settings() {
 
           <TabsContent value="privacy" className="mt-6">
             <PrivacySecuritySection />
+          </TabsContent>
+
+          <TabsContent value="roles" className="mt-6">
+            <RolePermissionsTab />
           </TabsContent>
         </Tabs>
       </div>

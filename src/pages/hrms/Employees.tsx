@@ -155,6 +155,62 @@ function ManagerCombobox({ value, onChange, employees, excludeId }: ManagerCombo
   );
 }
 
+// ─── Debug Banner: explains why the employee list is empty ────────────────────
+function EmployeeEmptyState({
+  searchQuery,
+  statusFilter,
+  totalEmployees,
+  isReadOnly,
+}: {
+  searchQuery: string;
+  statusFilter: string;
+  totalEmployees: number;
+  isReadOnly: boolean;
+}) {
+  if (searchQuery || statusFilter !== "all") {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <Search className="mx-auto h-12 w-12 text-muted-foreground" />
+        <p className="mt-3 font-medium text-foreground">No employees match your filter</p>
+        <p className="text-sm text-muted-foreground">
+          {searchQuery && `Search "${searchQuery}" returned no results`}
+          {searchQuery && statusFilter !== "all" && " with "}
+          {statusFilter !== "all" && `status filter "${statusFilter}"`}.
+          {" "}Try clearing the filters above.
+        </p>
+      </div>
+    );
+  }
+
+  if (totalEmployees === 0) {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+        <p className="mt-3 font-medium text-foreground">
+          {isReadOnly ? "No employees visible for your role" : "No employees added yet"}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {isReadOnly
+            ? "Your role can view the employee directory, but no profiles exist in this organisation yet. Contact your HR admin to add employees."
+            : "Add your first employee using the \"Add Employee\" button above, or use Bulk Add Employees to import a list."}
+        </p>
+      </div>
+    );
+  }
+
+  // totalEmployees > 0 but filtered list is empty (e.g. status filter hid them all)
+  return (
+    <div className="text-center py-12 space-y-2">
+      <Filter className="mx-auto h-12 w-12 text-muted-foreground" />
+      <p className="mt-3 font-medium text-foreground">No employees in this view</p>
+      <p className="text-sm text-muted-foreground">
+        {totalEmployees} employee{totalEmployees !== 1 ? "s" : ""} exist in the directory but none match the
+        current filter. Try selecting "All Status" from the filter dropdown.
+      </p>
+    </div>
+  );
+}
+
 export default function Employees() {
   const { data: employees = [], isLoading } = useEmployees();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
@@ -449,14 +505,12 @@ export default function Employees() {
                 ))}
               </div>
             ) : filteredEmployees.length === 0 ? (
-              <div className="text-center py-12">
-                <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-3 text-muted-foreground">
-                  {searchQuery || statusFilter !== "all"
-                    ? "No employees match your search"
-                    : "No employees added yet"}
-                </p>
-              </div>
+              <EmployeeEmptyState
+                searchQuery={searchQuery}
+                statusFilter={statusFilter}
+                totalEmployees={employees.length}
+                isReadOnly={!!isReadOnly}
+              />
             ) : (
               <>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

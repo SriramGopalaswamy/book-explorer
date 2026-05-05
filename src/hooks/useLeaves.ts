@@ -130,24 +130,29 @@ export function useLeaveBalances() {
     queryKey: ["leave-balances", currentYear, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) return mockLeaveBalances;
-      if (!orgId) return [];
+      if (!orgId || !user) return [];
+
+      // First, auto-provision missing balances from active leave_types
+      try {
+        await supabase.rpc("provision_leave_balances", {
+          _user_id: user.id,
+          _org_id: orgId,
+          _year: currentYear,
+        });
+      } catch (provErr) {
+        console.warn("Balance provisioning skipped:", provErr);
+      }
+
+      // Now fetch the real balances
       const { data, error } = await supabase
         .from("leave_balances")
         .select("*")
-        .eq("user_id", user?.id)
+        .eq("user_id", user.id)
         .eq("organization_id", orgId)
         .eq("year", currentYear);
 
       if (error) throw error;
-
-      const defaultBalances: LeaveBalance[] = [
-        { id: "1", user_id: user?.id || "", profile_id: null, leave_type: "casual", total_days: 12, used_days: 0, year: currentYear },
-        { id: "2", user_id: user?.id || "", profile_id: null, leave_type: "sick", total_days: 10, used_days: 0, year: currentYear },
-        { id: "3", user_id: user?.id || "", profile_id: null, leave_type: "earned", total_days: 15, used_days: 0, year: currentYear },
-        { id: "4", user_id: user?.id || "", profile_id: null, leave_type: "maternity", total_days: 180, used_days: 0, year: currentYear },
-      ];
-
-      return data.length > 0 ? data as LeaveBalance[] : defaultBalances;
+      return (data ?? []) as LeaveBalance[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
   });
@@ -337,27 +342,9 @@ export function useApproveLeaveRequest() {
 
       if (error) throw error;
 
-      // ── CRITICAL: Decrement leave balance ──────────────────────
-      try {
-        const currentYear = new Date().getFullYear();
-        const { data: balance } = await supabase
-          .from("leave_balances")
-          .select("id, used_days")
-          .eq("user_id", data.user_id)
-          .eq("leave_type", data.leave_type)
-          .eq("year", currentYear)
-          .maybeSingle();
-
-        if (balance) {
-          const newUsed = Number(balance.used_days) + Number(data.days);
-          await supabase
-            .from("leave_balances")
-            .update({ used_days: newUsed })
-            .eq("id", balance.id);
-        }
-      } catch (balErr) {
-        console.warn("Failed to update leave balance:", balErr);
-      }
+      // Balance decrement is handled by trg_leave_balance_on_status (SECURITY DEFINER)
+      // so it works regardless of the caller's role (managers were excluded from the
+      // leave_balances UPDATE RLS policy and silently failed here).
 
       // Create attendance_records with status='leave' for each day in the leave range
       try {
@@ -503,28 +490,9 @@ export function useDeleteLeaveRequest() {
 
       const wasApproved = check.status === "approved";
 
-      // If approved, restore leave balance and clean up attendance
+      // If approved, clean up attendance (balance restore handled by
+      // trg_leave_balance_on_delete trigger on the DELETE below)
       if (wasApproved) {
-        try {
-          const currentYear = new Date().getFullYear();
-          const { data: balance } = await supabase
-            .from("leave_balances")
-            .select("id, used_days")
-            .eq("user_id", user.id)
-            .eq("leave_type", check.leave_type)
-            .eq("year", currentYear)
-            .maybeSingle();
-          if (balance) {
-            const restoredUsed = Math.max(0, Number(balance.used_days) - Number(check.days));
-            await supabase
-              .from("leave_balances")
-              .update({ used_days: restoredUsed })
-              .eq("id", balance.id);
-          }
-        } catch (balErr) {
-          console.warn("Failed to restore leave balance:", balErr);
-        }
-
         // Delete attendance records created for this leave
         try {
           if (check.profile_id) {
@@ -581,6 +549,7 @@ export interface LeaveType {
   default_days: number;
   is_active: boolean;
   sort_order: number;
+  gender_eligibility: 'all' | 'male' | 'female';
 }
 
 export function useLeaveTypes() {
@@ -607,7 +576,7 @@ export function useLeaveTypes() {
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as LeaveType[];
+      return (data ?? []) as unknown as LeaveType[];
     },
     enabled: !!user || isDevMode,
   });
@@ -625,7 +594,7 @@ export function useAllLeaveTypes() {
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as LeaveType[];
+      return (data ?? []) as unknown as LeaveType[];
     },
     enabled: !!user,
   });
@@ -636,11 +605,20 @@ export function useCreateLeaveType() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number }) => {
+    mutationFn: async (leaveType: { key: string; label: string; icon: string; color: string; default_days: number; sort_order: number; gender_eligibility?: string }) => {
       if (!user) throw new Error("Not authenticated");
       if (!leaveType.key?.trim()) throw new Error("Leave type key is required");
       if (!leaveType.label?.trim()) throw new Error("Leave type label is required");
       if (leaveType.default_days < 0) throw new Error("Default days cannot be negative");
+
+      // Role guard: HR/Admin only
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      if (!userRoles.some((r: string) => ["admin", "hr"].includes(r))) {
+        throw new Error("Only HR or Admin can create leave types.");
+      }
 
       const { data, error } = await supabase
         .from("leave_types")
@@ -649,11 +627,26 @@ export function useCreateLeaveType() {
         .single();
 
       if (error) throw error;
+
+      // Provision balances for all active employees for this new type
+      try {
+        const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+        if (callerProfile?.organization_id) {
+          await supabase.rpc("provision_all_employees_balances", {
+            _org_id: callerProfile.organization_id,
+            _year: new Date().getFullYear(),
+          });
+        }
+      } catch (provErr) {
+        console.warn("Failed to provision balances for new type:", provErr);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leave-types"] });
       queryClient.invalidateQueries({ queryKey: ["leave-types-all"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave type created");
     },
     onError: (error) => {
@@ -667,10 +660,24 @@ export function useUpdateLeaveType() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; label?: string; icon?: string; color?: string; default_days?: number; is_active?: boolean; sort_order?: number; gender_eligibility?: string }) => {
       if (!user) throw new Error("Not authenticated");
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Role guard: HR/Admin only
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("organization_id", callerProfile.organization_id);
+      const userRoles = (roles ?? []).map((r: any) => r.role);
+      if (!userRoles.some((r: string) => ["admin", "hr"].includes(r))) {
+        throw new Error("Only HR or Admin can update leave types.");
+      }
+
+      // Get current leave type info before updating
+      const { data: currentType } = await supabase
+        .from("leave_types")
+        .select("key, default_days, is_active")
+        .eq("id", id)
+        .single();
 
       const { data, error } = await supabase
         .from("leave_types")
@@ -681,11 +688,39 @@ export function useUpdateLeaveType() {
         .single();
 
       if (error) throw error;
+
+      // If default_days changed, propagate to all employee balances
+      if (currentType && updates.default_days !== undefined && updates.default_days !== currentType.default_days) {
+        try {
+          await supabase.rpc("propagate_leave_type_defaults", {
+            _leave_type_key: currentType.key,
+            _org_id: callerProfile.organization_id,
+            _new_default_days: updates.default_days,
+            _year: new Date().getFullYear(),
+          });
+        } catch (propErr) {
+          console.warn("Failed to propagate default_days:", propErr);
+        }
+      }
+
+      // If type was activated, provision balances for all employees
+      if (currentType && !currentType.is_active && updates.is_active === true) {
+        try {
+          await supabase.rpc("provision_all_employees_balances", {
+            _org_id: callerProfile.organization_id,
+            _year: new Date().getFullYear(),
+          });
+        } catch (provErr) {
+          console.warn("Failed to provision balances for reactivated type:", provErr);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leave-types"] });
       queryClient.invalidateQueries({ queryKey: ["leave-types-all"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave type updated");
     },
     onError: (error) => {

@@ -113,11 +113,15 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
       const { data, error, count } = await query;
       if (error) throw error;
 
-      // Count distinct actors across ALL filtered logs (not just current page)
+      // Count distinct actors — bounded scan (max 500 most recent rows) to
+      // avoid pulling the entire audit log on every render. For deeper history
+      // counts, build a server-side aggregate view.
       let actorsQuery = supabase
         .from("audit_logs" as any)
         .select("actor_id")
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (filters.entityType) actorsQuery = actorsQuery.eq("entity_type", filters.entityType);
       if (filters.action)     actorsQuery = actorsQuery.eq("action", filters.action);
       if (filters.from)       actorsQuery = actorsQuery.gte("created_at", filters.from);

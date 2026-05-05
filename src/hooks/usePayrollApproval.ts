@@ -36,6 +36,24 @@ export function useSubmitForReview() {
         .eq("id", runId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await (supabase.from("audit_logs") as any).insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: "payroll_submitted_for_review",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: { prev_status: run.status },
+      }).catch((err) => console.error("audit log failed", err));
+
+      await (supabase.from("payroll_events") as any).insert({
+        organization_id: callerProfile.organization_id,
+        event_type: "payroll_submitted_for_review",
+        payroll_run_id: runId,
+        actor_id: user.id,
+        before_state: { status: run.status },
+        after_state: { status: "under_review" },
+      }).catch((err) => console.error("payroll_events insert failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -94,6 +112,25 @@ export function useApprovePayroll() {
         .eq("id", runId)
         .eq("organization_id", profile.organization_id);
       if (error) throw error;
+
+      await (supabase.from("audit_logs") as any).insert({
+        organization_id: profile.organization_id,
+        actor_id: user.id,
+        action: "payroll_approved",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: { roles: roles.map((r: any) => r.role) },
+      }).catch((err) => console.error("audit log failed", err));
+
+      await (supabase.from("payroll_events") as any).insert({
+        organization_id: profile.organization_id,
+        event_type: "payroll_approved",
+        payroll_run_id: runId,
+        actor_id: user.id,
+        actor_role: roles[0]?.role ?? null,
+        before_state: { status: "under_review" },
+        after_state: { status: "approved" },
+      }).catch((err) => console.error("payroll_events insert failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
@@ -134,6 +171,24 @@ export function useLockApprovedPayroll() {
         .eq("id", runId)
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
+
+      await (supabase.from("audit_logs") as any).insert({
+        organization_id: callerProfile.organization_id,
+        actor_id: user.id,
+        action: "payroll_locked",
+        entity_type: "payroll_run",
+        entity_id: runId,
+        metadata: {},
+      }).catch((err) => console.error("audit log failed", err));
+
+      await (supabase.from("payroll_events") as any).insert({
+        organization_id: callerProfile.organization_id,
+        event_type: "payroll_locked",
+        payroll_run_id: runId,
+        actor_id: user.id,
+        before_state: { status: "approved" },
+        after_state: { status: "locked" },
+      }).catch((err) => console.error("payroll_events insert failed", err));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });

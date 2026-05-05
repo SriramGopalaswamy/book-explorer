@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,9 @@ import { FileText as FileTextIcon, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWageDeadlines, computeDeadlineDate } from "@/hooks/useWageDeadlines";
 import { usePayrollFlags } from "@/hooks/usePayrollFlags";
+import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
+import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
+import { toast } from "sonner";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -124,7 +127,13 @@ const statusConfig: Record<string, { label: string; class: string; icon: any }> 
   locked: { label: "Locked", class: "bg-primary/10 text-primary border-primary/30", icon: Lock },
 };
 
-export function PayrollEnginePanel() {
+interface PayrollEnginePanelProps {
+  /** Called whenever the selected month changes (YYYY-MM format). Used to keep
+   *  the parent Payroll page KPI cards in sync with the Engine tab period. */
+  onMonthChange?: (monthPeriod: string) => void;
+}
+
+export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = {}) {
   const { data: runs = [], isLoading } = usePayrollRuns();
   const generate = useGeneratePayroll();
   const deleteRun = useDeletePayrollRun();
@@ -138,6 +147,34 @@ export function PayrollEnginePanel() {
   const frequency = payrollFlags?.payroll_frequency || "monthly";
 
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod(frequency));
+  const isFirstRender = useRef(true);
+
+  // On mount: sync the initial period to the parent KPI cards.
+  // On subsequent frequency changes (payrollFlags loads with a non-default
+  // frequency like "biweekly" or "weekly"): reset selectedPeriod to the
+  // correct format for that frequency so the dropdown shows valid options
+  // and the KPI cards stay in sync.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return; // Don't override parent period on Engine tab mount
+    }
+    // Frequency changed after mount — reset period to correct format
+    const newPeriod = currentPeriod(frequency);
+    setSelectedPeriod(newPeriod);
+    const monthPeriod = newPeriod.split("-").slice(0, 2).join("-");
+    onMonthChange?.(monthPeriod);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frequency]); // selectedPeriod and onMonthChange intentionally excluded
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    // Notify parent with the YYYY-MM prefix so KPI cards update regardless of
+    // whether the Engine is using weekly ("YYYY-MM-W1") or biweekly ("YYYY-MM-H1").
+    const monthPeriod = period.split("-").slice(0, 2).join("-");
+    onMonthChange?.(monthPeriod);
+  };
+  const registerUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [viewRun, setViewRun] = useState<PayrollRun | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRun | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ run: PayrollRun; action: string } | null>(null);
@@ -197,7 +234,7 @@ export function PayrollEnginePanel() {
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
               <SelectTrigger className="w-52">
                 <Calendar className="h-4 w-4 mr-2" />
                 <SelectValue />
@@ -215,6 +252,8 @@ export function PayrollEnginePanel() {
               <Zap className="h-4 w-4 mr-1" />
               {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
             </Button>
+            <span className="text-muted-foreground text-sm hidden sm:inline">or</span>
+            <BulkUploadDialog config={registerUploadConfig} label="Upload Register" />
           </div>
         </CardHeader>
         <CardContent>
@@ -223,11 +262,23 @@ export function PayrollEnginePanel() {
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : runs.filter((r) => r.pay_period === selectedPeriod).length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-8 space-y-2">
               <Zap className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                No payroll run for {periodLabel(selectedPeriod)}. Select a period and generate payroll.
+              <p className="mt-2 font-medium text-foreground">
+                No payroll run for {periodLabel(selectedPeriod)}
               </p>
+              {runs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No payroll runs exist yet for this organisation.
+                  Click <strong>Generate Payroll</strong> above to create one for {periodLabel(selectedPeriod)},
+                  or upload a payroll register via <strong>Upload Register</strong>.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Runs exist for other periods but none for {periodLabel(selectedPeriod)}.
+                  Select a different period from the picker, or generate a new run for {periodLabel(selectedPeriod)}.
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -468,15 +519,28 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
             <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
               <Download className="h-4 w-4 mr-1" /> Payroll CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportPayrollMasterCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <Button variant="outline" size="sm" onClick={async () => {
+              try { await exportPayrollMasterCSV(entries, run.pay_period); }
+              catch (err) { toast.error(`Master CSV export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+            }} disabled={entries.length === 0}>
               <FileSpreadsheet className="h-4 w-4 mr-1" /> Master CSV
             </Button>
             {isLocked && (
               <>
-                <Button variant="outline" size="sm" onClick={() => exportPFECR(entries)}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  try { await exportPFECR(entries, run.pay_period); }
+                  catch (err) { toast.error(`PF ECR export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+                }}>
                   <FileSpreadsheet className="h-4 w-4 mr-1" /> PF ECR
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => exportBankTransferFile(entries)}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  try {
+                    const { warnings } = await exportBankTransferFile(entries, run.pay_period);
+                    if (warnings.length > 0) {
+                      toast.warning(`Bank transfer exported with ${warnings.length} issue(s):\n${warnings.join("\n")}`);
+                    }
+                  } catch (err) { toast.error(`Bank transfer export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+                }}>
                   <Landmark className="h-4 w-4 mr-1" /> Bank Transfer
                 </Button>
               </>

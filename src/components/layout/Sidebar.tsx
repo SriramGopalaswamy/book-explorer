@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import {
   Tooltip,
@@ -68,6 +69,7 @@ import {
    RefreshCw,
    Cpu,
    Upload,
+   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import grx10Logo from "@/assets/grx10-logo.webp";
@@ -127,7 +129,6 @@ const hrmsNav: NavItem[] = [
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
 ];
 
 // Employee-only HRMS items
@@ -137,7 +138,6 @@ const employeeHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
 ];
 
 // Manager HRMS items (same as employee + Inbox)
@@ -147,7 +147,6 @@ const managerHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
   { name: "Inbox", path: "/hrms/inbox", icon: Inbox, module: "hrms" },
 ];
 
@@ -162,7 +161,7 @@ const financeHrmsNav: NavItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, module: "hrms" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: CreditCard, module: "hrms" },
   { name: "My Reimbursements", path: "/hrms/reimbursements", icon: BadgeDollarSign, module: "hrms" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, module: "hrms" },
+  
 ];
 
 const inventoryNav: NavItem[] = [
@@ -235,7 +234,7 @@ function NavSection({
   const [sectionOpen, setSectionOpen] = useState<boolean>(() => {
     const stored = localStorage.getItem(storageKey);
     if (stored !== null) return stored === "true";
-    return defaultOpen || hasActiveItem;
+    return defaultOpen;
   });
 
   const toggleSection = () => {
@@ -245,6 +244,8 @@ function NavSection({
       return next;
     });
   };
+
+  const isExpanded = collapsed || hasActiveItem || sectionOpen;
 
   if (items.length === 0) return null;
 
@@ -261,7 +262,7 @@ function NavSection({
             <ChevronDown
               className={cn(
                 "h-3.5 w-3.5 transition-transform duration-200",
-                sectionOpen ? "rotate-0" : "-rotate-90"
+                isExpanded ? "rotate-0" : "-rotate-90"
               )}
             />
           </button>
@@ -282,7 +283,7 @@ function NavSection({
           </Tooltip>
         )}
 
-        {(sectionOpen || collapsed) && (
+        {isExpanded && (
           <nav className="space-y-1">
               {items.map((item) => {
                 const isActive = location.pathname === item.path;
@@ -354,24 +355,24 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(persistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { data: currentRole, isLoading: roleLoading, isFetched } = useCurrentRole();
-  const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { data: currentRole } = useCurrentRole();
+  const { data: isSuperAdmin, isLoading: superAdminLoading } = useIsSuperAdmin();
+  const { signOut } = useAuth();
   const { isModuleEnabled } = useModuleAccess();
-  const { data: orgData, isFetched: orgFetched } = useUserOrganization();
+  const { data: orgData, isLoading: orgLoading } = useUserOrganization();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
-  // Only treat as loading on initial fetch, not on refetches — prevents scroll reset.
-  // IMPORTANT: when orgId is absent (no profile or no org assignment) the role query
-  // is permanently disabled and isFetched stays false forever, making the sidebar
-  // blank indefinitely for those users. Guard: if org data has been fetched and there
-  // is no org, skip the loading gate so the sidebar renders with employee defaults.
-  const isLoading = orgFetched && !orgData ? false : !isFetched;
+  // Never blank the navigation while role/org queries settle.
+  // Fall back to a safe self-service role until the org-scoped role query resolves.
+  const rolesStillLoading = superAdminLoading || orgLoading;
+  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? (rolesStillLoading ? null : "employee");
+  const showingFallbackRole = !isSuperAdmin && effectiveRole === null;
 
   // Restore sidebar scroll position after remount AND after content has rendered
-  // We depend on isLoading so scroll is restored once nav items are actually in the DOM
+  // We depend on org loading so scroll is restored once the shell is laid out
   useEffect(() => {
     const el = sidebarScrollRef.current;
-    if (!el || isLoading) return;
+    if (!el || orgLoading) return;
     // Use rAF to ensure the browser has laid out the content before restoring scroll
     const raf = requestAnimationFrame(() => {
       el.scrollTop = savedSidebarScroll;
@@ -382,12 +383,13 @@ export function Sidebar() {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll);
     };
-  }, [isLoading]);
+  }, [orgLoading]);
 
-  const isEmployee = currentRole === "employee";
-  const isManager = currentRole === "manager";
-  const isFinance = currentRole === "finance";
-  const isHR = currentRole === "hr";
+  const isEmployee = effectiveRole === "employee";
+  const isManager = effectiveRole === "manager";
+  const isFinance = effectiveRole === "finance";
+  const isHR = effectiveRole === "hr";
+  const isAdmin = effectiveRole === "admin";
 
   // Expose setter so Header can trigger it
   setMobileMenuOpen = setMobileOpen;
@@ -402,28 +404,31 @@ export function Sidebar() {
   const closeMobile = () => setMobileOpen(false);
 
 
-  // Build visible nav based on role and module access
+  // Build visible nav based on role and module access.
+  // Admins (org admin + super_admin via effectiveRole) always see all modules
+  // regardless of the subscription's enabled_modules list — subscriptions scope
+  // what non-admin tenants can use, not what their own admin can configure.
   const restrictedRole = isEmployee || isManager || isFinance || isHR;
   const visibleMainNav = restrictedRole ? [] : navigation;
-  const visibleFinancialNav = (isEmployee || isManager || isHR) ? [] 
-    : isModuleEnabled("financial") ? financialNav 
+  const visibleFinancialNav = (isEmployee || isManager || isHR) ? []
+    : (isAdmin || isModuleEnabled("financial")) ? financialNav
     : [];
   const visibleInventoryNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? inventoryNav
+    : (isAdmin || isModuleEnabled("financial")) ? inventoryNav
     : [];
   const visibleProcurementNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? procurementNav
+    : (isAdmin || isModuleEnabled("financial")) ? procurementNav
     : [];
   const visibleSalesNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? salesNav
+    : (isAdmin || isModuleEnabled("financial")) ? salesNav
     : [];
   const visibleManufacturingNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? manufacturingNav
+    : (isAdmin || isModuleEnabled("financial")) ? manufacturingNav
     : [];
   const visibleWarehouseNav = (isEmployee || isManager || isHR) ? []
-    : isModuleEnabled("financial") ? warehouseNav
+    : (isAdmin || isModuleEnabled("financial")) ? warehouseNav
     : [];
-  const visibleHrmsNav = !isModuleEnabled("hrms") ? []
+  const visibleHrmsNav = (!isAdmin && !isModuleEnabled("hrms")) ? []
     : isManager
     ? managerHrmsNav
     : isEmployee
@@ -431,7 +436,7 @@ export function Sidebar() {
     : isFinance
     ? financeHrmsNav
     : hrmsNav;
-  const visiblePerformanceNav = isModuleEnabled("performance") ? performanceNav : [];
+  const visiblePerformanceNav = (isAdmin || isModuleEnabled("performance")) ? performanceNav : [];
 
   const sidebarContent = (
     <>
@@ -463,78 +468,80 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
-        {!isLoading && (
-          <>
-            {visibleMainNav.length > 0 && (
-              <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleFinancialNav.length > 0 && (
-              <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleInventoryNav.length > 0 && (
-              <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleProcurementNav.length > 0 && (
-              <NavSection title="Procurement" items={visibleProcurementNav} sectionId="procurement" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleSalesNav.length > 0 && (
-              <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleManufacturingNav.length > 0 && (
-              <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {visibleWarehouseNav.length > 0 && (
-              <NavSection title="Warehouse" items={visibleWarehouseNav} sectionId="warehouse" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
-            {visiblePerformanceNav.length > 0 && (
-              <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
-            )}
-            {(currentRole === "admin" || currentRole === "hr") && (
-              <NavSection
-                title="Admin"
-                items={[
-                  { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
-                  { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
-                  { name: "MCP Tools", path: "/admin/mcp-tools", icon: Cpu },
-                ]}
-                sectionId="admin"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-            {(currentRole === "admin" || isSuperAdmin) && (
-              <NavSection
-                title="Connectors"
-                items={[
-                  { name: "Connectors", path: "/connectors", icon: Plug },
-                ]}
-                sectionId="connectors"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-            {isSuperAdmin && (
-              <NavSection
-                title="Platform"
-                items={[
-                  { name: "Tenants", path: "/platform", icon: Building2 },
-                  { name: "Sandbox Lab", path: "/platform/sandbox", icon: FlaskConical },
-                  { name: "DB Inspector", path: "/platform/db-inspector", icon: Database },
-                  { name: "Audit Log", path: "/platform/audit", icon: ClipboardList },
-                ]}
-                sectionId="platform"
-                collapsed={collapsed}
-                onItemClick={closeMobile}
-              />
-            )}
-          </>
+        {showingFallbackRole && !collapsed && (
+          <div className="mb-4 rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 px-3 py-2 text-xs text-sidebar-foreground/60">
+            Syncing workspace access… showing self-service navigation.
+          </div>
+        )}
+
+        {visibleMainNav.length > 0 && (
+          <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleFinancialNav.length > 0 && (
+          <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleInventoryNav.length > 0 && (
+          <NavSection title="Inventory" items={visibleInventoryNav} sectionId="inventory" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleProcurementNav.length > 0 && (
+          <NavSection title="Procurement" items={visibleProcurementNav} sectionId="procurement" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleSalesNav.length > 0 && (
+          <NavSection title="Sales" items={visibleSalesNav} sectionId="sales" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleManufacturingNav.length > 0 && (
+          <NavSection title="Manufacturing" items={visibleManufacturingNav} sectionId="manufacturing" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {visibleWarehouseNav.length > 0 && (
+          <NavSection title="Warehouse" items={visibleWarehouseNav} sectionId="warehouse" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        <NavSection title="HRMS" items={visibleHrmsNav} sectionId="hrms" collapsed={collapsed} onItemClick={closeMobile} />
+        {visiblePerformanceNav.length > 0 && (
+          <NavSection title="Performance OS" items={visiblePerformanceNav} sectionId="performance" collapsed={collapsed} onItemClick={closeMobile} />
+        )}
+        {(isAdmin || isSuperAdmin) && (
+          <NavSection
+            title="Admin"
+            items={[
+              { name: "Audit Log", path: "/admin/audit-log", icon: Shield },
+              { name: "Approvals", path: "/admin/approvals", icon: CheckSquare },
+              { name: "MCP Tools", path: "/admin/mcp-tools", icon: Cpu },
+            ]}
+            sectionId="admin"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
+        )}
+        {(isAdmin || isSuperAdmin) && (
+          <NavSection
+            title="Connectors"
+            items={[
+              { name: "Connectors", path: "/connectors", icon: Plug },
+            ]}
+            sectionId="connectors"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
+        )}
+        {isSuperAdmin && (
+          <NavSection
+            title="Platform"
+            items={[
+              { name: "Tenants", path: "/platform", icon: Building2 },
+              { name: "Sandbox Lab", path: "/platform/sandbox", icon: FlaskConical },
+              { name: "DB Inspector", path: "/platform/db-inspector", icon: Database },
+              { name: "Audit Log", path: "/platform/audit", icon: ClipboardList },
+            ]}
+            sectionId="platform"
+            collapsed={collapsed}
+            onItemClick={closeMobile}
+          />
         )}
       </div>
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
-        {currentRole === "admin" && (
+        {(isAdmin || isSuperAdmin) && (
           <NavLink
             to="/settings"
             onClick={closeMobile}
@@ -564,6 +571,25 @@ export function Sidebar() {
             )}
           </NavLink>
         )}
+
+        {/* Sign out — visible to ALL roles */}
+        <button
+          onClick={async () => {
+            closeMobile();
+            try {
+              await signOut();
+            } finally {
+              window.location.replace("/auth");
+            }
+          }}
+          className={cn(
+            "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10"
+          )}
+        >
+          <LogOut className={cn("h-5 w-5 flex-shrink-0", collapsed && "mx-auto")} />
+          {!collapsed && <span>Sign out</span>}
+        </button>
 
         {/* Desktop collapse toggle */}
         <button

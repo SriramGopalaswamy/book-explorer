@@ -39,6 +39,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,7 +94,7 @@ async function fireWorkflowEvent(
       },
     });
   } catch (err) {
-    console.warn(`[whatsapp-webhook] Failed to fire ${eventType}:`, err);
+    logError("whatsapp-webhook", err, { event_type: eventType });
   }
 }
 
@@ -265,13 +266,24 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Verify webhook signature for Meta payloads
+  // Verify webhook signature for Meta payloads; require shared secret for simplified format
   if (rawBody.object === "whatsapp_business_account") {
     const valid = await verifyMetaSignature(req, rawBodyText);
     if (!valid) {
       console.warn("[whatsapp-webhook] Invalid webhook signature — rejecting request");
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  } else {
+    // Simplified format — require a shared secret header to prevent unauthenticated access
+    const waSecret = Deno.env.get("WHATSAPP_WEBHOOK_SECRET");
+    const providedSecret = req.headers.get("x-webhook-secret");
+    if (!waSecret || providedSecret !== waSecret) {
+      console.warn("[whatsapp-webhook] Missing or invalid x-webhook-secret for simplified format — rejecting");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -444,7 +456,7 @@ Deno.serve(async (req) => {
     reason = procResult.reason ?? "";
   } catch (err) {
     // Fallback: classify inline (mirrors email-webhook fallback pattern)
-    console.warn("[whatsapp-webhook] message-processor unavailable, using inline fallback:", err);
+    logError("whatsapp-webhook", err, { stage: "message-processor" });
     const fallback = await classifyInlineFallback(
       supabase, messageContent, invoice.id, invoice.status, messageRow?.id ?? null
     );

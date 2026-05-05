@@ -19,11 +19,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AccountFormDialog } from "./AccountFormDialog";
 import { toast } from "sonner";
 
-const formatCurrency = (v: number) => {
-  if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
-  if (v >= 100000) return `₹${(v / 100000).toFixed(2)}L`;
-  return `₹${v.toLocaleString("en-IN")}`;
-};
 
 const typeStyles: Record<string, string> = {
   asset: "bg-blue-500/10 text-blue-600 border-blue-500/30",
@@ -75,7 +70,7 @@ export function ChartOfAccountsTable() {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      toast.success(`Deleted "${deleteTarget.account_name}"`);
+      toast.success(`Deleted "${deleteTarget.name}"`);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete account");
     }
@@ -84,7 +79,7 @@ export function ChartOfAccountsTable() {
 
   const filtered = useMemo(() => {
     return accounts.filter((a) => {
-      const matchSearch = !search || a.account_name.toLowerCase().includes(search.toLowerCase()) || a.account_code.includes(search);
+      const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.code.includes(search);
       const matchType = typeFilter === "all" || a.account_type === typeFilter;
       return matchSearch && matchType;
     });
@@ -153,9 +148,8 @@ export function ChartOfAccountsTable() {
               {Object.entries(grouped).map(([type, accs]) => {
                 if (accs.length === 0) return null;
                 const isExpanded = expandedTypes.has(type);
-                const parentAccount = accs.find((a) => a.account_code.endsWith("000"));
-                const childAccounts = accs.filter((a) => !a.account_code.endsWith("000"));
-                const total = childAccounts.reduce((s, a) => s + Number(a.current_balance), 0);
+                const parentAccount = accs.find((a) => a.code.endsWith("000"));
+                const childAccounts = accs.filter((a) => !a.code.endsWith("000"));
 
                 return [
                   <TableRow
@@ -163,7 +157,7 @@ export function ChartOfAccountsTable() {
                     className="cursor-pointer hover:bg-muted/50 bg-muted/30"
                     onClick={() => toggleType(type)}
                   >
-                    <TableCell className="font-mono font-semibold">{parentAccount?.account_code || type.toUpperCase()}</TableCell>
+                    <TableCell className="font-mono font-semibold">{parentAccount?.code || type.toUpperCase()}</TableCell>
                     <TableCell className="font-semibold flex items-center gap-2">
                       {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       {typeLabels[type]}s
@@ -174,21 +168,21 @@ export function ChartOfAccountsTable() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{childAccounts.length} accounts</TableCell>
-                    <TableCell className="text-right font-bold">{formatCurrency(total)}</TableCell>
+                    <TableCell className="text-right font-bold text-muted-foreground">—</TableCell>
                     <TableCell />
                   </TableRow>,
                   ...(isExpanded
                     ? childAccounts.map((a) => (
                         <TableRow key={a.id} className="hover:bg-muted/30 group">
-                          <TableCell className="font-mono text-muted-foreground pl-8">{a.account_code}</TableCell>
-                          <TableCell className="pl-10">{a.account_name}</TableCell>
+                          <TableCell className="font-mono text-muted-foreground pl-8">{a.code}</TableCell>
+                          <TableCell className="pl-10">{a.name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={typeStyles[a.account_type]}>
                               {typeLabels[a.account_type]}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{a.description || "—"}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(Number(a.current_balance))}</TableCell>
+                          <TableCell className="text-right font-medium text-muted-foreground">—</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button
@@ -238,7 +232,7 @@ export function ChartOfAccountsTable() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteTarget?.account_name}" ({deleteTarget?.account_code})? This action cannot be undone.
+              Are you sure you want to delete "{deleteTarget?.name}" ({deleteTarget?.code})? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -21,6 +21,8 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.ms365-auth]
     verify_jwt = false
+  [functions.ms365-sync]
+    verify_jwt = false
   [functions.parse-attendance]
     verify_jwt = false
   [functions.process-reimbursement]

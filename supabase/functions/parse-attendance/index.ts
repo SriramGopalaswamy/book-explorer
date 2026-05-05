@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import pako from "npm:pako@2.1.0";
+import { logError } from "../_shared/logger.ts";
 
 // ═══════════════════════════════════════════════════════════════
 // GRX10 Books — Biometric Attendance PDF Parser v7
@@ -293,7 +293,7 @@ Call extract_attendance with the data.`;
       try {
         return await parseWithGeminiText(assistantText);
       } catch (e: any) {
-        console.error(`[VISION] Text-parser fallback failed: ${e.message}`);
+        logError("parse-attendance", e);
       }
     }
 
@@ -391,7 +391,7 @@ function extractToolCallResult(result: any): any | null {
         ? JSON.parse(toolCall.function.arguments)
         : toolCall.function.arguments;
     } catch (e) {
-      console.error(`[PARSE] Tool call JSON parse failed: ${e}`);
+      logError("parse-attendance", e);
     }
   }
   // Fallback: try content
@@ -574,28 +574,14 @@ async function extractTextFromPDF(data: Uint8Array): Promise<{ text: string; pag
   const decodeBytes = (input: Uint8Array) => new TextDecoder("latin1").decode(input);
 
   const inflate = async (bytes: Uint8Array): Promise<string | null> => {
-    // Primary: pako (most reliable for PDF Flate streams)
-    try {
-      const inflated = pako.inflate(bytes);
-      if (inflated?.length) return decodeBytes(inflated);
-    } catch {
-      // ignore and try next strategy
-    }
-
-    try {
-      const inflatedRaw = pako.inflateRaw(bytes);
-      if (inflatedRaw?.length) return decodeBytes(inflatedRaw);
-    } catch {
-      // ignore and try next strategy
-    }
-
-    // Secondary: native DecompressionStream fallback
+    // Native PDF Flate stream decompression. Avoid npm dependencies so the
+    // function builds reliably in Lovable Cloud's Deno runtime.
     for (const format of ["deflate", "deflate-raw"] as const) {
       try {
         const ds = new DecompressionStream(format);
         const writer = ds.writable.getWriter();
         const reader = ds.readable.getReader();
-        writer.write(bytes).catch(() => {});
+        writer.write(bytes.slice() as Uint8Array<ArrayBuffer>).catch(() => {});
         writer.close().catch(() => {});
 
         const chunks: Uint8Array[] = [];
@@ -910,7 +896,7 @@ Deno.serve(async (req) => {
         extractedText = text.replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
         console.log(`[MAIN] Text extracted: ${extractedText.length} chars`);
       } catch (e: any) {
-        console.error(`[MAIN] Text extraction failed: ${e.message}`);
+        logError("parse-attendance", e);
       }
 
       // Step 1b: If local extraction is weak, run vision OCR-to-text first
@@ -923,7 +909,7 @@ Deno.serve(async (req) => {
           }
           console.log(`[MAIN] Vision OCR text extracted: ${visionText.length} chars`);
         } catch (ocrErr: any) {
-          console.error(`[MAIN] Vision OCR text failed: ${ocrErr.message}`);
+          logError("parse-attendance", ocrErr);
         }
       }
 
@@ -934,7 +920,7 @@ Deno.serve(async (req) => {
           result = await parseWithGeminiText(extractedText);
           console.log(`[MAIN] Gemini text parsed: ${result.employees.length} employees`);
         } catch (textErr: any) {
-          console.error(`[MAIN] Gemini text failed: ${textErr.message}`);
+          logError("parse-attendance", textErr);
           // Fall through to local regex and then vision
         }
       }
@@ -963,7 +949,7 @@ Deno.serve(async (req) => {
             console.log(`[MAIN] Regex fallback parsed: ${result.employees.length} employees`);
           }
         } catch (regexErr: any) {
-          console.error(`[MAIN] Regex fallback failed: ${regexErr.message}`);
+          logError("parse-attendance", regexErr);
         }
       }
 
@@ -974,7 +960,7 @@ Deno.serve(async (req) => {
           result = await parseWithGeminiVision(body.file_data);
           console.log(`[MAIN] Vision parsed: ${result.employees.length} employees`);
         } catch (visionErr: any) {
-          console.error(`[MAIN] Vision also failed: ${visionErr.message}`);
+          logError("parse-attendance", visionErr);
 
           // Both failed
           return new Response(JSON.stringify({
@@ -1196,7 +1182,7 @@ Deno.serve(async (req) => {
             _end_date: uniqueDates[uniqueDates.length - 1],
           });
         } catch (e: any) {
-          console.error(`[AGGREGATE] ${e.message}`);
+          logError("parse-attendance", e);
         }
       }
     }
@@ -1218,7 +1204,7 @@ Deno.serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err: any) {
-    console.error(`[MAIN] Unhandled error:`, err);
+    logError("parse-attendance", err);
     return new Response(JSON.stringify({
       success: false,
       error: err.message || "Internal server error",

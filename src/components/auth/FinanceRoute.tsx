@@ -1,4 +1,5 @@
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import { AccessDenied } from "./AccessDenied";
 import { Loader2 } from "lucide-react";
 
@@ -8,8 +9,9 @@ interface FinanceRouteProps {
 
 export function FinanceRoute({ children }: FinanceRouteProps) {
   const { data: currentRole, isLoading } = useCurrentRole();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
-  if (isLoading) {
+  if (isLoading || saLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -17,7 +19,8 @@ export function FinanceRoute({ children }: FinanceRouteProps) {
     );
   }
 
-  // Only admin and finance roles can access financial suite
+  if (isSuperAdmin) return <>{children}</>;
+
   if (currentRole !== "admin" && currentRole !== "finance") {
     return (
       <AccessDenied

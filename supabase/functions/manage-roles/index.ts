@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,25 +23,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify JWT via getClaims (no DB call)
-  const authClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  // Verify JWT via getUser
+  const token = authHeader.replace("Bearer ", "");
+  const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+  const { data: { user: callerUser }, error: userError } = await serviceClient.auth.getUser(token);
 
-  if (claimsError || !claimsData?.claims) {
+  if (userError || !callerUser) {
+    console.error("Auth failed:", userError?.message);
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const requestingUserId = claimsData.claims.sub;
+  const requestingUserId = callerUser.id;
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const supabase = serviceClient;
 
   // Step 1: resolve caller's org membership
   const membershipResult = await supabase
@@ -90,16 +90,22 @@ Deno.serve(async (req) => {
     // list_users — returns all users in org with status and manager info
     // ─────────────────────────────────────────────
     if (action === "list_users") {
+      console.log("list_users: orgId =", requestingOrgId, "caller =", requestingUserId);
       const [profilesResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email")
+          .select("id, user_id, full_name, email, department, job_title, status, manager_id, pending_manager_email, exit_date, exit_reason, last_working_day, fnf_status, archived_at")
           .eq("organization_id", requestingOrgId),
         supabase
           .from("user_roles")
           .select("user_id, role")
           .eq("organization_id", requestingOrgId),
       ]);
+
+      if (profilesResult.error) {
+        console.error("profiles query error:", profilesResult.error.message);
+      }
+      console.log("list_users: profiles count =", profilesResult.data?.length, "roles count =", rolesResult.data?.length);
 
       const roleMap = new Map<string, string[]>();
       for (const r of rolesResult.data || []) {
@@ -108,6 +114,7 @@ Deno.serve(async (req) => {
       }
 
       const users = (profilesResult.data || []).map((p) => ({
+        profile_id: p.id,
         user_id: p.user_id,
         full_name: p.full_name,
         email: p.email,
@@ -116,9 +123,15 @@ Deno.serve(async (req) => {
         status: p.status || "active",
         manager_id: p.manager_id,
         pending_manager_email: p.pending_manager_email,
+        exit_date: p.exit_date,
+        exit_reason: p.exit_reason,
+        last_working_day: p.last_working_day,
+        fnf_status: p.fnf_status,
+        archived_at: p.archived_at,
         roles: roleMap.get(p.user_id) || ["employee"],
       }));
 
+      console.log("list_users: returning", users.length, "users");
       return new Response(JSON.stringify({ users }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -379,14 +392,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Soft deactivate: set status inactive + soft delete flags (org-scoped)
+      // Soft deactivate: set status inactive (org-scoped)
       const { error: deactivateError } = await supabase
         .from("profiles")
-        .update({
-          status: "inactive",
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        })
+        .update({ status: "inactive" })
         .eq("user_id", user_id)
         .eq("organization_id", requestingOrgId);
 
@@ -401,15 +410,30 @@ Deno.serve(async (req) => {
       // Ban user in auth to immediately invalidate future token refreshes (~100 years)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
 
+      // Sync with exit_workflow if a row exists for this profile
+      if (targetProfileDea?.id) {
+        await supabase
+          .from('exit_workflow')
+          .update({ login_revoked: true, updated_at: new Date().toISOString() })
+          .eq('profile_id', targetProfileDea.id);
+      }
+
       return new Response(JSON.stringify({ success: true, scope: "global" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // ─────────────────────────────────────────────
-    // reactivate_user — undo soft deactivation: restore active status and unban auth account
+    // activate_user — reactivates an inactive user: restores active status and unbans auth account
     // ─────────────────────────────────────────────
-    if (action === "reactivate_user") {
+    if (action === "activate_user") {
+      if (callerRole !== "admin") {
+        return new Response(JSON.stringify({ error: "Admin access required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { user_id } = body;
 
       if (!user_id) {
@@ -420,36 +444,50 @@ Deno.serve(async (req) => {
       }
 
       // SECURITY: Verify target user belongs to same org
-      const { data: targetMemberReact } = await supabase
+      const { data: targetMemberAct } = await supabase
         .from("organization_members")
         .select("id")
         .eq("user_id", user_id)
         .eq("organization_id", requestingOrgId)
         .maybeSingle();
-
-      if (!targetMemberReact) {
+      if (!targetMemberAct) {
         return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Restore profile: clear inactive + soft-delete flags
-      const { error: reactError } = await supabase
+      // Guard: only reactivate users who are actually inactive
+      const { data: targetProfileAct } = await supabase
         .from("profiles")
-        .update({ status: "active", is_deleted: false, deleted_at: null })
+        .select("status")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+
+      if (!targetProfileAct || targetProfileAct.status !== "inactive") {
+        return new Response(JSON.stringify({ error: "User is not inactive" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Restore profile: set status active
+      const { error: activateError } = await supabase
+        .from("profiles")
+        .update({ status: "active" })
         .eq("user_id", user_id)
         .eq("organization_id", requestingOrgId);
 
-      if (reactError) {
-        console.error("Reactivate error:", reactError);
-        return new Response(JSON.stringify({ error: "Failed to reactivate user" }), {
+      if (activateError) {
+        console.error("Activate error:", activateError);
+        return new Response(JSON.stringify({ error: "Failed to activate user" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Un-ban the auth account so the user can sign in again
+      // Unban the auth account (mirrors approve_user behaviour)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
 
       return new Response(JSON.stringify({ success: true }), {
@@ -549,11 +587,7 @@ Deno.serve(async (req) => {
       // Soft delete profile (prevent_profile_hard_delete trigger blocks actual DELETE)
       await supabase
         .from("profiles")
-        .update({
-          status: "inactive",
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        })
+        .update({ status: "inactive" })
         .eq("user_id", user_id)
         .eq("organization_id", requestingOrgId);
 
@@ -606,7 +640,7 @@ Deno.serve(async (req) => {
         .select("id, user_id, full_name, email")
         .eq("manager_id", profile_id)
         .eq("organization_id", requestingOrgId)
-        .neq("status", "inactive");
+        .not("status", "in", '("inactive","exited")');
 
       return new Response(JSON.stringify({ direct_reports: reports || [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -955,12 +989,234 @@ Deno.serve(async (req) => {
       });
     }
 
+
+    // ─────────────────────────────────────────────
+    // exit_user — full offboarding: sets status to 'exited', populates exit metadata,
+    //             recalls assets, flags reimbursements, reassigns reports, creates audit log
+    // ─────────────────────────────────────────────
+    if (action === "exit_user") {
+      const {
+        user_id,
+        replacement_manager_id,
+        exit_date,
+        last_working_day,
+        exit_reason,
+        notice_served,
+        exit_interview_completed,
+        rehire_eligible,
+        asset_return_confirmed,
+        knowledge_transfer_status,
+      } = body;
+
+      if (!user_id || !exit_date || !exit_reason) {
+        return new Response(JSON.stringify({ error: "user_id, exit_date, and exit_reason are required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const validReasons = ["resignation", "termination", "retirement", "absconding", "contract_end"];
+      if (!validReasons.includes(exit_reason)) {
+        return new Response(JSON.stringify({ error: "Invalid exit_reason" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // SECURITY: Verify target user belongs to same org
+      const { data: targetMemberExit } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+      if (!targetMemberExit) {
+        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Prevent exiting protected accounts
+      const { data: targetProfileExit } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (targetProfileExit?.email && protectedEmails.includes(targetProfileExit.email.toLowerCase())) {
+        return new Response(JSON.stringify({ error: "This account is protected and cannot be exited" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Resolve replacement manager
+      let exitReplacementProfileId: string | null = null;
+      if (replacement_manager_id) {
+        const { data: rp } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", replacement_manager_id)
+          .eq("organization_id", requestingOrgId)
+          .maybeSingle();
+        exitReplacementProfileId = rp?.id || null;
+      }
+
+      // Reassign direct reports
+      if (targetProfileExit?.id) {
+        await supabase
+          .from("profiles")
+          .update({ manager_id: exitReplacementProfileId })
+          .eq("manager_id", targetProfileExit.id)
+          .eq("organization_id", requestingOrgId);
+      }
+
+      // Update profile with exit metadata
+      const { error: exitError } = await supabase
+        .from("profiles")
+        .update({
+          status: "exited",
+          exit_date: exit_date,
+          last_working_day: last_working_day || exit_date,
+          exit_reason: exit_reason,
+          notice_served: notice_served ?? false,
+          fnf_status: "pending",
+          exit_interview_completed: exit_interview_completed ?? false,
+          rehire_eligible: rehire_eligible ?? null,
+          manager_signoff_by: requestingUserId === user_id ? null : (() => {
+            // Caller is the sign-off authority
+            return null; // Will be set separately via manager_signoff action
+          })(),
+          asset_return_confirmed: asset_return_confirmed ?? false,
+          knowledge_transfer_status: knowledge_transfer_status || "not_started",
+          archived_at: new Date().toISOString(),
+        })
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      if (exitError) {
+        console.error("Exit error:", exitError);
+        return new Response(JSON.stringify({ error: "Failed to process exit" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Manager sign-off: record the caller as the sign-off authority
+      const callerProfileResult = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", requestingUserId)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+
+      if (callerProfileResult.data?.id) {
+        await supabase
+          .from("profiles")
+          .update({
+            manager_signoff_by: callerProfileResult.data.id,
+            manager_signoff_at: new Date().toISOString(),
+          })
+          .eq("user_id", user_id)
+          .eq("organization_id", requestingOrgId);
+      }
+
+      // --- Downstream automations ---
+      const automationResults: Record<string, string> = {};
+
+      // 1. Recall assets assigned to the exited employee
+      if (targetProfileExit?.id) {
+        const { data: assignedAssets } = await supabase
+          .from("assets")
+          .select("id")
+          .eq("assigned_to", targetProfileExit.id)
+          .eq("organization_id", requestingOrgId)
+          .neq("status", "disposed");
+
+        if (assignedAssets && assignedAssets.length > 0) {
+          const { error: assetError } = await supabase
+            .from("assets")
+            .update({ status: "pending_return", notes: `Auto-recalled: employee exit on ${exit_date}` })
+            .eq("assigned_to", targetProfileExit.id)
+            .eq("organization_id", requestingOrgId)
+            .neq("status", "disposed");
+
+          automationResults.assets = assetError
+            ? `Error: ${assetError.message}`
+            : `${assignedAssets.length} asset(s) marked pending_return`;
+        } else {
+          automationResults.assets = "No assets assigned";
+        }
+      }
+
+      // 2. Flag pending reimbursements
+      if (targetProfileExit?.id) {
+        const { data: pendingReimb } = await supabase
+          .from("reimbursement_claims")
+          .select("id")
+          .eq("profile_id", targetProfileExit.id)
+          .eq("organization_id", requestingOrgId)
+          .in("status", ["pending", "manager_approved"]);
+
+        if (pendingReimb && pendingReimb.length > 0) {
+          automationResults.reimbursements = `${pendingReimb.length} pending claim(s) flagged for FnF`;
+        } else {
+          automationResults.reimbursements = "No pending claims";
+        }
+      }
+
+      // 3. Create audit log
+      await supabase.from("audit_logs").insert({
+        actor_id: requestingUserId,
+        action: "employee_exit",
+        entity_type: "profile",
+        entity_id: targetProfileExit?.id,
+        organization_id: requestingOrgId,
+        metadata: {
+          exit_reason,
+          exit_date,
+          last_working_day: last_working_day || exit_date,
+          rehire_eligible,
+          automation_results: automationResults,
+        },
+      });
+
+      // 4. Create notification for HR/Admin
+      try {
+        await supabase.from("notifications").insert({
+          user_id: requestingUserId,
+          organization_id: requestingOrgId,
+          title: "Employee Exit Processed",
+          message: `Exit processed for ${targetProfileExit?.email || user_id}. Reason: ${exit_reason}. FnF status: pending.`,
+          type: "system",
+        });
+      } catch (_notifErr) {
+        // Non-critical — don't fail the exit
+      }
+
+      // Revoke org roles (employee loses privileged access immediately)
+      await supabase.from("user_roles").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      return new Response(JSON.stringify({
+        success: true,
+        exit_date,
+        exit_reason,
+        fnf_status: "pending",
+        automations: automationResults,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Manage roles error:", err);
+    logError("manage-roles", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

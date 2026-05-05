@@ -88,24 +88,49 @@ function normalizeLegacyRecord(record: any): NormalizedPayslip {
   const incentives   = Number(record.transport_allowance) || 0;
   const otherAllow   = Number(record.other_allowances) || 0;
 
+  // Re-derive display breakdown as company-standard percentages of fixed gross.
+  // Incentives (transport_allowance) are variable pay — excluded from this split.
+  const fixedGross   = basic + hra + otherAllow;
+  const displayBasic = fixedGross > 0 ? Math.round(fixedGross * 0.62)  : basic;
+  const displayHRA   = fixedGross > 0 ? Math.round(fixedGross * 0.248) : hra;
+  const displayOther = fixedGross > 0 ? fixedGross - displayBasic - displayHRA : otherAllow;
+
   // Earnings: match company payslip layout — Basic, HRA, Other Allowances, Incentives
   const earnings: PayslipLineItem[] = [
-    { label: "Basic", amount: basic },
-    { label: "HRA", amount: hra },
-    ...(otherAllow > 0 ? [{ label: "Other Allowances", amount: otherAllow }] : []),
-    ...(incentives > 0 ? [{ label: "Incentives", amount: incentives }] : []),
+    { label: "Basic", amount: displayBasic },
+    { label: "HRA", amount: displayHRA },
+    ...(displayOther > 0 ? [{ label: "Other Allowances", amount: displayOther }] : []),
+    ...(incentives > 0   ? [{ label: "Incentives",       amount: incentives }]   : []),
   ];
 
-  // Professional Tax is stored in other_deductions; TDS is stored in tax_deduction.
-  const profTax = Number(record.other_deductions) || 0;
+  // Professional Tax + Other Deductions are both stored in other_deductions.
+  // Split them using the Karnataka PT slab so each displays as its own line.
+  // If misc_deductions exists separately (future migration), use it directly.
+  const rawOtherDed = Number(record.other_deductions) || 0;
+  const miscFromCol = Number(record.misc_deductions) || 0;
   const tds     = Number(record.tax_deduction) || 0;
   const pf      = Number(record.pf_deduction) || 0;
 
-  // Deductions: match company payslip layout — Professional Tax, TDS, PF Contribution, LOP
+  let profTax: number;
+  let miscDed: number;
+  if (miscFromCol > 0) {
+    // misc_deductions column has data — other_deductions is pure PT
+    profTax = rawOtherDed;
+    miscDed = miscFromCol;
+  } else {
+    // Split other_deductions: PT = min(value, slab), remainder = Other Deductions
+    const grossBase = basic + hra + otherAllow + incentives;
+    const ptExpected = grossBase > 15000 ? 200 : grossBase > 10000 ? 150 : 0;
+    profTax = Math.min(rawOtherDed, ptExpected);
+    miscDed = rawOtherDed - profTax;
+  }
+
+  // Deductions: Professional Tax, TDS, PF Contribution, Other Deductions, then LOP
   const deductions: PayslipLineItem[] = [
     ...(profTax > 0 ? [{ label: "Professional Tax", amount: profTax, statutory: true }] : []),
     ...(tds > 0     ? [{ label: "TDS", amount: tds, statutory: true }] : []),
     ...(pf > 0      ? [{ label: "PF Contribution", amount: pf, statutory: true }] : []),
+    ...(miscDed > 0 ? [{ label: "Other Deductions", amount: miscDed, statutory: false }] : []),
   ];
 
   const lopDays = Number(record.lop_days) || 0;

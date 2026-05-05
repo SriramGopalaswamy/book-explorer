@@ -125,7 +125,8 @@ describe("normalizePayslip", () => {
       const result = normalizePayslip(record);
       expect(result.isEnginePath).toBe(false);
       expect(result.earnings).toHaveLength(4);
-      expect(result.deductions).toHaveLength(3); // no LOP row when lop_days=0
+      // other_deductions=500 is split: PT=200 (Karnataka slab) + Other=300
+      expect(result.deductions).toHaveLength(4); // PT, TDS, PF, Other — no LOP when lop_days=0
       expect(result.totalEarnings).toBe(61000);
       expect(result.totalDeductions).toBe(8300);
       expect(result.netPay).toBe(52700);
@@ -257,6 +258,19 @@ describe("normalizePayslip", () => {
       expect(result.deductions[0].label).toBe("Salary Deductions");
       expect(result.deductions[0].amount).toBe(3000);
       expect(result.totalDeductions).toBe(3000);
+    });
+
+    it("shows Other Deductions row when misc_deductions is set", () => {
+      const record = {
+        basic_salary: 30000, hra: 12000,
+        pf_deduction: 1800, other_deductions: 200, misc_deductions: 500,
+        net_pay: 39500, working_days: 26, paid_days: 26, lop_days: 0,
+      };
+      const result = normalizePayslip(record);
+      const row = result.deductions.find(d => d.label === "Other Deductions");
+      expect(row).toBeDefined();
+      expect(row!.amount).toBe(500);
+      expect(row!.statutory).toBe(false);
     });
 
     it("handles missing/null fields", () => {

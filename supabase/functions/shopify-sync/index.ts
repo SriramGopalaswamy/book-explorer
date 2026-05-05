@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -118,7 +119,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Sync error:", error);
+    logError("shopify-sync", error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Sync failed",

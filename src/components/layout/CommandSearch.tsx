@@ -144,7 +144,7 @@ const ALL_ITEMS: SearchItem[] = [
   { name: "Leaves", path: "/hrms/leaves", icon: Calendar, section: "HRMS", keywords: "time off vacation sick leave" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, section: "HRMS", keywords: "salary payslip compensation" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, section: "HRMS", keywords: "payslip salary slip" },
-  { name: "My Expenses", path: "/hrms/my-expenses", icon: Wallet, section: "HRMS", keywords: "my expense claim" },
+  
   { name: "Holidays", path: "/hrms/holidays", icon: PartyPopper, section: "HRMS", keywords: "public holidays calendar" },
   { name: "Org Chart", path: "/hrms/org-chart", icon: GitBranch, section: "HRMS", keywords: "organization hierarchy structure" },
   { name: "CTC Components", path: "/hrms/ctc-components", icon: IndianRupee, section: "HRMS", keywords: "salary components CTC structure" },
@@ -226,8 +226,8 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     const employeePaths = new Set([
       "/profile", "/settings",
       "/hrms/my-attendance", "/hrms/leaves", "/hrms/payroll",
-      "/hrms/my-payslips", "/hrms/my-expenses",
-      "/hrms/reimbursements", "/financial/expenses",
+      "/hrms/my-payslips",
+      "/hrms/reimbursements",
       "/performance/goals", "/performance/memos",
     ]);
 

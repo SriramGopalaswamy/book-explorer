@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useMobileMenu } from "./Sidebar";
 
@@ -31,8 +30,11 @@ export function Header({ title, subtitle }: HeaderProps) {
   const commandSearch = useCommandSearch();
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success("Signed out successfully");
+    try {
+      await signOut();
+    } finally {
+      window.location.replace("/auth");
+    }
   };
 
   const getInitials = () => {

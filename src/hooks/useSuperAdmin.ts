@@ -12,22 +12,31 @@ export function useIsSuperAdmin() {
 
   return useQuery({
     queryKey: ["platform-role", user?.id, "super_admin"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user) return false;
-      const { data, error } = await supabase
-        .from("platform_roles")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .limit(1);
-      if (error) {
-        console.error("Super admin check failed:", error);
-        return false;
+      // Abort after 8 s so a stalled free-tier connection fails cleanly
+      // instead of hanging until the 10 s Index.tsx fallback fires.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      signal?.addEventListener("abort", () => { clearTimeout(timer); controller.abort(); });
+      try {
+        const { data, error } = await supabase
+          .from("platform_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("role", "super_admin")
+          .limit(1)
+          .abortSignal(controller.signal);
+        if (error) throw error;
+        return (data?.length ?? 0) > 0;
+      } finally {
+        clearTimeout(timer);
       }
-      return (data?.length ?? 0) > 0;
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 2000,
   });
 }
 

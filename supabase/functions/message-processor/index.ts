@@ -37,6 +37,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,7 +109,7 @@ Respond with ONLY valid JSON (no markdown): {"classification": "acknowledged"|"d
 
     return { classification, reason: parsed.reason ?? "" };
   } catch (err) {
-    console.warn("[message-processor] Classification error:", err);
+    logError("message-processor", err);
     return { classification: "other", reason: "Classification failed" };
   }
 }
