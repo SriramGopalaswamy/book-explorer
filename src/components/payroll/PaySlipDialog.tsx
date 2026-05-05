@@ -216,9 +216,14 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   /* Footer */
   .footer { margin-top: 18px; border-top: 2px solid ${bc}; padding-top: 10px;
-             display: flex; justify-content: space-between; align-items: flex-start; }
+             display: flex; justify-content: space-between; align-items: center; }
   .gen-date  { font-size: 10px; color: #888; }
-  .statutory { font-size: 9.5px; color: #999; font-style: italic; text-align: right; max-width: 340px; line-height: 1.5; }
+  .footer-sys { font-size: 10px; color: #888; font-style: italic; text-align: right; }
+  .statutory { margin-top: 10px; border: 1px solid #ddd; border-radius: 3px; padding: 8px 12px; background: #fafafa; }
+  .statutory-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #555; margin-bottom: 5px; }
+  .statutory-items { margin: 0; padding: 0; list-style: none; }
+  .statutory-items li { font-size: 9px; color: #666; line-height: 1.5; padding-left: 10px; position: relative; margin-bottom: 2px; }
+  .statutory-items li::before { content: "•"; position: absolute; left: 0; color: #aaa; }
 
   @media print { body { width: 100%; max-width: 100%; } }
 </style></head><body>
@@ -271,8 +276,17 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
   <div class="footer">
     <div class="gen-date">Generated on ${genDate}</div>
-    <div class="statutory">This is a computer-generated payslip and does not require a physical signature.<br>
-      Valid under the Information Technology Act, 2000 and the Payment of Wages Act, 1936.</div>
+    <div class="footer-sys">This is a system-generated payslip. No physical signature is required.</div>
+  </div>
+  <div class="statutory">
+    <div class="statutory-title">Statutory Notice</div>
+    <ul class="statutory-items">
+      <li>Provident Fund (PF) contributions are deducted under the Employees&apos; Provident Funds &amp; Miscellaneous Provisions Act, 1952.</li>
+      <li>Professional Tax (PT), where applicable, is deducted as per the applicable State legislation.</li>
+      <li>Tax Deducted at Source (TDS) is computed and deducted under the Income Tax Act, 1961.</li>
+      <li>This document is valid under the Information Technology Act, 2000 and the Payment of Wages Act, 1936.</li>
+      <li>For any payroll discrepancies, please raise a query with the HR / Payroll team within 30 days of receipt of this payslip.</li>
+    </ul>
   </div>
 
 </body></html>`;
