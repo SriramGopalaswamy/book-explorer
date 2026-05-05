@@ -159,7 +159,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
 
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>Pay Slip — ${employeeName} — ${period}</title>
+<title>Pay Slip — ${employeeName} — ${esc(period)}</title>
 <style>
   @page { size: A4; margin: 14mm 16mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -238,7 +238,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     </div>
     <div>
       <div class="slip-title">Pay Slip</div>
-      <div class="slip-period">${period}</div>
+      <div class="slip-period">${esc(period)}</div>
     </div>
   </div>
 
