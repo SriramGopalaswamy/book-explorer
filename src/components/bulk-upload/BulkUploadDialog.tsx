@@ -466,16 +466,32 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       return;
     }
 
-    // If a pre-upload check is configured, run it and gate on user confirmation
+    // If a pre-upload check is configured, run it and gate on user confirmation.
+    // Wrap in try/catch — handleUpload is awaited from onClick, and any
+    // unhandled rejection here would otherwise vanish silently (the user just
+    // sees the button do nothing).
     if (config.existingRecordCheck) {
-      const warning = await config.existingRecordCheck();
-      if (warning) {
-        setPendingWarning(warning);
+      try {
+        const warning = await config.existingRecordCheck();
+        if (warning) {
+          setPendingWarning(warning);
+          return;
+        }
+      } catch (err: any) {
+        console.error("[BulkUpload] existingRecordCheck threw:", err);
+        toast.error(`Pre-upload check failed: ${err?.message ?? "Unknown error"}`);
         return;
       }
     }
 
-    await executeUpload();
+    try {
+      await executeUpload();
+    } catch (err: any) {
+      console.error("[BulkUpload] executeUpload threw:", err);
+      toast.error(`Upload failed: ${err?.message ?? "Unknown error"}`);
+      setUploading(false);
+      setActiveJobId(null);
+    }
   };
 
   return (
