@@ -11676,6 +11676,10 @@ export type Database = {
         Args: { _code: string; _org_id: string }
         Returns: string
       }
+      get_payroll_unique_record_count: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       get_profit_loss: {
         Args: { p_from: string; p_org_id: string; p_to: string }
         Returns: {
