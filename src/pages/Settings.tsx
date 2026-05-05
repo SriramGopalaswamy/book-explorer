@@ -1147,10 +1147,12 @@ function UserManagementSection() {
       // Route through the existing confirmation dialog (handles report reassignment too)
       initiateDeactivateOrDelete(u, "deactivate");
     } else {
-      // Reactivate
+      // Reactivate — pass currentRole so the org-scoped user_roles row deleted
+      // by deactivate_user is restored to whatever role the admin currently sees.
+      const restoreRole = u.roles[0] || "employee";
       setUpdatingStatus(u.user_id);
       const { data, error } = await supabase.functions.invoke("manage-roles", {
-        body: { action: "activate_user", user_id: u.user_id },
+        body: { action: "activate_user", user_id: u.user_id, role: restoreRole },
       });
       if (error || data?.error) {
         toast.error(data?.error || "Failed to reactivate user");
@@ -1519,6 +1521,10 @@ function UserManagementSection() {
                 const isSelf = u.user_id === user?.id;
                 const isPending = u.status === "pending_approval";
                 const isInactive = u.status === "inactive";
+                // Toggle only handles the active ↔ inactive transition. on_leave
+                // and exited are HR-lifecycle states managed elsewhere; rendering
+                // a Yes/No here would silently overwrite them on selection.
+                const canEditStatus = u.status === "active" || u.status === "inactive";
 
                 return (
                   <div
@@ -1582,8 +1588,8 @@ function UserManagementSection() {
                         </Button>
                       )}
 
-                      {/* User Status — Yes / No */}
-                      {!isPending && (
+                      {/* User Status — Yes / No (only for active/inactive; on_leave & exited keep status badge only) */}
+                      {canEditStatus && (
                         <div className="flex flex-col items-start gap-0.5">
                           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                             User Status

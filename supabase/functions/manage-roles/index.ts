@@ -434,10 +434,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { user_id } = body;
+      const { user_id, role } = body;
 
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const restoredRole = (role || "employee").toLowerCase();
+      const validRoles = ["admin", "hr", "manager", "finance", "payroll", "employee"];
+      if (!validRoles.includes(restoredRole)) {
+        return new Response(JSON.stringify({ error: "Invalid role" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -487,10 +496,27 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Restore an org-scoped role row — deactivate_user deletes it, so without
+      // this insert role-gated hooks (useIsAdminOrHR etc.) would fail until a
+      // manual reassignment. Replace any stale row defensively.
+      await supabase.from("user_roles").delete()
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+      const { error: roleInsertError } = await supabase
+        .from("user_roles")
+        .insert({ user_id, role: restoredRole, organization_id: requestingOrgId });
+      if (roleInsertError) {
+        console.error("Role restore error:", roleInsertError);
+        return new Response(JSON.stringify({ error: "Failed to restore user role" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Unban the auth account (mirrors approve_user behaviour)
       await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, role: restoredRole }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
