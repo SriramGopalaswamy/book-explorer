@@ -270,8 +270,8 @@ export default function Reimbursements() {
 
     setSubmitting(true);
     try {
-      const { data: inserted, error } = await supabase
-        .from("reimbursement_requests")
+      const { data: inserted, error } = await (supabase
+        .from("reimbursement_requests") as any)
         .insert({
           profile_id: myProfile.id,
           attachment_url: uploadedFile.url,
