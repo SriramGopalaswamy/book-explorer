@@ -351,6 +351,26 @@ Deno.serve(async (req) => {
 
         await syncProfileFromMS365(supabase, newUser.user!.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
 
+        // Block re-creation of an ex-employee whose prior profile is inactive in this org.
+        const { data: inactiveMatch } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", email.toLowerCase())
+          .eq("organization_id", organizationId)
+          .eq("status", "inactive")
+          .maybeSingle();
+
+        if (inactiveMatch) {
+          await supabase.from("profiles")
+            .update({ status: "inactive" })
+            .eq("user_id", newUser.user!.id);
+          await supabase.auth.admin.updateUserById(newUser.user!.id, { ban_duration: "876600h" });
+          return new Response(
+            JSON.stringify({ error: "This account has been deactivated. Contact your administrator." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
         if (linkError) {
           console.error("Generate link error:", linkError);

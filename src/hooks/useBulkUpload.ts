@@ -287,7 +287,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, user_id, email, full_name")
-      .eq("organization_id", orgId);
+      .eq("organization_id", orgId)
+      .in("status", ["active", "on_leave"]);
 
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -580,8 +581,8 @@ export function useAttendanceBulkUpload(): BulkUploadConfig {
     const orgId = currentProfile?.organization_id;
 
     const { data: profiles } = await (orgId
-      ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId)
-      : supabase.from("profiles").select("id, user_id, email, full_name"));
+      ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId).in("status", ["active", "on_leave"])
+      : supabase.from("profiles").select("id, user_id, email, full_name").in("status", ["active", "on_leave"]));
     const errors: string[] = [];
     let success = 0;
 
@@ -759,8 +760,8 @@ export function useExpensesBulkUpload(): BulkUploadConfig {
 
     // Fetch profiles scoped to current organization to prevent cross-tenant matches
     const { data: profiles } = await (orgId
-      ? supabase.from("profiles").select("id, user_id, email, full_name, organization_id").eq("organization_id", orgId)
-      : supabase.from("profiles").select("id, user_id, email, full_name, organization_id"));
+      ? supabase.from("profiles").select("id, user_id, email, full_name, organization_id").eq("organization_id", orgId).in("status", ["active", "on_leave"])
+      : supabase.from("profiles").select("id, user_id, email, full_name, organization_id").in("status", ["active", "on_leave"]));
     const errors: string[] = [];
     let success = 0;
 
