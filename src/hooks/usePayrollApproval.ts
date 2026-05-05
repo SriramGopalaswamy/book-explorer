@@ -37,7 +37,7 @@ export function useSubmitForReview() {
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
-      await supabase.from("audit_logs").insert({
+      await (supabase.from("audit_logs") as any).insert({
         organization_id: callerProfile.organization_id,
         actor_id: user.id,
         action: "payroll_submitted_for_review",
@@ -46,7 +46,7 @@ export function useSubmitForReview() {
         metadata: { prev_status: run.status },
       }).catch((err) => console.error("audit log failed", err));
 
-      await supabase.from("payroll_events").insert({
+      await (supabase.from("payroll_events") as any).insert({
         organization_id: callerProfile.organization_id,
         event_type: "payroll_submitted_for_review",
         payroll_run_id: runId,
@@ -113,7 +113,7 @@ export function useApprovePayroll() {
         .eq("organization_id", profile.organization_id);
       if (error) throw error;
 
-      await supabase.from("audit_logs").insert({
+      await (supabase.from("audit_logs") as any).insert({
         organization_id: profile.organization_id,
         actor_id: user.id,
         action: "payroll_approved",
@@ -122,7 +122,7 @@ export function useApprovePayroll() {
         metadata: { roles: roles.map((r: any) => r.role) },
       }).catch((err) => console.error("audit log failed", err));
 
-      await supabase.from("payroll_events").insert({
+      await (supabase.from("payroll_events") as any).insert({
         organization_id: profile.organization_id,
         event_type: "payroll_approved",
         payroll_run_id: runId,
@@ -172,7 +172,7 @@ export function useLockApprovedPayroll() {
         .eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
 
-      await supabase.from("audit_logs").insert({
+      await (supabase.from("audit_logs") as any).insert({
         organization_id: callerProfile.organization_id,
         actor_id: user.id,
         action: "payroll_locked",
@@ -181,7 +181,7 @@ export function useLockApprovedPayroll() {
         metadata: {},
       }).catch((err) => console.error("audit log failed", err));
 
-      await supabase.from("payroll_events").insert({
+      await (supabase.from("payroll_events") as any).insert({
         organization_id: callerProfile.organization_id,
         event_type: "payroll_locked",
         payroll_run_id: runId,
