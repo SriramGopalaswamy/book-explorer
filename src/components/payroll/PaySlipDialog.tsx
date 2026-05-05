@@ -99,6 +99,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   const bankAccount   = DOMPurify.sanitize(ed?.bank_account_number || r.bank_account_number || "—");
   const bankIfsc      = DOMPurify.sanitize(ed?.bank_ifsc || r.bank_ifsc || "—");
   const uanNumber     = DOMPurify.sanitize(ed?.uan_number || r.uan_number || "—");
+  const esiNumber     = DOMPurify.sanitize(ed?.esi_number || r.esi_number || "—");
   const gender        = DOMPurify.sanitize((ed as any)?.gender || r.gender || "—");
   const location      = DOMPurify.sanitize(record.profiles?.location || r.location || "—");
   const rawJoinDate   = record.profiles?.join_date || r.date_of_joining || "";
@@ -132,6 +133,7 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
     ["Paid Days",      String(paidDays || "—"),   "LOP Days",     String(lopDays || "0")],
     ["PAN No",         panNumber,                 "UAN No",       uanNumber],
     ["Bank A/C No",    bankAccount,               "IFSC Code",    bankIfsc],
+    ["ESI No",         esiNumber,                 "",             ""],
   ];
 
   const buildHTML = () => {
