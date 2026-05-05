@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,136 +7,148 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Default organization ID — the seeded GRX10 Solutions org
-const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
+// Per-domain cache: resolves once per cold-start per email domain.
+// Key: lowercase email domain (e.g. "acme.com")
+// Value: { organizationId, ssoDomain }
+const domainCache = new Map<string, { organizationId: string; ssoDomain: string }>();
 
-// Helper: sync profile fields + manager_id from MS365 data.
-// If the manager email cannot be resolved to a profile yet, stores it in
-// pending_manager_email for deferred resolution on next login.
+/**
+ * Resolve the organization that owns this email domain via organization_settings.sso_domain.
+ * Returns null if no organization is configured for the domain (login rejected).
+ */
+async function resolveOrgFromEmailDomain(
+  supabase: any,
+  email: string,
+): Promise<{ organizationId: string; ssoDomain: string } | null> {
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain) return null;
+
+  if (domainCache.has(domain)) return domainCache.get(domain)!;
+
+  const { data } = await supabase
+    .from("organization_settings")
+    .select("organization_id, sso_domain")
+    .ilike("sso_domain", domain)
+    .maybeSingle();
+
+  if (!data?.organization_id) return null;
+
+  const entry = { organizationId: data.organization_id, ssoDomain: data.sso_domain.toLowerCase() };
+  domainCache.set(domain, entry);
+  return entry;
+}
+
+/** Sync profile fields + manager_id from MS365 data. */
 async function syncProfileFromMS365(
   supabase: any,
   userId: string,
+  organizationId: string,
   fullName: string,
   jobTitle: string | null,
   department: string | null,
   phone: string | null,
   email: string,
   managerEmail: string | null,
-  status: string = "active",
-) {
+  status = "active",
+): Promise<void> {
+  // Guarantee org membership
+  const { error: memberError } = await supabase
+    .from("organization_members")
+    .upsert(
+      { user_id: userId, organization_id: organizationId },
+      { onConflict: "organization_id,user_id" }
+    );
+  if (memberError) throw new Error(`Failed to register org membership: ${memberError.message}`);
+
+  // Guarantee minimal profile row
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    const { error: insertError } = await supabase
+      .from("profiles")
+      .insert({ user_id: userId, email: email.toLowerCase(), organization_id: organizationId, status });
+    if (insertError) throw new Error(`Failed to create user profile: ${insertError.message}`);
+  }
+
+  // Enrich with MS365 data (non-critical)
   try {
-    // Look up the manager's profile_id by their email
     let managerId: string | null = null;
     if (managerEmail) {
       const { data: managerProfile } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", managerEmail.toLowerCase())
+        .eq("organization_id", organizationId)
         .maybeSingle();
-      managerId = managerProfile?.id || null;
+      managerId = managerProfile?.id ?? null;
     }
 
-    // Check if profile already exists
-    const { data: existingProfile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    const profileData: Record<string, any> = {
-      full_name: fullName,
-      email: email.toLowerCase(),
-      organization_id: DEFAULT_ORG_ID,
-    };
+    const profileData: Record<string, any> = { full_name: fullName, email: email.toLowerCase() };
     if (jobTitle) profileData.job_title = jobTitle;
     if (department) profileData.department = department;
     if (phone) profileData.phone = phone;
-
-    // Manager resolution: set manager_id if resolved, otherwise store pending email
     if (managerId) {
       profileData.manager_id = managerId;
       profileData.pending_manager_email = null;
     } else if (managerEmail) {
-      // Manager not yet in system — store for deferred resolution
       profileData.pending_manager_email = managerEmail.toLowerCase();
     }
 
-    if (existingProfile) {
-      // Do not overwrite status on update — preserves on_leave and other admin-set states
-      await supabase
-        .from("profiles")
-        .update(profileData)
-        .eq("id", existingProfile.id);
-    } else {
-      // Only set status on initial profile creation
-      await supabase
-        .from("profiles")
-        .insert({ ...profileData, user_id: userId, status });
-    }
-
-    // Ensure org membership exists (idempotent upsert)
     await supabase
-      .from("organization_members")
-      .upsert({ user_id: userId, organization_id: DEFAULT_ORG_ID }, { onConflict: "organization_id,user_id" });
-
+      .from("profiles")
+      .update(profileData)
+      .eq("user_id", userId);
   } catch (err) {
-    console.warn("Failed to sync profile from MS365:", err);
+    logError("ms365-auth", err, { stage: "profile_enrichment" });
   }
 }
 
-// Helper: when a user logs in, resolve any other profiles that were waiting
-// for this user's email as their manager.
-async function resolveWaitingManagerRefs(
-  supabase: any,
-  email: string,
-  profileId: string,
-) {
+/** Resolve any profiles that were waiting for this email as manager. */
+async function resolveWaitingManagerRefs(supabase: any, email: string, profileId: string) {
   try {
     await supabase
       .from("profiles")
       .update({ manager_id: profileId, pending_manager_email: null })
       .eq("pending_manager_email", email.toLowerCase());
   } catch (err) {
-    console.warn("Failed to resolve pending manager references:", err);
+    logError("ms365-auth", err, { stage: "resolve_manager_refs" });
   }
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID")!;
+  const AZURE_CLIENT_ID     = Deno.env.get("AZURE_CLIENT_ID")!;
   const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET")!;
-  const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID")!;
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const AZURE_TENANT_ID     = Deno.env.get("AZURE_TENANT_ID")!;
+  const SUPABASE_URL        = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   try {
     const { action, code, redirect_uri } = await req.json();
 
-    // Step 1: Generate the Azure AD authorization URL
+    // ── Step 1: Return Azure AD authorization URL ──────────────────────────────
     if (action === "get_auth_url") {
       const state = crypto.randomUUID();
-      const authUrl = new URL(
-        `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize`
-      );
+      const authUrl = new URL(`https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize`);
       authUrl.searchParams.set("client_id", AZURE_CLIENT_ID);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("redirect_uri", redirect_uri);
       authUrl.searchParams.set("scope", "openid profile email User.Read");
       authUrl.searchParams.set("response_mode", "query");
       authUrl.searchParams.set("state", state);
-
       return new Response(
         JSON.stringify({ url: authUrl.toString(), state }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Step 2: Exchange authorization code for tokens and sign in/up the user
+    // ── Step 2: Exchange code → tokens → session ───────────────────────────────
     if (action === "exchange_code") {
-      // Exchange code for tokens with Azure AD
       const tokenRes = await fetch(
         `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`,
         {
@@ -153,8 +166,7 @@ Deno.serve(async (req) => {
       );
 
       if (!tokenRes.ok) {
-        const err = await tokenRes.text();
-        console.error("Token exchange failed:", err);
+        console.error("Token exchange failed:", await tokenRes.text());
         return new Response(
           JSON.stringify({ error: "Token exchange failed" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -162,77 +174,76 @@ Deno.serve(async (req) => {
       }
 
       const tokens = await tokenRes.json();
+      const authHeader = { Authorization: `Bearer ${tokens.access_token}` };
 
-      // Get user profile from Microsoft Graph
-      const profileRes = await fetch("https://graph.microsoft.com/v1.0/me", {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-      });
+      // Fetch MS365 profile + manager in parallel
+      const [profileRes, managerResRaw] = await Promise.all([
+        fetch("https://graph.microsoft.com/v1.0/me", { headers: authHeader }),
+        fetch("https://graph.microsoft.com/v1.0/me/manager", { headers: authHeader }).catch(() => null),
+      ]);
 
       if (!profileRes.ok) {
         return new Response(
-          JSON.stringify({ error: "Failed to fetch user profile" }),
+          JSON.stringify({ error: "Failed to fetch user profile from Microsoft" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const profile = await profileRes.json();
-      const email = profile.mail || profile.userPrincipalName;
-      const fullName = profile.displayName || "";
-      const jobTitle = profile.jobTitle || null;
-      const department = profile.department || null;
-      const phone = profile.businessPhones?.[0] || profile.mobilePhone || null;
-
-      // Fetch manager info from MS365
-      let managerEmail: string | null = null;
-      try {
-        const managerRes = await fetch("https://graph.microsoft.com/v1.0/me/manager", {
-          headers: { Authorization: `Bearer ${tokens.access_token}` },
-        });
-        if (managerRes.ok) {
-          const managerData = await managerRes.json();
-          managerEmail = managerData.mail || managerData.userPrincipalName || null;
-        }
-      } catch (mgrErr) {
-        console.warn("Could not fetch manager from MS365:", mgrErr);
-      }
-
-      // Verify @grx10.com domain
-      if (!email?.toLowerCase().endsWith("@grx10.com")) {
+      const ms365Profile = await profileRes.json();
+      const email      = ms365Profile.mail || ms365Profile.userPrincipalName;
+      if (!email) {
         return new Response(
-          JSON.stringify({ error: "Only @grx10.com accounts are allowed" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Microsoft profile did not return an email address" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      const fullName   = ms365Profile.displayName || "";
+      const jobTitle   = ms365Profile.jobTitle || null;
+      const department = ms365Profile.department || null;
+      const phone      = ms365Profile.businessPhones?.[0] || ms365Profile.mobilePhone || null;
 
-      // Use service role to sign in or create user
+      let managerEmail: string | null = null;
+      try {
+        if (managerResRaw?.ok) {
+          const mgr = await managerResRaw.json();
+          managerEmail = mgr.mail || mgr.userPrincipalName || null;
+        }
+      } catch (e) {
+        logError("ms365-auth", e, { stage: "fetch_manager" });
+      }
+
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
+      // ── Resolve organization from email domain ─────────────────────────────
+      const orgEntry = await resolveOrgFromEmailDomain(supabase, email);
+      if (!orgEntry) {
+        console.warn(`[ms365-auth] No organization configured for email domain of: ${email}`);
+        return new Response(
+          JSON.stringify({ error: "Your email domain is not authorized for Microsoft SSO login." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { organizationId, ssoDomain } = orgEntry;
+
+      if (!email?.toLowerCase().endsWith(`@${ssoDomain}`)) {
+        return new Response(
+          JSON.stringify({ error: `Only @${ssoDomain} accounts are allowed` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const adminEmails = (Deno.env.get("ADMIN_EMAILS") || "")
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
+        .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
-      // Check if user exists - paginate through all users or filter
-      let existingUser = null;
-      let page = 1;
-      const perPage = 1000;
-      while (!existingUser) {
-        const { data: usersPage, error: listErr } = await supabase.auth.admin.listUsers({ page, perPage });
-        if (listErr || !usersPage?.users?.length) break;
-        existingUser = usersPage.users.find(
-          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-        ) || null;
-        if (usersPage.users.length < perPage) break;
-        page++;
-      }
+      const { data: existingUserData } = await supabase.auth.admin.getUserByEmail(email);
+      const existingUser = existingUserData?.user ?? null;
 
       let session;
 
       if (existingUser) {
-        // Check profile status before creating session
         const { data: profileStatus } = await supabase
           .from("profiles")
           .select("id, status")
@@ -247,189 +258,118 @@ Deno.serve(async (req) => {
         }
 
         if (profileStatus?.status === "pending_approval") {
-          return new Response(
-            JSON.stringify({ pending: true }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          await supabase.from("profiles").update({ status: "active" }).eq("user_id", existingUser.id);
         }
 
-        // Sign in existing active user by generating a session
-        const { data, error } = await supabase.auth.admin.generateLink({
-          type: "magiclink",
-          email: email,
-        });
+        let resolvedProfileId: string | null = profileStatus?.id ?? null;
+        let profileAlreadySynced = false;
 
+        if (!profileStatus) {
+          await syncProfileFromMS365(supabase, existingUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
+          profileAlreadySynced = true;
+          const { data: fp } = await supabase.from("profiles").select("id").eq("user_id", existingUser.id).maybeSingle();
+          resolvedProfileId = fp?.id ?? null;
+        }
+
+        const { data, error } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
         if (error) {
           console.error("Generate link error:", error);
-          return new Response(
-            JSON.stringify({ error: "Failed to authenticate user" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        // Use the token hash to verify OTP and get a session
-        const { data: sessionData, error: verifyError } =
-          await supabase.auth.verifyOtp({
-            token_hash: data.properties?.hashed_token!,
-            type: "magiclink",
-          });
-
+        const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: data.properties?.hashed_token!,
+          type: "magiclink",
+        });
         if (verifyError) {
           console.error("Verify OTP error:", verifyError);
-          return new Response(
-            JSON.stringify({ error: "Failed to create session" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
         session = sessionData.session;
 
-        // Update profile with latest MS365 data
-        await syncProfileFromMS365(supabase, existingUser.id, fullName, jobTitle, department, phone, email, managerEmail);
-
-        // Resolve any profiles waiting on this user as manager
-        if (profileStatus?.id) {
-          await resolveWaitingManagerRefs(supabase, email, profileStatus.id);
+        if (!profileAlreadySynced) {
+          await syncProfileFromMS365(supabase, existingUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
         }
+        if (resolvedProfileId) await resolveWaitingManagerRefs(supabase, email, resolvedProfileId);
 
-        // Ensure role exists for existing user
-        const { data: existingRole } = await supabase
-          .from("user_roles")
-          .select("id")
-          .eq("user_id", existingUser.id)
-          .maybeSingle();
-
+        const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", existingUser.id).maybeSingle();
         if (!existingRole) {
-          const role = isAdminEmail ? "admin" : "employee";
           await supabase.from("user_roles").insert({
             user_id: existingUser.id,
-            role,
-            organization_id: DEFAULT_ORG_ID,
+            role: isAdminEmail ? "admin" : "employee",
+            organization_id: organizationId,
           });
         }
       } else {
-        // Create new user
+        // New user
         const tempPassword = crypto.randomUUID() + "Aa1!";
-        const { data: newUser, error: createError } =
-          await supabase.auth.admin.createUser({
-            email,
-            password: tempPassword,
-            email_confirm: true,
-            user_metadata: { full_name: fullName },
-          });
-
-        if (createError) {
-          // If user already exists (race condition fallback), treat as existing user sign-in
-          if (createError.code === 'email_exists' || createError.message?.includes('already been registered')) {
-            console.log("User exists (fallback), signing in instead");
-            const { data: linkData2, error: linkErr2 } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
-            if (linkErr2) {
-              console.error("Fallback generate link error:", linkErr2);
-              return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-            }
-            const { data: sessData2, error: verifyErr2 } = await supabase.auth.verifyOtp({ token_hash: linkData2.properties?.hashed_token!, type: "magiclink" });
-            if (verifyErr2) {
-              console.error("Fallback verify error:", verifyErr2);
-              return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-            }
-            session = sessData2.session;
-
-            // Sync profile
-            const { data: fallbackUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-            const fbUser = fallbackUsers?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-            if (fbUser) {
-              const { data: fbProfile } = await supabase
-                .from("profiles")
-                .select("status")
-                .eq("user_id", fbUser.id)
-                .maybeSingle();
-              if (fbProfile?.status === "inactive") {
-                return new Response(
-                  JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }),
-                  { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-              if (fbProfile?.status === "pending_approval") {
-                return new Response(
-                  JSON.stringify({ pending: true }),
-                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-              await syncProfileFromMS365(supabase, fbUser.id, fullName, jobTitle, department, phone, email, managerEmail);
-            }
-
-            return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-          }
-
-          console.error("Create user error:", createError);
-          return new Response(
-            JSON.stringify({ error: "Failed to create user" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Assign role: admin for designated accounts, employee for everyone else
-        const role = isAdminEmail ? "admin" : "employee";
-        await supabase.from("user_roles").insert({
-          user_id: newUser.user!.id,
-          role,
-          organization_id: DEFAULT_ORG_ID,
+        const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { full_name: fullName },
         });
 
-        // Determine status: admins are active immediately, everyone else is pending approval
-        const newUserStatus = isAdminEmail ? "active" : "pending_approval";
-
-        // Sync profile with MS365 data (includes status)
-        await syncProfileFromMS365(supabase, newUser.user!.id, fullName, jobTitle, department, phone, email, managerEmail, newUserStatus);
-
-        // Non-admin new users land on the pending approval screen
-        if (!isAdminEmail) {
-          return new Response(
-            JSON.stringify({ pending: true }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+        if (createError) {
+          if (createError.code === "email_exists" || createError.message?.includes("already been registered")) {
+            console.log("User exists (race fallback), signing in instead");
+            const { data: ld2, error: le2 } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
+            if (le2) return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            const { data: sd2, error: ve2 } = await supabase.auth.verifyOtp({ token_hash: ld2.properties?.hashed_token!, type: "magiclink" });
+            if (ve2) return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            session = sd2.session;
+            const { data: fbData } = await supabase.auth.admin.getUserByEmail(email);
+            const fbUser = fbData?.user ?? null;
+            if (fbUser) {
+              const { data: fbProfile } = await supabase.from("profiles").select("status").eq("user_id", fbUser.id).maybeSingle();
+              if (fbProfile?.status === "inactive") {
+                return new Response(JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              }
+              if (fbProfile?.status === "pending_approval") await supabase.from("profiles").update({ status: "active" }).eq("user_id", fbUser.id);
+              await syncProfileFromMS365(supabase, fbUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
+              const { data: fbRole } = await supabase.from("user_roles").select("id").eq("user_id", fbUser.id).maybeSingle();
+              if (!fbRole) {
+                await supabase.from("user_roles").insert({
+                  user_id: fbUser.id,
+                  role: isAdminEmail ? "admin" : "employee",
+                  organization_id: organizationId,
+                });
+              }
+            }
+            return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          console.error("Create user error:", createError);
+          return new Response(JSON.stringify({ error: "Failed to create user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        // Admin path: generate session
-        const { data: linkData, error: linkError } =
-          await supabase.auth.admin.generateLink({
-            type: "magiclink",
-            email,
-          });
+        await supabase.from("user_roles").insert({
+          user_id: newUser.user!.id,
+          role: isAdminEmail ? "admin" : "employee",
+          organization_id: organizationId,
+        });
 
+        await syncProfileFromMS365(supabase, newUser.user!.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
+
+        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
         if (linkError) {
           console.error("Generate link error:", linkError);
-          return new Response(
-            JSON.stringify({ error: "Failed to authenticate new user" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return new Response(JSON.stringify({ error: "Failed to authenticate new user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        const { data: sessionData, error: verifyError } =
-          await supabase.auth.verifyOtp({
-            token_hash: linkData.properties?.hashed_token!,
-            type: "magiclink",
-          });
-
+        const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: linkData.properties?.hashed_token!,
+          type: "magiclink",
+        });
         if (verifyError) {
           console.error("Verify OTP error:", verifyError);
-          return new Response(
-            JSON.stringify({ error: "Failed to create session" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
         session = sessionData.session;
 
-        // Resolve any profiles waiting on this admin as manager
-        const { data: newProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("user_id", newUser.user!.id)
-          .maybeSingle();
-        if (newProfile?.id) {
-          await resolveWaitingManagerRefs(supabase, email, newProfile.id);
-        }
+        const { data: newProfile } = await supabase.from("profiles").select("id").eq("user_id", newUser.user!.id).maybeSingle();
+        if (newProfile?.id) await resolveWaitingManagerRefs(supabase, email, newProfile.id);
       }
 
       return new Response(
@@ -443,7 +383,7 @@ Deno.serve(async (req) => {
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("MS365 auth error:", err);
+    logError("ms365-auth", err);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

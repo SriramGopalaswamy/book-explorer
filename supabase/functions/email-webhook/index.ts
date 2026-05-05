@@ -34,6 +34,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +81,7 @@ async function fireWorkflowEvent(
       body: { event_type: eventType, entity_type: entityType, entity_id: entityId, organization_id: organizationId, payload },
     });
   } catch (err) {
-    console.warn(`[email-webhook] Failed to fire ${eventType}:`, err);
+    logError("email-webhook", err, { event_type: eventType });
   }
 }
 
@@ -314,7 +315,7 @@ Deno.serve(async (req) => {
 
   } catch (procCallErr) {
     // Fallback: classify inline AND update invoice.status (message-processor didn't run)
-    console.warn("[email-webhook] message-processor unavailable, using inline fallback:", procCallErr);
+    logError("email-webhook", procCallErr, { stage: "message-processor" });
     const fallback = await classifyAndUpdateInline(
       supabase, subject, bodyText, invoice.id, invoice.status
     );

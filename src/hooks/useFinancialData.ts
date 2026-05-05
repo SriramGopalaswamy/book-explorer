@@ -95,7 +95,7 @@ export function useFinancialRecords() {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("is_deleted", false)
+
         .eq("organization_id", orgId)
         .order("record_date", { ascending: false });
 
@@ -129,7 +129,7 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       const { data, error } = await supabase
         .from("financial_records")
         .select("*")
-        .eq("is_deleted", false)
+
         .eq("organization_id", orgId)
         .gte("record_date", fromDate.toISOString().split("T")[0])
         .lte("record_date", toDate.toISOString().split("T")[0]);
@@ -233,7 +233,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
         supabase
           .from("expenses")
           .select("category, amount")
-          .eq("is_deleted", false)
+  
           .eq("organization_id", orgId)
           .in("status", ["approved", "paid"])
           .gte("expense_date", fromStr)
@@ -242,7 +242,7 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
           .from("financial_records")
           .select("category, amount")
           .eq("type", "expense")
-          .eq("is_deleted", false)
+  
           .eq("organization_id", orgId)
           .gte("record_date", fromStr)
           .lte("record_date", toStr),
@@ -407,7 +407,7 @@ export function useDeleteFinancialRecord() {
 
       const { data, error } = await supabase
         .from("financial_records")
-        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .delete()
         .eq("id", id)
         .eq("organization_id", callerOrgId)
         .select();

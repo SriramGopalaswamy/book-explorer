@@ -43,14 +43,15 @@ import {
   type PayslipDispute,
 } from "@/hooks/usePayslipDisputes";
 import {
-  usePayrollRecords, usePayrollStats, useCreatePayroll, useUpdatePayroll,
+  usePayrollRecords, usePayrollStats, useUpdatePayroll,
   useDeletePayroll, useBulkDeletePayroll, useProcessPayroll, useMyPayrollRecords,
+  usePayrollOrgRecordCount,
   type PayrollRecord, type CreatePayrollData,
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
 import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { usePayrollBulkUpload } from "@/hooks/useBulkUpload";
+import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
 import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
@@ -59,7 +60,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
 import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchPayslipForDispute } from "@/lib/payroll-dispute-utils";
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -110,8 +111,14 @@ const periods24 = () => {
 const statusStyles: Record<string, string> = {
   locked: "bg-green-500/10 text-green-600 border-green-500/30",
   approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  hr_approved: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  finance_approved: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30",
   under_review: "bg-amber-500/10 text-amber-600 border-amber-500/30",
   draft: "bg-muted text-muted-foreground border-border",
+  processing: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  completed: "bg-green-500/10 text-green-600 border-green-500/30",
+  failed: "bg-destructive/10 text-destructive border-destructive/30",
+  cancelled: "bg-muted text-muted-foreground border-border",
   // Legacy fallbacks
   processed: "bg-green-500/10 text-green-600 border-green-500/30",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/30",
@@ -145,15 +152,7 @@ function PayrollHRDisputes() {
     setPayslipData(null);
     setLoadingPayslip(true);
     try {
-      let data: any = null;
-      if (dispute.payroll_record_id) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("id", dispute.payroll_record_id).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
-      if (!data && dispute.profile_id && dispute.pay_period) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("profile_id", dispute.profile_id).eq("pay_period", dispute.pay_period).order("version", { ascending: false }).limit(1).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
+      const data = await fetchPayslipForDispute(dispute);
       if (data) setPayslipData(data);
     } catch (err) { console.warn("Failed to fetch payroll record:", err); }
     finally { setLoadingPayslip(false); }
@@ -252,15 +251,7 @@ function PayrollFinanceDisputes() {
     setPayslipData(null);
     setLoadingPayslip(true);
     try {
-      let data: any = null;
-      if (dispute.payroll_record_id) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("id", dispute.payroll_record_id).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
-      if (!data && dispute.profile_id && dispute.pay_period) {
-        const res = await supabase.from("payroll_records").select("*, profiles:profile_id(full_name, department, job_title)").eq("profile_id", dispute.profile_id).eq("pay_period", dispute.pay_period).order("version", { ascending: false }).limit(1).maybeSingle();
-        if (!res.error && res.data) data = res.data;
-      }
+      const data = await fetchPayslipForDispute(dispute);
       if (data) setPayslipData(data);
     } catch (err) { console.warn("Failed to fetch payroll record:", err); }
     finally { setLoadingPayslip(false); }
@@ -448,14 +439,108 @@ function PayslipSummarySection({ loading, payslipData, fmtCurrency }: { loading:
   );
 }
 
+// ─── Debug Banner: explains why the payroll register is empty ─────────────────
+function PayrollRegisterEmptyState({
+  searchQuery,
+  statusFilter,
+  period,
+  totalRecords,
+  activeRecords,
+  currentRole,
+  onAdd,
+}: {
+  searchQuery: string;
+  statusFilter: string;
+  period: string;
+  /** Raw record count for this period including superseded. */
+  totalRecords: number;
+  /** Non-superseded record count for this period. */
+  activeRecords: number;
+  currentRole: string | null | undefined;
+  onAdd?: () => void;
+}) {
+  const periodStr = periodLabel(period);
+
+  // Case 1: active filter/search — no results match
+  if (searchQuery || statusFilter !== "all") {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <Search className="mx-auto h-12 w-12 text-muted-foreground" />
+        <p className="mt-3 font-medium text-foreground">No records match your filter</p>
+        <p className="text-sm text-muted-foreground">
+          {searchQuery && `Search "${searchQuery}" returned no results`}
+          {searchQuery && statusFilter !== "all" && " with "}
+          {statusFilter !== "all" && `status filter "${statusFilter}"`}
+          {" "}for {periodStr}. Try clearing the filters.
+        </p>
+      </div>
+    );
+  }
+
+  // Case 2: records exist for this period but all are superseded (revised via dispute resolution)
+  if (totalRecords > 0 && activeRecords === 0) {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <RefreshCw className="mx-auto h-12 w-12 text-amber-400" />
+        <p className="mt-3 font-medium text-foreground">
+          Payslips for {periodStr} were revised
+        </p>
+        <p className="text-sm text-muted-foreground">
+          The {totalRecords} original record{totalRecords !== 1 ? "s" : ""} for {periodStr}{" "}
+          {totalRecords !== 1 ? "were" : "was"} superseded via the dispute resolution process
+          and are no longer shown in the register. Use the{" "}
+          <strong>Payroll Engine</strong> tab to generate a corrected run, or add a
+          record manually.
+        </p>
+        {currentRole !== "payroll" && onAdd && (
+          <Button variant="outline" className="mt-2" onClick={onAdd}>
+            <Plus className="h-4 w-4 mr-1" /> Add Corrected Record
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Case 3: no records for this period at all
+  const isPayrollRole = currentRole === "payroll";
+
+  return (
+    <div className="text-center py-12 space-y-2">
+      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+      <p className="mt-3 font-medium text-foreground">
+        No payroll records for {periodStr}
+      </p>
+      {totalRecords === 0 ? (
+        // Case 3a: no records at all in the org for any period
+        <p className="text-sm text-muted-foreground">
+          {isPayrollRole
+            ? "No records exist for this organisation yet. An admin or HR user must generate payroll via the Payroll Engine tab first."
+            : "No records have been added for this period. Use the Payroll Engine tab to generate payroll automatically, or add records individually."}
+        </p>
+      ) : (
+        // Case 3b: records exist for other periods — period mismatch
+        <p className="text-sm text-muted-foreground">
+          Records exist for other periods but none for {periodStr}.
+          Select a different month from the period picker, or generate payroll for{" "}
+          {periodStr} via the <strong>Payroll Engine</strong> tab.
+        </p>
+      )}
+      {!isPayrollRole && totalRecords === 0 && onAdd && (
+        <Button variant="outline" className="mt-2" onClick={onAdd}>
+          <Plus className="h-4 w-4 mr-1" /> Add First Record
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
-  const bulkUploadConfig = usePayrollBulkUpload(selectedPeriod);
+  const bulkUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PayrollRecord | null>(null);
   const [editTarget, setEditTarget] = useState<PayrollRecord | null>(null);
@@ -473,16 +558,19 @@ export default function Payroll() {
   const isEmployeeOrManager = currentRole === "employee" || currentRole === "manager";
   const isHRRole = currentRole === "hr" || currentRole === "admin";
   const isFinanceRole = currentRole === "finance" || currentRole === "admin";
-  const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes("hr");
-  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes("finance");
+  // Disputes only matter to HR/Finance reviewers — skip the queries for everyone else
+  const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes(isHRRole ? "hr" : null);
+  const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes(isFinanceRole ? "finance" : null);
   const { data: records = [], isLoading, isError: recordsError } = usePayrollRecords(selectedPeriod);
-  const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords();
+  const { data: orgRecordCount = 0 } = usePayrollOrgRecordCount();
+  // Heavy unfiltered scan — only fetch when the Review tab is open and the user is a reviewer
+  const reviewTabActive = activeTab === "review" && (isHRRole || isFinanceRole);
+  const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords(reviewTabActive ? undefined : "__never__");
   const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
   // Get the current user's profile_id for declarations
   const myProfile = employees.find(e => e.user_id === user?.id);
-  const createPayroll = useCreatePayroll();
   const updatePayroll = useUpdatePayroll();
   const deletePayroll = useDeletePayroll();
   const bulkDeletePayroll = useBulkDeletePayroll();
@@ -539,6 +627,7 @@ export default function Payroll() {
 
   const filtered = useMemo(() =>
     records.filter((r) => {
+      if (r.status === "superseded") return false; // never shown in the register
       const name = r.profiles?.full_name?.toLowerCase() || "";
       const dept = r.profiles?.department?.toLowerCase() || "";
       const q = searchQuery.toLowerCase();
@@ -569,29 +658,6 @@ export default function Payroll() {
 
   const toggleAll = () =>
     setSelectedIds((prev) => prev.length === filtered.length ? [] : filtered.map((r) => r.id));
-
-  const handleAdd = () => {
-    if (!form.profile_id) return;
-    // Check for existing payslip for same employee & period
-    const existing = records.find(
-      (r) => r.profile_id === form.profile_id && !((r as any).is_superseded)
-    );
-    if (existing) {
-      // Check if there's an approved dispute allowing a revision
-      const hasDispute = (existing as any)._hasApprovedDispute;
-      toast.error(
-        `A payslip already exists for this employee for ${periodLabel(selectedPeriod)}.` +
-        (existing.status === "locked"
-          ? " The employee must raise a dispute and get it approved before a revised payslip can be generated."
-          : " Edit the existing record instead.")
-      );
-      return;
-    }
-    createPayroll.mutate(
-      { ...form, pay_period: selectedPeriod, status: "draft" } as CreatePayrollData,
-      { onSuccess: () => { setIsAddOpen(false); setForm({ profile_id: "", ...defaultForm }); } }
-    );
-  };
 
   const openEdit = (r: PayrollRecord) => {
     setEditTarget(r);
@@ -808,7 +874,7 @@ export default function Payroll() {
               )}
             </TabsList>
             <TabsContent value="engine">
-              <PayrollEnginePanel />
+              <PayrollEnginePanel onMonthChange={setSelectedPeriod} />
             </TabsContent>
             <TabsContent value="register">
               <Card className="glass-card">
@@ -878,27 +944,6 @@ export default function Payroll() {
                     </Button>
 
                     <BulkUploadDialog config={bulkUploadConfig} />
-                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Record
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-md glass-morphism">
-                        <DialogHeader>
-                          <DialogTitle className="text-gradient-primary">Add Payroll Record</DialogTitle>
-                          <DialogDescription>Add salary for {periodLabel(selectedPeriod)}</DialogDescription>
-                        </DialogHeader>
-                        {salaryFormFields}
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                          <Button onClick={handleAdd} disabled={createPayroll.isPending}>
-                            {createPayroll.isPending ? "Adding..." : "Add Record"}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -913,17 +958,14 @@ export default function Payroll() {
                       <p className="text-sm text-muted-foreground mt-1">A database schema error occurred. Please contact support or try refreshing.</p>
                     </div>
                   ) : filtered.length === 0 ? (
-                    <div className="text-center py-12">
-                      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <p className="mt-3 text-muted-foreground">
-                        {searchQuery || statusFilter !== "all"
-                          ? "No records match your filter"
-                          : `No payroll records for ${periodLabel(selectedPeriod)}`}
-                      </p>
-                      <Button variant="outline" className="mt-4" onClick={() => setIsAddOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" /> Add First Record
-                      </Button>
-                    </div>
+                    <PayrollRegisterEmptyState
+                      searchQuery={searchQuery}
+                      statusFilter={statusFilter}
+                      period={selectedPeriod}
+                      totalRecords={orgRecordCount}
+                      activeRecords={records.filter((r) => r.status !== "superseded").length}
+                      currentRole={currentRole}
+                    />
                   ) : (
                     <div>
                       <Table className="min-w-[600px]">
@@ -948,7 +990,13 @@ export default function Payroll() {
                         </TableHeader>
                         <TableBody>
                           {pagination.paginatedItems.map((r) => {
-                            const totalAllow = Number(r.hra) + Number(r.transport_allowance) + Number(r.other_allowances);
+                            // Mirror normalizeLegacyRecord: derive Basic as 62% of fixed gross
+                            // so the register stays consistent with the payslip display.
+                            const fixedGross   = Number(r.basic_salary) + Number(r.hra) + Number(r.other_allowances);
+                            const displayBasic = fixedGross > 0 ? Math.round(fixedGross * 0.62) : Number(r.basic_salary);
+                            // Allowances = remainder of fixed gross + incentives (transport_allowance)
+                            const totalAllow   = (fixedGross > 0 ? fixedGross - displayBasic : Number(r.hra) + Number(r.other_allowances))
+                              + Number(r.transport_allowance);
                             const totalDeduct = Number(r.pf_deduction) + Number(r.tax_deduction) + Number(r.other_deductions);
                             const lopDeduct = Number(r.lop_deduction) || 0;
                             const lopDays = Number(r.lop_days) || 0;
@@ -971,7 +1019,7 @@ export default function Payroll() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">{r.profiles?.department || "—"}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(Number(r.basic_salary))}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(displayBasic)}</TableCell>
                                 <TableCell className="text-right text-green-600">+{formatCurrency(totalAllow)}</TableCell>
                                 <TableCell className="text-right text-destructive">-{formatCurrency(totalDeduct)}</TableCell>
                                 <TableCell className="text-right">

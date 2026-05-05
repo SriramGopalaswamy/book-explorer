@@ -79,6 +79,33 @@ const payrollColumns: BulkUploadColumn[] = [
       "prof_tax",
     ],
   },
+  // TDS (income tax deducted at source) — monthly amount
+  {
+    key: "tds_monthly",
+    label: "TDS (Monthly)",
+    aliases: [
+      "tds",
+      "tds_monthly",
+      "income_tax_monthly",
+      "tax_deduction_monthly",
+      "income_tax",
+      "tds_amount",
+    ],
+  },
+  // Other / miscellaneous deductions not covered by PF, PT, TDS or LOP
+  // (salary advances recovered, welfare fund, canteen, etc.)
+  {
+    key: "other_deductions_col",
+    label: "Other Deductions",
+    aliases: [
+      "other_deductions",
+      "other_ded",
+      "misc_deductions",
+      "miscellaneous_deductions",
+      "other deductions",
+      "other_deduction",
+    ],
+  },
   // "Total Deductions" is present in the template so users can paste data directly.
   // When the individual PF/PT columns are absent (or zero), this total is used to
   // derive statutory components via back-calculation.
@@ -141,10 +168,10 @@ const payrollColumns: BulkUploadColumn[] = [
 // they are present in the template but ignored during upload (not mapped in payrollColumns).
 // "PF- optout" in the PF column is handled gracefully (basic derived from 40% of gross).
 // "no" in Incentive/Bonus columns is treated as 0.
-const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
-Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,2000,0,,26,26,45000
-Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,1760,1,1154,26,25,27086
-Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,PF- optout,200,0,,31,31,44800`;
+const payrollTemplate = `Employee Name,Email ID,Department,Job Title,Total Annual CTC,Annual CTC,Employer PF Annual,Bonus Yearly,Incentive monthly,Bonus monthly,Monthly fixed Salary,Gross Earnings,Profession Tax monthly,Employee PF deduction monthly,TDS,Other Deductions,Total Deductions,LWP Days,LWP Deduction,Working Days,Paid Days,Net Pay
+Ravi Kumar,ravi@company.com,Engineering,Developer,564000,564000,21600,no,2000,no,45000,47000,200,1800,0,0,2000,0,,26,26,45000
+Priya Sharma,priya@company.com,HR,HR Manager,360000,360000,18720,no,no,no,30000,30000,200,1560,500,0,2260,1,1154,26,25,26540
+Dilli Ram Nirola,admin@grx10.com,Management,Director,540000,540000,PF- optout,no,no,no,45000,45000,200,0,1500,0,1700,0,,31,31,43300`;
 
 // ─── Attendance ────────────────────────────────────
 const attendanceColumns: BulkUploadColumn[] = [
@@ -193,14 +220,61 @@ const formatPayPeriod = (p: string) => {
   return `${MONTHS[parseInt(m) - 1]} ${y}`;
 };
 
-export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
+// ─── Payroll bulk upload ────────────────────────────
+// Writes to payroll_runs + payroll_entries (engine path).
+// Enables the full approval workflow (submit → HR review → finance → lock).
+export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfig {
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  const existingRecordCheck = useCallback(async (): Promise<{ message: string; canOverride: boolean } | null> => {
+    if (!user) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const orgId = profile?.organization_id;
+    if (!orgId) return null;
+
+    const { data: run } = await supabase
+      .from("payroll_runs")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!run) return null;
+
+    // Terminal runs cannot be overwritten — surface a proactive block message so the
+    // user learns before clicking Upload rather than after the upload fails.
+    const terminalStatuses = ["under_review", "approved", "locked"];
+    if (terminalStatuses.includes(run.status)) {
+      return {
+        message: `The payroll run for ${formatPayPeriod(payPeriod)} is ${run.status} and cannot be overwritten.`,
+        canOverride: false,
+      };
+    }
+
+    const { count } = await supabase
+      .from("payroll_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("payroll_run_id", run.id);
+
+    if (count && count > 0) {
+      return {
+        message: `${count} payroll entr${count === 1 ? "y" : "ies"} already exist for ${formatPayPeriod(payPeriod)}. Uploading will overwrite them. This cannot be undone.`,
+        canOverride: true,
+      };
+    }
+    return null;
+  }, [user, payPeriod]);
 
   const onUpload = useCallback(async (rows: Record<string, string>[]) => {
     if (!user) throw new Error("Not authenticated");
 
-    // Get the user's organization_id to scope profile lookups to current tenant
     const { data: currentProfile } = await supabase
       .from("profiles")
       .select("organization_id")
@@ -208,12 +282,15 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       .maybeSingle();
 
     const orgId = currentProfile?.organization_id;
+    if (!orgId) return { success: 0, errors: ["No organization found."] };
 
-    // Fetch employee profiles scoped to current organization to prevent cross-tenant matches
-    const { data: profiles } = await (orgId
-      ? supabase.from("profiles").select("id, user_id, email, full_name").eq("organization_id", orgId)
-      : supabase.from("profiles").select("id, user_id, email, full_name"));
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, user_id, email, full_name")
+      .eq("organization_id", orgId);
+
     const errors: string[] = [];
+    const warnings: string[] = [];
     let success = 0;
 
     const findProfileByEmail = (email: string) => {
@@ -221,260 +298,268 @@ export function usePayrollBulkUpload(payPeriod: string): BulkUploadConfig {
       return profiles.find(p => p.email?.toLowerCase().trim() === email.toLowerCase().trim()) ?? null;
     };
 
+    // Exact full_name match only — fuzzy tiers omitted for financial records (FMEA 2.1).
     const findProfileByName = (empId: string) => {
       if (!profiles || !empId) return null;
       const needle = empId.toLowerCase().trim();
-      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
-      if (match) return match;
-      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      const words = needle.split(/\s+/).filter(w => w.length > 1);
-      if (words.length > 0) {
-        match = profiles.find(p => {
-          const name = p.full_name?.toLowerCase() || "";
-          return words.every(w => name.includes(w));
-        });
-        if (match) return match;
-      }
-      return null;
+      return profiles.find(p => p.full_name?.toLowerCase().trim() === needle) ?? null;
     };
 
-    const insertedIds: string[] = [];
+    // ── Find or create payroll_run ─────────────────────────────────────────
+    const { data: existingRun } = await supabase
+      .from("payroll_runs")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("pay_period", payPeriod)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const terminalStatuses = ["under_review", "approved", "locked"];
+    if (existingRun && terminalStatuses.includes(existingRun.status)) {
+      return {
+        success: 0,
+        errors: [
+          `A payroll run for ${formatPayPeriod(payPeriod)} already exists with status '${existingRun.status}'. ` +
+          `It cannot be overwritten. Delete it first or choose a different period.`,
+        ],
+      };
+    }
+
+    let runId: string;
+    let createdNewRun = false;
+
+    if (existingRun) {
+      runId = existingRun.id;
+    } else {
+      const { data: newRun, error: runError } = await supabase
+        .from("payroll_runs")
+        .insert({
+          organization_id: orgId,
+          pay_period: payPeriod,
+          generated_by: user.id,
+          status: "completed",
+          notes: "Uploaded via Payroll Register Bulk Upload",
+        })
+        .select("id")
+        .single();
+
+      if (runError || !newRun) {
+        return { success: 0, errors: [`Failed to create payroll run: ${runError?.message}`] };
+      }
+      runId = newRun.id;
+      createdNewRun = true;
+    }
+
+    const insertedEntryIds: string[] = [];
+
+    const abortOnThreshold = async () => {
+      if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
+        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+        if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+        return true;
+      }
+      return false;
+    };
 
     for (const row of rows) {
-      // ── Parse monthly inputs from file ──────────────────────────────────────
-      // All values here must be MONTHLY figures.
-      // Annual CTC / Total Annual CTC columns are intentionally NOT mapped — they
-      // would produce 12× inflated salary figures on the payslip.
-      const pf_monthly_raw  = parseFloat(row.pf_employee_monthly) || 0;
-      const prof_tax_raw    = parseFloat(row.professional_tax_monthly) || 0;
-      const total_ded_file  = parseFloat(row.total_deductions_col) || 0;
-      const monthly_gross  = parseFloat(row.monthly_gross) || 0;
-      // gross_earnings_monthly includes variable pay; falls back to monthly_gross
-      const gross_earn     = parseFloat(row.gross_earnings_monthly) || monthly_gross;
-      const incentive      = parseFloat(row.incentive_monthly) || 0;
-      const bonus          = parseFloat(row.bonus_monthly) || 0;
+      // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
+      const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
+      const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
+      let   other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
+      const total_ded_file   = parseFloat(row.total_deductions_col) || 0;
+      const monthly_gross    = parseFloat(row.monthly_gross) || 0;
+      const grossEarningsExplicit = parseFloat(row.gross_earnings_monthly);
+      const hasExplicitGross = !isNaN(grossEarningsExplicit) && grossEarningsExplicit > 0;
+      const gross_earn       = hasExplicitGross ? grossEarningsExplicit : monthly_gross;
+      const incentive        = parseFloat(row.incentive_monthly) || 0;
+      const bonus            = parseFloat(row.bonus_monthly) || 0;
       const working_days_val = parseFloat(row.working_days_col) || 26;
       const paid_days_val    = parseFloat(row.paid_days_col) || working_days_val;
       const lwp_days_val     = parseFloat(row.lwp_days_col) || 0;
       const lwp_ded_val      = parseFloat(row.lwp_deduction_col) || 0;
       const net_from_file    = parseFloat(row.net_pay_file) || 0;
 
-      // ── Derive monthly Basic Salary from Employee PF (Indian statutory) ─────
-      // Rule: EPF employee contribution = 12% of min(basic, ₹15,000 wage ceiling)
-      //   • If PF < ₹1,800  → basic = PF ÷ 12% (exact, basic is under ceiling)
-      //   • If PF ≥ ₹1,800  → wage ceiling hit; basic ≥ ₹15,000; use 40% of gross
-      //   • If no PF data    → default to 40% of monthly gross
+      // ── Derive basic, HRA, other allowances ──────────────────────────────
       let basic: number;
       if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
         basic = Math.round(pf_monthly_raw / 0.12);
       } else if (pf_monthly_raw >= 1800) {
-        basic = Math.max(Math.round(monthly_gross * 0.40), 15000);
+        basic = Math.max(Math.round(monthly_gross * 0.62), 15000);
       } else {
-        basic = Math.round(monthly_gross * 0.40);
+        basic = Math.round(monthly_gross * 0.62);
       }
-
-      // Standard HRA: 40% of basic (non-metro cities)
-      const hra = Math.round(basic * 0.40);
-
-      // Other Allowances = balance of fixed monthly gross after Basic + HRA
-      // This absorbs Special Allowance, Transport, and other fixed components.
+      const hra = Math.round(monthly_gross * 0.248);
       const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
 
-      // ── Resolve individual deduction components ────────────────────────────
-      // Individual PF/PT columns take precedence. When they are absent (both 0)
-      // but "Total Deductions" was supplied in the file, back-calculate statutory
-      // components so the payslip shows proper named heads instead of a catch-all.
+      // ── Resolve deduction components via back-calculation ─────────────────
       let pf_monthly = pf_monthly_raw;
       let prof_tax   = prof_tax_raw;
 
       if (pf_monthly === 0 && prof_tax === 0 && total_ded_file > 0) {
-        // Try to split total_ded_file into PF + PT using statutory rules.
-        // Two PF conventions: (a) 12% of actual basic, (b) ₹1,800 ceiling flat.
-        const grossForPT  = gross_earn || monthly_gross;
-        const ptDerived   = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
-        const pfActual    = Math.round(Math.min(basic, 15000) * 0.12);
-        const pfCeiling   = 1800;
-
+        const grossForPT = gross_earn || monthly_gross;
+        const ptDerived  = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+        const pfActual   = Math.round(Math.min(basic, 15000) * 0.12);
+        const pfCeiling  = 1800;
         for (const pf of [pfActual, pfCeiling]) {
-          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) {
-            pf_monthly = pf;
-            prof_tax   = ptDerived;
-            break;
-          }
-          if (Math.abs(pf - total_ded_file) <= 1) {
-            pf_monthly = pf;
-            break;
-          }
+          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) { pf_monthly = pf; prof_tax = ptDerived; break; }
+          if (Math.abs(pf - total_ded_file) <= 1) { pf_monthly = pf; break; }
         }
-        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) {
-          prof_tax = ptDerived;
+        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) prof_tax = ptDerived;
+        if (pf_monthly > 0 || prof_tax > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: PF (₹${pf_monthly}) and PT (₹${prof_tax}) ` +
+            `were derived from Total Deductions (₹${total_ded_file}) — ` +
+            `verify these match the employee's actual deductions.`
+          );
         }
-        // If no pattern matched, leave pf_monthly and prof_tax as 0 —
-        // the display layer will still show the correct total via net_pay reconciliation.
       }
 
-      // ── Deduction consistency checks ───────────────────────────────────────
-      // (1) Component sum check: when both individual columns and Total Deductions
-      //     are provided, their sum must agree within ₹2 (rounding tolerance).
-      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0)) {
-        const componentSum = pf_monthly_raw + prof_tax_raw;
-        if (Math.abs(componentSum - total_ded_file) > 2) {
-          errors.push(
-            `Row ${row.employee_id || row.email_id}: Total Deductions (₹${total_ded_file}) ` +
-            `does not match PF (₹${pf_monthly_raw}) + Professional Tax (₹${prof_tax_raw}) = ₹${componentSum}. ` +
-            `Please fix the deduction values in the file.`
-          );
+      // ── Deduction consistency check ───────────────────────────────────────
+      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0 || tds_monthly_raw > 0 || other_ded_raw > 0)) {
+        const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
+        if (componentSum > total_ded_file + 2) {
+          errors.push(`Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) exceed Total Deductions (₹${total_ded_file}).`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
         }
+        const gap = total_ded_file - componentSum;
+        if (gap > 2) {
+          if (prof_tax === 0) {
+            const grossForPT = gross_earn || monthly_gross;
+            const ptExpected = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
+            if (ptExpected > 0 && gap >= ptExpected) prof_tax = ptExpected;
+          }
+          const remaining = total_ded_file - (pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw);
+          if (remaining > 0) other_ded_raw += remaining;
+        }
       }
 
-      // (2) Net pay cross-check: when gross, total deductions, and net pay are all
-      //     present, verify gross − total_deductions − lwp_deduction ≈ net_pay.
-      //     A mismatch > ₹5 suggests a data entry error worth flagging.
+      // ── Net pay cross-check ───────────────────────────────────────────────
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
-        const expectedNet = Math.round(gross_earn - total_ded_file - lwp_ded_val);
-        if (Math.abs(expectedNet - net_from_file) > 5) {
+        const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
+        const diff = Math.abs(expectedNet - net_from_file);
+        if (diff > 5) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
-            `Gross (₹${gross_earn}) − Total Deductions (₹${total_ded_file}) − LWP (₹${lwp_ded_val}) = ₹${expectedNet}, ` +
-            `but file says ₹${net_from_file}. Please verify.`
+            `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
+            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""} = ₹${expectedNet}, but file says ₹${net_from_file}.`
           );
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
+        } else if (diff > 0) {
+          warnings.push(
+            `Row ${row.employee_id || row.email_id}: Net Pay rounding gap of ₹${diff} ` +
+            `(expected ₹${expectedNet}, file has ₹${net_from_file}) — saved using file value.`
+          );
         }
       }
 
-      // Variable pay (Incentives + Bonus) stored in transport_allowance field.
-      // On the payslip this is labelled "Incentives". The transport_allowance
-      // column is repurposed here because the company payslip does not show a
-      // separate Transport line — transport is already embedded in other_allowances.
       const incentives = incentive + bonus;
-
-      // ── Net Pay ──────────────────────────────────────────────────────────────
-      // Prefer the file value; compute as fallback.
-      const net_pay = net_from_file > 0
+      const lwpForCalc = hasExplicitGross ? 0 : lwp_ded_val;
+      const totalDed   = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
+      const net_pay    = net_from_file > 0
         ? net_from_file
-        : Math.max(0, Math.round(gross_earn - pf_monthly - prof_tax - lwp_ded_val));
+        : Math.max(0, Math.round(gross_earn - totalDed - lwpForCalc));
 
-      // ── Employee matching ────────────────────────────────────────────────────
-      // When email is supplied use exact match only — do NOT fall back to name
-      // matching on email failure, as that could silently write to the wrong person.
+      // ── Employee matching ─────────────────────────────────────────────────
       let profile;
-      if (row.email_id) {
-        profile = findProfileByEmail(row.email_id);
+      if (row.email_id?.trim()) {
+        profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id}"`);
+          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
         }
       } else {
         profile = findProfileByName(row.employee_id);
         if (!profile) {
           errors.push(`Row ${row.employee_id}: No matching employee profile found`);
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
         }
       }
 
-      const payload = {
-        user_id: profile.user_id,
-        profile_id: profile.id,
-        organization_id: orgId || null,
-        pay_period: payPeriod,
-        // Earnings
-        basic_salary: basic,
-        hra,
-        transport_allowance: incentives, // repurposed: stores variable pay (shown as "Incentives")
-        other_allowances,                // fixed special allowance (absorbs transport)
-        // Deductions
-        pf_deduction: pf_monthly,        // PF Contribution (direct from file)
-        tax_deduction: 0,                // TDS — 0 for most employees; compute separately if needed
-        other_deductions: prof_tax,      // Professional Tax stored here (shown as "Professional Tax")
-        // Attendance / LOP
-        lop_days: lwp_days_val,
-        lop_deduction: lwp_ded_val,
-        working_days: working_days_val,
-        paid_days: paid_days_val,
-        net_pay,
-        status: "draft",
-      };
+      // ── Build JSONB breakdowns ────────────────────────────────────────────
+      const earningsBreakdown = [
+        { name: "Basic Salary",      monthly: basic,          annual: basic * 12,          is_taxable: true },
+        ...(hra > 0            ? [{ name: "HRA",              monthly: hra,                annual: hra * 12,                is_taxable: true }]  : []),
+        ...(other_allowances > 0 ? [{ name: "Other Allowances", monthly: other_allowances, annual: other_allowances * 12,   is_taxable: true }]  : []),
+        ...(incentives > 0     ? [{ name: "Incentives",       monthly: incentives,         annual: incentives * 12,         is_taxable: true }]  : []),
+      ];
 
-      // Find the active (non-superseded) record for this employee + period, if any.
-      // The UNIQUE constraint on (profile_id, pay_period) exists in the DB, so we must
-      // UPDATE existing active records rather than INSERT duplicates.
-      // We also check for ANY record (including superseded) to detect constraint conflicts.
-      const { data: existing } = await supabase
-        .from("payroll_records")
-        .select("id, status, is_superseded")
-        .eq("profile_id", profile.id)
-        .eq("pay_period", payPeriod)
-        .order("is_superseded", { ascending: true }) // false (active) first
-        .limit(1)
-        .maybeSingle();
+      const deductionsBreakdown = [
+        ...(pf_monthly > 0     ? [{ name: "PF Contribution",  monthly: pf_monthly,         annual: pf_monthly * 12,         is_taxable: false }] : []),
+        ...(prof_tax > 0       ? [{ name: "Professional Tax", monthly: prof_tax,            annual: prof_tax * 12,           is_taxable: false }] : []),
+        ...(tds_monthly_raw > 0 ? [{ name: "TDS",             monthly: tds_monthly_raw,    annual: tds_monthly_raw * 12,    is_taxable: false }] : []),
+        ...(other_ded_raw > 0  ? [{ name: "Other Deductions", monthly: other_ded_raw,      annual: other_ded_raw * 12,      is_taxable: false }] : []),
+      ];
 
-      let data: { id: string }[] | null;
-      let error: { message: string } | null;
+      // ── Upsert payroll_entry ──────────────────────────────────────────────
+      const { data: entry, error: entryError } = await supabase
+        .from("payroll_entries")
+        .upsert({
+          payroll_run_id:            runId,
+          profile_id:                profile.id,
+          organization_id:           orgId,
+          compensation_structure_id: null,
+          annual_ctc:                gross_earn * 12, // approximation: bulk upload has no annual CTC column; gross × 12 is a placeholder
+          gross_earnings:            gross_earn,
+          total_deductions:          totalDed,
+          net_pay,
+          lwp_days:                  lwp_days_val,
+          lwp_deduction:             lwp_ded_val,
+          working_days:              working_days_val,
+          paid_days:                 paid_days_val,
+          earnings_breakdown:        earningsBreakdown,
+          deductions_breakdown:      deductionsBreakdown,
+          status:                    "computed",
+        }, { onConflict: "payroll_run_id,profile_id" })
+        .select("id")
+        .single();
 
-      const activeExisting = existing && existing.is_superseded === false ? existing : null;
-      const supersededExisting = existing && existing.is_superseded === true ? existing : null;
-
-      if (activeExisting) {
-        if (activeExisting.status === "locked") {
-          errors.push(`Row ${row.employee_id}: Payslip is locked and cannot be overwritten. Raise a dispute to revise it.`);
-          continue;
-        }
-        ({ data, error } = await supabase
-          .from("payroll_records")
-          .update(payload)
-          .eq("id", activeExisting.id)
-          .select("id") as any);
-      } else if (supersededExisting) {
-        // A superseded record exists — mark it as no longer superseded and update it,
-        // rather than inserting a second row that would violate the unique constraint.
-        ({ data, error } = await supabase
-          .from("payroll_records")
-          .update({ ...payload, is_superseded: false })
-          .eq("id", supersededExisting.id)
-          .select("id") as any);
+      if (entryError) {
+        errors.push(`Row ${row.employee_id || row.email_id}: ${entryError.message}`);
+        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
       } else {
-        ({ data, error } = await supabase
-          .from("payroll_records")
-          .insert(payload)
-          .select("id") as any);
-      }
-
-      if (error) {
-        errors.push(`Row ${row.employee_id}: ${error.message}`);
-        // If error rate exceeds 50%, rollback all inserted records
-        if (errors.length > rows.length * 0.5 && insertedIds.length > 0) {
-          await supabase.from("payroll_records").delete().in("id", insertedIds);
-          errors.push("Bulk upload aborted: too many errors. All changes rolled back.");
-          return { success: 0, errors };
-        }
-      } else if (data?.[0]?.id) {
-        insertedIds.push(data[0].id);
+        if (entry?.id) insertedEntryIds.push(entry.id);
         success++;
-      } else {
-        // Insert/update went through but Supabase returned no row — likely an RLS
-        // visibility issue on the RETURNING clause. Count as error so the user knows.
-        errors.push(`Row ${row.employee_id}: record was not saved (possible permission issue — check RLS policies).`);
       }
     }
 
+    // ── Re-aggregate run totals ───────────────────────────────────────────
+    const { data: allEntries } = await supabase
+      .from("payroll_entries")
+      .select("gross_earnings, total_deductions, net_pay")
+      .eq("payroll_run_id", runId);
+
+    if (allEntries && allEntries.length > 0) {
+      await supabase.from("payroll_runs").update({
+        total_gross:       allEntries.reduce((s, e) => s + (e.gross_earnings || 0), 0),
+        total_deductions:  allEntries.reduce((s, e) => s + (e.total_deductions || 0), 0),
+        total_net:         allEntries.reduce((s, e) => s + (e.net_pay || 0), 0),
+        employee_count:    allEntries.length,
+        status:            "completed",
+      }).eq("id", runId);
+    }
+
+    qc.invalidateQueries({ queryKey: ["payroll-runs"] });
+    qc.invalidateQueries({ queryKey: ["payroll-entries"] });
     qc.invalidateQueries({ queryKey: ["payroll"] });
-    return { success, errors };
+    return { success, errors, warnings };
   }, [user, payPeriod, qc]);
 
   return {
-    module: "payroll",
-    title: "Bulk Upload Payroll",
-    description: `Upload salary records for multiple employees for ${formatPayPeriod(payPeriod)}.`,
+    module: "payroll_register",
+    title: "Upload Payroll Register",
+    description: `Upload a pre-computed payroll register for ${formatPayPeriod(payPeriod)}. Creates a completed payroll run ready for the approval workflow — no engine calculation needed.`,
     columns: payrollColumns,
-    templateFileName: "payroll_template.csv",
+    templateFileName: "payroll_register_template.csv",
     templateContent: payrollTemplate,
     onUpload,
+    existingRecordCheck,
   };
 }
 
@@ -679,26 +764,17 @@ export function useExpensesBulkUpload(): BulkUploadConfig {
     const errors: string[] = [];
     let success = 0;
 
+    // Expenses are financial — exact match only (FMEA 2.1 adjacency).
+    // Column label is "Employee Name/Email": if the value contains "@" treat
+    // it as an email (exact match); otherwise exact full_name match.
+    // Fuzzy tiers (startsWith / includes / word-split) are intentionally omitted.
     const findProfile = (empId: string) => {
-      if (!profiles || !empId) return null;
-      const needle = empId.toLowerCase().trim();
-      let match = profiles.find(p => p.full_name?.toLowerCase().trim() === needle);
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      match = profiles.find(p => p.full_name?.toLowerCase().includes(needle));
-      if (match) return match;
-      match = profiles.find(p => p.email?.toLowerCase().startsWith(needle));
-      if (match) return match;
-      const words = needle.split(/\s+/).filter(w => w.length > 1);
-      if (words.length > 0) {
-        match = profiles.find(p => {
-          const name = p.full_name?.toLowerCase() || "";
-          return words.every(w => name.includes(w));
-        });
-        if (match) return match;
+      if (!profiles || !empId?.trim()) return null;
+      const needle = empId.trim().toLowerCase();
+      if (needle.includes("@")) {
+        return profiles.find(p => p.email?.toLowerCase() === needle) ?? null;
       }
-      return null;
+      return profiles.find(p => p.full_name?.toLowerCase().trim() === needle) ?? null;
     };
 
     for (const row of rows) {

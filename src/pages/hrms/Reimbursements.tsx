@@ -104,20 +104,35 @@ export default function Reimbursements() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Resolve profile_id once; used for both list query and insert
+  const { data: myProfile } = useQuery({
+    queryKey: ["my-profile", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, manager_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Fetch own reimbursements
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["my-reimbursements", user?.id],
+    queryKey: ["my-reimbursements", myProfile?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!myProfile?.id) return [];
       const { data, error } = await supabase
         .from("reimbursement_requests")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("profile_id", myProfile.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!myProfile?.id,
   });
 
   const resetForm = () => {
@@ -244,6 +259,10 @@ export default function Reimbursements() {
       toast.error("Please upload a bill document first.");
       return;
     }
+    if (!myProfile?.id) {
+      toast.error("Profile not loaded. Please refresh and try again.");
+      return;
+    }
     if (!form.vendor_name || !form.amount || !form.category || !form.description) {
       toast.error("Please fill in all required fields.");
       return;
@@ -251,18 +270,10 @@ export default function Reimbursements() {
 
     setSubmitting(true);
     try {
-      // Get user's profile for profile_id and manager lookup
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, manager_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
       const { data: inserted, error } = await supabase
         .from("reimbursement_requests")
         .insert({
-          user_id: user.id,
-          profile_id: profile?.id ?? null,
+          profile_id: myProfile.id,
           attachment_url: uploadedFile.url,
           file_name: uploadedFile.name,
           file_type: uploadedFile.type,
@@ -291,7 +302,7 @@ export default function Reimbursements() {
       }).catch((e) => console.warn("Notification failed:", e));
 
       toast.success("Reimbursement submitted for manager approval!");
-      queryClient.invalidateQueries({ queryKey: ["my-reimbursements"] });
+      queryClient.invalidateQueries({ queryKey: ["my-reimbursements", myProfile?.id] });
       setDialogOpen(false);
       resetForm();
     } catch (err: any) {

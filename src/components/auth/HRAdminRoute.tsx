@@ -1,4 +1,5 @@
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import { AccessDenied } from "./AccessDenied";
 import { Loader2 } from "lucide-react";
 
@@ -12,14 +13,17 @@ interface HRAdminRouteProps {
  */
 export function HRAdminRoute({ children }: HRAdminRouteProps) {
   const { data: currentRole, isLoading } = useCurrentRole();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
-  if (isLoading) {
+  if (isLoading || saLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
+  if (isSuperAdmin) return <>{children}</>;
 
   if (currentRole !== "admin" && currentRole !== "hr") {
     return (

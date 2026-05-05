@@ -16,7 +16,7 @@ export interface Employee {
   avatar_url: string | null;
   job_title: string | null;
   department: string | null;
-  status: "active" | "on_leave" | "inactive";
+  status: "active" | "on_leave" | "inactive" | "exited";
   join_date: string | null;
   date_of_joining: string | null;
   phone: string | null;
@@ -74,7 +74,7 @@ export function useIsAdminOrHR() {
     queryKey: ["user-role", user?.id],
     queryFn: async () => {
       if (!user) return false;
-      
+
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -89,10 +89,14 @@ export function useIsAdminOrHR() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    // Stable for 5 min — prevents re-fetch on window focus causing brief hasAccess=undefined
+    // that would make useEmployees re-query with the wrong access level after hard refresh.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
-// Check if user has admin, HR, or finance role
+// Check if user has admin, HR, finance, or payroll role for read access
 export function useIsAdminHROrFinance() {
   const { user } = useAuth();
 
@@ -100,12 +104,12 @@ export function useIsAdminHROrFinance() {
     queryKey: ["user-role", user?.id, "admin-hr-finance"],
     queryFn: async () => {
       if (!user) return false;
-      
+
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "hr", "finance"]);
+        .in("role", ["admin", "hr", "finance", "payroll"]);
 
       if (error) {
         console.error("Error checking role:", error);
@@ -115,6 +119,9 @@ export function useIsAdminHROrFinance() {
       return data && data.length > 0;
     },
     enabled: !!user,
+    // Stable for 5 min — same reasoning as useIsAdminOrHR above.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -200,17 +207,37 @@ export function useEmployees() {
       }
     },
     enabled: (!!user && !isRoleLoading && !!orgId) || isDevMode,
+    staleTime: 5 * 60_000, // 5 min — employee roster rarely changes mid-session
+    refetchOnWindowFocus: false,
   });
 }
 
-// Get employee stats
+/**
+ * Lightweight stats hook for the Dashboard.
+ * Avoids pulling the full profiles row payload (used to be ~50KB per Dashboard mount)
+ * by selecting only `id, user_id, status` instead of `select('*')`.
+ */
 export function useEmployeeStats() {
-  const { data: employees = [] } = useEmployees();
   const { user } = useAuth();
-
-  // Dynamically count approved leaves for today (matches attendance module logic)
   const { data: orgData } = useUserOrganization();
   const statsOrgId = orgData?.organizationId;
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employee-stats-lite", statsOrgId],
+    queryFn: async () => {
+      if (!statsOrgId) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, user_id, status")
+        .eq("organization_id", statsOrgId)
+        .limit(1000);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; user_id: string | null; status: string | null }>;
+    },
+    enabled: !!user && !!statsOrgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: approvedLeavesToday = [] } = useQuery({
     queryKey: ["employee-stats-leaves-today", statsOrgId],
@@ -227,6 +254,8 @@ export function useEmployeeStats() {
       return data || [];
     },
     enabled: !!user && !!statsOrgId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const leaveProfileIds = new Set(
@@ -246,7 +275,7 @@ export function useEmployeeStats() {
 
   const stats = {
     total: employees.length,
-    active: employees.filter((e) => e.status !== "inactive").length - onLeaveCount,
+    active: employees.filter((e) => e.status !== "inactive" && e.status !== "exited").length - onLeaveCount,
     onLeave: onLeaveCount,
     inactive: employees.filter((e) => e.status === "inactive").length,
     onLeaveIds: { profileIds: leaveProfileIds, userIds: leaveUserIds },

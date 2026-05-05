@@ -1,54 +1,84 @@
 
 
-## Polish & QA Plan — Automation Studio
+## Which Commit Bricked Sign-In
 
-### Issues Found
+The three files edited in the last 24 hours were:
+1. `src/components/auth/SubscriptionGuard.tsx` — permissive timeout (safe)
+2. `src/contexts/SubscriptionContext.tsx` — error vs empty handling (safe)
+3. `src/hooks/useUserOrganization.ts` — 30min staleTime (safe)
 
-1. **`Workflows.tsx` is orphaned** — 725 lines of dead code. The route redirects to `/financial/automation`, so this file is never rendered. Should be deleted.
+**None of these directly bricked sign-in.** The brick is caused by a pre-existing race condition in `AuthCallback.tsx` that was **identified but never fixed** in the previous round. The SubscriptionGuard changes may have shifted timing enough to make it worse.
 
-2. **`MessageDebugPanel` React key warning** — Uses `<>` fragments inside `.map()` without keys on the fragment. Should use `<React.Fragment key={msg.id}>`.
+## The Exact Bug (AuthCallback.tsx, lines 74-80)
 
-3. **Automation Dashboard readability** — The Live Automation Tracker table has 10 columns crammed into one horizontal scroll. On typical screens this is hard to scan. Should consolidate secondary info (Last Channel + Last Message Status into one cell, Workflow Step + Next Action into one cell) to reduce to ~7 columns.
+```text
+setSession() resolves
+  → onAuthStateChange fires (React batches setState)
+  → navigate("/") runs IMMEDIATELY        ← too early
+  → ProtectedRoute reads user = null      ← batch not committed
+  → Redirects to /auth
+  → Auth.tsx useEffect sees user become non-null
+  → Navigates back to "/"
+  → Loop or permanent hang
+```
 
-4. **Missing tooltips on action buttons** — The tracker table action buttons (Send Email, Send WhatsApp, Mark Acknowledged, View) have no tooltips. Users won't know what the icon-only buttons do.
+## Fix Plan (3 files, root-cause only)
 
-5. **Invoice detail integration** — `WorkflowStatus` and `InvoiceMessageThread` only render when `organization_id` exists on the invoice object. The cast `(viewingInvoice as any).organization_id` is fragile — should fetch org from `useUserOrganization` instead.
+### 1. AuthCallback.tsx — Wait for auth state before navigating
 
-6. **Empty state polish** — Builder section shows "Finish onboarding" warning when no org, but no empty state for the tracker when org exists but no runs. Current empty state is fine but could use the same rounded card style.
+Stop calling `navigate("/")` immediately after `setSession()`. Instead, set a flag and let a separate `useEffect` navigate only once `useAuth().user` is confirmed.
 
-7. **Table row urgency colors** — `border-l-destructive` and `border-l-warning` reference theme tokens that may not exist. Should use explicit colors `border-l-red-500` / `border-l-amber-500`.
+```typescript
+const { user } = useAuth();
+const [authComplete, setAuthComplete] = useState(false);
 
-8. **`acknowledged` status** — `markAcknowledged` mutation updates invoice status to `"acknowledged"` but the invoices table status column may not accept this value if there's a check constraint. This needs validation.
+// After setSession succeeds:
+setAuthComplete(true);
+// Do NOT navigate here
 
-### Plan
+// Separate effect waits for React to commit
+useEffect(() => {
+  if (authComplete && user) {
+    navigate("/", { replace: true });
+  }
+}, [authComplete, user, navigate]);
+```
 
-#### 1. Delete orphaned `Workflows.tsx`
-Remove `src/pages/financial/Workflows.tsx` and its import from `App.tsx`.
+### 2. Auth.tsx (line 81-85) — Guard against callback redirect loop
 
-#### 2. Fix MessageDebugPanel React fragment keys
-Replace `<>` with `<React.Fragment key={msg.id}>` in the messages `.map()`.
+Add a check so Auth.tsx doesn't immediately re-navigate when the user just arrived from the callback:
 
-#### 3. Add tooltips to tracker action buttons
-Wrap each icon button in `<Tooltip>` with labels: "Send Email Reminder", "Send WhatsApp Reminder", "Mark Acknowledged", "View Details".
+```typescript
+useEffect(() => {
+  if (user && !location.pathname.startsWith("/auth/callback")) {
+    navigate(from, { replace: true });
+  }
+}, [user, navigate, from, location.pathname]);
+```
 
-#### 4. Fix invoice detail org fallback
-In `Invoicing.tsx`, use `orgData?.organizationId` from the hook instead of casting `viewingInvoice.organization_id`.
+### 3. Index.tsx — Add 10s safety timeout fallback
 
-#### 5. Fix urgency border colors
-Change `border-l-destructive` → `border-l-red-500`, `border-l-warning` → `border-l-amber-500`, `border-l-success` → `border-l-emerald-500` for guaranteed Tailwind output.
+If the guard chain (org → subscription → role) hangs beyond 10 seconds, render Dashboard directly instead of spinning forever:
 
-#### 6. Consolidate tracker table columns
-Merge "Last Channel" + "Last Message Status" into a single "Last Message" column. Merge "Workflow Step" + "Next Action" into a single "Progress" column. Reduces from 10 → 7 columns.
+```typescript
+const [timedOut, setTimedOut] = useState(false);
+useEffect(() => {
+  const t = setTimeout(() => setTimedOut(true), 10_000);
+  return () => clearTimeout(t);
+}, []);
 
-#### 7. Minor polish
-- Add `Tooltip` import to `AutomationDashboard.tsx`
-- Ensure consistent loading skeleton widths
-- Clean up any unused imports after Workflows.tsx removal
+if (timedOut && !isSuperAdmin) return <Dashboard />;
+```
 
-### Files Changed
-- `src/pages/financial/AutomationDashboard.tsx` — tooltips, column consolidation, color fixes
-- `src/components/financial/MessageDebugPanel.tsx` — fragment key fix
-- `src/pages/financial/Invoicing.tsx` — org fallback fix
-- `src/pages/financial/Workflows.tsx` — delete
-- `src/App.tsx` — remove Workflows import
+### Files to change
+
+| File | Change | Risk |
+|------|--------|------|
+| `src/pages/AuthCallback.tsx` | Wait for `user` before navigating | Low |
+| `src/pages/Auth.tsx` | Prevent redirect loop from callback | Low |
+| `src/pages/Index.tsx` | 10s fallback to Dashboard | Low |
+
+### Why this is the fix
+
+The SubscriptionGuard/Context changes from the last 24h are correct and safe. The actual brick is the MS365 `setSession → navigate` race that was diagnosed but never patched. This plan patches it.
 

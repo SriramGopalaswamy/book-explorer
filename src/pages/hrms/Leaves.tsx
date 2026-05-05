@@ -55,7 +55,9 @@ import {
 } from "@/hooks/useLeaves";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
-
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 const iconMap: Record<string, typeof Palmtree> = {
   Palmtree, Stethoscope, Baby, Briefcase, Home, Calendar,
 };
@@ -65,6 +67,7 @@ function getIcon(iconName: string) {
 }
 
 export default function Leaves() {
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -82,6 +85,7 @@ export default function Leaves() {
   const [newIcon, setNewIcon] = useState("Briefcase");
   const [newColor, setNewColor] = useState("text-blue-600");
   const [newDefaultDays, setNewDefaultDays] = useState(12);
+  const [newGenderEligibility, setNewGenderEligibility] = useState<'all' | 'male' | 'female'>('all');
 
   const isMyLeavesTab = activeTab === "mine";
   const statusFilter = isMyLeavesTab ? "all" : activeTab;
@@ -97,6 +101,33 @@ export default function Leaves() {
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
   const { data: isManager } = useIsManager();
   const showMyLeavesTab = isAdminHROrFinance || isManager;
+
+  // Fetch current user's gender for filtering gender-specific leave types
+  const { data: myGender } = useQuery({
+    queryKey: ["my-gender", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await (supabase as any)
+        .from("employee_details")
+        .select("gender")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      return data?.gender ? (data.gender as string).toLowerCase() : 'unknown';
+    },
+    enabled: !!user,
+  });
+
+  // Filter leave types by gender eligibility for the apply dropdown
+  const eligibleLeaveTypes = useMemo(() => {
+    if (!myGender) return activeLeaveTypes;
+    return activeLeaveTypes.filter((lt) => {
+      const elig = (lt as any).gender_eligibility || 'all';
+      if (elig === 'all') return true;
+      if (elig === 'female' && myGender.startsWith('f')) return true;
+      if (elig === 'male' && myGender.startsWith('m')) return true;
+      return false;
+    });
+  }, [activeLeaveTypes, myGender]);
   
   const createLeaveRequest = useCreateLeaveRequest();
   const approveRequest = useApproveLeaveRequest();
@@ -128,7 +159,7 @@ export default function Leaves() {
   }, [activeLeaveTypes]);
 
   // Set default leave type when types load
-  const defaultLeaveType = activeLeaveTypes.length > 0 ? activeLeaveTypes[0].key : "casual";
+  const defaultLeaveType = eligibleLeaveTypes.length > 0 ? eligibleLeaveTypes[0].key : "casual";
 
   const handleSubmitLeave = async () => {
     if (!fromDate || !toDate) return;
@@ -203,12 +234,14 @@ export default function Leaves() {
       color: newColor,
       default_days: newDefaultDays,
       sort_order: allLeaveTypes.length + 1,
+      gender_eligibility: newGenderEligibility,
     });
     setNewKey("");
     setNewLabel("");
     setNewIcon("Briefcase");
     setNewColor("text-blue-600");
     setNewDefaultDays(12);
+    setNewGenderEligibility("all");
   };
 
   const handleUpdateLeaveType = async () => {
@@ -220,6 +253,7 @@ export default function Leaves() {
       color: editingType.color,
       default_days: editingType.default_days,
       is_active: editingType.is_active,
+      gender_eligibility: editingType.gender_eligibility,
     });
     setIsEditOpen(false);
     setEditingType(null);
@@ -315,7 +349,12 @@ export default function Leaves() {
                                 <Icon className={`h-4 w-4 ${lt.color}`} />
                                 <div>
                                   <p className="text-sm font-medium">{lt.label}</p>
-                                  <p className="text-xs text-muted-foreground">Key: {lt.key} · {lt.default_days} days</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Key: {lt.key} · {lt.default_days} days
+                                    {lt.gender_eligibility && lt.gender_eligibility !== 'all' && (
+                                      <span className="ml-1">· {lt.gender_eligibility === 'female' ? '♀ Female only' : '♂ Male only'}</span>
+                                    )}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -378,6 +417,17 @@ export default function Leaves() {
                             <Input type="number" min={0} value={newDefaultDays} onChange={(e) => setNewDefaultDays(Number(e.target.value))} />
                           </div>
                         </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Gender Eligibility</Label>
+                          <Select value={newGenderEligibility} onValueChange={(v: 'all' | 'male' | 'female') => setNewGenderEligibility(v)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Employees</SelectItem>
+                              <SelectItem value="female">Female Only</SelectItem>
+                              <SelectItem value="male">Male Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Button onClick={handleCreateLeaveType} disabled={createLeaveType.isPending || !newKey || !newLabel} className="w-full">
                           <Plus className="h-4 w-4 mr-2" />
                           {createLeaveType.isPending ? "Creating..." : "Add Leave Type"}
@@ -434,6 +484,17 @@ export default function Leaves() {
                         <Label>Default Days</Label>
                         <Input type="number" min={0} value={editingType.default_days} onChange={(e) => setEditingType({ ...editingType, default_days: Number(e.target.value) })} />
                       </div>
+                      <div className="space-y-1">
+                        <Label>Gender Eligibility</Label>
+                        <Select value={editingType.gender_eligibility || 'all'} onValueChange={(v: 'all' | 'male' | 'female') => setEditingType({ ...editingType, gender_eligibility: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Employees</SelectItem>
+                            <SelectItem value="female">Female Only</SelectItem>
+                            <SelectItem value="male">Male Only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="flex items-center justify-between">
                         <Label>Active</Label>
                         <Switch checked={editingType.is_active} onCheckedChange={(v) => setEditingType({ ...editingType, is_active: v })} />
@@ -469,7 +530,7 @@ export default function Leaves() {
                           <SelectValue placeholder="Select leave type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {activeLeaveTypes.map((lt) => (
+                          {eligibleLeaveTypes.map((lt) => (
                             <SelectItem key={lt.key} value={lt.key}>{lt.label}</SelectItem>
                           ))}
                         </SelectContent>

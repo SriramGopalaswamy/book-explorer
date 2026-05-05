@@ -1,13 +1,42 @@
+import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import Dashboard from "./Dashboard";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 const Index = () => {
-  const { data: currentRole, isLoading, isFetching, isPending } = useCurrentRole();
+  const { data: isSuperAdmin, isLoading: superAdminLoading, isFetching: superAdminFetching } = useIsSuperAdmin();
+  const { data: orgData, isLoading: orgLoading, isFetching: orgFetching } = useUserOrganization();
+  const { data: currentRole, isLoading: roleLoading } = useCurrentRole();
 
-  // Show a subtle branded loader while role resolves instead of a blank screen
-  if (isLoading || isPending || (isFetching && currentRole === undefined)) {
+  // Safety timeout: if guard chain hangs >10s, render Dashboard rather than spin forever
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 10_000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (isSuperAdmin) return <Dashboard />;
+
+  const waitingOnSuperAdmin =
+    superAdminLoading || (superAdminFetching && isSuperAdmin === undefined);
+  const waitingOnOrganization =
+    orgLoading || (orgFetching && orgData === undefined);
+  const organizationResolved = !orgLoading && !orgFetching;
+  // roleLoading is useAllUserRoles.isLoading — fires in parallel with org query.
+  // Previous check used `currentRole === undefined` which is never true (the hook
+  // always returns null or a string), so roles never actually blocked the spinner.
+  const waitingOnRole =
+    !!orgData?.organizationId && roleLoading;
+
+  if (waitingOnSuperAdmin || waitingOnOrganization || waitingOnRole) {
+    // If we've been waiting >10s, just render Dashboard instead of hanging
+    if (timedOut) {
+      console.warn("[Index] Guard chain timed out after 10s — rendering Dashboard as fallback");
+      return <Dashboard />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -18,12 +47,17 @@ const Index = () => {
     );
   }
 
+  // Organization explicitly missing — let the normal activation flow handle it.
+  if (organizationResolved && orgData === null) {
+    return <Navigate to="/subscription/activate" replace />;
+  }
+
   if (currentRole === "employee") return <Navigate to="/hrms/my-attendance" replace />;
   if (currentRole === "hr") return <Navigate to="/hrms/employees" replace />;
   if (currentRole === "manager") return <Navigate to="/hrms/inbox" replace />;
   if (currentRole === "finance") return <Navigate to="/financial/accounting" replace />;
 
-  // admin (and any unknown role) → Dashboard
+  // admin (and any temporarily unknown role) → Dashboard
   return <Dashboard />;
 };
 

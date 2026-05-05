@@ -140,7 +140,6 @@ export function useInvoices() {
       const { data, error } = await supabase
         .from("invoices")
         .select(`*, invoice_items (*)`)
-        .eq("is_deleted", false)
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -541,7 +540,7 @@ export function useDeleteInvoice() {
 
       const { error } = await supabase
         .from("invoices")
-        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .delete()
         .eq("id", id)
         .eq("organization_id", callerOrgId);
       if (error) throw error;

@@ -402,7 +402,6 @@ export default function Bills() {
         .from("bills")
         .select("*, bill_items(*)")
         .eq("organization_id", orgId)
-        .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -516,13 +515,16 @@ export default function Bills() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      // Soft delete instead of hard delete
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from("bills")
-        .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any)
+        .delete()
         .eq("id", id)
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId)
+        .select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) {
+        throw new Error("Bill could not be deleted. Only draft bills can be deleted.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });

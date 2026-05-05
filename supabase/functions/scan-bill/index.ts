@@ -1,6 +1,7 @@
 // deno-lint-ignore-file
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -285,7 +286,7 @@ Available categories: ${AP_CATEGORIES.join(", ")}`;
     try {
       extracted = JSON.parse(toolCall.function.arguments);
     } catch (e) {
-      console.error("Failed to parse AI tool arguments:", e);
+      logError("scan-bill", e);
       return new Response(
         JSON.stringify({ error: "Failed to parse AI extraction result." }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -296,7 +297,7 @@ Available categories: ${AP_CATEGORIES.join(", ")}`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("scan-bill error:", err);
+    logError("scan-bill", err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

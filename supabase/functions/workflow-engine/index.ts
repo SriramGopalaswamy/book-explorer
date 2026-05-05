@@ -33,6 +33,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -238,7 +239,7 @@ async function executeAction(
           messageId = msgResult?.message_id ?? null;
         }
       } catch (err) {
-        console.warn("[workflow-engine] Failed to invoke messaging-service:", err);
+        logError("workflow-engine", err, { stage: "messaging-service", channel: "email" });
       }
 
       // 3. Write to legacy email_logs (backward compatibility — unchanged behaviour)
@@ -326,7 +327,7 @@ async function executeAction(
           waMessageId = msgResult?.message_id ?? null;
         }
       } catch (err) {
-        console.warn("[workflow-engine] Failed to invoke messaging-service (whatsapp):", err);
+        logError("workflow-engine", err, { stage: "messaging-service", channel: "whatsapp" });
       }
 
       // Log WhatsApp action result to workflow_events (parity with email logging)
@@ -594,7 +595,7 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
-    console.error("[workflow-engine] Fatal error:", err);
+    logError("workflow-engine", err);
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

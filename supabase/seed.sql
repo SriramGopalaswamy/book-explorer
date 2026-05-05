@@ -1,6 +1,9 @@
 -- =====================================================
 -- SUPABASE COMPREHENSIVE SEED DATA
 -- =====================================================
+-- ⚠️  SANDBOX / DEVELOPMENT ONLY — NEVER RUN IN PRODUCTION
+--     Guard below aborts if real customer organizations exist.
+-- =====================================================
 -- This file seeds data for:
 -- - HR module (profiles/employees, user_roles)
 -- - Goals module (goals)
@@ -16,6 +19,29 @@
 -- 2. Replace 'YOUR_USER_ID_HERE' with your actual user ID
 -- 3. Run this script in Supabase SQL Editor
 -- =====================================================
+
+-- Production guard: abort if real customer orgs are present
+DO $$
+DECLARE
+  real_org_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO real_org_count
+  FROM public.organizations
+  WHERE name NOT ILIKE 'Demo%'
+    AND name NOT ILIKE 'Test%'
+    AND name NOT ILIKE 'Dev%';
+
+  IF real_org_count > 0 THEN
+    RAISE EXCEPTION
+      E'SEED ABORTED — % real organization(s) detected. '
+       'seed.sql is for sandbox/local use only and must never run against '
+       'a production instance with live customer data.',
+      real_org_count;
+  END IF;
+
+  RAISE NOTICE 'Production guard passed — no real organizations detected.';
+END;
+$$;
 
 -- NOTE: Replace this with your actual user ID from auth.users
 -- You can get it by running: SELECT id, email FROM auth.users LIMIT 1;

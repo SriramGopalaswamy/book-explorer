@@ -81,20 +81,16 @@ export function useDashboardStats() {
       // Current month journal lines — posted & non-deleted entries only
       let currLinesQ = supabase
         .from("journal_lines")
-        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
         .eq("journal_entries.is_posted", true)
-        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", currentMonthStartDate)
         .lte("journal_entries.entry_date", currentMonthEndDate);
       let lastLinesQ = supabase
         .from("journal_lines")
-        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, is_deleted, organization_id)")
+        .select("debit, gl_account_id, journal_entries!inner(entry_date, is_posted, organization_id)")
         .eq("journal_entries.is_posted", true)
-        .eq("journal_entries.is_deleted", false)
         .gte("journal_entries.entry_date", lastMonthStartDate)
         .lte("journal_entries.entry_date", lastMonthEndDate);
-      if (orgId) lastLinesQ = lastLinesQ.eq("journal_entries.organization_id", orgId);
-      const { data: lastMonthLines } = await lastLinesQ;
 
       // ── Other stats ────────────────────────────────────────────────────────
       // Pending = sent to client but not yet paid (excludes draft, includes
@@ -113,6 +109,8 @@ export function useDashboardStats() {
         paidInvCurrQ  = paidInvCurrQ.eq("organization_id", orgId);
         paidInvLastQ  = paidInvLastQ.eq("organization_id", orgId);
         glQuery       = glQuery.eq("organization_id", orgId);
+        currLinesQ    = currLinesQ.eq("journal_entries.organization_id", orgId);
+        lastLinesQ    = lastLinesQ.eq("journal_entries.organization_id", orgId);
         empQ          = empQ.eq("organization_id", orgId);
         invPendQ      = invPendQ.eq("organization_id", orgId);
         invPendLastQ  = invPendLastQ.eq("organization_id", orgId);
@@ -173,7 +171,12 @@ export function useDashboardStats() {
       };
     },
     enabled: !!user || isDevMode,
-    staleTime: 30000,
+    // 5 min cache — dashboard stats don't change second-to-second, and this
+    // prevents the 9-query fan-out from re-running on every navigation back
+    // to "/".
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

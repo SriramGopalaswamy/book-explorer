@@ -1,6 +1,47 @@
-import * as React from 'npm:react@18.3.1'
-import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { sendLovableEmail, parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js'
+import { logError } from "../_shared/logger.ts";
+
+type LovableEmailPayload = {
+  version?: string
+  run_id?: string
+  data?: Record<string, any>
+}
+
+type LovableEmailMessage = {
+  run_id: string
+  to: string
+  from: string
+  sender_domain: string
+  subject: string
+  html: string
+  text: string
+  purpose: 'transactional'
+}
+
+function parseEmailWebhookPayload(body: any): LovableEmailPayload {
+  if (!body || typeof body !== 'object' || !body.data || typeof body.data !== 'object') {
+    throw new WebhookError('invalid_payload', 'Webhook payload is missing data')
+  }
+  return body as LovableEmailPayload
+}
+
+async function sendLovableEmail(
+  message: LovableEmailMessage,
+  options: { apiKey: string; sendUrl: string },
+): Promise<{ message_id?: string }> {
+  const response = await fetch(options.sendUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(message),
+  })
+
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : {}
+  if (!response.ok) throw new Error(data?.error || data?.message || `Email API returned ${response.status}`)
+  return data
+}
 // Webhook verification - inline HMAC-SHA256 implementation
 // (Lovable's edge-runtime package is unavailable in Deno; reimplemented using Web Crypto API)
 class WebhookError extends Error {
@@ -54,12 +95,6 @@ async function verifyWebhookRequest({ req, secret, parser }: { req: Request; sec
   const payload = parser(body)
   return { payload }
 }
-import { SignupEmail } from '../_shared/email-templates/signup.tsx'
-import { InviteEmail } from '../_shared/email-templates/invite.tsx'
-import { MagicLinkEmail } from '../_shared/email-templates/magic-link.tsx'
-import { RecoveryEmail } from '../_shared/email-templates/recovery.tsx'
-import { EmailChangeEmail } from '../_shared/email-templates/email-change.tsx'
-import { ReauthenticationEmail } from '../_shared/email-templates/reauthentication.tsx'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,21 +111,51 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   reauthentication: 'Your verification code',
 }
 
-// Template mapping
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
-  signup: SignupEmail,
-  invite: InviteEmail,
-  magiclink: MagicLinkEmail,
-  recovery: RecoveryEmail,
-  email_change: EmailChangeEmail,
-  reauthentication: ReauthenticationEmail,
-}
-
 // Configuration
 const SITE_NAME = "swift-link-story"
 const SENDER_DOMAIN = "books.grx10.com"
 const ROOT_DOMAIN = "grx10.com"
 const FROM_DOMAIN = "books.grx10.com" // Domain shown in From address (may be root or sender subdomain)
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function emailContent(type: string, data: Record<string, any>) {
+  const url = escapeHtml(data.confirmationUrl || data.siteUrl || `https://${ROOT_DOMAIN}`)
+  const token = escapeHtml(data.token)
+  switch (type) {
+    case 'signup':
+      return { preview: 'Verify your email for GRX10', title: 'Welcome to GRX10', body: `Thanks for signing up! Please verify your email address (${escapeHtml(data.recipient)}) to access your dashboard.`, cta: 'Verify Email', url }
+    case 'invite':
+      return { preview: "You've been invited to GRX10", title: "You've been invited", body: "You've been invited to join GRX10 Business Suite. Click below to accept and set up your account.", cta: 'Accept Invitation', url }
+    case 'magiclink':
+      return { preview: 'Your GRX10 login link', title: 'Your login link', body: 'Click below to securely sign in to GRX10.', cta: 'Sign In', url }
+    case 'recovery':
+      return { preview: 'Reset your password for GRX10', title: 'Reset your password', body: 'We received a request to reset your password. Click the button below to choose a new one.', cta: 'Reset Password', url }
+    case 'email_change':
+      return { preview: 'Confirm your new email for GRX10', title: 'Confirm your new email', body: `Confirm changing your GRX10 email from ${escapeHtml(data.email)} to ${escapeHtml(data.newEmail)}.`, cta: 'Confirm Email', url }
+    case 'reauthentication':
+      return { preview: 'Your GRX10 verification code', title: 'Verification code', body: `Use this code to continue: ${token}`, cta: '', url: '' }
+    default:
+      return null
+  }
+}
+
+function renderEmail(type: string, data: Record<string, any>, plainText = false): string | null {
+  const content = emailContent(type, data)
+  if (!content) return null
+  if (plainText) return `${content.title}\n\n${content.body}${content.url ? `\n\n${content.cta}: ${content.url}` : ''}`
+  const button = content.cta && content.url
+    ? `<a href="${content.url}" style="display:inline-block;background:#c41572;color:#fff;font-size:14px;font-weight:600;border-radius:12px;padding:12px 24px;text-decoration:none">${content.cta}</a>`
+    : ''
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(content.preview)}</title></head><body style="background:#fff;font-family:Archivo,Arial,sans-serif;margin:0"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(content.preview)}</div><main style="padding:40px 32px;max-width:480px;margin:0 auto"><img src="https://qfgudhbrjfjmbamwsfuj.supabase.co/storage/v1/object/public/email-assets/grx10-icon.png" width="48" height="48" alt="GRX10" style="margin-bottom:24px"><h1 style="font-size:22px;font-weight:bold;color:#1a1625;margin:0 0 16px">${escapeHtml(content.title)}</h1><p style="font-size:14px;color:#605e6b;line-height:1.6;margin:0 0 28px">${content.body}</p>${button}<p style="font-size:12px;color:#999;margin:32px 0 0">If you weren't expecting this email, you can safely ignore it.</p></main></body></html>`
+}
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.
@@ -162,17 +227,15 @@ async function handlePreview(req: Request): Promise<Response> {
     })
   }
 
-  const EmailTemplate = EMAIL_TEMPLATES[type]
+  const sampleData = SAMPLE_DATA[type] || {}
+  const html = renderEmail(type, sampleData as Record<string, any>)
 
-  if (!EmailTemplate) {
+  if (!html) {
     return new Response(JSON.stringify({ error: `Unknown email type: ${type}` }), {
       status: 400,
       headers: { ...previewCorsHeaders, 'Content-Type': 'application/json' },
     })
   }
-
-  const sampleData = SAMPLE_DATA[type] || {}
-  const html = await renderAsync(React.createElement(EmailTemplate, sampleData))
 
   return new Response(html, {
     status: 200,
@@ -210,14 +273,14 @@ async function handleWebhook(req: Request): Promise<Response> {
         case 'missing_timestamp':
         case 'invalid_timestamp':
         case 'stale_timestamp':
-          console.error('Invalid webhook signature', { error: error.message })
+          logError("auth-email-hook", error, { code: "invalid_signature" });
           return new Response(JSON.stringify({ error: 'Invalid signature' }), {
             status: 401,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
         case 'invalid_payload':
         case 'invalid_json':
-          console.error('Invalid webhook payload', { error: error.message })
+          logError("auth-email-hook", error, { code: "invalid_payload" });
           return new Response(
             JSON.stringify({ error: 'Invalid webhook payload' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -225,7 +288,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
     }
 
-    console.error('Webhook verification failed', { error })
+    logError("auth-email-hook", error, { stage: "verification" });
     return new Response(
       JSON.stringify({ error: 'Invalid webhook payload' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -259,15 +322,6 @@ async function handleWebhook(req: Request): Promise<Response> {
   const emailType = payload.data.action_type
   console.log('Received auth event', { emailType, email: payload.data.email, run_id })
 
-  const EmailTemplate = EMAIL_TEMPLATES[emailType]
-  if (!EmailTemplate) {
-    console.error('Unknown email type', { emailType, run_id })
-    return new Response(
-      JSON.stringify({ error: `Unknown email type: ${emailType}` }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
   // Build template props from payload.data (HookData structure)
   const templateProps = {
     siteName: SITE_NAME,
@@ -279,11 +333,15 @@ async function handleWebhook(req: Request): Promise<Response> {
     newEmail: payload.data.new_email,
   }
 
-  // Render React Email to HTML and plain text
-  const html = await renderAsync(React.createElement(EmailTemplate, templateProps))
-  const text = await renderAsync(React.createElement(EmailTemplate, templateProps), {
-    plainText: true,
-  })
+  const html = renderEmail(emailType, templateProps)
+  const text = renderEmail(emailType, templateProps, true)
+  if (!html || !text) {
+    console.error('Unknown email type', { emailType, run_id })
+    return new Response(
+      JSON.stringify({ error: `Unknown email type: ${emailType}` }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   // Send email via Lovable Email API
   // The callback URL is provided in the payload by Lovable, ensuring correct routing
@@ -313,8 +371,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       { apiKey, sendUrl: callbackUrl }
     )
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send email'
-    console.error('Email API error', { error: message, run_id })
+    logError("auth-email-hook", error, { stage: "email_send", run_id });
     return new Response(JSON.stringify({ error: 'Failed to send email' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -346,7 +403,7 @@ Deno.serve(async (req) => {
   try {
     return await handleWebhook(req)
   } catch (error) {
-    console.error('Webhook handler error:', error)
+    logError("auth-email-hook", error);
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
