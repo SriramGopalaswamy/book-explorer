@@ -377,9 +377,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
 
       // Advance to 30% so the bar visibly moves before onUpload starts.
       if (jobId) {
-        await supabase.from("job_queue")
+        await (supabase.from("job_queue") as any)
           .update({ progress: 30, progress_label: "Uploading rows…" })
-          .eq("id", jobId).catch(() => {});
+          .eq("id", jobId).then(undefined, () => {});
       }
 
       try {
