@@ -471,10 +471,19 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     // unhandled rejection here would otherwise vanish silently (the user just
     // sees the button do nothing).
     if (config.existingRecordCheck) {
+      console.log("[BulkUpload] running existingRecordCheck…");
       try {
         const warning = await config.existingRecordCheck();
+        console.log("[BulkUpload] existingRecordCheck result:", warning);
         if (warning) {
           setPendingWarning(warning);
+          // Surface a toast as well — the inline banner can be missed when
+          // the dialog is tall (long preview + max-h-[85vh] layout).
+          if (warning.canOverride) {
+            toast.warning("Existing data — confirm overwrite in the dialog");
+          } else {
+            toast.error(warning.message);
+          }
           return;
         }
       } catch (err: any) {
@@ -483,6 +492,8 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         return;
       }
     }
+
+    console.log("[BulkUpload] starting executeUpload (validRows:", validCount, ")");
 
     try {
       await executeUpload();
@@ -712,7 +723,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         {/* Pre-upload check banner */}
         {pendingWarning && (
           <div className={cn(
-            "mx-6 mb-2 rounded-lg border p-4 space-y-3",
+            "shrink-0 mx-6 mb-2 rounded-lg border p-4 space-y-3",
             pendingWarning.canOverride
               ? "border-destructive/60 bg-destructive/10"
               : "border-warning/60 bg-warning/10"
