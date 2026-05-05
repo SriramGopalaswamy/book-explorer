@@ -175,9 +175,13 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   .net-box .amount { font-size: 24px; font-weight: 800; color: ${bc}; }
   .words-row { text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border: 1px solid #ccc; border-top: none; background: #fafafa; margin-bottom: 20px; }
 
-  .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; }
-  .footer .sig { text-align: right; }
-  .footer .sig .line { display: block; width: 140px; border-top: 1px solid #bbb; padding-top: 4px; margin-top: 30px; }
+  .footer { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #999; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+  .footer-sys { font-style: italic; text-align: right; color: #888; }
+  .statutory { margin-top: 10px; border: 1px solid #ddd; border-radius: 3px; padding: 8px 12px; background: #fafafa; }
+  .statutory-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #555; margin-bottom: 5px; }
+  .statutory-items { margin: 0; padding: 0; list-style: none; }
+  .statutory-items li { font-size: 9px; color: #666; line-height: 1.5; padding-left: 10px; position: relative; margin-bottom: 2px; }
+  .statutory-items li::before { content: "•"; position: absolute; left: 0; color: #aaa; }
   @media print { body { padding: 20px; } }
 </style></head><body>
 
@@ -256,9 +260,18 @@ export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps
   </div>
   <div class="words-row">Amount in Words : ${numberToWords(netPay)}</div>
 
-   <div class="footer">
+  <div class="footer">
     <div>${processedDate ? `Processed on: ${processedDate}` : 'Not yet processed'}</div>
-    <div class="sig">${signatoryName ? `<span style="font-weight:600;font-size:11px;display:block;margin-bottom:2px">${DOMPurify.sanitize(signatoryName)}</span>` : ''}<span class="line">Authorised Signatory</span></div>
+    <div class="footer-sys">This is a system-generated payslip. No physical signature is required.</div>
+  </div>
+  <div class="statutory">
+    <div class="statutory-title">Statutory Notice</div>
+    <ul class="statutory-items">
+      <li>Provident Fund (PF) contributions are deducted under the Employees&apos; Provident Funds &amp; Miscellaneous Provisions Act, 1952.</li>
+      <li>Professional Tax (PT), where applicable, is deducted as per the applicable State legislation.</li>
+      <li>Tax Deducted at Source (TDS) is computed and deducted under the Income Tax Act, 1961.</li>
+      <li>For any payroll discrepancies, please raise a query with the HR / Payroll team within 30 days of receipt of this payslip.</li>
+    </ul>
   </div>
 </body></html>`;
   };
