@@ -407,6 +407,57 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────
+    // reactivate_user — undo soft deactivation: restore active status and unban auth account
+    // ─────────────────────────────────────────────
+    if (action === "reactivate_user") {
+      const { user_id } = body;
+
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "user_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // SECURITY: Verify target user belongs to same org
+      const { data: targetMemberReact } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId)
+        .maybeSingle();
+
+      if (!targetMemberReact) {
+        return new Response(JSON.stringify({ error: "Target user not in your organization" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Restore profile: clear inactive + soft-delete flags
+      const { error: reactError } = await supabase
+        .from("profiles")
+        .update({ status: "active", is_deleted: false, deleted_at: null })
+        .eq("user_id", user_id)
+        .eq("organization_id", requestingOrgId);
+
+      if (reactError) {
+        console.error("Reactivate error:", reactError);
+        return new Response(JSON.stringify({ error: "Failed to reactivate user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Un-ban the auth account so the user can sign in again
+      await supabase.auth.admin.updateUserById(user_id, { ban_duration: "none" });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─────────────────────────────────────────────
     // delete_user — soft-deletes profile (trigger blocks hard delete), hard-deletes auth user
     // ─────────────────────────────────────────────
     if (action === "delete_user") {
