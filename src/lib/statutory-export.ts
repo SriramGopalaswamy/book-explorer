@@ -1,6 +1,16 @@
-import ExcelJS from "exceljs";
+import type ExcelJSType from "exceljs";
 
 type ExportFormat = "xlsx" | "csv";
+
+// exceljs is ~200 KB minified — keep it out of the initial bundle.
+// Only loaded when an export actually runs.
+let exceljsPromise: Promise<typeof ExcelJSType> | null = null;
+function loadExcelJS() {
+  if (!exceljsPromise) {
+    exceljsPromise = import("exceljs").then((m) => m.default);
+  }
+  return exceljsPromise;
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -28,6 +38,7 @@ export async function exportToExcel(data: Record<string, unknown>[], filename: s
     downloadBlob(new Blob([toCsv(data)], { type: "text/csv;charset=utf-8;" }), filename.replace(/\.xlsx$/, ".csv"));
     return;
   }
+  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetName);
   if (data.length > 0) {
@@ -39,6 +50,7 @@ export async function exportToExcel(data: Record<string, unknown>[], filename: s
 }
 
 export async function exportMultiSheet(sheets: { name: string; data: Record<string, unknown>[] }[], filename: string) {
+  const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
   for (const sheet of sheets) {
     const ws = wb.addWorksheet(sheet.name.substring(0, 31));
