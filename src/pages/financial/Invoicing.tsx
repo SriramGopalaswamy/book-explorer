@@ -189,7 +189,7 @@ export default function Invoicing() {
   const navigate = useNavigate();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { data: orgData } = useUserOrganization();
-  const { data: compliance } = useOnboardingCompliance();
+  const { compliance } = useOnboardingCompliance();
   const orgState = compliance?.state ?? null;
   const { data: invoices = [], isLoading } = useInvoices();
   const createInvoice = useCreateInvoice();

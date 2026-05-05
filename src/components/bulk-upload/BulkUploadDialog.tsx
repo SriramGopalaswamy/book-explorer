@@ -377,9 +377,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
 
       // Advance to 30% so the bar visibly moves before onUpload starts.
       if (jobId) {
-        await supabase.from("job_queue")
+        await (supabase.from("job_queue") as any)
           .update({ progress: 30, progress_label: "Uploading rows…" })
-          .eq("id", jobId).catch(() => {});
+          .eq("id", jobId).then(undefined, () => {});
       }
 
       try {
@@ -448,10 +448,10 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       }
     } catch (err: any) {
       if (jobId) {
-        await supabase.from("job_queue").update({
+        await (supabase.from("job_queue") as any).update({
           status: "failed", progress: 0,
           error_message: (err as Error).message || "Unexpected error",
-        }).eq("id", jobId).catch(() => {});
+        }).eq("id", jobId).then(undefined, () => {});
       }
       toast.error(err.message || "Upload failed");
     } finally {

@@ -33,8 +33,8 @@ export function useEnqueueJob() {
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("Organization not found");
 
-      const { data, error } = await supabase
-        .from("job_queue")
+      const { data, error } = await (supabase
+        .from("job_queue") as any)
         .insert({
           organization_id: orgId,
           job_type: jobType,

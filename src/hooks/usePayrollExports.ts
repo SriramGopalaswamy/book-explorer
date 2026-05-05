@@ -5,7 +5,7 @@ async function logExport(action: string, metadata: Record<string, unknown>) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("audit_logs").insert({
+    await (supabase.from("audit_logs") as any).insert({
       actor_id: user.id,
       action,
       entity_type: "payroll_export",
