@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────
-    // activate_user — reactivates an inactive user: clears soft-delete flags, unbans auth account
+    // activate_user — reactivates an inactive user: restores active status and unbans auth account
     // ─────────────────────────────────────────────
     if (action === "activate_user") {
       if (callerRole !== "admin") {
@@ -435,6 +435,7 @@ Deno.serve(async (req) => {
       }
 
       const { user_id } = body;
+
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
           status: 400,

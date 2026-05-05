@@ -1051,6 +1051,7 @@ function UserManagementSection() {
     }
   }, [usersError]);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [actionUser, setActionUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // Role picker state for the Pending Activation section (keyed by user_id)
@@ -1141,6 +1142,26 @@ function UserManagementSection() {
     setUpdatingUser(null);
   };
 
+  const handleStatusChange = async (u: UserWithRole, newVal: string) => {
+    if (newVal === "no") {
+      // Route through the existing confirmation dialog (handles report reassignment too)
+      initiateDeactivateOrDelete(u, "deactivate");
+    } else {
+      // Reactivate
+      setUpdatingStatus(u.user_id);
+      const { data, error } = await supabase.functions.invoke("manage-roles", {
+        body: { action: "activate_user", user_id: u.user_id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || "Failed to reactivate user");
+      } else {
+        toast.success(`${u.full_name || u.email} reactivated`);
+        qc.invalidateQueries({ queryKey: ["user-roles"] });
+      }
+      setUpdatingStatus(null);
+    }
+  };
+
   const handleApproveUser = async (userId: string, role: string) => {
     setActionUser(userId);
     const { data, error } = await supabase.functions.invoke("manage-roles", {
@@ -1153,21 +1174,6 @@ function UserManagementSection() {
       qc.invalidateQueries({ queryKey: ["user-roles"] });
     }
     setActionUser(null);
-  };
-
-  // Activate an inactive user (Yes in the User Status dropdown).
-  const handleActivateUser = async (userId: string) => {
-    setUpdatingUser(userId);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
-      body: { action: "activate_user", user_id: userId },
-    });
-    if (error || data?.error) {
-      toast.error(data?.error || "Failed to activate user");
-    } else {
-      toast.success("User reactivated successfully");
-      qc.invalidateQueries({ queryKey: ["user-roles"] });
-    }
-    setUpdatingUser(null);
   };
 
   // Always show the confirm dialog before deactivating/deleting.
@@ -1529,36 +1535,13 @@ function UserManagementSection() {
                             You
                           </Badge>
                         )}
-                        {/* Status: editable Yes/No for active/inactive; read-only badge for others */}
-                        {(u.status === "active" || u.status === "inactive") && !isSelf ? (
-                          <Select
-                            value={u.status === "active" ? "yes" : "no"}
-                            onValueChange={(val) => {
-                              if (val === "yes") {
-                                handleActivateUser(u.user_id);
-                              } else {
-                                initiateDeactivateOrDelete(u, "deactivate");
-                              }
-                            }}
-                            disabled={actionUser === u.user_id || updatingUser === u.user_id}
-                          >
-                            <SelectTrigger className="h-6 w-[80px] text-xs px-2">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="yes">Active</SelectItem>
-                              <SelectItem value="no">Inactive</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
-                          >
-                            {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
-                            {STATUS_LABELS[u.status] || u.status}
-                          </Badge>
-                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 ${STATUS_COLORS[u.status] || STATUS_COLORS.active}`}
+                        >
+                          {isPending && <Clock className="h-3 w-3 mr-1 inline" />}
+                          {STATUS_LABELS[u.status] || u.status}
+                        </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {u.email}
@@ -1580,7 +1563,7 @@ function UserManagementSection() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                       {/* Approve button for pending users */}
                       {isPending && (
                         <Button
@@ -1599,22 +1582,39 @@ function UserManagementSection() {
                         </Button>
                       )}
 
-                      {/* Role badge */}
-                      <Badge
-                        variant="outline"
-                        className={ROLE_COLORS[currentRole] || ROLE_COLORS.employee}
-                      >
-                        {ROLE_LABELS[currentRole] || currentRole}
-                      </Badge>
+                      {/* User Status — Yes / No */}
+                      {!isPending && (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                            User Status
+                          </span>
+                          <Select
+                            value={isInactive ? "no" : "yes"}
+                            onValueChange={(val) => handleStatusChange(u, val)}
+                            disabled={isSelf || updatingStatus === u.user_id}
+                          >
+                            <SelectTrigger className="w-[76px] h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                      {/* Role selector (disabled for inactive/pending or self) */}
-                      {!isInactive && (
+                      {/* Role */}
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                          Role
+                        </span>
                         <Select
                           value={currentRole}
                           onValueChange={(val) => handleRoleChange(u.user_id, val)}
                           disabled={isSelf || updatingUser === u.user_id}
                         >
-                          <SelectTrigger className="w-[120px]">
+                          <SelectTrigger className="w-[120px] h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1626,9 +1626,9 @@ function UserManagementSection() {
                             <SelectItem value="employee">Employee</SelectItem>
                           </SelectContent>
                         </Select>
-                      )}
+                      </div>
 
-                      {/* Manager info button — opens read-only dialog with MS365 guidance */}
+                      {/* Manager info button — opens dialog with MS365 guidance */}
                       {!isSelf && (
                         <Button
                           variant="ghost"
@@ -1651,7 +1651,7 @@ function UserManagementSection() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive self-end"
                               disabled={actionUser === u.user_id}
                             >
                               <ChevronDown className="h-4 w-4" />
