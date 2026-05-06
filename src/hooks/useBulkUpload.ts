@@ -271,7 +271,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     return null;
   }, [user, payPeriod]);
 
-  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+  const onUpload = useCallback(async (
+    rows: Record<string, string>[],
+    onProgress?: (processed: number, total: number, label?: string) => void,
+  ) => {
     if (!user) throw new Error("Not authenticated");
 
     const { data: currentProfile } = await supabase
