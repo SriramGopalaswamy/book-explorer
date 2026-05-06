@@ -1,43 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSessionContext } from "@/hooks/useSessionContext";
 import { toast } from "sonner";
 
 /**
- * Check if current user is a super_admin via platform_roles table.
- * Server-side validated — no client-side bypasses.
+ * Check if current user is a super_admin. Reads from the session-context
+ * bootstrap (single round trip on login, cached for entire session).
  */
 export function useIsSuperAdmin() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ["platform-role", user?.id, "super_admin"],
-    queryFn: async ({ signal }) => {
-      if (!user) return false;
-      // Abort after 8 s so a stalled free-tier connection fails cleanly
-      // instead of hanging until the 10 s Index.tsx fallback fires.
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      signal?.addEventListener("abort", () => { clearTimeout(timer); controller.abort(); });
-      try {
-        const { data, error } = await supabase
-          .from("platform_roles")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("role", "super_admin")
-          .limit(1)
-          .abortSignal(controller.signal);
-        if (error) throw error;
-        return (data?.length ?? 0) > 0;
-      } finally {
-        clearTimeout(timer);
-      }
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    retryDelay: 2000,
-  });
+  const { data, isLoading, isFetching, isError, error } = useSessionContext();
+  return {
+    data: data?.isSuperAdmin ?? undefined,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } as const;
 }
 
 /**
