@@ -1106,7 +1106,7 @@ export type Database = {
           profile_id: string | null
           status: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           check_in?: string | null
@@ -1119,7 +1119,7 @@ export type Database = {
           profile_id?: string | null
           status?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           check_in?: string | null
@@ -1132,7 +1132,7 @@ export type Database = {
           profile_id?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2139,12 +2139,10 @@ export type Database = {
           bill_number: string
           created_at: string
           currency_code: string | null
-          deleted_at: string | null
           due_date: string | null
           exchange_rate: number | null
           goods_receipt_id: string | null
           id: string
-          is_deleted: boolean
           notes: string | null
           organization_id: string
           purchase_order_id: string | null
@@ -2166,12 +2164,10 @@ export type Database = {
           bill_number: string
           created_at?: string
           currency_code?: string | null
-          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -2193,12 +2189,10 @@ export type Database = {
           bill_number?: string
           created_at?: string
           currency_code?: string | null
-          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -2897,6 +2891,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "control_account_overrides_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records_gl_mv"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "control_account_overrides_journal_entry_id_fkey"
@@ -4426,12 +4427,10 @@ export type Database = {
           category: string
           created_at: string
           currency_code: string
-          deleted_at: string | null
           description: string | null
           exchange_rate: number
           expense_date: string
           id: string
-          is_deleted: boolean
           notes: string | null
           organization_id: string
           profile_id: string | null
@@ -4441,19 +4440,17 @@ export type Database = {
           reviewer_notes: string | null
           status: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount: number
           category: string
           created_at?: string
           currency_code?: string
-          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number
           expense_date?: string
           id?: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4463,19 +4460,17 @@ export type Database = {
           reviewer_notes?: string | null
           status?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
           category?: string
           created_at?: string
           currency_code?: string
-          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number
           expense_date?: string
           id?: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4485,7 +4480,7 @@ export type Database = {
           reviewer_notes?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -4534,12 +4529,10 @@ export type Database = {
           credit: number
           currency_code: string | null
           debit: number
-          deleted_at: string | null
           description: string | null
           exchange_rate: number | null
           id: string
           ind_as_category: string | null
-          is_deleted: boolean
           is_posted: boolean
           journal_entry_id: string | null
           memo: string | null
@@ -4563,12 +4556,10 @@ export type Database = {
           credit?: number
           currency_code?: string | null
           debit?: number
-          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number | null
           id?: string
           ind_as_category?: string | null
-          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -4592,12 +4583,10 @@ export type Database = {
           credit?: number
           currency_code?: string | null
           debit?: number
-          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number | null
           id?: string
           ind_as_category?: string | null
-          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -5922,7 +5911,6 @@ export type Database = {
           currency_code: string | null
           customer_gstin: string | null
           customer_id: string | null
-          deleted_at: string | null
           delivery_note_id: string | null
           due_date: string
           exchange_rate: number | null
@@ -5930,7 +5918,6 @@ export type Database = {
           igst_total: number
           invoice_date: string
           invoice_number: string
-          is_deleted: boolean
           notes: string | null
           organization_id: string
           original_pdf_path: string | null
@@ -5959,7 +5946,6 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
-          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date: string
           exchange_rate?: number | null
@@ -5967,7 +5953,6 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           original_pdf_path?: string | null
@@ -5996,7 +5981,6 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
-          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date?: string
           exchange_rate?: number | null
@@ -6004,7 +5988,6 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number?: string
-          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           original_pdf_path?: string | null
@@ -6227,12 +6210,10 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
-          deleted_at: string | null
           document_sequence_number: string | null
           entry_date: string
           fiscal_period_id: string | null
           id: string
-          is_deleted: boolean
           is_posted: boolean
           is_reversal: boolean
           memo: string | null
@@ -6246,12 +6227,10 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
-          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
@@ -6265,12 +6244,10 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
-          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
@@ -6295,6 +6272,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records_gl_mv"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "journal_entries_reversed_entry_id_fkey"
@@ -6363,6 +6347,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records_gl_mv"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "journal_lines_journal_entry_id_fkey"
@@ -7667,7 +7658,7 @@ export type Database = {
           tax_deduction: number
           transport_allowance: number
           updated_at: string
-          user_id: string
+          user_id: string | null
           version: number
           working_days: number
         }
@@ -7697,7 +7688,7 @@ export type Database = {
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           version?: number
           working_days?: number
         }
@@ -7727,7 +7718,7 @@ export type Database = {
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           version?: number
           working_days?: number
         }
@@ -8978,7 +8969,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
           vendor_name: string | null
         }
         Insert: {
@@ -9005,7 +8996,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           vendor_name?: string | null
         }
         Update: {
@@ -9032,7 +9023,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           vendor_name?: string | null
         }
         Relationships: [
@@ -11397,6 +11388,46 @@ export type Database = {
           },
         ]
       }
+      financial_records_full_v: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          journal_entry_id: string | null
+          organization_id: string | null
+          record_date: string | null
+          source: string | null
+          type: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      financial_records_gl_mv: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          journal_entry_id: string | null
+          organization_id: string | null
+          record_date: string | null
+          type: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ledger_base: {
         Row: {
           account_code: string | null
@@ -11433,6 +11464,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records_gl_mv"
+            referencedColumns: ["journal_entry_id"]
           },
           {
             foreignKeyName: "journal_entries_reversed_entry_id_fkey"
@@ -11589,6 +11627,7 @@ export type Database = {
         Returns: string
       }
       delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      fn_refresh_financial_records_mv: { Args: never; Returns: undefined }
       fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
       get_ap_aging: {
         Args: { p_as_of: string; p_org_id: string }
@@ -11782,6 +11821,10 @@ export type Database = {
         Args: { _sandbox_user_id: string; _token: string }
         Returns: Json
       }
+      migrate_legacy_payroll_to_engine: {
+        Args: { p_org_id?: string; p_user_id?: string }
+        Returns: Json
+      }
       next_document_sequence: {
         Args: { _doc_type: string; _org_id: string }
         Returns: string
@@ -11823,6 +11866,10 @@ export type Database = {
         Returns: string
       }
       process_payroll_batch: {
+        Args: { p_payroll_ids: string[] }
+        Returns: Json
+      }
+      process_payroll_entries_batch: {
         Args: { p_payroll_ids: string[] }
         Returns: Json
       }
