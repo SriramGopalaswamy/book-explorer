@@ -892,6 +892,7 @@ export function useUsersAndRolesBulkUpload(): BulkUploadConfig {
     }
 
     qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     return { success, errors, created, updated };
   }, [qc]);
 

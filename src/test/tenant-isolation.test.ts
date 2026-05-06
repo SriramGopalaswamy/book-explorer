@@ -24,6 +24,10 @@ function readHookFile(hookName: string): string {
   return fs.readFileSync(filePath, "utf-8");
 }
 
+// NOTE: useRoles and useUserOrganization no longer issue their own queries.
+// They delegate to useSessionContext, whose data comes from the SECURITY DEFINER
+// RPC `get_my_session_context()` — server-side org-scoping via auth.uid().
+// Architectural delegation is verified separately below.
 const ORG_SCOPED_HOOKS = [
   "useEmployees",
   "useFinancialData",
@@ -44,7 +48,6 @@ const ORG_SCOPED_HOOKS = [
   "useEInvoices",
   "useEwayBills",
   "useAssets",
-  "useRoles",
   "useAuditLogs",
   "usePrivacyCompliance",
   "useCrossModuleAnalytics",
@@ -99,28 +102,23 @@ describe("1. Query Scoping Assertions", () => {
 
 // ─── 2. Context Switch Race Condition Guards ──────────────────────
 describe("2. Context Switch Race Condition Guards", () => {
-  it("useUserOrganization uses placeholderData to prevent undefined flicker", () => {
+  it("useUserOrganization delegates to session-context bootstrap", () => {
     const source = readHookFile("useUserOrganization");
-    const hasPlaceholderData = /placeholderData/.test(source);
-    expect(hasPlaceholderData, "useUserOrganization must use placeholderData to prevent flicker").toBe(true);
+    expect(/useSessionContext/.test(source), "useUserOrganization must read from useSessionContext").toBe(true);
   });
 
-  it("useUserOrganization has long staleTime to reduce refetch frequency", () => {
-    const source = readHookFile("useUserOrganization");
-    const hasStaleTime = /staleTime:\s*1000\s*\*\s*60/.test(source);
-    expect(hasStaleTime, "useUserOrganization must have a long staleTime").toBe(true);
+  it("useSessionContext caches with Infinity staleTime (session-lifetime)", () => {
+    const source = readHookFile("useSessionContext");
+    expect(/staleTime:\s*Infinity/.test(source), "session-context must use Infinity staleTime").toBe(true);
   });
 
   describe("No hook fetches data without user AND orgId", () => {
     ORG_SCOPED_HOOKS.forEach((hookName) => {
       it(`${hookName} gates on both user and orgId`, () => {
         const source = readHookFile(hookName);
-        // queryFn should check both user and orgId before proceeding,
-        // OR the enabled flag gates on both (which prevents queryFn from running)
         const checksUserAndOrg =
           /if\s*\(\s*!user\s*\|\|\s*!orgId\s*\)/.test(source) ||
           (/if\s*\(\s*!user\s*\)/.test(source) && /if\s*\(\s*!orgId\s*\)/.test(source)) ||
-          // enabled flag with both guards is also acceptable
           /enabled:\s*!!user\s*&&\s*!!orgId/.test(source) ||
           /enabled:\s*\(!!user\s*&&\s*!!orgId\)/.test(source);
         expect(checksUserAndOrg, `${hookName} must check both user and orgId in queryFn or enabled flag`).toBe(true);
@@ -131,11 +129,12 @@ describe("2. Context Switch Race Condition Guards", () => {
 
 // ─── 3. Privilege Boundary Tests ──────────────────────────────────
 describe("3. Privilege Boundary Tests", () => {
-  it("useRoles is organization-scoped, not global", () => {
+  it("useRoles is organization-scoped via session-context RPC", () => {
     const source = readHookFile("useRoles");
-    const hasOrgScope = /\.eq\s*\(\s*["']organization_id["']/.test(source) ||
-                        /organization_id/.test(source);
-    expect(hasOrgScope, "useRoles must scope role queries to the active organization").toBe(true);
+    // Roles are now resolved by SECURITY DEFINER RPC `get_my_session_context`
+    // which scopes user_roles by both user_id and organization_id server-side.
+    const delegatesToSession = /useSessionContext/.test(source);
+    expect(delegatesToSession, "useRoles must delegate to session-context (server-side org-scoped RPC)").toBe(true);
   });
 
   it("useEmployees uses profiles_safe view for non-admin users", () => {

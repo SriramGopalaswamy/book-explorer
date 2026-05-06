@@ -1138,6 +1138,7 @@ function UserManagementSection() {
     } else {
       toast.success("Role updated successfully");
       qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     }
     setUpdatingUser(null);
   };
@@ -1159,6 +1160,7 @@ function UserManagementSection() {
       } else {
         toast.success(`${u.full_name || u.email} reactivated`);
         qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
       }
       setUpdatingStatus(null);
     }
@@ -1174,6 +1176,7 @@ function UserManagementSection() {
     } else {
       toast.success("User approved and activated");
       qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     }
     setActionUser(null);
   };
@@ -1216,6 +1219,7 @@ function UserManagementSection() {
         toast.success(`${managerDialogTarget.full_name || managerDialogTarget.email} has been removed`);
       }
       qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     }
 
     setActionUser(null);
@@ -1250,6 +1254,7 @@ function UserManagementSection() {
         toast.success(`Sync complete — ${synced} manager assignment${synced !== 1 ? "s" : ""} updated from Microsoft 365.`);
       }
       qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     }
     setIsSyncing(false);
   };
@@ -1719,6 +1724,7 @@ function UserManagementSection() {
         }))}
         onComplete={() => {
           qc.invalidateQueries({ queryKey: ["user-roles"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
         }}
       />
     </div>
