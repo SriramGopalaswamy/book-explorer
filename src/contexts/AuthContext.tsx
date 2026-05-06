@@ -149,6 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     clearClientSessionArtifacts();
+    clearAllSessionContext();
+    queryClient.clear();
     setSession(null);
     setUser(null);
     setLoading(false);
