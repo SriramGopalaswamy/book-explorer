@@ -138,6 +138,9 @@ export function usePayrollRecords(payPeriod?: string) {
         return mockPayrollRecords;
       }
       if (!user || !orgId) return [];
+      // Sentinel used by the page to disable this query when the Review tab
+      // isn't open. Short-circuit instead of hitting the network twice.
+      if (payPeriod === "__never__") return [];
 
       // ── Engine entries ───────────────────────────────────────────────────
       // When a pay period is given, resolve the run id first via the

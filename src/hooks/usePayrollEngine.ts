@@ -81,9 +81,8 @@ export function usePayrollRuns() {
       return (data ?? []) as PayrollRun[];
     },
     enabled: !!user && !!orgId,
-    staleTime: 5_000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 15_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -101,9 +100,8 @@ export function usePayrollRunEntries(runId: string | null) {
       return (data ?? []) as PayrollEntry[];
     },
     enabled: !!runId,
-    staleTime: 5_000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 
