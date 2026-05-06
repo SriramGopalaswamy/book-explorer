@@ -11627,6 +11627,10 @@ export type Database = {
         Returns: string
       }
       delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
+      emergency_unlock_record: {
+        Args: { p_reason?: string; p_record_id: string; p_table_name: string }
+        Returns: boolean
+      }
       fn_refresh_financial_records_mv: { Args: never; Returns: undefined }
       fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
       get_ap_aging: {
@@ -11779,6 +11783,10 @@ export type Database = {
             }
             Returns: boolean
           }
+      increment_ai_usage: {
+        Args: { p_month: string; p_org_id: string }
+        Returns: number
+      }
       initialize_financial_os: {
         Args: { _calibration?: Json; _force?: boolean; _org_id: string }
         Returns: Json
@@ -11928,8 +11936,8 @@ export type Database = {
         Returns: undefined
       }
       seed_default_role_permissions: {
-        Args: { _org_id: string }
-        Returns: number
+        Args: { p_org_id: string }
+        Returns: undefined
       }
       set_org_context: { Args: { _org_id: string }; Returns: undefined }
       set_sandbox_impersonation: {
