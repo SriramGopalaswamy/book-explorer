@@ -24,6 +24,10 @@ function readHookFile(hookName: string): string {
   return fs.readFileSync(filePath, "utf-8");
 }
 
+// NOTE: useRoles and useUserOrganization no longer issue their own queries.
+// They delegate to useSessionContext, whose data comes from the SECURITY DEFINER
+// RPC `get_my_session_context()` — server-side org-scoping via auth.uid().
+// Architectural delegation is verified separately below.
 const ORG_SCOPED_HOOKS = [
   "useEmployees",
   "useFinancialData",
@@ -44,7 +48,6 @@ const ORG_SCOPED_HOOKS = [
   "useEInvoices",
   "useEwayBills",
   "useAssets",
-  "useRoles",
   "useAuditLogs",
   "usePrivacyCompliance",
   "useCrossModuleAnalytics",
