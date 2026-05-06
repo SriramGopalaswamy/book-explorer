@@ -248,8 +248,6 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
     if (!run) return null;
 
-    // Terminal runs cannot be overwritten — surface a proactive block message so the
-    // user learns before clicking Upload rather than after the upload fails.
     const terminalStatuses = ["under_review", "approved", "locked"];
     if (terminalStatuses.includes(run.status)) {
       return {
@@ -258,6 +256,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       };
     }
 
+    // head+count is cheap; run in parallel with nothing else needed here.
     const { count } = await supabase
       .from("payroll_entries")
       .select("id", { count: "exact", head: true })

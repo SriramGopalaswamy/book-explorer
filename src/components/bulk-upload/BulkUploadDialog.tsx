@@ -488,19 +488,22 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     // sees the button do nothing).
     if (config.existingRecordCheck) {
       console.log("[BulkUpload] running existingRecordCheck…");
+      const TIMEOUT_SENTINEL = Symbol("timeout");
       try {
-        // 15s ceiling so a hung Supabase query can't leave the button stuck.
+        // 25s soft ceiling — pre-upload check is advisory; the upload path
+        // re-validates server-side. On timeout we proceed rather than block.
         const warning = await Promise.race([
           config.existingRecordCheck(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Pre-upload check timed out after 15s")), 15000)
+          new Promise<typeof TIMEOUT_SENTINEL>((resolve) =>
+            setTimeout(() => resolve(TIMEOUT_SENTINEL), 25000)
           ),
         ]);
-        console.log("[BulkUpload] existingRecordCheck result:", warning);
-        if (warning) {
+        if (warning === TIMEOUT_SENTINEL) {
+          console.warn("[BulkUpload] existingRecordCheck timed out — proceeding without warning banner");
+          toast.warning("Skipped duplicate-data check (slow connection). Proceeding with upload.");
+        } else if (warning) {
+          console.log("[BulkUpload] existingRecordCheck result:", warning);
           setPendingWarning(warning);
-          // Surface a toast as well — the inline banner can be missed when
-          // the dialog is tall (long preview + max-h-[85vh] layout).
           if (warning.canOverride) {
             toast.warning("Existing data — confirm overwrite in the dialog");
           } else {
@@ -510,10 +513,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           return;
         }
       } catch (err: any) {
-        console.error("[BulkUpload] existingRecordCheck threw:", err);
-        toast.error(`Pre-upload check failed: ${err?.message ?? "Unknown error"}`);
-        setUploading(false);
-        return;
+        // Non-fatal: log and continue. Upload path enforces final validation.
+        console.error("[BulkUpload] existingRecordCheck threw — proceeding anyway:", err);
+        toast.warning("Couldn't pre-check existing data. Proceeding with upload.");
       }
     }
 
