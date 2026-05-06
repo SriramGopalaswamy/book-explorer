@@ -1,15 +1,6 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Sidebar, getSidebarCollapsed } from "./Sidebar";
+import { ReactNode } from "react";
 import { Header } from "./Header";
 import { AnimatedPage } from "./AnimatedPage";
-import { MobileBottomNav } from "./MobileBottomNav";
-import { useCurrentRole } from "@/hooks/useRoles";
-import { useSubscription } from "@/contexts/SubscriptionContext";
-import { AlertTriangle } from "lucide-react";
-import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
-import { useSessionTimeout } from "@/hooks/useSessionTimeout";
-import { AIAgentChat } from "@/components/ai/AIAgentChat";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -17,84 +8,25 @@ interface MainLayoutProps {
   subtitle?: string;
 }
 
-const roleLandingPages: Record<string, string> = {
-  employee: "/hrms/my-attendance",
-  hr: "/hrms/employees",
-  manager: "/hrms/inbox",
-  finance: "/financial/accounting",
-  admin: "/",
-};
-
+/**
+ * Thin per-page wrapper. The persistent chrome (sidebar, outer container,
+ * suspense boundary, role redirects, session timeout) lives in `AppShell`
+ * which wraps the entire route tree. This wrapper only renders the page's
+ * sticky header and main content area so navigation no longer unmounts the
+ * sidebar.
+ */
 export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
-  const [collapsed, setCollapsed] = useState(getSidebarCollapsed());
-  const { data: currentRole } = useCurrentRole();
-  useSessionTimeout();
-  const prevRoleRef = useRef<string | null | undefined>(undefined);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const mainRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setCollapsed(detail.collapsed);
-    };
-    window.addEventListener("sidebar-toggle", handler);
-    return () => window.removeEventListener("sidebar-toggle", handler);
-  }, []);
-
-  // Scroll main content area to top on route change — do NOT use window.scrollTo
-  // as it can affect fixed sidebar scroll position
-  useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTop = 0;
-    }
-  }, [location.pathname]);
-
-  // Redirect when role changes (not on initial load)
-  useEffect(() => {
-    if (currentRole === undefined || currentRole === null) return;
-    
-    if (prevRoleRef.current !== undefined && prevRoleRef.current !== null && prevRoleRef.current !== currentRole) {
-      const landing = roleLandingPages[currentRole] || "/";
-      navigate(landing, { replace: true });
-    }
-    prevRoleRef.current = currentRole;
-  }, [currentRole, navigate]);
-
-  const { readOnlyMode } = useSubscription();
-
-  const isPlatform = location.pathname.startsWith("/platform");
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* WCAG 2.1 AA: Skip to main content link */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium"
+    <>
+      <Header title={title} subtitle={subtitle} />
+      <main
+        id="main-content"
+        className="p-4 md:p-6 pb-24 md:pb-6"
+        role="main"
+        aria-label={title}
       >
-        Skip to main content
-      </a>
-      {isPlatform && <PlatformOrgBanner />}
-      <Sidebar />
-      <div
-        ref={mainRef}
-        className={`transition-[padding] duration-300 ${collapsed ? "md:pl-16" : "md:pl-64"}`}
-      >
-        {readOnlyMode && (
-          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 flex items-center gap-2 text-sm text-destructive" role="alert">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-            <span className="font-medium">Read-only mode — your subscription has expired. Contact your administrator to renew.</span>
-          </div>
-        )}
-        <Header title={title} subtitle={subtitle} />
-        <main id="main-content" className="p-4 md:p-6 pb-24 md:pb-6" role="main" aria-label={title}>
-          <AnimatedPage>{children}</AnimatedPage>
-        </main>
-      </div>
-      <MobileBottomNav />
-      {/* Hide floating chat on pages that have their own embedded AI interface */}
-      {!location.pathname.toLowerCase().startsWith("/financial/analytics") && <AIAgentChat />}
-    </div>
+        <AnimatedPage>{children}</AnimatedPage>
+      </main>
+    </>
   );
 }
