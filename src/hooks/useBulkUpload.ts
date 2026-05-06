@@ -438,15 +438,22 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       }
 
       // ── Net pay cross-check ───────────────────────────────────────────────
+      // Formula: net = gross − deductions − LWP + bonus + incentive
+      // (Bonus and Incentive are taxable but TDS is already included in
+      //  total_ded_file by the upstream payroll team — they are added back
+      //  on top of the post-deduction subtotal.)
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
         const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
-        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck);
+        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck + bonus + incentive);
         const diff = Math.abs(expectedNet - net_from_file);
         if (diff > 5) {
           errors.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
             `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
-            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""} = ₹${expectedNet}, but file says ₹${net_from_file}.`
+            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""}` +
+            `${bonus ? ` + Bonus (₹${bonus})` : ""}` +
+            `${incentive ? ` + Incentive (₹${incentive})` : ""}` +
+            ` = ₹${expectedNet}, but file says ₹${net_from_file}.`
           );
           if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
           continue;
@@ -458,12 +465,14 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         }
       }
 
-      const incentives = incentive + bonus;
       const lwpForCalc = hasExplicitGross ? 0 : lwp_ded_val;
       const totalDed   = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
+      // Stored gross includes variable pay so totals reconcile downstream:
+      //   gross − deductions − LWP === net_pay
+      const grossWithVariable = gross_earn + bonus + incentive;
       const net_pay    = net_from_file > 0
         ? net_from_file
-        : Math.max(0, Math.round(gross_earn - totalDed - lwpForCalc));
+        : Math.max(0, Math.round(grossWithVariable - totalDed - lwpForCalc));
 
       // ── Employee matching ─────────────────────────────────────────────────
       let profile;
@@ -484,11 +493,15 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       }
 
       // ── Build JSONB breakdowns ────────────────────────────────────────────
+      // Bonus and Incentive are stored as separate line items (rather than the
+      // legacy combined "Incentives" line) so the payslip surfaces them
+      // distinctly. Both are taxable; TDS in deductions already accounts for them.
       const earningsBreakdown = [
         { name: "Basic Salary",      monthly: basic,          annual: basic * 12,          is_taxable: true },
         ...(hra > 0            ? [{ name: "HRA",              monthly: hra,                annual: hra * 12,                is_taxable: true }]  : []),
         ...(other_allowances > 0 ? [{ name: "Other Allowances", monthly: other_allowances, annual: other_allowances * 12,   is_taxable: true }]  : []),
-        ...(incentives > 0     ? [{ name: "Incentives",       monthly: incentives,         annual: incentives * 12,         is_taxable: true }]  : []),
+        ...(bonus > 0          ? [{ name: "Bonus",            monthly: bonus,              annual: bonus * 12,              is_taxable: true }]  : []),
+        ...(incentive > 0      ? [{ name: "Incentive",        monthly: incentive,          annual: incentive * 12,          is_taxable: true }]  : []),
       ];
 
       const deductionsBreakdown = [
@@ -506,8 +519,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           profile_id:                profile.id,
           organization_id:           orgId,
           compensation_structure_id: null,
-          annual_ctc:                gross_earn * 12, // approximation: bulk upload has no annual CTC column; gross × 12 is a placeholder
-          gross_earnings:            gross_earn,
+          annual_ctc:                grossWithVariable * 12, // approximation: bulk upload has no annual CTC column; (gross + variable pay) × 12 is a placeholder
+          gross_earnings:            grossWithVariable,
           total_deductions:          totalDed,
           net_pay,
           lwp_days:                  lwp_days_val,

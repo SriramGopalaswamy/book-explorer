@@ -59,9 +59,16 @@ with ±₹1 tolerance. Falls back to "Salary Deductions" catch-all when pattern 
 - Consistency check: `pf + pt + tds + other_ded` must not EXCEED `total_deductions` (±₹2).
   When components are LESS than total, auto-fill PT (Karnataka slab) and absorb
   remaining gap into other deductions.
-- Net pay cross-check: when Gross Earnings is explicitly provided (LWP already factored
-  in), formula is `gross − total_deductions ≈ net_pay` (±₹5). When falling back to
-  Monthly Fixed Salary, formula includes LWP: `gross − total_deductions − lwp ≈ net_pay`.
+- Net pay cross-check: `net = gross − total_deductions − lwp + bonus + incentive`
+  (±₹5). When Gross Earnings is explicitly provided, LWP is treated as already
+  factored in and dropped from the formula. Bonus and Incentive are added on
+  top of the post-deduction subtotal — TDS in `total_deductions` is expected
+  to already cover their tax.
+- Bonus and Incentive are written as **separate** line items in
+  `earnings_breakdown` (not combined into a single "Incentives" line) so the
+  payslip surfaces them distinctly.
+- Stored `gross_earnings` and `annual_ctc` include bonus + incentive so
+  downstream totals reconcile (`gross − deductions − lwp === net_pay`).
 - "PF- optout" / "0" / missing all → `pf_monthly = 0` (`parseFloat → NaN → 0` is correct)
 
 ---
