@@ -11,11 +11,10 @@ interface PlatformRouteProps {
  * Validated server-side via platform_roles table + RLS.
  */
 export function PlatformRoute({ children }: PlatformRouteProps) {
-  const { data: isSuperAdmin, isLoading, isPending } = useIsSuperAdmin();
+  const { data: isSuperAdmin, isLoading } = useIsSuperAdmin();
 
-  // Wait for query to fully resolve — isPending covers the initial disabled state
-  // during re-auth cycles where user is momentarily null
-  if (isLoading || isPending) {
+  // Wait for query to fully resolve
+  if (isLoading || isSuperAdmin === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
