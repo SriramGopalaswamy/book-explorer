@@ -1106,6 +1106,7 @@ export type Database = {
           profile_id: string | null
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           check_in?: string | null
@@ -1118,6 +1119,7 @@ export type Database = {
           profile_id?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           check_in?: string | null
@@ -1130,6 +1132,7 @@ export type Database = {
           profile_id?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -4437,6 +4440,7 @@ export type Database = {
           reviewer_notes: string | null
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           amount: number
@@ -4456,6 +4460,7 @@ export type Database = {
           reviewer_notes?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -4475,6 +4480,7 @@ export type Database = {
           reviewer_notes?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -7652,6 +7658,7 @@ export type Database = {
           tax_deduction: number
           transport_allowance: number
           updated_at: string
+          user_id: string | null
           version: number
           working_days: number
         }
@@ -7681,6 +7688,7 @@ export type Database = {
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
+          user_id?: string | null
           version?: number
           working_days?: number
         }
@@ -7710,6 +7718,7 @@ export type Database = {
           tax_deduction?: number
           transport_allowance?: number
           updated_at?: string
+          user_id?: string | null
           version?: number
           working_days?: number
         }
@@ -8960,6 +8969,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           updated_at: string
+          user_id: string | null
           vendor_name: string | null
         }
         Insert: {
@@ -8986,6 +8996,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           updated_at?: string
+          user_id?: string | null
           vendor_name?: string | null
         }
         Update: {
@@ -9012,6 +9023,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           updated_at?: string
+          user_id?: string | null
           vendor_name?: string | null
         }
         Relationships: [
