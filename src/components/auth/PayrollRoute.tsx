@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useSessionContext } from "@/hooks/useSessionContext";
 import { AccessDenied } from "./AccessDenied";
 import { Loader2 } from "lucide-react";
 
@@ -8,35 +8,29 @@ interface PayrollRouteProps {
   children: React.ReactNode;
 }
 
-const MAX_LOADING_MS = 8000;
+const ALLOWED = ["admin", "hr", "finance", "payroll"];
 
 /**
- * Route guard for Payroll page — allows Admin, HR, Finance, and Payroll roles.
- * HR generates & submits for review; Finance/Payroll approves & locks.
+ * Route guard for Payroll — Admin, HR, Finance, Payroll, and super admins.
  *
- * Mirrors SubscriptionGuard's hard-timeout pattern: after MAX_LOADING_MS,
- * stop showing the spinner and proceed with whatever data is available
- * (typically null role → AccessDenied). Prevents permanent spinner when
- * the underlying user_roles / platform_roles queries hang.
+ * Uses the consolidated `get_my_session_context` RPC so a single round trip
+ * resolves super-admin status + roles. Falls back to the legacy hooks if the
+ * RPC hasn't returned yet, but never denies access while still loading.
  */
 export function PayrollRoute({ children }: PayrollRouteProps) {
-  const { data: currentRole, isLoading } = useCurrentRole();
-  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
+  const { data: session, isLoading: sessionLoading } = useSessionContext();
+  const { data: legacyRole, isLoading: roleLoading } = useCurrentRole();
+  const { data: legacySuper, isLoading: saLoading } = useIsSuperAdmin();
 
-  const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    if (!isLoading && !saLoading) {
-      setTimedOut(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      console.warn("PayrollRoute: role lookup timed out after", MAX_LOADING_MS, "ms");
-      setTimedOut(true);
-    }, MAX_LOADING_MS);
-    return () => clearTimeout(timer);
-  }, [isLoading, saLoading]);
+  // Prefer authoritative RPC result; fall back to legacy hooks.
+  const isSuperAdmin = session?.isSuperAdmin ?? legacySuper;
+  const roles = session?.roles ?? (legacyRole ? [legacyRole] : []);
+  const hasAccess = roles.some((r) => ALLOWED.includes(r));
 
-  if ((isLoading || saLoading) && !timedOut) {
+  const stillLoading =
+    sessionLoading && roleLoading && saLoading;
+
+  if (stillLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -44,16 +38,12 @@ export function PayrollRoute({ children }: PayrollRouteProps) {
     );
   }
 
-  if (isSuperAdmin) return <>{children}</>;
+  if (isSuperAdmin || hasAccess) return <>{children}</>;
 
-  if (!["admin", "hr", "finance", "payroll"].includes(currentRole || "")) {
-    return (
-      <AccessDenied
-        message="Payroll Access Restricted"
-        description="Only Admin, HR, Finance, and Payroll roles can access Payroll. Contact your administrator for access."
-      />
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <AccessDenied
+      message="Payroll Access Restricted"
+      description="Only Admin, HR, Finance, and Payroll roles can access Payroll. Contact your administrator for access."
+    />
+  );
 }
