@@ -124,13 +124,6 @@ const queryClient = new QueryClient({
     queries: {
       retry: 2,
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-      // Perf defaults — hooks may override per-query when they need fresher data.
-      // Explicit overrides (e.g. refetchOnWindowFocus: true in useCashFlow / useRoles
-      // / usePayrollEngine) still win, so opting back in to aggressive refetching
-      // remains a one-line change at the call site.
-      staleTime: 60_000,
-      gcTime: 10 * 60_000,
-      refetchOnWindowFocus: false,
     },
   },
 });
