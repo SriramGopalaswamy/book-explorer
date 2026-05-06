@@ -40,7 +40,7 @@ export default function SubscriptionActivate() {
     },
     onSuccess: (data) => {
       toast.success(`Subscription activated! Plan: ${data.plan}`);
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      queryClient.invalidateQueries({ queryKey: ["session-context"] });
       queryClient.invalidateQueries({ queryKey: ["user-organization"] });
       setTimeout(() => navigate("/onboarding", { replace: true }), 500);
     },
