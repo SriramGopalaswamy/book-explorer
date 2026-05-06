@@ -39,7 +39,10 @@ export interface BulkUploadConfig {
   columns: BulkUploadColumn[];
   templateFileName: string;
   templateContent: string;
-  onUpload: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
+  onUpload: (
+    rows: Record<string, string>[],
+    onProgress?: (processed: number, total: number, label?: string) => void,
+  ) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
   /**
    * Optional check run before upload.
    * - null → no warning; proceed immediately.
