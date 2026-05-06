@@ -3,7 +3,6 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Sidebar, getSidebarCollapsed } from "./Sidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
-import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
 import { AIAgentChat } from "@/components/ai/AIAgentChat";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useCurrentRole } from "@/hooks/useRoles";
@@ -59,8 +58,6 @@ export function AppShell() {
     prevRoleRef.current = currentRole;
   }, [currentRole, navigate]);
 
-  const isPlatform = location.pathname.startsWith("/platform");
-
   return (
     <div className="min-h-screen bg-background">
       <a
@@ -69,7 +66,6 @@ export function AppShell() {
       >
         Skip to main content
       </a>
-      {isPlatform && <PlatformOrgBanner />}
       <Sidebar />
       <div
         ref={mainRef}
