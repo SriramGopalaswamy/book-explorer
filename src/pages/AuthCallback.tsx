@@ -87,49 +87,23 @@ export default function AuthCallback() {
             refresh_token: data.session.refresh_token,
           });
 
-          // Pre-warm the three queries that Index.tsx will need the moment it
-          // mounts. These fire NOW (Supabase connection is already warm from the
-          // edge-function call above) while React is still processing the auth
-          // state change and navigating — giving them a head start so the
-          // "Loading your workspace…" spinner is as brief as possible.
+          // Pre-warm the single session-context bootstrap. One round trip
+          // returns super-admin flag, org metadata, roles, and subscription —
+          // everything Index.tsx and the route guards need.
           const uid = data.session.user.id;
           queryClient.prefetchQuery({
-            queryKey: ["platform-role", uid, "super_admin"],
-            staleTime: 5 * 60 * 1000,
+            queryKey: ["session-context", uid],
+            staleTime: Infinity,
             queryFn: async () => {
-              const { data: rows } = await supabase
-                .from("platform_roles").select("id")
-                .eq("user_id", uid).eq("role", "super_admin").limit(1);
-              return (rows?.length ?? 0) > 0;
-            },
-          });
-          queryClient.prefetchQuery({
-            queryKey: ["user-organization", uid],
-            staleTime: 60 * 1000,
-            queryFn: async () => {
-              const { data: profile, error: pErr } = await supabase
-                .from("profiles")
-                .select("organization_id, organizations:organization_id(id, name, status, org_state, created_at)")
-                .eq("user_id", uid).maybeSingle();
-              if (pErr || !profile?.organization_id) return null;
-              const org = profile.organizations as any;
-              if (!org) return null;
+              const { data: payload } = await supabase.rpc("get_my_session_context");
+              const p = (payload ?? {}) as any;
               return {
-                organizationId: profile.organization_id,
-                orgName: org.name ?? null,
-                orgStatus: org.status ?? null,
-                orgState: org.org_state ?? null,
-                createdAt: org.created_at ?? null,
+                isSuperAdmin: !!p.is_super_admin,
+                organizationId: p.organization_id ?? null,
+                roles: Array.isArray(p.roles) ? p.roles : [],
+                organization: p.organization ?? null,
+                subscription: p.subscription ?? null,
               };
-            },
-          });
-          queryClient.prefetchQuery({
-            queryKey: ["user-all-roles", uid],
-            staleTime: 60 * 1000,
-            queryFn: async () => {
-              const { data: rows } = await supabase
-                .from("user_roles").select("role, organization_id").eq("user_id", uid);
-              return rows ?? [];
             },
           });
 
