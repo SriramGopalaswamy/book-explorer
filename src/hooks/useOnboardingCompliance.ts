@@ -125,7 +125,7 @@ export function useOnboardingCompliance() {
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-organization"] });
+      queryClient.invalidateQueries({ queryKey: ["session-context"] });
       queryClient.invalidateQueries({ queryKey: ["session-context"] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-compliance", orgId] });
     },
