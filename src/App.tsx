@@ -15,6 +15,7 @@ import { HRAdminRoute } from "@/components/auth/HRAdminRoute";
 import { ManagerRoute } from "@/components/auth/ManagerRoute";
 import { PayrollRoute } from "@/components/auth/PayrollRoute";
 import { Suspense, lazy } from "react";
+import { AppShell } from "@/components/layout/AppShell";
 import { Loader2 } from "lucide-react";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { RESOURCES } from "@/lib/permissions";
@@ -187,8 +188,10 @@ const App = () => (
                   <Route path="/subscription/activate" element={<ProtectedRoute><SubscriptionActivate /></ProtectedRoute>} />
                   <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
 
-                  {/* Protected + Subscription-guarded routes */}
-                  <Route path="/" element={<Guarded><Index /></Guarded>} />
+                  {/* Persistent app shell — sidebar/header stay mounted across navigations */}
+                  <Route element={<AppShell />}>
+                    {/* Protected + Subscription-guarded routes */}
+                    <Route path="/" element={<Guarded><Index /></Guarded>} />
 
                   {/* Financial Suite */}
                   <Route path="/financial/accounting" element={<Guarded><FinanceRoute><Accounting /></FinanceRoute></Guarded>} />
@@ -275,11 +278,12 @@ const App = () => (
                   <Route path="/connectors" element={<Guarded><FinanceRoute><Connectors /></FinanceRoute></Guarded>} />
                   <Route path="/connectors/:provider" element={<Guarded><FinanceRoute><ConnectorDetail /></FinanceRoute></Guarded>} />
 
-                  {/* Profile & Settings */}
-                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/settings" element={<Guarded><AdminRoute><Settings /></AdminRoute></Guarded>} />
+                    {/* Profile & Settings */}
+                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                    <Route path="/settings" element={<Guarded><AdminRoute><Settings /></AdminRoute></Guarded>} />
+                  </Route>
 
-                  {/* Platform Admin (Super Admin only — exempt from subscription guard) */}
+                  {/* Platform Admin (Super Admin only — exempt from subscription guard, has its own layout) */}
                   <Route path="/platform" element={<ProtectedRoute><PlatformRoute><PlatformTenants /></PlatformRoute></ProtectedRoute>} />
                   <Route path="/platform/tenant/:orgId" element={<ProtectedRoute><PlatformRoute><PlatformTenantDetail /></PlatformRoute></ProtectedRoute>} />
                   <Route path="/platform/sandbox" element={<ProtectedRoute><PlatformRoute><PlatformSandboxLab /></PlatformRoute></ProtectedRoute>} />
