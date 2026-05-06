@@ -67,6 +67,7 @@ export function AppShell() {
       >
         Skip to main content
       </a>
+      {location.pathname.startsWith("/platform") && <PlatformOrgBanner />}
       <Sidebar />
       <div
         ref={mainRef}
