@@ -271,7 +271,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     return null;
   }, [user, payPeriod]);
 
-  const onUpload = useCallback(async (rows: Record<string, string>[]) => {
+  const onUpload = useCallback(async (
+    rows: Record<string, string>[],
+    onProgress?: (processed: number, total: number, label?: string) => void,
+  ) => {
     if (!user) throw new Error("Not authenticated");
 
     const { data: currentProfile } = await supabase
@@ -362,7 +365,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       return false;
     };
 
+    let processedCount = 0;
     for (const row of rows) {
+      processedCount++;
+      onProgress?.(processedCount, rows.length);
       // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
       const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
       const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
