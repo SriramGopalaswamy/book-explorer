@@ -139,40 +139,65 @@ export function usePayrollRecords(payPeriod?: string) {
       }
       if (!user || !orgId) return [];
 
-      // ── Engine entries (primary, canonical) ──────────────────────────────
-      let engineQ = supabase
-        .from("payroll_entries")
-        .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-        .eq("organization_id", orgId)
-        .not("payroll_runs.pay_period", "is", null)
-        .order("created_at", { ascending: false });
-      if (payPeriod) engineQ = engineQ.eq("payroll_runs.pay_period", payPeriod);
-      const { data: engineData, error: engineErr } = await engineQ;
-      if (engineErr) throw engineErr;
+      // ── Engine entries ───────────────────────────────────────────────────
+      // When a pay period is given, resolve the run id first via the
+      // (organization_id, pay_period) unique index, then fetch entries by
+      // payroll_run_id (unique composite index). This avoids PostgREST
+      // turning the embedded-relation filter into a join subquery that
+      // ignores indexes — the previous source of multi-second loads.
+      let engineData: any[] = [];
+      if (payPeriod) {
+        const { data: runRow } = await supabase
+          .from("payroll_runs")
+          .select("id, pay_period, status, notes")
+          .eq("organization_id", orgId)
+          .eq("pay_period", payPeriod)
+          .maybeSingle();
+        if (runRow) {
+          const { data, error } = await supabase
+            .from("payroll_entries")
+            .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+            .eq("payroll_run_id", runRow.id);
+          if (error) throw error;
+          engineData = (data ?? []).map((e: any) => ({ ...e, payroll_runs: runRow }));
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("payroll_entries")
+          .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+          .eq("organization_id", orgId)
+          .not("payroll_runs.pay_period", "is", null)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        engineData = data ?? [];
+      }
 
-      // ── Legacy records (historical, from payroll_records still in use) ───
-      let legacyQ = supabase
-        .from("payroll_records")
-        .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-        .eq("organization_id", orgId)
-        .eq("is_superseded", false)
-        .order("created_at", { ascending: false });
-      if (payPeriod) legacyQ = legacyQ.eq("pay_period", payPeriod);
-      const { data: legacyData, error: legacyErr } = await legacyQ;
-      if (legacyErr) throw legacyErr;
+      // ── Legacy records (skip when engine path covered the period) ────────
+      let legacyData: any[] = [];
+      if (!payPeriod || engineData.length === 0) {
+        let legacyQ = supabase
+          .from("payroll_records")
+          .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
+          .eq("organization_id", orgId)
+          .eq("is_superseded", false)
+          .order("created_at", { ascending: false });
+        if (payPeriod) legacyQ = legacyQ.eq("pay_period", payPeriod);
+        const { data, error: legacyErr } = await legacyQ;
+        if (legacyErr) throw legacyErr;
+        legacyData = data ?? [];
+      }
 
-      // De-duplicate: engine record wins when same (profile_id, pay_period) exists in both
       const engineKeys = new Set(
-        (engineData ?? []).map((e: any) => {
+        engineData.map((e: any) => {
           const run = Array.isArray(e.payroll_runs) ? e.payroll_runs[0] : e.payroll_runs;
           return `${e.profile_id}:${run?.pay_period}`;
         })
       );
-      const filteredLegacy = (legacyData ?? []).filter(
+      const filteredLegacy = legacyData.filter(
         (r: any) => !engineKeys.has(`${r.profile_id}:${r.pay_period}`)
       );
 
-      const engineRecords = (engineData ?? []).map(engineEntryToPayrollRecord);
+      const engineRecords = engineData.map(engineEntryToPayrollRecord);
       return [...engineRecords, ...filteredLegacy] as PayrollRecord[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
