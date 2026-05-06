@@ -398,7 +398,24 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       }
 
       try {
-        result = await config.onUpload(validRows);
+        // Throttled progress reporter — emits at most 1 update per 400ms to
+        // avoid spamming the realtime channel for large files.
+        let lastEmit = 0;
+        const onProgress = (processed: number, total: number, label?: string) => {
+          if (!jobId || total <= 0) return;
+          const now = Date.now();
+          if (now - lastEmit < 400 && processed < total) return;
+          lastEmit = now;
+          const pct = Math.min(95, Math.max(30, Math.round(30 + (processed / total) * 65)));
+          (supabase.from("job_queue") as any)
+            .update({
+              progress: pct,
+              progress_label: label ?? `Processing ${processed}/${total} rows…`,
+            })
+            .eq("id", jobId)
+            .then(undefined, () => {});
+        };
+        result = await config.onUpload(validRows, onProgress);
       } catch (uploadErr: any) {
         console.error("[BulkUpload] onUpload threw:", uploadErr);
         result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
