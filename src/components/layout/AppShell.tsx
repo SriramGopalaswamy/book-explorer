@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { Sidebar, getSidebarCollapsed } from "./Sidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { AIAgentChat } from "@/components/ai/AIAgentChat";
+import { PlatformOrgBanner } from "@/components/platform/PlatformOrgBanner";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useSubscription } from "@/contexts/SubscriptionContext";
