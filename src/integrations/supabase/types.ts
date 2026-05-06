@@ -11719,6 +11719,7 @@ export type Database = {
         Args: { _code: string; _org_id: string }
         Returns: string
       }
+      get_my_session_context: { Args: never; Returns: Json }
       get_payroll_unique_record_count: {
         Args: { p_org_id: string }
         Returns: number
