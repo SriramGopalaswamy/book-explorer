@@ -274,6 +274,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
   const onUpload = useCallback(async (
     rows: Record<string, string>[],
     onProgress?: (processed: number, total: number, label?: string) => void,
+    signal?: AbortSignal,
   ) => {
     if (!user) throw new Error("Not authenticated");
 
