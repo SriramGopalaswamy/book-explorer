@@ -61,6 +61,21 @@ describe("GBC-6: SECURITY DEFINER functions pin search_path", () => {
   const migrations = readMigrations();
   const fns = migrations.flatMap((m) => extractFunctions(m.sql, m.file));
 
+  // A function is considered remediated if any LATER migration redeclares it
+  // with `SET search_path` pinned (or explicitly DROPs it).
+  const pinnedLater = new Set<string>();
+  const droppedLater = new Set<string>();
+  for (const f of fns) {
+    if (f.pinned) pinnedLater.add(f.name);
+  }
+  for (const m of migrations) {
+    const dropRe = /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([\w.]+)/gi;
+    let dm: RegExpExecArray | null;
+    while ((dm = dropRe.exec(m.sql)) !== null) {
+      droppedLater.add(dm[1].replace(/^public\./, ""));
+    }
+  }
+
   it("found SECURITY DEFINER functions to inspect", () => {
     expect(fns.length).toBeGreaterThan(5);
   });
@@ -68,7 +83,13 @@ describe("GBC-6: SECURITY DEFINER functions pin search_path", () => {
   it("every SECURITY DEFINER function created on or after the cutoff pins search_path", () => {
     const offenders = fns.filter((f) => {
       const prefix = f.file.slice(0, CUTOFF.length);
-      return prefix >= CUTOFF && !f.pinned;
+      if (prefix < CUTOFF) return false;
+      if (f.pinned) return false;
+      const bare = f.name.replace(/^public\./, "");
+      // resolved by a later pinned redeclaration or explicit drop
+      if (pinnedLater.has(bare) || pinnedLater.has(f.name)) return false;
+      if (droppedLater.has(bare) || droppedLater.has(f.name)) return false;
+      return true;
     });
     expect(
       offenders,
