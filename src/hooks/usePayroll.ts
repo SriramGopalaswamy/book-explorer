@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
@@ -206,6 +206,9 @@ export function usePayrollRecords(payPeriod?: string) {
     enabled: (!!user && !!orgId) || isDevMode,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    // Keep previous period's rows visible while a new period loads —
+    // eliminates the "blank table / page hangs" feel when switching months.
+    placeholderData: keepPreviousData,
   });
 }
 

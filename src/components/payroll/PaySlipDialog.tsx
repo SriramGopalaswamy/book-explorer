@@ -5,6 +5,7 @@ import DOMPurify from "dompurify";
 import type { PayrollRecord } from "@/hooks/usePayroll";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { normalizePayslip } from "@/lib/payslip-utils";
 import { numberToWords } from "@/lib/number-to-words";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,13 +13,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEmployeeDetails } from "@/hooks/useEmployeeDetails";
 import React from "react";
 
-/** Convert imported asset URL to an inline data URL for use in detached windows/iframes */
+/**
+ * Convert imported asset URL to an inline data URL for use in detached
+ * windows/iframes. Module-level cache so the canvas conversion runs once
+ * per session — opening multiple payslips no longer redoes the work.
+ */
+const _logoDataUrlCache = new Map<string, string>();
 function useLogoDataUrl(src: string) {
-  const [dataUrl, setDataUrl] = useState<string>("");
+  const [dataUrl, setDataUrl] = useState<string>(() => _logoDataUrlCache.get(src) ?? "");
   useEffect(() => {
+    if (_logoDataUrlCache.has(src)) {
+      setDataUrl(_logoDataUrlCache.get(src)!);
+      return;
+    }
+    let cancelled = false;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
+      if (cancelled) return;
       try {
         const canvas = document.createElement("canvas");
         canvas.width = img.naturalWidth;
@@ -26,11 +38,14 @@ function useLogoDataUrl(src: string) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0);
-          setDataUrl(canvas.toDataURL("image/png"));
+          const url = canvas.toDataURL("image/png");
+          _logoDataUrlCache.set(src, url);
+          setDataUrl(url);
         }
       } catch { /* CORS fallback */ }
     };
     img.src = src;
+    return () => { cancelled = true; };
   }, [src]);
   return dataUrl;
 }
@@ -40,31 +55,52 @@ const fmtFull = (value: number) =>
 
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
-/** Fetch branding and org identity info from organization_compliance for current user */
+/**
+ * Fetch branding and org identity info via React Query so multiple dialog
+ * opens in the same session reuse the cache. Keyed by user id; data is
+ * static for the lifetime of the session in 99% of cases.
+ */
 function useBrandingInfo(userId: string | undefined) {
-  const [color, setColor] = useState("#e11d74");
-  const [companyName, setCompanyName] = useState("");
-  const [companyAddress, setCompanyAddress] = useState("");
-  useEffect(() => {
-    if (!userId) return;
-    (async () => {
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
-      if (!profile?.organization_id) return;
+  const { data } = useQuery({
+    queryKey: ["payslip-branding", userId],
+    enabled: !!userId,
+    staleTime: 30 * 60_000,
+    gcTime: 60 * 60_000,
+    queryFn: async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", userId!)
+        .maybeSingle();
+      if (!profile?.organization_id) {
+        return { color: "#e11d74", companyName: "", companyAddress: "" };
+      }
       const [{ data: compliance }, { data: org }] = await Promise.all([
-        supabase.from("organization_compliance" as any).select("brand_color, legal_name, registered_address, state, pincode").eq("organization_id", profile.organization_id).maybeSingle(),
-        supabase.from("organizations").select("name").eq("id", profile.organization_id).maybeSingle(),
+        supabase
+          .from("organization_compliance" as any)
+          .select("brand_color, legal_name, registered_address, state, pincode")
+          .eq("organization_id", profile.organization_id)
+          .maybeSingle(),
+        supabase
+          .from("organizations")
+          .select("name")
+          .eq("id", profile.organization_id)
+          .maybeSingle(),
       ]);
-      if ((compliance as any)?.brand_color) setColor((compliance as any).brand_color);
-      setCompanyName((compliance as any)?.legal_name || (org as any)?.name || "");
-      const parts = [
-        (compliance as any)?.registered_address,
-        (compliance as any)?.state,
-        (compliance as any)?.pincode,
-      ].filter(Boolean);
-      setCompanyAddress(parts.join(", "));
-    })();
-  }, [userId]);
-  return { color, companyName, companyAddress };
+      const c = compliance as any;
+      const parts = [c?.registered_address, c?.state, c?.pincode].filter(Boolean);
+      return {
+        color: c?.brand_color || "#e11d74",
+        companyName: c?.legal_name || (org as any)?.name || "",
+        companyAddress: parts.join(", "),
+      };
+    },
+  });
+  return {
+    color: data?.color ?? "#e11d74",
+    companyName: data?.companyName ?? "",
+    companyAddress: data?.companyAddress ?? "",
+  };
 }
 
 const periodLabel = (p: string) => {
