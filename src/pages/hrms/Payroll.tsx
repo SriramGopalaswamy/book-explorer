@@ -575,7 +575,7 @@ export default function Payroll() {
   // Heavy unfiltered scan — only fetch when the Review tab is open and the user is a reviewer
   const reviewTabActive = activeTab === "review" && (isHRRole || isFinanceRole);
   const { data: allPayrollRecords = [], isLoading: allLoading } = usePayrollRecords(reviewTabActive ? undefined : "__never__");
-  const { data: myRecords = [], isLoading: myLoading } = useMyPayrollRecords();
+  
   const stats = usePayrollStats(selectedPeriod);
   const { data: employees = [] } = useEmployees();
   // Get the current user's profile_id for declarations
