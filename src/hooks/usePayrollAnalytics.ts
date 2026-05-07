@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 export interface PayrollAnalyticsData {
   monthlyCostTrend: { month: string; gross: number; net: number; deductions: number }[];
@@ -16,9 +17,11 @@ export interface PayrollAnalyticsData {
 
 export function usePayrollAnalytics() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["payroll-analytics", user?.id],
+    queryKey: ["payroll-analytics", user?.id, orgId],
     queryFn: async (): Promise<PayrollAnalyticsData> => {
       if (!user) throw new Error("Not authenticated");
 

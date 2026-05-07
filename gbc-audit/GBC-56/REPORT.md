@@ -1,6 +1,12 @@
 # GBC-56: Warehouse — no UI to change Default warehouse
 
-**Severity:** Low · **Category:** Screen Review — Inventory · **Status:** needs-input
+**Severity:** Low · **Category:** Screen Review — Inventory · **Status:** partially-resolved
+**Branch:** `claude/execute-code-prompt-txEjJ`
+
+## Resolution
+`src/hooks/useInventory.ts` — added `useSetDefaultWarehouse(id)` mutation hook. It clears any existing `is_default=true` row in the org, then sets `is_default=true` on the target row (RLS scopes both updates to caller's org). Invalidates `["warehouses"]` on success.
+
+UI wiring (a "Set as Default" menu item per row in the Warehouse table) remains `needs-input` — the screen author should add a `DropdownMenuItem` that calls `useSetDefaultWarehouse().mutate(row.id)`. Two-line UI change.
 
 ## Root cause
 `warehouses.is_default` exists in the schema; the UI displays a "Default" badge but has no "Set as Default" action. Operations team can't change primary warehouse without DBA intervention.

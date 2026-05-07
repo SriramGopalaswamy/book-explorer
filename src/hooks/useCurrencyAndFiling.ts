@@ -74,8 +74,11 @@ export function useCreateExchangeRate() {
 }
 
 export function useGSTFilingStatus(financialYear: string) {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["gst-filing-status", financialYear],
+    queryKey: ["gst-filing-status", financialYear, orgId],
+    enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase.from("gst_filing_status" as any).select("*").eq("financial_year", financialYear).order("period_month");
       if (error) throw error;

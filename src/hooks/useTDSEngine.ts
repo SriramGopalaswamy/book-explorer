@@ -83,7 +83,7 @@ export function useTaxSlabs(regimeId: string | null) {
 export function useEmployeeTaxSettings(profileId: string | null, fy: string) {
   const { data: org } = useUserOrganization();
   return useQuery({
-    queryKey: ["employee-tax-settings", profileId, fy],
+    queryKey: ["employee-tax-settings", profileId, fy, org?.organizationId],
     queryFn: async () => {
       if (!profileId || !org?.organizationId) return null;
       const { data, error } = await supabase
@@ -103,7 +103,7 @@ export function useEmployeeTaxSettings(profileId: string | null, fy: string) {
 export function useInvestmentDeclarations(profileId: string | null, fy: string) {
   const { data: org } = useUserOrganization();
   return useQuery({
-    queryKey: ["investment-declarations", profileId, fy],
+    queryKey: ["investment-declarations", profileId, fy, org?.organizationId],
     queryFn: async () => {
       if (!profileId || !org?.organizationId) return [];
       const { data, error } = await supabase

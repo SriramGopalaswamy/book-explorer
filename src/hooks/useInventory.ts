@@ -162,6 +162,41 @@ export function useUpdateWarehouse() {
   });
 }
 
+export function useSetDefaultWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
+      if (!orgId) throw new Error("No organization found");
+
+      // Atomically: clear any existing default, set this one as default — both
+      // scoped to the caller's org. The two updates run sequentially because
+      // Supabase doesn't expose multi-statement transactions client-side; the
+      // second is the authoritative one. RLS enforces org scoping.
+      const { error: clearErr } = await supabase
+        .from("warehouses" as any)
+        .update({ is_default: false })
+        .eq("organization_id", orgId)
+        .eq("is_default", true);
+      if (clearErr) throw clearErr;
+
+      const { error: setErr } = await supabase
+        .from("warehouses" as any)
+        .update({ is_default: true })
+        .eq("id", id)
+        .eq("organization_id", orgId);
+      if (setErr) throw setErr;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["warehouses"] });
+      toast.success("Default warehouse updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useDeleteWarehouse() {
   const qc = useQueryClient();
   return useMutation({

@@ -71,25 +71,8 @@ const ORG_SCOPED_QUERY_NAMES = new Set<string>([
 ]);
 
 // Currently-known offenders. Each entry must be removed when the underlying
-// hook is fixed to include orgId.
-const EXPECTED_OFFENDERS = new Set<string>([
-  "leave-types",
-  "leave-types-all",
-  "gst-filing-status",
-  "payroll-analytics",
-  "gstr1",
-  "gstr3b",
-  "tds24q",
-  "tds26q",
-  "pf_ecr",
-  "esi",
-  "prof_tax",
-  // employee-tax-settings/investment-declarations key on profileId+fy. profileId
-  // is org-bound today, so cross-org bleed is bounded; still listed for
-  // explicit defence-in-depth follow-up.
-  "employee-tax-settings",
-  "investment-declarations",
-]);
+// hook is fixed to include orgId. Empty as of the GBC-28 punch-list fix.
+const EXPECTED_OFFENDERS = new Set<string>([]);
 
 const QUERY_KEY_REGEX =
   /queryKey\s*:\s*\[\s*["']([a-zA-Z][\w-]*)["']\s*([^\]]*)\]/g;

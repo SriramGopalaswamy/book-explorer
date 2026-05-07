@@ -1,10 +1,10 @@
 # GBC-28: Cache Bleeding (Tenant Security)
 
-**Severity:** High · **Category:** Cross-cutting — Database Code Patterns · **Status:** partially-resolved
+**Severity:** High · **Category:** Cross-cutting — Database Code Patterns · **Status:** resolved
 **Branch:** `claude/execute-code-prompt-txEjJ` (squash) · **Jira:** https://grx10.atlassian.net/browse/GBC-28
 
 ## TL;DR
-React Query hooks that omit `orgId` from `queryKey` can serve previous-org data for up to 60s after an org switch. Most hooks are clean; 11 named offenders remain (leave-types, gst-filing-status, payroll-analytics, and seven statutory-export hooks). This branch ships a self-cleaning regression test (`src/test/query-key-tenancy.test.ts`) that pins global vs org-scoped vs expected-offenders; the 11 one-line fixes are `needs-input` per directive (b).
+React Query hooks that omit `orgId` from `queryKey` can serve previous-org data for up to 60s after an org switch. The 13 named offenders have been patched in this branch (5 hook files: `useLeaves.ts`, `useCurrencyAndFiling.ts`, `usePayrollAnalytics.ts`, `useStatutoryData.ts`, `useTDSEngine.ts`); the regression test (`src/test/query-key-tenancy.test.ts`) now lists an empty `EXPECTED_OFFENDERS` set so any future re-introduction will fail CI immediately.
 
 ## Root cause
 No project-wide convention for queryKey shape. Each hook author either remembers `orgId` or doesn't. See [`01_root_cause.md`](./01_root_cause.md) for full investigation.

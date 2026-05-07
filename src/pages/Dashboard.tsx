@@ -197,42 +197,52 @@ export default function Dashboard() {
             <h3 className="text-lg font-bold text-foreground">Business Modules</h3>
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
-            <ModuleCardEnhanced
-              title="Financial Suite"
-              description="Manage accounting, invoicing, and banking operations with real-time insights"
-              icon={<Wallet className="h-6 w-6" />}
-              variant="financial"
-              linkTo="/financial/accounting"
-              stats={[
-                { label: "Revenue", value: formatIndianCurrency(stats?.totalRevenue || 0), numericValue: stats?.totalRevenue || 0 },
-                { label: "Unpaid Invoices", value: String(stats?.pendingInvoices || 0), numericValue: stats?.pendingInvoices || 0 },
-              ]}
-              index={0}
-            />
-            <ModuleCardEnhanced
-              title="HRMS"
-              description="Employee management, attendance tracking, and automated payroll"
-              icon={<Users className="h-6 w-6" />}
-              variant="hrms"
-              linkTo="/hrms/employees"
-              stats={[
-                { label: "Total Employees", value: String(employeeStats.total), numericValue: employeeStats.total },
-                { label: "On Leave", value: String(employeeStats.onLeave), numericValue: employeeStats.onLeave },
-              ]}
-              index={1}
-            />
-            <ModuleCardEnhanced
-              title="Performance OS"
-              description="Goals tracking, OKRs, and performance memos for your team"
-              icon={<Target className="h-6 w-6" />}
-              variant="performance"
-              linkTo="/performance/goals"
-              stats={[
-                { label: "Goals Progress", value: `${stats?.goalsAchieved || 0}%`, numericValue: stats?.goalsAchieved || 0 },
-                { label: "Active Employees", value: String(employeeStats.active), numericValue: employeeStats.active },
-              ]}
-              index={2}
-            />
+            {statsLoading ? (
+              <>
+                <Skeleton className="h-48 rounded-2xl" />
+                <Skeleton className="h-48 rounded-2xl" />
+                <Skeleton className="h-48 rounded-2xl" />
+              </>
+            ) : (
+              <>
+                <ModuleCardEnhanced
+                  title="Financial Suite"
+                  description="Manage accounting, invoicing, and banking operations with real-time insights"
+                  icon={<Wallet className="h-6 w-6" />}
+                  variant="financial"
+                  linkTo="/financial/accounting"
+                  stats={[
+                    { label: "Revenue", value: formatIndianCurrency(stats?.totalRevenue || 0), numericValue: stats?.totalRevenue || 0 },
+                    { label: "Unpaid Invoices", value: String(stats?.pendingInvoices || 0), numericValue: stats?.pendingInvoices || 0 },
+                  ]}
+                  index={0}
+                />
+                <ModuleCardEnhanced
+                  title="HRMS"
+                  description="Employee management, attendance tracking, and automated payroll"
+                  icon={<Users className="h-6 w-6" />}
+                  variant="hrms"
+                  linkTo="/hrms/employees"
+                  stats={[
+                    { label: "Total Employees", value: String(employeeStats.total), numericValue: employeeStats.total },
+                    { label: "On Leave", value: String(employeeStats.onLeave), numericValue: employeeStats.onLeave },
+                  ]}
+                  index={1}
+                />
+                <ModuleCardEnhanced
+                  title="Performance OS"
+                  description="Goals tracking, OKRs, and performance memos for your team"
+                  icon={<Target className="h-6 w-6" />}
+                  variant="performance"
+                  linkTo="/performance/goals"
+                  stats={[
+                    { label: "Goals Progress", value: `${stats?.goalsAchieved || 0}%`, numericValue: stats?.goalsAchieved || 0 },
+                    { label: "Active Employees", value: String(employeeStats.active), numericValue: employeeStats.active },
+                  ]}
+                  index={2}
+                />
+              </>
+            )}
           </div>
         </motion.div>
 
