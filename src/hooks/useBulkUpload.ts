@@ -594,7 +594,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     qc.invalidateQueries({ queryKey: ["payroll-runs"] });
     qc.invalidateQueries({ queryKey: ["payroll-entries"] });
     qc.invalidateQueries({ queryKey: ["payroll"] });
-    return { success, errors, warnings };
+    return { success, errors, warnings, failedRows };
   }, [user, payPeriod, qc]);
 
   return {
