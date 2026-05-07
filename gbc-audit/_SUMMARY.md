@@ -106,13 +106,32 @@ Tests in this branch can be run safely; the **needs-input** follow-ups all carry
 
 ## 7. What this branch actually ships
 
-Code change (regression tests only):
-- `src/test/memo-storage-policy.test.ts` (GBC-17)
-- `src/test/storage-bucket-policy.test.ts` (GBC-7 / GBC-15)
-- `src/test/query-key-tenancy.test.ts` (GBC-28)
-- `src/test/security-definer-search-path.test.ts` (GBC-6)
-- `.claude/hooks/session-start.sh` + `.claude/settings.json` (audit infra)
+⚠️ Read `_FMEA.md` before merging. It enumerates 15 failure modes I introduced
+during this audit — three are confirmed bugs in the test files themselves
+(F1 conflated useQuery with invalidateQueries, since fixed; F3 SECURITY
+DEFINER regex undercounts ~28% of plpgsql functions; F4 storage-bucket regex
+breaks on nested parens). The regex-based tests carry top-of-file fragility
+warnings; the parser-based replacements are deferred to a separate ticket.
 
-Documentation: 65 `gbc-audit/GBC-N/REPORT.md` files + `_INDEX.md` + `_REPO_RECON.md` + this `_SUMMARY.md`.
+Code change (regression tests + small fixes):
+- `src/test/memo-storage-policy.test.ts` (GBC-17, fragility warning added)
+- `src/test/storage-bucket-policy.test.ts` (GBC-7 / GBC-15, fragility warning added)
+- `src/test/query-key-tenancy.test.ts` (GBC-28, **fixed F1** — declarations vs invalidations)
+- `src/test/security-definer-search-path.test.ts` (GBC-6, fragility warning added)
+- `src/hooks/useLeaves.ts`, `useCurrencyAndFiling.ts`, `usePayrollAnalytics.ts`,
+  `useStatutoryData.ts`, `useTDSEngine.ts` — 13 queryKey + `enabled: !!orgId`
+  fixes (GBC-28).
+- `src/hooks/useInventory.ts` — `useSetDefaultWarehouse` mutation hook
+  (GBC-56). NOT FULLY ATOMIC client-side — see comment in source; proper RPC
+  fix is in the Lovable prompt.
+- `src/pages/Dashboard.tsx` — zero-flash loading guard (GBC-29).
+- `.claude/hooks/session-start.sh` + `.claude/settings.json` (audit infra,
+  already in main).
 
-No application logic, no migration, no hook source modified. Everything authoritative is `needs-input` per directive (b).
+Documentation: 65 `gbc-audit/GBC-N/REPORT.md` files + `_INDEX.md` + `_REPO_RECON.md`
++ this `_SUMMARY.md` + `_FMEA.md` + `_LOVABLE_PROMPT.md`.
+
+Everything else is `needs-input` per directive (b). Three regex-based tests
+are tests-shipped-unverified — they carry positive but bounded value: any
+test failure is real signal, but a passing test is NOT a guarantee of
+absence-of-bug.

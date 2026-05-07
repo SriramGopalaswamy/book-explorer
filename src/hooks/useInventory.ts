@@ -171,23 +171,28 @@ export function useSetDefaultWarehouse() {
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
 
-      // Atomically: clear any existing default, set this one as default — both
-      // scoped to the caller's org. The two updates run sequentially because
-      // Supabase doesn't expose multi-statement transactions client-side; the
-      // second is the authoritative one. RLS enforces org scoping.
-      const { error: clearErr } = await supabase
-        .from("warehouses" as any)
-        .update({ is_default: false })
-        .eq("organization_id", orgId)
-        .eq("is_default", true);
-      if (clearErr) throw clearErr;
-
+      // NOT FULLY ATOMIC client-side. Supabase REST cannot run a CASE WHEN
+      // SET expression nor a multi-statement transaction. We sequence:
+      //   1. promote the target row to default (idempotent if it already was);
+      //   2. demote every other row in the org.
+      // Order matters — step 1 first means the org never has zero defaults
+      // mid-operation; the worst-case race is "two rows are default for ms"
+      // which is preferable to "zero rows are default for ms" because reads
+      // that key off `is_default` still return a sensible row.
+      // Proper fix is a server-side SQL function (set_default_warehouse RPC);
+      // tracked under GBC-56 needs-input + the _LOVABLE_PROMPT.md migration.
       const { error: setErr } = await supabase
         .from("warehouses" as any)
         .update({ is_default: true })
         .eq("id", id)
         .eq("organization_id", orgId);
       if (setErr) throw setErr;
+      const { error: clearErr } = await supabase
+        .from("warehouses" as any)
+        .update({ is_default: false })
+        .eq("organization_id", orgId)
+        .neq("id", id);
+      if (clearErr) throw clearErr;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["warehouses"] });
