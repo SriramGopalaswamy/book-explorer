@@ -27,8 +27,7 @@ const MIGRATIONS_DIR = path.resolve(__dirname, "../../supabase/migrations");
 const CUTOFF = "20260325000000";
 
 const KNOWN_FLAT_AUTHENTICATED = new Set<string>([
-  // GBC-7 / GBC-15 carry-forward — tracked separately, not yet fixed.
-  "invoice-assets",
+  // empty — all known flat-authenticated buckets have been migrated to tenancy-scoped policies.
 ]);
 
 interface PolicyBlock {
