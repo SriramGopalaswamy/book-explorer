@@ -206,6 +206,9 @@ export function usePayrollRecords(payPeriod?: string) {
     enabled: (!!user && !!orgId) || isDevMode,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    // Keep previous period's rows visible while a new period loads —
+    // eliminates the "blank table / page hangs" feel when switching months.
+    placeholderData: keepPreviousData,
   });
 }
 
