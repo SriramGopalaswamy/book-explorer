@@ -61,31 +61,35 @@ const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
  * opens in the same session reuse the cache. Keyed by user id; data is
  * static for the lifetime of the session in 99% of cases.
  */
-function useBrandingInfo(userId: string | undefined) {
+function useBrandingInfo(userId: string | undefined, organizationId: string | undefined) {
   const { data } = useQuery({
-    queryKey: ["payslip-branding", userId],
+    queryKey: ["payslip-branding", userId, organizationId],
     enabled: !!userId,
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,
     queryFn: async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", userId!)
-        .maybeSingle();
-      if (!profile?.organization_id) {
+      let orgId = organizationId;
+      if (!orgId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("organization_id")
+          .eq("user_id", userId!)
+          .maybeSingle();
+        orgId = profile?.organization_id ?? undefined;
+      }
+      if (!orgId) {
         return { color: "#e11d74", companyName: "", companyAddress: "" };
       }
       const [{ data: compliance }, { data: org }] = await Promise.all([
         supabase
           .from("organization_compliance" as any)
           .select("brand_color, legal_name, registered_address, state, pincode")
-          .eq("organization_id", profile.organization_id)
+          .eq("organization_id", orgId)
           .maybeSingle(),
         supabase
           .from("organizations")
           .select("name")
-          .eq("id", profile.organization_id)
+          .eq("id", orgId)
           .maybeSingle(),
       ]);
       const c = compliance as any;
