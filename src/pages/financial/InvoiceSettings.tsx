@@ -71,6 +71,8 @@ const defaultSettings: InvoiceSettingsData = {
 
 export default function InvoiceSettings() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
