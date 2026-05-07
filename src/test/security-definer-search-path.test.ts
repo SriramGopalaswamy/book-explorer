@@ -1,4 +1,18 @@
 /**
+ * ⚠️ KNOWN FRAGILITY (FMEA F3, RPN 315) ⚠️
+ *
+ * This file uses regex against SQL text — NOT a real parser. The CREATE
+ * FUNCTION matcher stops at the first `;`, which inside `LANGUAGE plpgsql`
+ * bodies is usually `END;` *inside* the function body, not the statement
+ * terminator. A `Python` audit at FMEA time captured 296 of 412 SECURITY
+ * DEFINER occurrences (~28% blind spot). A vulnerable plpgsql function whose
+ * `SET search_path` clause sits AFTER its inner `;` will be silently passed.
+ *
+ * The proper fix is to parse SQL with `pg_query_go` / `pg-query-emscripten`
+ * or to enforce the invariant inside Postgres via `pg_proc` introspection
+ * (see _LOVABLE_PROMPT.md TASK 12). Until then, this test is a belt-and-
+ * suspenders check, not a guarantee.
+ *
  * GBC-6 — every SECURITY DEFINER function must pin search_path.
  *
  * In Postgres, a SECURITY DEFINER function runs with the owner's privileges.

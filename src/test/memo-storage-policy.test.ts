@@ -1,4 +1,12 @@
 /**
+ * ⚠️ STATIC-TEXT SCAN (FMEA F5, RPN 84) ⚠️
+ *
+ * This file substring-matches SQL text rather than parsing it. Tests are
+ * sensitive to phrasing — a future migration that uses unconventional SQL
+ * (e.g. `bucket_id IN ('memo-attachments')` instead of `bucket_id =
+ * 'memo-attachments'`) may slip past. Less brittle than the F3/F4 tests but
+ * still imperfect; the parser-based replacement is the right structural fix.
+ *
  * GBC-17 — memo-attachments storage policy regression guard
  *
  * The original migration 20260218114058 created an over-permissive SELECT

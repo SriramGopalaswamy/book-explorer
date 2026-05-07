@@ -1,4 +1,12 @@
 /**
+ * ⚠️ KNOWN FRAGILITY (FMEA F4, RPN 192) ⚠️
+ *
+ * The `USING (...)` extractor uses non-greedy regex, which stops at the FIRST
+ * closing paren. Policies with nested parens (e.g. `USING (EXISTS (SELECT 1
+ * ...))`) capture only the inner half; classification falls into OTHER instead
+ * of REFERENCE_TENANCY. This is a regex-vs-grammar mismatch — the structural
+ * fix is a SQL parser. See FMEA F4 in gbc-audit/_FMEA.md for detail.
+ *
  * GBC-7 / GBC-15 / GBC-17 — storage bucket policy regression guard.
  *
  * Classifies every storage.objects SELECT policy in supabase/migrations/ as:
