@@ -468,21 +468,23 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       // (Bonus and Incentive are taxable but TDS is already included in
       //  total_ded_file by the upstream payroll team — they are added back
       //  on top of the post-deduction subtotal.)
+      // Payroll Register upload trusts the pre-computed file. We surface
+      // mismatches as warnings (so reviewers can investigate) but never block
+      // the upload — the file's net_pay is authoritative by design.
       if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
         const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
         const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck + bonus + incentive);
         const diff = Math.abs(expectedNet - net_from_file);
         if (diff > 5) {
-          errors.push(
+          warnings.push(
             `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
             `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
             `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""}` +
             `${bonus ? ` + Bonus (₹${bonus})` : ""}` +
             `${incentive ? ` + Incentive (₹${incentive})` : ""}` +
-            ` = ₹${expectedNet}, but file says ₹${net_from_file}.`
+            ` = ₹${expectedNet}, but file says ₹${net_from_file} (gap ₹${expectedNet - net_from_file}). ` +
+            `Saved using file value — please reconcile bonus/incentive/LWP columns.`
           );
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
-          continue;
         } else if (diff > 0) {
           warnings.push(
             `Row ${row.employee_id || row.email_id}: Net Pay rounding gap of ₹${diff} ` +
