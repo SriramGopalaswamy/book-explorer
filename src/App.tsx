@@ -123,8 +123,18 @@ const Profile = lazy(() => import("./pages/Profile"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+      // Treat data as fresh for 60s — prevents refetch storms when users
+      // bounce between menus. Individual hooks can override.
+      staleTime: 60_000,
+      // Keep cache around 10min so a quick away-and-back doesn't refetch.
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      // 1 retry max with a 1.5s cap so a flaky request never stalls the
+      // UI for 7+ seconds (was: 2 retries, up to 8s — caused the
+      // "Payroll hangs after fast nav" symptom).
+      retry: 1,
+      retryDelay: (attempt) => Math.min(1500, 500 * 2 ** attempt),
     },
   },
 });
