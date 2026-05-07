@@ -123,7 +123,8 @@ interface PaySlipDialogProps {
 export function PaySlipDialog({ record, open, onOpenChange }: PaySlipDialogProps) {
   const logoDataUrl = useLogoDataUrl(grx10Logo);
   const { user } = useAuth();
-  const { color: brandColor, companyName, companyAddress } = useBrandingInfo(user?.id);
+  const { data: orgData } = useUserOrganization();
+  const { color: brandColor, companyName, companyAddress } = useBrandingInfo(user?.id, orgData?.organizationId);
   const { data: employeeDetails } = useEmployeeDetails(record?.profile_id ?? null);
   if (!record) return null;
 
