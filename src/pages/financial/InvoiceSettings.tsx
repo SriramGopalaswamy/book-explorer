@@ -15,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Save, Upload, Building2, CreditCard, FileSignature, Settings2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 interface InvoiceSettingsData {
   company_name: string;
@@ -161,23 +162,30 @@ export default function InvoiceSettings() {
 
   const handleFileUpload = async (file: File, type: "logo" | "signature") => {
     if (!user) return;
+    if (!orgId) {
+      toast({ title: "Upload failed", description: "Organisation not loaded yet.", variant: "destructive" });
+      return;
+    }
     setUploading(type);
     try {
       const ext = file.name.split(".").pop();
-      const path = `${user.id}/${type}.${ext}`;
-      
+      // Org-scoped path layout per RLS policy: <orgId>/<resource>
+      const path = `${orgId}/${type}s/${user.id}.${ext}`;
+
       const { error: uploadError } = await supabase.storage
         .from("invoice-assets")
         .upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      // Bucket is private; use signed URL (1 hour) instead of public URL
+      const { data: signed, error: signErr } = await supabase.storage
         .from("invoice-assets")
-        .getPublicUrl(path);
+        .createSignedUrl(path, 3600);
+      if (signErr) throw signErr;
 
       setForm(prev => ({
         ...prev,
-        [type === "logo" ? "logo_url" : "signature_url"]: publicUrl,
+        [type === "logo" ? "logo_url" : "signature_url"]: signed.signedUrl,
       }));
 
       toast({ title: `${type === "logo" ? "Logo" : "Signature"} uploaded` });
