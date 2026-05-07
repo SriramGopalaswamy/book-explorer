@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type ExcelJSType from "exceljs";
@@ -42,7 +42,16 @@ export interface BulkUploadConfig {
   onUpload: (
     rows: Record<string, string>[],
     onProgress?: (processed: number, total: number, label?: string) => void,
-  ) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
+    signal?: AbortSignal,
+  ) => Promise<{
+    success: number;
+    errors: string[];
+    warnings?: string[];
+    created?: number;
+    updated?: number;
+    cancelled?: boolean;
+    failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
+  }>;
   /**
    * Optional check run before upload.
    * - null → no warning; proceed immediately.
