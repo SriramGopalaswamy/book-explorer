@@ -389,6 +389,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       }
       processedCount++;
       onProgress?.(processedCount, rows.length);
+      const errorsBefore = errors.length;
       // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
       const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
       const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
