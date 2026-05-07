@@ -48,6 +48,10 @@ export function useEmployeeDetails(profileId: string | null) {
       return data as EmployeeDetails | null;
     },
     enabled: !!profileId,
+    // Employee details are effectively static within a session — avoid
+    // refetching every time PaySlipDialog (or any other consumer) mounts.
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
   });
 }
 

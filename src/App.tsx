@@ -130,10 +130,15 @@ const queryClient = new QueryClient({
       gcTime: 10 * 60_000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      // 1 retry max with a 1.5s cap so a flaky request never stalls the
-      // UI for 7+ seconds (was: 2 retries, up to 8s — caused the
-      // "Payroll hangs after fast nav" symptom).
-      retry: 1,
+      // 1 retry max with a 1.5s cap, but never retry aborted requests —
+      // a user navigating away should not trigger a follow-up fetch on a
+      // request that was just cancelled.
+      retry: (failureCount, error: any) => {
+        if (error?.name === "AbortError") return false;
+        const code = error?.code || error?.cause?.code;
+        if (code === "20" || code === "ABORT_ERR") return false;
+        return failureCount < 1;
+      },
       retryDelay: (attempt) => Math.min(1500, 500 * 2 ** attempt),
     },
   },
