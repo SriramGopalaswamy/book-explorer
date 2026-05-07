@@ -621,8 +621,17 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           {uploadSummary && (
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-primary" />
-                <p className="font-semibold text-sm">Upload Complete</p>
+                {uploadSummary.cancelled ? (
+                  <>
+                    <Ban className="h-5 w-5 text-warning" />
+                    <p className="font-semibold text-sm">Upload Cancelled — All Changes Rolled Back</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <p className="font-semibold text-sm">Upload Complete</p>
+                  </>
+                )}
               </div>
               <div className={cn("grid gap-3", (uploadSummary.created !== undefined || uploadSummary.updated !== undefined) ? "grid-cols-3" : "grid-cols-1")}>
                 <div className="rounded-md border border-border bg-background p-3 text-center">
