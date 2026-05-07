@@ -333,8 +333,7 @@ Deno.serve(async (req) => {
             const { data: sd2, error: ve2 } = await supabase.auth.verifyOtp({ token_hash: ld2.properties?.hashed_token!, type: "magiclink" });
             if (ve2) return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
             session = sd2.session;
-            const { data: fbData } = await supabase.auth.admin.getUserByEmail(email);
-            const fbUser = fbData?.user ?? null;
+            const fbUser = await findUserByEmail(supabase, email);
             if (fbUser) {
               const { data: fbProfile } = await supabase.from("profiles").select("status").eq("user_id", fbUser.id).maybeSingle();
               if (fbProfile?.status === "inactive") {
