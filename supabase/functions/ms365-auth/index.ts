@@ -13,6 +13,27 @@ const corsHeaders = {
 const domainCache = new Map<string, { organizationId: string; ssoDomain: string }>();
 
 /**
+ * Find an auth user by email via paginated listUsers (admin API has no
+ * getUserByEmail). Returns the user object or null. Iterates up to 50 pages
+ * of 1000 users each.
+ */
+async function findUserByEmail(supabase: any, email: string): Promise<any | null> {
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) {
+      logError("ms365-auth", error, { stage: "findUserByEmail", page });
+      return null;
+    }
+    const users = data?.users ?? [];
+    const match = users.find((u: any) => (u.email || "").toLowerCase() === target);
+    if (match) return match;
+    if (users.length < 1000) return null;
+  }
+  return null;
+}
+
+/**
  * Resolve the organization that owns this email domain via organization_settings.sso_domain.
  * Returns null if no organization is configured for the domain (login rejected).
  */
@@ -238,8 +259,7 @@ Deno.serve(async (req) => {
         .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
-      const { data: existingUserData } = await supabase.auth.admin.getUserByEmail(email);
-      const existingUser = existingUserData?.user ?? null;
+      const existingUser = await findUserByEmail(supabase, email);
 
       let session;
 
@@ -334,8 +354,7 @@ Deno.serve(async (req) => {
             const { data: sd2, error: ve2 } = await supabase.auth.verifyOtp({ token_hash: ld2.properties?.hashed_token!, type: "magiclink" });
             if (ve2) return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
             session = sd2.session;
-            const { data: fbData } = await supabase.auth.admin.getUserByEmail(email);
-            const fbUser = fbData?.user ?? null;
+            const fbUser = await findUserByEmail(supabase, email);
             if (fbUser) {
               const { data: fbProfile } = await supabase.from("profiles").select("status").eq("user_id", fbUser.id).maybeSingle();
               if (fbProfile?.status === "inactive") {
