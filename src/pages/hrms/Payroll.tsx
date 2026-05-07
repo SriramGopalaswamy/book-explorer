@@ -883,7 +883,9 @@ export default function Payroll() {
               )}
             </TabsList>
             <TabsContent value="engine">
-              <PayrollEnginePanel onMonthChange={setSelectedPeriod} />
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <PayrollEnginePanel onMonthChange={setSelectedPeriod} />
+              </Suspense>
             </TabsContent>
             <TabsContent value="register">
               <Card className="glass-card">
@@ -1132,11 +1134,15 @@ export default function Payroll() {
               </Card>
             </TabsContent>
             <TabsContent value="analytics">
-              <PayrollAnalyticsDashboard />
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <PayrollAnalyticsDashboard />
+              </Suspense>
             </TabsContent>
             <TabsContent value="declarations">
               {myProfile?.id ? (
-                <InvestmentDeclarationPortal profileId={myProfile.id} isAdmin={!!isAdmin} />
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <InvestmentDeclarationPortal profileId={myProfile.id} isAdmin={!!isAdmin} />
+                </Suspense>
               ) : (
                 <p className="text-muted-foreground text-center py-8">Loading profile...</p>
               )}
