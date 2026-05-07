@@ -238,8 +238,7 @@ Deno.serve(async (req) => {
         .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
-      const { data: existingUserData } = await supabase.auth.admin.getUserByEmail(email);
-      const existingUser = existingUserData?.user ?? null;
+      const existingUser = await findUserByEmail(supabase, email);
 
       let session;
 
