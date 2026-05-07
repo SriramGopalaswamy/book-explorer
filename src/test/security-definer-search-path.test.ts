@@ -66,7 +66,10 @@ describe("GBC-6: SECURITY DEFINER functions pin search_path", () => {
   const pinnedLater = new Set<string>();
   const droppedLater = new Set<string>();
   for (const f of fns) {
-    if (f.pinned) pinnedLater.add(f.name);
+    if (f.pinned) {
+      pinnedLater.add(f.name);
+      pinnedLater.add(f.name.replace(/^public\./, ""));
+    }
   }
   for (const m of migrations) {
     const dropRe = /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([\w.]+)/gi;
