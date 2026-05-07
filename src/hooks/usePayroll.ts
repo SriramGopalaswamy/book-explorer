@@ -241,6 +241,9 @@ export function useMyPayrollRecords() {
 
   return useQuery({
     queryKey: ["my-payroll", user?.id],
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       if (!user) return [];
 
