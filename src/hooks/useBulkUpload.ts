@@ -448,7 +448,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
         if (componentSum > total_ded_file + 2) {
           errors.push(`Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) exceed Total Deductions (₹${total_ded_file}).`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
         const gap = total_ded_file - componentSum;
@@ -481,7 +481,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
             `${incentive ? ` + Incentive (₹${incentive})` : ""}` +
             ` = ₹${expectedNet}, but file says ₹${net_from_file}.`
           );
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         } else if (diff > 0) {
           warnings.push(
@@ -506,14 +506,14 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
           errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
       } else {
         profile = findProfileByName(row.employee_id);
         if (!profile) {
           errors.push(`Row ${row.employee_id}: No matching employee profile found`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
       }
