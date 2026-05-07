@@ -356,11 +356,20 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     }
 
     const insertedEntryIds: string[] = [];
+    const failedRows: Array<{ rowIndex: number; data: Record<string, string>; error: string }> = [];
+
+    const rollbackAll = async () => {
+      if (insertedEntryIds.length > 0) {
+        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+      }
+      if (createdNewRun) {
+        await supabase.from("payroll_runs").delete().eq("id", runId);
+      }
+    };
 
     const abortOnThreshold = async () => {
       if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
-        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
-        if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+        await rollbackAll();
         return true;
       }
       return false;
@@ -368,6 +377,16 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
     let processedCount = 0;
     for (const row of rows) {
+      if (signal?.aborted) {
+        await rollbackAll();
+        return {
+          success: 0,
+          errors: ["Upload cancelled by user. All changes rolled back."],
+          warnings,
+          cancelled: true,
+          failedRows,
+        };
+      }
       processedCount++;
       onProgress?.(processedCount, rows.length);
       // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
