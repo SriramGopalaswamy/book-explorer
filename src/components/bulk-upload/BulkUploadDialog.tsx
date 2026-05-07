@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, X, Loader2, UserPlus, RefreshCw, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type ExcelJSType from "exceljs";
@@ -42,7 +42,16 @@ export interface BulkUploadConfig {
   onUpload: (
     rows: Record<string, string>[],
     onProgress?: (processed: number, total: number, label?: string) => void,
-  ) => Promise<{ success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number }>;
+    signal?: AbortSignal,
+  ) => Promise<{
+    success: number;
+    errors: string[];
+    warnings?: string[];
+    created?: number;
+    updated?: number;
+    cancelled?: boolean;
+    failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
+  }>;
   /**
    * Optional check run before upload.
    * - null → no warning; proceed immediately.
@@ -172,10 +181,14 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const [isDragging, setIsDragging] = useState(false);
   const [uploadSummary, setUploadSummary] = useState<{
     success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
+    cancelled?: boolean;
+    failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
   } | null>(null);
   const [pendingWarning, setPendingWarning] = useState<{ message: string; canOverride: boolean } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const { job: activeJob } = useJobSubscription(activeJobId);
+  const [liveProgress, setLiveProgress] = useState<{ processed: number; total: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -363,21 +376,27 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
   const validCount = parsedRows.length - errorCount;
 
-  const executeUpload = async () => {
+  const executeUpload = async (overrideRows?: Record<string, string>[]) => {
     setUploading(true);
     setPendingWarning(null);
+    setLiveProgress(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const validRows = overrideRows
+      ?? parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
+    setLiveProgress({ processed: 0, total: validRows.length });
 
     // Enqueue a job_queue row for audit + Realtime progress tracking.
-    // Falls through silently if enqueue fails (no org context yet, etc.)
     let jobId: string | null = null;
     try {
       jobId = await enqueueJob("bulk_upload", {
         module: config.module,
         file_name: fileName,
-        total_rows: parsedRows.length,
+        total_rows: validRows.length,
       });
       setActiveJobId(jobId);
-      // Mark job as running
       await supabase
         .from("job_queue")
         .update({ status: "running", progress: 5, progress_label: "Processing rows…" })
@@ -387,10 +406,12 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     }
 
     try {
-      const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
+      let result: {
+        success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
+        cancelled?: boolean;
+        failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
+      };
 
-      // Advance to 30% so the bar visibly moves before onUpload starts.
       if (jobId) {
         await (supabase.from("job_queue") as any)
           .update({ progress: 30, progress_label: "Uploading rows…" })
@@ -398,10 +419,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       }
 
       try {
-        // Throttled progress reporter — emits at most 1 update per 400ms to
-        // avoid spamming the realtime channel for large files.
         let lastEmit = 0;
         const onProgress = (processed: number, total: number, label?: string) => {
+          setLiveProgress({ processed, total });
           if (!jobId || total <= 0) return;
           const now = Date.now();
           if (now - lastEmit < 400 && processed < total) return;
@@ -415,21 +435,26 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
             .eq("id", jobId)
             .then(undefined, () => {});
         };
-        result = await config.onUpload(validRows, onProgress);
+        result = await config.onUpload(validRows, onProgress, controller.signal);
       } catch (uploadErr: any) {
-        console.error("[BulkUpload] onUpload threw:", uploadErr);
-        result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+        if (controller.signal.aborted) {
+          result = { success: 0, errors: ["Upload cancelled by user. All changes rolled back."], cancelled: true };
+        } else {
+          console.error("[BulkUpload] onUpload threw:", uploadErr);
+          result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+        }
       }
 
       // Update job to terminal state
       if (jobId) {
-        const failed = result.errors.length > 0 && result.success === 0;
+        const cancelled = result.cancelled === true;
+        const failed = !cancelled && result.errors.length > 0 && result.success === 0;
         await supabase.from("job_queue").update({
-          status: failed ? "failed" : "completed",
+          status: cancelled ? "cancelled" : failed ? "failed" : "completed",
           progress: 100,
-          progress_label: failed ? "Failed" : `${result.success} rows uploaded`,
+          progress_label: cancelled ? "Cancelled" : failed ? "Failed" : `${result.success} rows uploaded`,
           result: { success: result.success, errors: result.errors.slice(0, 20) },
-          error_message: failed ? result.errors[0] ?? "Upload failed" : null,
+          error_message: cancelled ? "Cancelled by user" : failed ? result.errors[0] ?? "Upload failed" : null,
         }).eq("id", jobId);
       }
 
@@ -446,7 +471,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
             module: config.module,
             file_name: fileName,
-            total_rows: parsedRows.length,
+            total_rows: validRows.length,
             successful_rows: result.success,
             failed_rows: result.errors.length + errorCount,
             errors: result.errors.slice(0, 50),
@@ -467,7 +492,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       setUploadSummary(result);
 
       const warnCount = result.warnings?.length ?? 0;
-      if (result.success === 0 && result.errors.length > 0) {
+      if (result.cancelled) {
+        toast.warning("Upload cancelled. All changes rolled back.");
+      } else if (result.success === 0 && result.errors.length > 0) {
         toast.error(`Upload failed: ${result.errors.length} error(s)`);
       } else if (result.errors.length > 0 && warnCount > 0) {
         toast.warning(`Uploaded ${result.success} rows — ${result.errors.length} failed, ${warnCount} saved with partial data`);
@@ -489,7 +516,28 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     } finally {
       setUploading(false);
       setActiveJobId(null);
+      setLiveProgress(null);
+      abortRef.current = null;
     }
+  };
+
+  const handleCancel = async () => {
+    if (!abortRef.current) return;
+    abortRef.current.abort();
+    if (activeJobId) {
+      await (supabase.from("job_queue") as any)
+        .update({ status: "cancelled", progress: 100, progress_label: "Cancelled", error_message: "Cancelled by user" })
+        .eq("id", activeJobId)
+        .then(undefined, () => {});
+    }
+    toast.warning("Cancelling upload — rolling back changes…");
+  };
+
+  const handleRetryFailed = async () => {
+    if (!uploadSummary?.failedRows?.length) return;
+    const rows = uploadSummary.failedRows.map((f) => f.data);
+    setUploadSummary(null);
+    await executeUpload(rows);
   };
 
   const handleUpload = async () => {
@@ -573,8 +621,17 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           {uploadSummary && (
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-primary" />
-                <p className="font-semibold text-sm">Upload Complete</p>
+                {uploadSummary.cancelled ? (
+                  <>
+                    <Ban className="h-5 w-5 text-warning" />
+                    <p className="font-semibold text-sm">Upload Cancelled — All Changes Rolled Back</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <p className="font-semibold text-sm">Upload Complete</p>
+                  </>
+                )}
               </div>
               <div className={cn("grid gap-3", (uploadSummary.created !== undefined || uploadSummary.updated !== undefined) ? "grid-cols-3" : "grid-cols-1")}>
                 <div className="rounded-md border border-border bg-background p-3 text-center">
@@ -620,6 +677,42 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                   <ul className="text-xs text-muted-foreground space-y-0.5 max-h-24 overflow-y-auto">
                     {uploadSummary.warnings!.map((w, i) => <li key={i}>• {w}</li>)}
                   </ul>
+                </div>
+              )}
+              {(uploadSummary.failedRows?.length ?? 0) > 0 && !uploadSummary.cancelled && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {uploadSummary.failedRows!.length} failed row{uploadSummary.failedRows!.length > 1 ? "s" : ""} can be retried
+                    </p>
+                    <Button size="sm" variant="outline" onClick={handleRetryFailed} disabled={uploading}>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Retry failed rows
+                    </Button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto rounded border bg-background">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px] h-7">Row</TableHead>
+                          <TableHead className="text-[10px] h-7">Identifier</TableHead>
+                          <TableHead className="text-[10px] h-7">Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {uploadSummary.failedRows!.map((f, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-[11px] py-1">{f.rowIndex}</TableCell>
+                            <TableCell className="text-[11px] py-1 truncate max-w-[140px]">
+                              {f.data.employee_id || f.data.email_id || f.data.email || f.data.name || "—"}
+                            </TableCell>
+                            <TableCell className="text-[11px] py-1 text-destructive">{f.error}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )}
             </div>
@@ -788,7 +881,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                 {pendingWarning.canOverride ? "Cancel" : "Got it"}
               </Button>
               {pendingWarning.canOverride && (
-                <Button variant="destructive" size="sm" onClick={executeUpload} disabled={uploading}>
+                <Button variant="destructive" size="sm" onClick={() => executeUpload()} disabled={uploading}>
                   {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : "Yes, overwrite"}
                 </Button>
               )}
@@ -801,7 +894,11 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           <div className="px-6 pb-2 space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{activeJob?.progress_label ?? "Processing…"}</span>
-              <span>{activeJob?.progress ?? 5}%</span>
+              <span>
+                {liveProgress
+                  ? `${liveProgress.processed} / ${liveProgress.total} rows · ${activeJob?.progress ?? 5}%`
+                  : `${activeJob?.progress ?? 5}%`}
+              </span>
             </div>
             <Progress
               value={activeJob?.progress ?? 5}
@@ -813,15 +910,26 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         <DialogFooter>
           {uploadSummary ? (
             <Button onClick={() => { reset(); setOpen(false); }}>Done</Button>
+          ) : uploading ? (
+            <>
+              <Button
+                variant="destructive"
+                onClick={handleCancel}
+                disabled={!!abortRef.current?.signal.aborted}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                {abortRef.current?.signal.aborted ? "Cancelling…" : "Cancel upload"}
+              </Button>
+              <Button disabled>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
-              <Button onClick={handleUpload} disabled={uploading || validCount === 0 || !!pendingWarning}>
-                {uploading ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
-                ) : (
-                  <><Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows</>
-                )}
+              <Button onClick={handleUpload} disabled={validCount === 0 || !!pendingWarning}>
+                <Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows
               </Button>
             </>
           )}

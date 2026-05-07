@@ -274,6 +274,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
   const onUpload = useCallback(async (
     rows: Record<string, string>[],
     onProgress?: (processed: number, total: number, label?: string) => void,
+    signal?: AbortSignal,
   ) => {
     if (!user) throw new Error("Not authenticated");
 
@@ -355,11 +356,20 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     }
 
     const insertedEntryIds: string[] = [];
+    const failedRows: Array<{ rowIndex: number; data: Record<string, string>; error: string }> = [];
+
+    const rollbackAll = async () => {
+      if (insertedEntryIds.length > 0) {
+        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
+      }
+      if (createdNewRun) {
+        await supabase.from("payroll_runs").delete().eq("id", runId);
+      }
+    };
 
     const abortOnThreshold = async () => {
       if (errors.length > rows.length * 0.5 && insertedEntryIds.length > 0) {
-        await supabase.from("payroll_entries").delete().in("id", insertedEntryIds);
-        if (createdNewRun) await supabase.from("payroll_runs").delete().eq("id", runId);
+        await rollbackAll();
         return true;
       }
       return false;
@@ -367,8 +377,19 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
     let processedCount = 0;
     for (const row of rows) {
+      if (signal?.aborted) {
+        await rollbackAll();
+        return {
+          success: 0,
+          errors: ["Upload cancelled by user. All changes rolled back."],
+          warnings,
+          cancelled: true,
+          failedRows,
+        };
+      }
       processedCount++;
       onProgress?.(processedCount, rows.length);
+      const errorsBefore = errors.length;
       // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
       const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
       const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
@@ -427,7 +448,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
         if (componentSum > total_ded_file + 2) {
           errors.push(`Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) exceed Total Deductions (₹${total_ded_file}).`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
         const gap = total_ded_file - componentSum;
@@ -460,7 +481,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
             `${incentive ? ` + Incentive (₹${incentive})` : ""}` +
             ` = ₹${expectedNet}, but file says ₹${net_from_file}.`
           );
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         } else if (diff > 0) {
           warnings.push(
@@ -485,14 +506,14 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
           errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
       } else {
         profile = findProfileByName(row.employee_id);
         if (!profile) {
           errors.push(`Row ${row.employee_id}: No matching employee profile found`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
           continue;
         }
       }
@@ -541,10 +562,16 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
       if (entryError) {
         errors.push(`Row ${row.employee_id || row.email_id}: ${entryError.message}`);
-        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
       } else {
         if (entry?.id) insertedEntryIds.push(entry.id);
         success++;
+      }
+
+      // Capture per-row error for retry UI
+      if (errors.length > errorsBefore) {
+        const newErr = errors[errors.length - 1];
+        failedRows.push({ rowIndex: processedCount, data: row, error: newErr });
       }
     }
 
@@ -567,7 +594,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     qc.invalidateQueries({ queryKey: ["payroll-runs"] });
     qc.invalidateQueries({ queryKey: ["payroll-entries"] });
     qc.invalidateQueries({ queryKey: ["payroll"] });
-    return { success, errors, warnings };
+    return { success, errors, warnings, failedRows };
   }, [user, payPeriod, qc]);
 
   return {
