@@ -894,7 +894,11 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           <div className="px-6 pb-2 space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{activeJob?.progress_label ?? "Processing…"}</span>
-              <span>{activeJob?.progress ?? 5}%</span>
+              <span>
+                {liveProgress
+                  ? `${liveProgress.processed} / ${liveProgress.total} rows · ${activeJob?.progress ?? 5}%`
+                  : `${activeJob?.progress ?? 5}%`}
+              </span>
             </div>
             <Progress
               value={activeJob?.progress ?? 5}
@@ -906,15 +910,26 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         <DialogFooter>
           {uploadSummary ? (
             <Button onClick={() => { reset(); setOpen(false); }}>Done</Button>
+          ) : uploading ? (
+            <>
+              <Button
+                variant="destructive"
+                onClick={handleCancel}
+                disabled={!!abortRef.current?.signal.aborted}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                {abortRef.current?.signal.aborted ? "Cancelling…" : "Cancel upload"}
+              </Button>
+              <Button disabled>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
-              <Button onClick={handleUpload} disabled={uploading || validCount === 0 || !!pendingWarning}>
-                {uploading ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</>
-                ) : (
-                  <><Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows</>
-                )}
+              <Button onClick={handleUpload} disabled={validCount === 0 || !!pendingWarning}>
+                <Upload className="h-4 w-4 mr-2" />Upload {validCount} Rows
               </Button>
             </>
           )}
