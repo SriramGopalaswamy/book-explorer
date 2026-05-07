@@ -978,7 +978,10 @@ export default function Payroll() {
                       currentRole={currentRole}
                     />
                   ) : (
-                    <div>
+                    <div className={isPlaceholderData ? "opacity-60 transition-opacity" : "transition-opacity"}>
+                      {isPlaceholderData && (
+                        <div className="mb-2 text-xs text-muted-foreground italic">Loading {periodLabel(selectedPeriod)}…</div>
+                      )}
                       <Table className="min-w-[600px]">
                         <TableHeader>
                           <TableRow>
