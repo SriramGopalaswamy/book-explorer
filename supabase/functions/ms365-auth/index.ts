@@ -13,6 +13,27 @@ const corsHeaders = {
 const domainCache = new Map<string, { organizationId: string; ssoDomain: string }>();
 
 /**
+ * Find an auth user by email via paginated listUsers (admin API has no
+ * getUserByEmail). Returns the user object or null. Iterates up to 50 pages
+ * of 1000 users each.
+ */
+async function findUserByEmail(supabase: any, email: string): Promise<any | null> {
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) {
+      logError("ms365-auth", error, { stage: "findUserByEmail", page });
+      return null;
+    }
+    const users = data?.users ?? [];
+    const match = users.find((u: any) => (u.email || "").toLowerCase() === target);
+    if (match) return match;
+    if (users.length < 1000) return null;
+  }
+  return null;
+}
+
+/**
  * Resolve the organization that owns this email domain via organization_settings.sso_domain.
  * Returns null if no organization is configured for the domain (login rejected).
  */
