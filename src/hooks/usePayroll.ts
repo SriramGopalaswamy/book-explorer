@@ -260,12 +260,14 @@ export function useMyPayrollRecords() {
           .from("payroll_entries")
           .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
           .eq("profile_id", profile.id)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(500),
         supabase
           .from("payroll_records")
           .select("*, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
           .eq("profile_id", profile.id)
-          .order("pay_period", { ascending: false }),
+          .order("pay_period", { ascending: false })
+          .limit(500),
       ]);
 
       const engineKeys = new Set(
