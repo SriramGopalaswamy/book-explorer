@@ -562,10 +562,16 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
 
       if (entryError) {
         errors.push(`Row ${row.employee_id || row.email_id}: ${entryError.message}`);
-        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."] };
+        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
       } else {
         if (entry?.id) insertedEntryIds.push(entry.id);
         success++;
+      }
+
+      // Capture per-row error for retry UI
+      if (errors.length > errorsBefore) {
+        const newErr = errors[errors.length - 1];
+        failedRows.push({ rowIndex: processedCount, data: row, error: newErr });
       }
     }
 
