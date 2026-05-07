@@ -46,7 +46,13 @@ export function useRolePermissions() {
 
   const { data: dbPermissions, isLoading: dbLoading } = useOrgRolePermissions(role, orgId);
 
-  const isLoading = roleLoading || orgLoading || saLoading || dbLoading;
+  // Core readiness: role + org + super-admin status (all from cached
+  // session-context after login). The DB-override query (`dbLoading`) is
+  // intentionally excluded — `hasPermission` falls through to in-code
+  // defaults if rows haven't loaded yet, so we never have to block the
+  // whole page on it.
+  const isCoreLoading = roleLoading || orgLoading || saLoading;
+  const isLoading = isCoreLoading || dbLoading;
 
   const hasPermission = useCallback(
     (resource: ResourceKey, action: ActionKey): boolean => {
@@ -72,7 +78,7 @@ export function useRolePermissions() {
     [role, isSuperAdmin, dbPermissions]
   );
 
-  return { hasPermission, isLoading, role };
+  return { hasPermission, isLoading, isCoreLoading, role };
 }
 
 // Convenience hook for a single permission check
