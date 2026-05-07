@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
@@ -53,9 +53,18 @@ import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
-import { PayrollEnginePanel } from "@/components/payroll/PayrollEnginePanel";
-import { PayrollAnalyticsDashboard } from "@/components/payroll/PayrollAnalyticsDashboard";
-import { InvestmentDeclarationPortal } from "@/components/payroll/InvestmentDeclarationPortal";
+// Lazy-load heavy tab panels — each runs its own data hooks, so eagerly
+// importing them re-fires several queries on every Payroll mount and is
+// the dominant cause of the "Payroll hangs after fast switch" symptom.
+const PayrollEnginePanel = lazy(() =>
+  import("@/components/payroll/PayrollEnginePanel").then(m => ({ default: m.PayrollEnginePanel }))
+);
+const PayrollAnalyticsDashboard = lazy(() =>
+  import("@/components/payroll/PayrollAnalyticsDashboard").then(m => ({ default: m.PayrollAnalyticsDashboard }))
+);
+const InvestmentDeclarationPortal = lazy(() =>
+  import("@/components/payroll/InvestmentDeclarationPortal").then(m => ({ default: m.InvestmentDeclarationPortal }))
+);
 import { useAuth } from "@/contexts/AuthContext";
 import { useHasApprovedDispute } from "@/hooks/usePayslipDisputes";
 import { usePayrollAutoCalc } from "@/hooks/usePayrollAutoCalc";
