@@ -679,6 +679,42 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                   </ul>
                 </div>
               )}
+              {(uploadSummary.failedRows?.length ?? 0) > 0 && !uploadSummary.cancelled && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {uploadSummary.failedRows!.length} failed row{uploadSummary.failedRows!.length > 1 ? "s" : ""} can be retried
+                    </p>
+                    <Button size="sm" variant="outline" onClick={handleRetryFailed} disabled={uploading}>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Retry failed rows
+                    </Button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto rounded border bg-background">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px] h-7">Row</TableHead>
+                          <TableHead className="text-[10px] h-7">Identifier</TableHead>
+                          <TableHead className="text-[10px] h-7">Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {uploadSummary.failedRows!.map((f, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-[11px] py-1">{f.rowIndex}</TableCell>
+                            <TableCell className="text-[11px] py-1 truncate max-w-[140px]">
+                              {f.data.employee_id || f.data.email_id || f.data.email || f.data.name || "—"}
+                            </TableCell>
+                            <TableCell className="text-[11px] py-1 text-destructive">{f.error}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
