@@ -29,8 +29,8 @@
 | GBC-25 | High | Cross-cutting — Multi-tenancy & Security | partially-resolved | `claude/execute-code-prompt-txEjJ` | [link](./GBC-25/REPORT.md) |
 | GBC-26 | High | Cross-cutting — Database Code Patterns | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-26/REPORT.md) |
 | GBC-27 | Low | Cross-cutting — Database Code Patterns | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-27/REPORT.md) |
-| GBC-28 | High | Cross-cutting — Database Code Patterns | partially-resolved | `claude/execute-code-prompt-txEjJ` | [link](./GBC-28/REPORT.md) |
-| GBC-29 | Medium | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-29/REPORT.md) |
+| GBC-28 | High | Cross-cutting — Database Code Patterns | resolved | `claude/execute-code-prompt-txEjJ` | [link](./GBC-28/REPORT.md) |
+| GBC-29 | Medium | Screen Review — Financial Suite | resolved | `claude/execute-code-prompt-txEjJ` | [link](./GBC-29/REPORT.md) |
 | GBC-30 | Low | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-30/REPORT.md) |
 | GBC-31 | Low | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-31/REPORT.md) |
 | GBC-32 | Low | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-32/REPORT.md) |
@@ -57,7 +57,7 @@
 | GBC-53 | High | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-53/REPORT.md) |
 | GBC-54 | Medium | Screen Review — Financial Suite | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-54/REPORT.md) |
 | GBC-55 | High | Screen Review — Inventory | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-55/REPORT.md) |
-| GBC-56 | Low | Screen Review — Inventory | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-56/REPORT.md) |
+| GBC-56 | Low | Screen Review — Inventory | partially-resolved | `claude/execute-code-prompt-txEjJ` | [link](./GBC-56/REPORT.md) |
 | GBC-57 | Low | Screen Review — Inventory | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-57/REPORT.md) |
 | GBC-58 | Low | Screen Review — Inventory | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-58/REPORT.md) |
 | GBC-59 | High | Screen Review — Procurement | needs-input | `claude/execute-code-prompt-txEjJ` | [link](./GBC-59/REPORT.md) |

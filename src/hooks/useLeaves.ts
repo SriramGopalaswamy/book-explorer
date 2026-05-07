@@ -555,9 +555,11 @@ export interface LeaveType {
 export function useLeaveTypes() {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["leave-types"],
+    queryKey: ["leave-types", orgId],
     queryFn: async () => {
       if (isDevMode) {
         return [
@@ -584,9 +586,11 @@ export function useLeaveTypes() {
 
 export function useAllLeaveTypes() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["leave-types-all"],
+    queryKey: ["leave-types-all", orgId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_types")

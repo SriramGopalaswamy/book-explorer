@@ -1,6 +1,10 @@
 # GBC-29: Main Dashboard — zero-flash loading state
 
-**Severity:** Medium · **Category:** Screen Review — Financial Suite · **Status:** needs-input
+**Severity:** Medium · **Category:** Screen Review — Financial Suite · **Status:** resolved
+**Branch:** `claude/execute-code-prompt-txEjJ`
+
+## Resolution
+`src/pages/Dashboard.tsx:199-236` — wrapped the three `<ModuleCardEnhanced>` cards in the same `statsLoading` ternary that already gates the StatCards above; renders three `<Skeleton className="h-48 rounded-2xl" />` while loading. The "real zero" case (loading=false, data=0) still renders the cards with zero values, so day-1 users see "0 Employees" not skeletons.
 
 ## Root cause
 Top half of dashboard wraps `StatCards` in `statsLoading ? <Skeleton /> : ...`. Bottom half (`ModuleCardEnhanced` showing "Financial Suite", "HRMS", "Performance OS") renders directly with `data ?? defaultsZero` so the user sees ₹0/0 employees/0% briefly until a refetch lands. UX flicker, not a security/data bug.

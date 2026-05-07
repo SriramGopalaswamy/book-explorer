@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 
 // ── Dual-source payroll helpers ───────────────────────────────────────────────
 
@@ -263,8 +264,10 @@ export function getMonthRange(fy: string, monthIdx: number): { from: string; to:
 // ── GSTR-1 data from invoices + invoice_items + credit notes ──
 export function useGSTR1Data(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["gstr1", from, to],
+    queryKey: ["gstr1", from, to, orgId],
     queryFn: async () => {
       // Fetch invoices
       const { data, error } = await supabase
@@ -350,8 +353,10 @@ export function useGSTR1Data(from: string, to: string) {
 // ── GSTR-3B summary from invoices + bills + credit notes + vendor credits ──
 export function useGSTR3BData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["gstr3b", from, to],
+    queryKey: ["gstr3b", from, to, orgId],
     queryFn: async () => {
       // Outward supplies from invoices
       const { data: invoices } = await supabase
@@ -435,8 +440,10 @@ export function useGSTR3BData(from: string, to: string) {
 // ── TDS 24Q: Salary TDS from payroll records (dual-source) ──
 export function useTDS24QData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["tds24q", from, to],
+    queryKey: ["tds24q", from, to, orgId],
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed", "approved", "locked"]);
       return data.map((p): TDS24QRow => {
@@ -464,8 +471,10 @@ export function useTDS24QData(from: string, to: string) {
 // ── TDS 26Q: Non-salary TDS from expenses/bills ──
 export function useTDS26QData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["tds26q", from, to],
+    queryKey: ["tds26q", from, to, orgId],
     queryFn: async () => {
       // Use bills with TDS section allocated
       const { data, error } = await supabase
@@ -503,8 +512,10 @@ export function useTDS26QData(from: string, to: string) {
 // ── PF ECR: From payroll data (dual-source) ──
 export function usePFECRData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["pf_ecr", from, to],
+    queryKey: ["pf_ecr", from, to, orgId],
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): PFECRRow => {
@@ -535,8 +546,10 @@ export function usePFECRData(from: string, to: string) {
 // ── ESI: From payroll (dual-source; auto-inferred ≤ ₹21,000 + manual override) ──
 export function useESIData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["esi", from, to],
+    queryKey: ["esi", from, to, orgId],
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(
         from, to, ["processed", "approved", "locked"], "esi_eligible"
@@ -579,8 +592,10 @@ export function useESIData(from: string, to: string) {
 // ── Professional Tax: From payroll (dual-source) ──
 export function useProfTaxData(from: string, to: string) {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
   return useQuery({
-    queryKey: ["prof_tax", from, to],
+    queryKey: ["prof_tax", from, to, orgId],
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): ProfTaxRow => {
