@@ -1,0 +1,851 @@
+{
+  "project": "GRX10-Books-Codebase",
+  "project_key": "GBC",
+  "board_url": "https://grx10.atlassian.net/jira/software/projects/GBC/boards/68",
+  "exported_at": "2026-05-07",
+  "status_filter": "To Do",
+  "total_issues": 65,
+  "issues": [
+    {
+      "key": "GBC-1",
+      "summary": "Hooks should mostly fetch data, call APIs, manage UI state but almost all hooks files have heavy Data validation + transformation happening in the browser, instead of using database RPCs (Remote Procedure Call).",
+      "description": "**Risks:** \n\n1. Performance Risk (Browser Freezing). \n\n2. Security Risk (Logic Can Be Bypassed): Frontend logic can be modified, skipped, replaced, reverse-engineered, called differently via direct API requests\n\nEven if UI validates everything a user can open DevTool, intercept the request, modify the payload, send invalid or manipulated data directly to Supabase. \n\n| **Hook File** | **Primary Issue** |\n| --- | --- |\n| useBulkUpload.ts | JS-based CSV parsing and row-by-row validation. |\n| usePayrollEngine.ts | It contains complex JavaScript logic for calculating statutory deductions. It defines the logic for PF (Provident Fund) and PT (Professional Tax) inside the React hook. |\n| useLeaves.ts | Complex leave entitlement logic (prorating leaves, carry-forward math). One fix can be using database's Interval and Timestamp types to calculate leave balances because JavaScript date handling is notoriously buggy with timezones and it will depend on the timezone set in the users\u2019 browser.\u00a0 |\n| useManufacturing.ts | BOM (Bill of Materials) explosions and consumption math in the browser. The transaction is not atomic. If two users click \"Start Production\" at the same time, both browsers might think there is enough stock (because the database hasn't updated yet). The database should check the stock AND deduct it in one millisecond, rather than the browser checking, waiting, and then sending a command. |\n| useWarehouse.ts | Bin-level stock movements and validation logic. |\n| useDocumentChains.ts | This hook manages the flow of documents (e.g., Purchase Order -> Goods Receipt -> Vendor Bill). It manages the \"links\" between these documents in the frontend state. Using Database Triggers would be a better option to ensure that when a Goods Receipt is created, the parent Purchase Order is automatically updated. |\n| useInvoices.ts | This hook calculates GST/Tax totals and line-item summaries in real-time as the user types. If the user has 50 line items, the hook re-calculates everything on every keystroke |\n| useAttendance.ts | It contains logic to determine if a clock-in is \"Late,\" \"Early,\" or \"Overtime\" based on the employee's shift. It doesn't account for overnight shifts (e.g., clocking in at 10 PM and out at 6 AM) correctly in all edge cases, leading to negative hours or 24-hour errors. The Fix: This logic is already partially in the DB (useAttendanceEngine.ts), but this hook duplicates it for the UI, creating a \"Double Maintenance\" burden. |\n| useAssets.ts | It calculates the \"Current Book Value\" of an asset (like a laptop or car) by applying depreciation formulas (Straight Line or WDV) in the browser. Depreciation is a legal/accounting requirement. Having the formula in JavaScript means if the law changes, you have to update the App, not just the Data.\u00a0 |\n| useStatutoryData.ts | It contains hardcoded thresholds for things like PF salary ceilings (e.g., \u20b915,000) or ESI limits. These limits change every few years via government notification. To update the limits, you have to redeploy the entire frontend code, rather than simply updating a row in a compliance_settings table in the database. |",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Security",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-1"
+    },
+    {
+      "key": "GBC-2",
+      "summary": "RLS Performance & \"Recursive\" Policies",
+      "description": "In 20260325000005_fix_rls_unscoped_admin_policies.sql, many policies use subqueries like:\n\nUSING (is_admin_or_hr_in_org(auth.uid(),\u00a0\n\n\u00a0\u00a0(SELECT p.organization_id FROM public.profiles p WHERE [p.id](http://p.id) = profile_id)))\n\n\u200c\n\n**Issue:** When you query a table with 10,000 rows, the database might execute that subquery 10,000 times to check permissions.\n\n**Risk:** As the data grows (especially in attendance_records or financial_records), page load times will degrade significantly. The system needs \"Denormalized\" organization IDs on every table to avoid these subquery joins during security checks.\n\nSimilar \"Subquery RLS\" patterns are present in Payroll (Records and Adjustments), HRMS (State History, Document Chains), Finance (Vendor Credits, Expense Approvals), Supply Chain (Stock Ledger, Warehouse Bins).",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "RLS",
+        "Multi-tenant",
+        "Performance",
+        "Security",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-2"
+    },
+    {
+      "key": "GBC-3",
+      "summary": "Performance Bottleneck",
+      "description": "While the organization_id column exists in the main tables, it\u2019s not consistently present in every table. In a high-performance ERP system, every single table (even the tiny ones) should have an organization_id column. This allows the database to check security instantly (WHERE org_id = current_org) without ever having to \"Join\" other tables.\n\n\u200c\n\nThere are still several \"Detail\" tables and \"Sub-modules\" that do not have their own organization_id column. Instead, they \"borrow\" it from a parent table.\n\n**Example:** salary_components doesn't have an organization_id. It links to salary_structures, which links to profiles, which finally has the organization_id.\n\n**Why this is an issue:** When the database checks RLS for salary_components, it has to perform a \"Triple Join\" just to verify if you belong to the same organization.\n\n**Result:** As your data grows to thousands of employees, queries to these \"child\" tables become very slow because the database has to do a massive amount of \"security math\" for every single row.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "RLS",
+        "Multi-tenant",
+        "Performance",
+        "Security"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-3"
+    },
+    {
+      "key": "GBC-4",
+      "summary": "Circular Dependency in Soft-Deletes",
+      "description": "The project uses a \"Soft Delete\" pattern (deleted_at column).\n\n**Issue:** Many RLS policies (like in 20260216124600_soft_delete.sql) filter out deleted records. However, some \"Analytics\" hooks ignore this flag.\n\n**Risk:** Your Dashboard might show \"Total Revenue: $1,000\" while your Invoice list only shows \"$800\" because the Dashboard is counting \"deleted\" invoices. There are inconsistencies in how the deleted_at flag is handled across the useAnalytics.ts and useInvoices.ts hooks.\n\n\u200c\n\nSoft-Delete Inconsistencies are present in many hook files. Example, useAnalytics.ts, src/hooks/useDashboardStats.ts, src/hooks/useCashFlow.ts, src/hooks/usePayrollAnalytics.ts, src/hooks/useStatutoryData.ts, src/hooks/useAssets.ts,\u00a0\n\n**Recommended fix:**\u00a0\n\nThe project needs to move away from \"Manual Filtering\" in hooks and use a Database-First approach. So creating a global Database View for \"Active Records\" would be a better option so hooks don't have to manually filter deleted_at.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Low",
+      "tags": [
+        "RLS",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-4"
+    },
+    {
+      "key": "GBC-5",
+      "summary": "There is no centralized \"Global Store\" (like Zustand or Redux) for cross-module state.",
+      "description": "The app uses React Query (TanStack Query) extensively, which is great for caching but there is no centralized \"Global Store\" (like Zustand or Redux) for cross-module state. For example, if you update an Employee's name in the HR module, the Finance module (which might have an invoice for that employee open) may not reflect that change until a hard refresh or a cache invalidation.\u00a0\n\n**Risk:** Users might see \"Stale Data\" when moving quickly between different suites (e.g., updating a salary and then immediately trying to generate a payroll).",
+      "category": "Cross-cutting \u2014 Frontend Architecture",
+      "severity": "Low",
+      "tags": [
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-5"
+    },
+    {
+      "key": "GBC-6",
+      "summary": "Search Path Security Risk",
+      "description": "**Issue:** Not all PostgreSQL functions in the migrations specify a SET search_path.\n\n**Risk:** In a Supabase/Postgres environment, this is a known security vulnerability where a malicious user could create a \"fake\" function in a different schema to hijack a SECURITY DEFINER function. While a patch was added (20260312200000_fix_search_path_mutable.sql), some newer functions created after that date might be missing this protection.\n\n\u200c\n\nThere are 8 functions that are currently vulnerable because they use SECURITY DEFINER but have not pinned their search_path.\n\n1. **WhatsApp & Messaging Module**\n\nThese functions handle external communication and are high-risk because they often deal with sensitive contact information.\n\npublic.enrich_message_content() in 20260319130000_message_enrichment_rpc.sql\n\npublic.send_whatsapp_template() in 20260322100000_whatsapp_templates.sql\n\npublic.sync_whatsapp_delivery_status() in 20260319140000_whatsapp_integration.sql\n\n2. **Workflow Automation Engine**\n\nThis engine is very powerful as it can trigger actions across the whole database.\n\npublic.execute_workflow_step() in 20260319100000_workflow_automation_engine.sql\n\npublic.evaluate_workflow_condition() in 20260319100000_workflow_automation_engine.sql\n\n3. **Aadhaar & Compliance Module**\n\nThese functions handle government-related identity data.\n\npublic.process_aadhaar_esign_callback() in 20260317200000_add_aadhaar_esign.sql\n\n4. **Advanced Inventory**\n\nThese functions handle stock movements across different physical locations.\n\npublic.calculate_fifo_stock_valuation (Found in a late March migration regarding stock ledger)\n\npublic.transfer_stock_between_bins()\u00a0 (Found in a late March migration regarding warehouse management)",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "Security",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-6"
+    },
+    {
+      "key": "GBC-7",
+      "summary": "Storage Bucket Exposure (Security)",
+      "description": "The app stores sensitive files (Invoices, Aadhaar cards, Payslips) in Supabase Storage.\n\n**Issue:** I reviewed restrict_invoice_assets_bucket.sql and the storage policies. While the \"Invoices\" bucket is locked down, the employee_docs and payslip_exports buckets have \"Read\" policies that are too broad.\n\n**Risk:** If an employee discovers the URL format for payslips, they might be able to change the employee_id in the URL and download the payslips of their colleagues or even the CEO.\n\n**Fix:** Use Signed URLs with a short expiration time (e.g., 5 minutes) rather than public URLs.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "Security",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-7"
+    },
+    {
+      "key": "GBC-8",
+      "summary": "The \"Blind\" Audit Trail",
+      "description": "The project has an audit logging system (audit_logs table), but it has a functional flaw.\n\n**Issue:** The current triggers (in audit_logging.sql) often only record that a row was \"Updated.\" They do not always store the \"Before\" and \"After\" values (the OLD vs NEW data) for every sensitive field.\n\n**Risk:** If a Finance Admin changes a Vendor's bank account number, pays them, and then changes it back, your audit log will say \"Bank Account Updated\" twice, but it won't show what the account number was changed to. This makes forensic accounting nearly impossible.\n\n**Fix:** Update the audit triggers to use jsonb_diff to store exactly which fields changed and their old/new values. Captured for Finance, but missing for Profiles/Salary Master.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-8"
+    },
+    {
+      "key": "GBC-9",
+      "summary": "Timezone \"Shift\" in Attendance (Data Integrity)",
+      "description": "This issue is a \"Ghost Bug\" that is currently affecting almost every time-sensitive module in the application. The core problem is that the app assumes the \"User's Browser Time\" is the \"Office Time.\"\u00a0\n\nHere are the specific locations where this issue will cause data corruption:\n\n1. useAttendance.ts (Attendance & Late Marks)\n2. useLeaves.ts (Leave Application)\n3. usePayrollEngine.ts (Monthly Cut-offs)\n4. useInvoices.ts (Due Date & Aging Reports)\n5. Database Triggers (audit_logging.sql & state_machine.sql)\n\n\u200c\n\n**Issue:** The database uses timestamps with time zones, but the frontend uses the user's local browser time to calculate \"Late Marks.\"\n\n**Risk:** If an employee is working remotely from a different timezone (e.g., Dubai) but the office is in Mumbai (IST), their clock-in will be marked \"Late\" or \"Early\" based on their browser's clock, not the Office clock.\n\n**Fix:** The application must force a \"Tenant Timezone\" (e.g., Asia/Kolkata). All calculations must happen in that fixed timezone, regardless of where the user is physically located.\n\nThere is no timezone column in the database. Because the database doesn't even know what timezone the company belongs to, it is currently impossible to fix this issue with code alone. First we need to do migration to add a timezone setting to the Organization.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Low",
+      "tags": [
+        "Multi-tenant",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-9"
+    },
+    {
+      "key": "GBC-10",
+      "summary": "Lack of concurrency control",
+      "description": "**Issue:** In the Finance and Procurement modules, HR & Profiles (profiles table), Supply Chain (purchase_orders, inventory_items), Payroll Master (salary_structures), Financial Ledger (financial_records) there is no Optimistic Locking.\n\n**Risk**: If two Accountants open the same Invoice at the same time:\n\nAccountant A changes the Description.\n\nAccountant B changes the Amount.\n\nAccountant B clicks \"Save.\"\n\nAccountant A clicks \"Save\" one second later.\n\n**Result:** Accountant B's change (the Amount) is deleted and replaced by Accountant A's old data. In an ERP, this leads to financial errors that are very hard to track.\n\n**Fix:** Add a version column to every main table. When saving, check WHERE id = X AND version = current_version. If the version has changed, tell the user: \"This record was modified by someone else. Please refresh.\"",
+      "category": "Cross-cutting \u2014 Performance & Reliability",
+      "severity": "Medium",
+      "tags": [
+        "Data Integrity"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-10"
+    },
+    {
+      "key": "GBC-11",
+      "summary": "The \"State Synchronization\" Lag",
+      "description": "**Issue:** The app uses React Query for data, but it doesn't use Supabase Realtime for critical states like \"Payroll Processing.\"\n\n**Risk:** When an Admin clicks \"Generate Payroll,\" the process runs in the background for 30 seconds. Because the UI doesn't have a \"Live Feed,\" the Admin might think it's stuck and click the button 5 more times.\n\n\u200c\n\nWhen an Admin doesn't see progress, their natural instinct is to click the button again.\n\n**Double-Processing:** If the Admin clicks \"Generate Payroll\" three times, the database might start three separate payroll runs at the same time.\n\n**Database Gridlock:** These three runs will fight each other for the same data, slowing the database down even more (a \"Deadlock\").\n\n**Data Corruption:** If the database doesn't have perfect \"Locking\" (see Issue #11), you could end up with duplicate salary records or half-calculated payslips.\n\n\u200c\n\nThis \"Lag\" isn't just in Payroll. It\u2019s in Bulk Uploads, Manufacturing Work Orders & Year-End Closing (When the accountant closes the financial year, this can take over a minute).\n\n\u200c\n\n**Fix:** Implement supabase.channel() to listen for \"Payroll Finished\" events so the UI updates instantly without the user needing to refresh the page.",
+      "category": "Cross-cutting \u2014 Performance & Reliability",
+      "severity": "Low",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-11"
+    },
+    {
+      "key": "GBC-12",
+      "summary": "Client-Side PDF Generation (Stability)",
+      "description": "**Issue:** STE usePdfExport.ts file generates PDFs (like Payslips or Invoices) directly in the user's browser using a library like jsPDF. This is built on jsPDF, it is physically limited by the user's computer memory.\n\n**Risk:** The \"Tab Crash.\" If an accountant tries to export a \"General Ledger\" report for the whole year (which could be 200+ pages), the browser's memory will spike, and the tab will likely crash or freeze the user's computer.\n\n**Fix:** Heavy reports should be generated on the Server (using Supabase Edge Functions) and then sent to the user as a completed download link.",
+      "category": "Cross-cutting \u2014 Performance & Reliability",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "PDF/Export"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-12"
+    },
+    {
+      "key": "GBC-13",
+      "summary": "While we have audit logs for \"Editing\" data, there is zero logging for \"Exporting\" data.",
+      "description": "**Risk:** Data Theft.\u00a0\n\n**Fix:** Add a trigger or a hook that records every time a useDataExport or usePdfExport action is completed, including who exported it and how many rows were in the file.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-13"
+    },
+    {
+      "key": "GBC-14",
+      "summary": "The \"ILike\" Search Bottleneck (Scalability)",
+      "description": "**Issue:** The search functionality in your hooks (e.g., useInvoices.ts) uses the .ilike() filter (e.g., WHERE name ILIKE '%search_term%'). In PostgreSQL, ILIKE with a percentage at the start (%) cannot use standard indexes.\n\n\u200c\n\nThe app takes the user's search text and wraps it in percent signs (%), which forces the database to perform a \"Full Table Scan.\" Instance of the .ilike() filter is present in 12 files: useInvoices.ts, useBills.ts, usePayments.ts, usePayments.ts, useJournalEntry.ts, useEmployees.ts, useAttendance.ts, useLeaves.ts, useInventory.ts, usePurchaseOrders.ts, usePurchaseOrders.ts, useSalesOrders.ts, useAuditLogs.ts, useMemos.ts.\n\n\u200c\n\n**Risk:** When your company reaches 5,000 invoices or 2,000 employees, every time a user types a single letter in the search box, the database has to scan every single row from top to bottom. The search will go from \"Instant\" to taking 3\u20135 seconds per letter typed.\n\n**Fix:** Implement Full-Text Search (FTS) using GIN indexes in PostgreSQL, which is designed for lightning-fast searching across millions of rows.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Medium",
+      "tags": [
+        "Performance",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-14"
+    },
+    {
+      "key": "GBC-15",
+      "summary": "Public Exposure of Financial Assets (Security/Privacy)",
+      "description": "The invoice-assets storage bucket is configured with public: true. (in\u00a0 supabase/migrations/20260220063856_a46b1b86-17e2-4303-a1b8-9b1e85a64fcc.sql)\n\n**Risk:** Any invoice generated in the system (containing names, addresses, and tax IDs) is publicly accessible via its URL. This is a major data breach risk for an ERP.\n\n**Recommended Fix:** Set the bucket to public: false in the migration. Update useInvoices.ts to use supabase.storage.from('invoice-assets').createSignedUrl(path, 3600) to generate time-limited access links for authorized users only.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "Security",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-15"
+    },
+    {
+      "key": "GBC-16",
+      "summary": "Client-Side Audit Log Generation (Integrity)",
+      "description": "The useWriteAuditLog.ts hook allows the browser to write directly to the audit_logs table.\n\n**Risk:** A malicious user can open DevTools and delete their own audit trail or spoof logs for other users (e.g., \"Admin approved my leave\"). Audit logs must be generated server-side to be legally defensible.\n\n**Recommended Fix:** Remove the useWriteAuditLog hook. Implement PostgreSQL Triggers (e.g., AFTER INSERT OR UPDATE ON invoices) that automatically write to the audit_logs table. This ensures the log is written even if the user bypasses your UI.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-16"
+    },
+    {
+      "key": "GBC-17",
+      "summary": "Cross-Tenant Storage Leakage (Multi-Tenancy Breach)",
+      "description": "Filename: supabase/migrations/20260218114058_9b00bb84-a1a8-4431-80ae-c00a648e18e4.sql\n\n**Issue:** The RLS policy for memo-attachments allows any authenticated user to SELECT (view) any file.\n\n**Risk:** An employee in \"Company A\" can view the \"Termination Memo\" or \"Confidential Strategy\" of an employee in \"Company B\" simply by guessing the file path.\n\n**Recommended Fix:** Prefix every file path in storage with the organization_id (e.g., /{org_uuid}/{user_id}/memo.pdf). Update the RLS policy to check if the first part of the file name matches the user's organization_id in their profile.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "High",
+      "tags": [
+        "RLS",
+        "Multi-tenant",
+        "Security",
+        "Database",
+        "PDF/Export"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-17"
+    },
+    {
+      "key": "GBC-18",
+      "summary": "Insecure Governance Tools (Client-Side Guards)",
+      "description": "Filename: src/config/systemFlags.ts\n\n**Issue:** Administrative features like \"Role Impersonation\" and \"Permission Matrix Editing\" are enabled if !isProduction is true.\n\n**Risk:** If a staging build or a local developer build is accidentally made public, anyone can impersonate an Admin. This check is purely in the browser and can be bypassed by a smart user.\n\n**Recommended Fix:** These tools should be guarded by the database. The API or RPC that performs the impersonation must verify that the user has a specific \"SuperAdmin\" role in the user_roles table, regardless of what the frontend flag says.",
+      "category": "Cross-cutting \u2014 Security & Multi-tenancy",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-18"
+    },
+    {
+      "key": "GBC-19",
+      "summary": "Excessive Use of any (TypeScript Risk) ",
+      "description": "I ran npm run lint, and the project currently has 2,253 TypeScript errors, almost entirely due to @typescript-eslint/no-explicit-any.\n\n**Risk:** Bypassing TypeScript with any defeats the purpose of using a typed language. It leaves the app vulnerable to runtime crashes (e.g., trying to access properties on undefined objects) because the compiler can't warn you if data shapes change.\n\n**Fix:** We should gradually replace any with proper interfaces, especially for the Supabase data models and component props.",
+      "category": "Cross-cutting \u2014 Code Quality",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-19"
+    },
+    {
+      "key": "GBC-20",
+      "summary": "Code Duplication",
+      "description": "Looking at Settings.tsx and the UI components, there are quite a few repeating patterns:\n\n* **Form Boilerplate:** Repeated layouts for Labels, Descriptions, and Inputs with identical Tailwind class structures (space-y-1.5, grid-cols-2, etc.).\n* **State Management Duplication:** Multiple useState hooks for local form states with very similar useEffect synchronization blocks.\n\n**Fix:** We could introduce a proper form library setup (like react-hook-form + zod, which is already in package.json!) to handle state, validation, and layout automatically. This would eliminate hundreds of lines of boilerplate state-handling code.",
+      "category": "Cross-cutting \u2014 Code Quality",
+      "severity": "Medium",
+      "tags": [
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-20"
+    },
+    {
+      "key": "GBC-21",
+      "summary": "Massive Monolithic Files (High Priority)",
+      "description": "Some of the page components have grown extremely large, which makes them hard to maintain, test, and prone to merge conflicts.\n\n* **src/pages/Settings.tsx:** This file is over 1,800 lines long (78 KB). It contains multiple sub-components stuffed into one file (e.g., OrganizationInfoSection, BrandingSection, PayrollConfigSection, GoalCycleSection, etc.).\n* **src/pages/Profile.tsx:** Also very large (\\~44 KB).\n\n**Risk:** If multiple developers work on Settings, they will constantly run into merge conflicts. It also makes the code harder to read.\n\n**Fix:** We can drastically reduce the code length of Settings.tsx by extracting all those local section functions into separate files inside a new folder like src/components/settings/ and just importing them into the main page.",
+      "category": "Cross-cutting \u2014 Code Quality",
+      "severity": "High",
+      "tags": [],
+      "url": "https://grx10.atlassian.net/browse/GBC-21"
+    },
+    {
+      "key": "GBC-22",
+      "summary": "Direct Supabase Calls inside Components",
+      "description": "There are useEffect blocks making direct calls to supabase.from(...) inside components (like BrandingSection).\n\n**Risk:** Mixing UI logic with database fetching makes components hard to test and can lead to race conditions or duplicate fetching if not handled correctly.\n\n**Fix:** The project uses @tanstack/react-query heavily elsewhere. We should ensure all data fetching is abstracted into custom hooks (e.g., useBranding()) rather than writing useEffect blocks everywhere.",
+      "category": "Cross-cutting \u2014 Code Quality",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-22"
+    },
+    {
+      "key": "GBC-23",
+      "summary": "Some Rogue HTML Buttons (Code Duplication)",
+      "description": "While searching through the code, I also found around 45+ instances where we did not use the reusable <Button> component and instead wrote out raw HTML <button> tags with massive, duplicated styling classes.",
+      "category": "Cross-cutting \u2014 Code Quality",
+      "severity": "Medium",
+      "tags": [
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-23"
+    },
+    {
+      "key": "GBC-24",
+      "summary": "Consumption screen issue in manufacturing module",
+      "description": "**How data comes into this screen -** Data is generated automatically behind the scenes. In src/hooks/useManufacturing.ts, there are two functions (useUpdateWOStatus and useRecordProduction). Whenever a user marks a Work Order as \"completed\" or records production quantities, the app looks up the Bill of Materials (BOM) linked to that Work Order, calculates how much material should have been used (plus wastage), and automatically inserts rows into the material_consumption database table.\n\n**The Issue / Risk (Why it's not working correctly)** - The data is successfully saved in the database, but the UI in MaterialConsumption.tsx is poorly designed. Currently, the screen fetches all consumption records but fails to join the Work Order data.\n\n**How we can fix it -** We need to update the database query to join the work_orders table so we can grab the Work Order Number and Product Name, and then add those as columns to the table.\n\nHere is the exact code fix for src/pages/manufacturing/MaterialConsumption.tsx:\n\nStep 1: Update the Interface Add the work_orders object to the interface so TypeScript knows about it:\n\nStep 2: Update the Fetch Query Change line 29 where it fetches from Supabase. Change select(\"\\*\") to select(\"\\*, work_orders(wo_number, product_name)\"):",
+      "category": "Screen Review \u2014 Manufacturing",
+      "severity": "Low",
+      "tags": [
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-24"
+    },
+    {
+      "key": "GBC-25",
+      "summary": "Flows testing - issue related to multi-tenant (security)",
+      "description": "There are exactly 10 failing tests and 1 UI issue we need to fix:\n\n* **Cross-Tenant Data Bleed (Security/Caching Issue):**\n\n**The Issue:** In multi-tenant systems, if a user switches from \"Organization A\" to \"Organization B\", the app should instantly clear the screen. Several of your data-fetching hooks (like useItems and useRoles) are forgetting to include the orgId in their cache key.\n\n **The Risk:** A user might temporarily see \"Organization A\" items while logged into \"Organization B\" until they hard-refresh the page.\n\n* **WhatsApp Integration Bug:**\n\n**The Issue:** There is a minor SQL bug where invoice numbers containing a % symbol (like INV%2026) are not being escaped properly when searching for them via the WhatsApp bot integration.\n\n* **The Material Consumption UI:**\n\n**The Issue:** As we discussed earlier, the UI is fetching the data correctly but failing to display the Work Order Number, making the screen confusing for users.",
+      "category": "Cross-cutting \u2014 Multi-tenancy & Security",
+      "severity": "High",
+      "tags": [
+        "Multi-tenant",
+        "Security",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-25"
+    },
+    {
+      "key": "GBC-26",
+      "summary": "Database related issues in code- Flaw A: Bypassing Type Safety (as any)",
+      "description": "Found over 230 instances where the code does this: for example -  supabase.from(\"sales_orders\" as any)\n\n**The Risk:** By forcing as any, the developers blinded TypeScript. If we rename a database column from qty to quantity, the compiler won't warn us, and the app will crash in production.\n\n**The Fix:** We need to generate a strict types.ts file using the Supabase CLI, attach it to the Supabase client, and remove all 230 as any bypasses so the compiler can protect your code.",
+      "category": "Cross-cutting \u2014 Database Code Patterns",
+      "severity": "High",
+      "tags": [
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-26"
+    },
+    {
+      "key": "GBC-27",
+      "summary": "Database related issues in code- Flaw B: Massive Over-fetching (.select(\"*\"))",
+      "description": "I found over 118 instances where the code does this:  .select(\"\\*\")\n\n**The Risk:** For eg - When we load the \"Sales Orders\" table, .select(\"\\*\") pulls down every single column for every row (including massive text notes, foreign keys, and metadata) even if the UI only displays the ID, Status, and Date. This wastes bandwidth, slows down the app\n\n**The Fix:** We need to modify these queries to explicitly request only what the UI needs: e.g., .select(\"id, order_number, status, total_amount\").",
+      "category": "Cross-cutting \u2014 Database Code Patterns",
+      "severity": "Low",
+      "tags": [],
+      "url": "https://grx10.atlassian.net/browse/GBC-27"
+    },
+    {
+      "key": "GBC-28",
+      "summary": "Database related issues in code- Flaw C: Cache Bleeding (Tenant Security)",
+      "description": "As we discovered in the automated tests, some React Query hooks forget to include the Organization ID in their cache.\n\n**The Risk:**  example - queryKey: \\[\"sales_orders\"\\] instead of queryKey: \\[\"sales_orders\", orgId\\]. If someone switches from Company A to Company B, the cache might accidentally show Company A's orders for a few seconds.\n\n**The Fix:** We need to audit the queryKey arrays in the hooks and ensure orgId is passed into every single one.",
+      "category": "Cross-cutting \u2014 Database Code Patterns",
+      "severity": "High",
+      "tags": [
+        "Multi-tenant",
+        "Security",
+        "Data Integrity",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-28"
+    },
+    {
+      "key": "GBC-29",
+      "summary": "Screen wise code review - Main Dashboard",
+      "description": "1. **UI Glitches: The \"Zero Flash\" Issue**\n\n**The Issue:** When a user first logs in, the \"Business Modules\" section (Financial Suite, HRMS, Performance OS) at the bottom of the dashboard briefly flashes \u20b90, 0 Employees, and 0% Progress before the data actually loads.\n\n**Why it happens:** The top half of your dashboard uses a loading state (statsLoading ? <Skeleton/> : <StatCards/>) to hide the data while it fetches. However, the developer forgot to wrap the bottom ModuleCardEnhanced components in the same loading state.\n\n**The Change Needed:** We need to add conditional rendering to the ModuleCards to show shimmering skeleton loaders instead of 0 while statsLoading is true.\n\n\u200c\n\n2. **Missing Loading States in Hooks**\n\n**The Issue:** The useEmployeeStats() hook in src/hooks/useEmployees.ts is incorrectly designed. It currently returns raw numbers like this: return { total: 10, active: 8 }. Because it doesn't return an isLoading boolean, the dashboard has no way of knowing if the data is still fetching over the network or if the company actually has 0 employees.\n\n**The Change Needed:** Refactor useEmployeeStats to return { data: stats, isLoading, isError } just like your other hooks, so the UI can gracefully handle network latency.\n\n\u200c\n\n3. **Data Over-fetching (.select(\"\\*\"))**\n\n**The Issue:** To calculate the number of active employees on the dashboard, the app secretly runs useEmployees() in the background. This hook uses .select(\"\\*\") on the profiles table and pulls down every single piece of data (Names, Emails, Phone Numbers, Addresses, Bank Accounts, Aadhar Numbers) for up to 500 employees, just to count how many there are.\n\n**The Change Needed:** We need to create a dedicated, lightweight hook for the dashboard (e.g., useEmployeeCounts()) that only selects id and status (specific columns). This will drastically reduce bandwidth and speed up the dashboard load time.\n\n\u200c\n\n4. **Flawed Date Range Logic**\n\n**The Issue:** The dashboard has a Date Filter at the top, allowing the user to select custom ranges. However, if you look at useDashboardStats(), it hardcodes the revenue calculation to this exact calendar month, completely ignoring the user's Date Picker selection.\n\n**Why it happens:** The useDashboardStats hook doesn't accept dateRange as a parameter. It forces startOfMonth and endOfMonth using date-fns inside the query.\n\n**The Change Needed:** Pass the dateRange state from Dashboard.tsx directly into the useDashboardStats(dateRange) hook so the Top Metrics dynamically update when the user changes the calendar filter.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Medium",
+      "tags": [
+        "Performance",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-29"
+    },
+    {
+      "key": "GBC-30",
+      "summary": "Financial Suite --> Accounting screen ",
+      "description": "",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Low",
+      "tags": [],
+      "url": "https://grx10.atlassian.net/browse/GBC-30"
+    },
+    {
+      "key": "GBC-31",
+      "summary": "Financial Suite --> Journal Entry screen",
+      "description": "While the backend logic for posting journals (using .rpc('post_journal_entry')) is excellent and highly secure, the frontend implementation suffers from a critical data-loss bug due to how it fetches data.\n\n1. **The \"Invisible Data\" Bug (Hardcoded Limit vs. Client Search)**\n\n**The Issue:** If we look at useJournalEntries() in src/hooks/useLedger.ts, you will see it fetches data like this: .limit(200). However, the search bar in JournalEntry.tsx only searches the records currently downloaded to the browser.\n\n**Why this is bad:** If a company has 500 journal entries, the app only downloads the newest 200. If the accountant types \"INV-001\" into the search bar, and that journal entry was the 201st entry created, the system will say \"No journal entries found\", even though it perfectly exists in the database.\n\n**The Change Needed:** The search bar must stop filtering locally. The searchQuery state needs to be passed into the useJournalEntries hook so Supabase can run an .ilike() text search across the entire database, not just the top 200 rows.\n\n\u200c\n\n2. **Broken KPI Cards**\n\n**The Issue:** At the top of the Journal Entry screen, there are four summary cards (Total Entries, Posted, Locked, Reversed). The UI calculates these numbers by counting the array: entries.length.\n\n**Why this is bad:** Because of the .limit(200) issue mentioned above, these KPI cards will mathematically cap out at 200. If your company has 10,000 journal entries, your dashboard will incorrectly state you only have 200 Total Entries.\n\n**The Change Needed:** We need to write a dedicated hook (e.g., useJournalEntryCounts()) that calls a lightweight database RPC to get the true, exact counts from the database, bypassing the 200-row limit entirely.\n\n\u200c\n\n3. **Server-Side Pagination**\n\n**The Issue:** Just like the Accounting screen, the pagination (usePagination) is fake. It downloads 200 rows and just hides 185 of them using JavaScript.\n\n**The Change Needed:** Implement true server-side pagination where the React component tells Supabase \"Give me page 2 (rows 15 through 30)\".",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-31"
+    },
+    {
+      "key": "GBC-32",
+      "summary": "Financial Suite \u2192 Ledger Explorer screen",
+      "description": "This screen contains the most critical mathematical flaw in the entire application. The bugs here will cause a company to fail an accounting audit.\n\n1. **Mathematically Invalid Running Balances**\n\n**The Issue:** When we click into a specific GL Account (e.g., Cash or Accounts Receivable), the app calculates the runningBalance using a JavaScript .reduce() loop over the downloaded entries array.\n\n**Why this is bad:** As we discovered on the Journal Entry screen, the useJournalEntries hook has a hard limit of 200 rows. If your \"Cash\" account has 500 transactions historically, the Ledger Explorer only sees the newest 200. Because it doesn't see the older 300 transactions, it starts the running balance from 0 at the 200th transaction. The final balance shown on the screen will be completely wrong and disconnected from reality.\n\n**The Change Needed:** The running balance must be calculated by the Postgres database using a SQL window function (e.g., SUM(amount) OVER (ORDER BY date)).\n\n\u200c\n\n2. **Reinventing the Wheel (Client-Side Aggregation)**\n\n**The Issue:** To show the \"All Accounts Summary\" table (which acts as a Trial Balance), the UI loops through every GL Account and every single journal line in memory to calculate totalDebit, totalCredit, and balance.\n\n**Why this is bad:** Not only is this extremely slow in the browser, but I noticed a clue in useLedger.ts file. In the onSuccess handlers of your mutations, the code invalidates query keys like \\[\"rpc-trial-balance\"\\] and \\[\"rpc-gl-balances\"\\]. This means your backend developer already wrote highly optimized, secure Postgres RPC functions to calculate these balances accurately, but the frontend developer ignored them and wrote a slow JavaScript loop instead!\n\n**The Change Needed:** Delete the accountSummaries logic in the UI. Create a new hook useGLBalances() that calls the existing rpc-gl-balances database function to get the true mathematical balances instantly.\n\n\u200c\n\n3. **Fake Pagination (Again)**\n\n**The Issue:** The <TablePagination> components on this screen are using the exact same local usePagination hook we saw previously.\n\n**Why this is bad:** It only paginates the data that was already mathematically ruined by the 200-row limit in Issue #1.\n\n**The Change Needed:** Similar to previous screens, pagination must be handed over to Supabase.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Low",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-32"
+    },
+    {
+      "key": "GBC-33",
+      "summary": "Financial Suite \u2192 Customers screen",
+      "description": "While this screen also suffers from the same massive data-fetching issues as the rest of the app, there is a critical bug in the form validation that will prevent your users from doing business internationally.\n\n1. **International Tax Number Bug**\n\n**The Issue:** When you click \"Save Changes\" or \"Add Customer\", the handleSubmit function runs this hardcoded check.\n\n**Why this is bad:** This code forces every single customer in the world to have exactly 15 alphanumeric characters (the standard for an Indian GSTIN). If your user tries to add a customer from the United States with a standard 9-digit EIN (e.g. 12-3456789), the form will reject it and throw an error. The app imported a dynamic validateTaxNumber(form.country) helper on the very next line, but the hardcoded 15-character block ruins it.\n\n**The Change Needed:** Remove the hardcoded /^\\[A-Za-z0-9\\]{15}$/ regex block. The validation should rely entirely on validateTaxNumber(tax_number, country) so it dynamically adapts to US, UK, Indian, and European tax ID formats.\n\n\u200c\n\n2. **The \"Million Row Crash\" Issue (Unpaginated Fetch)**\n\n**The Issue:** Unlike useJournalEntries which was capped at 200, the useQuery inside Customers.tsx has no limit at all.\n\n**Why this is bad:** If a business has 10,000 customers, this single hook will attempt to download all 10,000 rows (including all text notes, emails, addresses, and phone numbers) to the browser simultaneously. This is a guaranteed browser crash for medium-sized enterprises.\n\n**The Change Needed:** Implement server-side pagination using .range(from, to).\n\n\u200c\n\n3. **Client-Side Dashboard Math**\n\n**The Issue:** Just like previous screens, the four KPI cards at the top (Total Customers, Active, Inactive, Countries) loop through the giant customers array in the browser to calculate stats.\n\n**Why this is bad:** You are forcing the user's laptop to loop through thousands of strings and build a JavaScript Set just to find out how many countries they sell to.\n\n**The Change Needed:** Create a Postgres Database View or RPC function that returns count(distinct country) instantly, and call it via a new hook (e.g., useCustomerStats()).\n\n\u200c\n\n4. **Non-Atomic Cascade Updates**\n\n**The Issue:** When you update a customer's Tax ID, the updateMutation runs a secondary query to update all their Draft Invoices with the new GSTIN.\n\n**Why this is bad:** If the first query (updating the customer) succeeds, but the user's internet drops before the second query (updating the invoices) finishes, the database is now mathematically out-of-sync.\n\n**The Change Needed:** This should either be handled by a Database Trigger in Postgres (so it happens automatically on the backend) or wrapped in a single .rpc() call to guarantee an atomic transaction.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-33"
+    },
+    {
+      "key": "GBC-34",
+      "summary": "Financial Suite --> Banking screen",
+      "description": "Just like the Accounting and Journal Entry screens, the Banking screen suffers from severe data-fetching flaws, but it also introduces a new issue: Broken Sorting.\n\n1. **The \"Invisible Data\" Bug (Hardcoded Limit of 20)**\n\n**The Issue:** If you look at useBankTransactions() in src/hooks/useBanking.ts, you will see it fetches data with a strict .limit(limit) parameter, which defaults to 20.\n\n**Why this is bad:** If your bank account has 500 transactions, the React app only downloads the newest 20. If you type a specific reference number into the search bar, the UI filters through those 20 rows locally using JavaScript. If the transaction you are looking for is the 21st transaction, the search will fail.\n\n**The Change Needed:** Pass the searchQuery, typeFilter, dateFrom, and dateTo states directly into the useBankTransactions hook so the filtering happens on the Postgres Database, not in the browser.\n\n\u200c\n\n2. **Broken Column Sorting**\n\nThe Issue: The transaction table allows you to click column headers (Date, Category, Amount) to sort the data. This sorting is done locally on the client using JavaScript's .sort() method.\n\n**Why this is bad:** Because of Issue #1, you only have the 20 newest transactions in memory. If you click the \"Amount\" column to sort by highest value, it will only show you the largest transaction out of the last 20 days. It completely ignores the rest of your company's banking history.\n\n**The Change Needed:** The sort state (sortField and sortDir) must be sent to the database. The useBankTransactions hook needs to append .order(sortField, { ascending: sortDir === 'asc' }) to the Supabase query.\n\n\u200c\n\n3. **Server-Side Pagination**\n\n**The Issue:** The pagination component at the bottom of the table (<TablePagination>) is completely disconnected from the database. It thinks there are only 20 total items in existence and chops them up into two pages of 10.\n\n**The Change Needed:** We must implement a .range() query in Supabase. The database needs to return count: exact so the pagination UI knows exactly how many pages exist in total.\n\n\u200c\n\n4. **Bulk Upload Type Safety**\n\n**The Issue:** Inside Banking.tsx, there is a bulk CSV upload feature for adding bank accounts. During the database insert, the code uses as any:\n\nawait supabase.from(\"bank_accounts\").insert({ ... } as any);\n\n**Why this is bad:** CSV uploads are notoriously error-prone. Bypassing TypeScript here means if a column name changes slightly in the database, the CSV upload will break silently without throwing a compile error for the developer.\n\n**The Change Needed:** Remove as any and rely on strict TypeScript interfaces for the insert payload.\n\nIt is very clear that the entire Financial Suite suffers from a systemic architectural flaw: Relying on Client-Side Data Manipulation instead of Server-Side Queries.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Database",
+        "TypeScript",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-34"
+    },
+    {
+      "key": "GBC-35",
+      "summary": "Financial Suite --> Vendors screen",
+      "description": "This screen was clearly copy-pasted from the Customers.tsx file, meaning it inherited the exact same critical bugs, plus a new catastrophic one regarding data deletion.\n\n1. **Dangerous Deletion (Missing Referential Guards)**\n\n**The Issue:** In the deleteMutation function, the code directly runs .delete().eq(\"id\", id) on the vendors table.\n\n**Why this is bad:** In the Customers.tsx file, we wrote a safety check to block deleting a customer if they had Invoices or Quotes attached. We completely forgot to add this safety check for Vendors. If an admin deletes a Vendor, one of two things will happen depending on how the database is configured. It throws a messy \"Foreign Key Constraint\" error to the user. **(Catastrophic):** It silently performs a CASCADE DELETE, wiping out every Bill, Expense, and Payment associated with that vendor from your financial history.\n\n**The Change Needed:** The deleteMutation must be updated to check the bills, expenses, and vendor_payments tables first. If any records exist, it must block the deletion and tell the user to use the \"Mark Inactive\" toggle instead.\n\n\u200c\n\n2. **The Same International Tax Bug**\n\n**The Issue:** Because the form logic was copy-pasted, Vendors suffer from the exact same strict GSTIN validation bug as Customers.\n\n**Why this is bad:** You cannot add international suppliers. An American supplier with a 9-digit EIN or a European supplier with a VAT number will be blocked by the form.\n\n**The Change Needed:** Remove the 15-character hardcoded limit and rely on the dynamic validateTaxNumber(tax_number, country) function.\n\n\u200c\n\n3. **The \"Million Row Crash\" Issue**\n\n**The Issue:** Just like Customers, the data-fetching hook runs .select(\"\\*\") with no limit.\n\n**Why this is bad:** Fetching every single vendor and all their metadata in one network request will crash the browser for companies with massive supplier networks.\n\n**The Change Needed:** Implement standard server-side .range() pagination.\n\n\u200c\n\n4. **Client-Side Dashboard Math**\n\n**The Issue:** The four KPI cards at the top loop through the local vendors array to calculate active/inactive counts and unique countries.\n\n**The Change Needed:** Create a lightweight useVendorStats() hook that calls an RPC function to offload this math to Postgres.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-35"
+    },
+    {
+      "key": "GBC-36",
+      "summary": "Financial Suite --> Quotes screen",
+      "description": "This screen introduces a very dangerous workflow bug regarding how Quotes are converted to Invoices, along with the same systemic data-fetching issues.\n\n1. **Non-Atomic Conversions (The \"Orphaned Invoice\" Bug)**\n\n**The Issue:** When you click \"Convert to Invoice\", the convertToInvoice mutation runs three separate database calls from the browser:\n\n* Create the Invoice.\n* Create the Invoice Line Items.\n* Update the Quote status to \"converted\".\n\n**Why this is bad:** If the user's internet drops, or they close the browser tab after step 1 but before step 3, the database is now mathematically corrupted. You will have created an \"Orphaned Invoice\" that the company expects payment for, but the original Quote will still say \"Accepted\" and can be accidentally converted again by another employee later, duplicating the invoice.\n\n**The Change Needed:** Never do multi-step financial mutations from the client side. We must create a Postgres .rpc('convert_quote_to_invoice', { quote_id }) function so the entire 3-step process happens instantly and atomically on the server. If one step fails, the database automatically rolls back the transaction.\n\n\u200c\n\n2. **The \"Million Row Crash\" Issue (Unpaginated Join)**\n\n**The Issue:** The data-fetching hook for this screen is actually the heaviest one we've seen so far.\n\nconst { data } = await supabase.from(\"quotes\").select(\"\\*, quote_items(\\*)\")\n\n**Why this is bad:** Not only does this fetch every single quote in the company's history with no limit, but it also forces the database to perform a JOIN and fetch every single line item for every single quote simultaneously. This will eventually cause a massive memory spike and crash the user's browser tab.\n\n**The Change Needed:** Implement standard server-side .range() pagination, and consider lazy-loading the quote_items only when a user clicks \"View Quote\".\n\n\u200c\n\n3. **Type Safety Bypass on Inserts**\n\n**The Issue:** Both the createMutation and the updateMutation use as any when inserting quote items:\n\nawait supabase.from(\"quote_items\").insert(\\[...mappedItems\\] as any)\n\n**Why this is bad:** If the database schema changes (e.g., a column is renamed from igst_amount to igst), the compiler won't warn you, and the app will crash in production when users try to save a quote.\n\n**The Change Needed:** Remove as any and strictly type the Supabase insert payload.\n\n\u200c\n\n4. **Client-Side Dashboard Math**\n\n**The Issue:** The KPI cards at the top loop through the giant quotes array in the browser to calculate the number of \"Accepted\", \"Converted\", and \"Draft\" quotes.\n\n**The Change Needed:** Create a lightweight useQuoteStats() hook that calls an RPC function to offload this math to Postgres.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Security",
+        "Frontend",
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-36"
+    },
+    {
+      "key": "GBC-37",
+      "summary": "Financial Suite --> Expenses screen",
+      "description": "This screen follows the same problematic patterns as the others but adds a significant Financial Integrity Risk due to how it syncs data with your Accounting module.\n\n1. **The \"Out of Sync\" Ledger Risk**\n\n**The Issue:** When we click \"Mark as Paid\", the app runs four separate database updates one after another from your browser:\n\n* Update Expense status to \"Paid\".\n* Fetch the expense details back from the server.\n* Insert a row into financial_records (so it shows in Accounting).\n* Create a bank transaction record.\n\n**Why this is bad:** If the user's internet drops out between Step 1 and Step 3, the expense will be marked as \"Paid,\" but it will never show up in your Accounting Ledger. This creates a \"black hole\" in financial reporting that is nearly impossible for an accountant to find later.\n\n**The Change Needed:** All four steps must be moved into a single Postgres Transaction (using a Database Trigger or an .rpc() function). This ensures that either all records are created or none of them are, maintaining 100% data integrity.\n\n\u200c\n\n2. **Hardcoded 500-Record Limit**\n\n**The Issue:** The useQuery hook for expenses is hardcoded to .limit(500).\n\n**Why this is bad:** Like the Banking and Journal Entry screens, this creates Invisible Data. Once an organization submits its 501st expense, the oldest expense disappears from the UI. You cannot search for it, and it won't be included in the total calculations at the top of the screen.\n\n**The Change Needed:** Switch to server-side pagination so the user can scroll through 100% of their historical data.\n\n\u200c\n\n3. **Incorrect KPI Totals**\n\n**The Issue**: The Stat Cards at the top (Total Approved, Pending, Paid) are calculated using a JavaScript .reduce() on the downloaded 500 records.\n\n**Why this is bad:** If the company has $1,000,000 in expenses but only the latest $100,000 are in the \"top 500\" list, the dashboard will incorrectly report only $100,000. This makes the \"Financial Suite\" unusable for management-level decision-making.\n\n**The Change Needed:** Use a backend RPC to calculate the true totals across the entire database.\n\n\u200c\n\n4. **Hardcoded UI Logic**\n\n**The Issue:** There are several places in the code where logic is hardcoded to true, such as:\n\nconst pageTitle = true ? \"Expenses\" : \"My Expenses\";\n\n**Why this is bad:** This suggests the file was partially refactored or copy-pasted and never finished. It effectively ignores whether a user should be seeing their own expenses or the entire organization's expenses.\n\n**The Change Needed:** Replace these hardcoded true flags with actual role-based logic (e.g., userRole === 'admin')",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-37"
+    },
+    {
+      "key": "GBC-38",
+      "summary": "Financial Suite --> Bills screen",
+      "description": "This is the most feature-rich screen in the module (featuring AI scanning and TDS/GST calculation), but it also contains the most complex technical debt. At 1,400 lines of code, it is a \"God Component\" that manages too much logic in the browser.\n\n1. **The \"Invisible Bill\" Problem**\n\n**The Issue:** The useQuery for bills is hardcoded to .limit(500).\n\n**Why this is bad:** As with the previous screens, this is a scalability wall. Once a company hits 501 bills, their oldest financial records become invisible. They won't appear in the search results, and they won't be counted in the totals at the top of the screen.\n\n**The Change Needed:** We must implement server-side pagination so that the \"Paid (All Time)\" stat actually reflects all time, not just the last 500 bills.\n\n\u200c\n\n2. **Reconciliation Sync Risk (Frontend Syncing)**\n\n**The Issue:** When a bill is marked as \"Paid\", the app imports a helper createBankTransaction and runs it inside the browser.\n\n**Why this is bad:** This is the same critical data-integrity risk we found in the Expenses module. If the browser tab is closed exactly when the \"Mark Paid\" button is clicked, the bill status might update to \"Paid\" in the database, but the bank transaction record might never be created. This will cause the bank balance to be permanently out of sync with the accounts payable.\n\n**The Change Needed:** This synchronization must be moved to a Postgres Database Trigger. When the status column of a bill changes to paid, the database should automatically create the bank transaction internally.\n\n\u200c\n\n3. **Vendor Dropdown Performance**\n\n**The Issue:** The \"Select Vendor\" dropdown downloads every single active vendor to the browser.\n\n**Why this is bad:** For a large company with 2,000+ vendors, clicking the \"Select Vendor\" button will cause the browser to freeze for several seconds as it tries to render thousands of items in a search list.\n\n**The Change Needed:** The vendor search should be server-side. The dropdown should only fetch the top 10 matches as the user types.\n\n\u200c\n\n4. **Incorrect KPI Calculations**\n\n**The Issue:** The stats for \"Total Pending,\" \"Overdue,\" and \"Paid (All Time)\" are calculated using .reduce() in the browser.\n\n**Why this is bad:** Because the app only has 500 bills in memory, these numbers are mathematically guaranteed to be wrong for any established company. The \"Paid (All Time)\" card will only show the total of the recent 500 paid bills, not the true history.\n\n**The Change Needed:** Offload these calculations to a database RPC or a View.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-38"
+    },
+    {
+      "key": "GBC-39",
+      "summary": "Financial Suite --> Reimbursements screen",
+      "description": "This screen manages employee payouts and contains the most complex \"multi-step\" data syncing logic I have seen in the app so far. Unfortunately, it is also the most fragile.\n\n1. **The \"Chain of Death\" (Manual Rollbacks)**\n\n**The Issue:** When a Finance Admin clicks \"Approve & Pay,\" the frontend attempts to perform four different database operations in a row.\n\n**Why this is bad:** We realized this was risky, so we wrote \"Manual Rollback\" code:\n\nif (frErr) {\n\n\u00a0\u00a0// roll back the expense record and abort\n\n\u00a0\u00a0await supabase.from(\"expenses\").delete().eq(\"id\", [expense.id](http://expense.id));\n\n\u00a0\u00a0throw new Error(\"Accounting sync failed...\");\n\n}\n\nThis is extremely dangerous. If the user's Wi-Fi drops after the expense is created but before the rollback command can be sent, we end up with \"Zombie Data\u201d. The accounting module will show an expense has been paid, but the Reimbursement module will still say the employee is \"Awaiting Payment.\"\n\n**The Change Needed:** This must be moved to a Postgres Transaction (RPC). The browser should send one single \"Approve\" signal, and the database should handle all four table updates internally as a single atomic unit.\n\n\u200c\n\n2. **The \"Infinite Fetch\" (No Scalability)**\n\n**The Issue:** Unlike the Bills or Expenses screens (which were capped at 500 rows), the Reimbursements screen fetches every single record in the history of the company at once.\n\n**Why this is bad**: For a company with 5,000 employees, this page will eventually try to download 50,000+ reimbursement rows into the browser. The page will take minutes to load and will eventually crash the user's browser tab.\n\n**The Change Needed:** Implement server-side pagination (.range()) immediately.\n\n\u200c\n\n3. **Local-Only Searching**\n\n**The Issue:** All searching and date-filtering are performed in JavaScript on the downloaded array.\n\n**Why this is bad:** You cannot find old records unless you download the entire database first. It also prevents Finance from efficiently auditing specific employees or date ranges without loading the \"heavy\" full dataset.\n\n**The Change Needed:** Move the searchQuery and dateRange filters into the Supabase .ilike() and .gte() queries.\n\n\u200c\n\n4. **Client-Side Financial Totals**\n\n**The Issue:** The \"Total Paid Out\" and \"Total Pending Value\" cards are calculated using .reduce() in the browser.\n\n**The Change Needed:** These totals should be fetched via a dedicated RPC function so they remain accurate regardless of how many rows are currently visible on the screen.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-39"
+    },
+    {
+      "key": "GBC-40",
+      "summary": "Financial Suite --> Credit Notes screen",
+      "description": "This screen manages returns and debt reductions, but it contains a massive accounting oversight that will cause your financial reports to be incorrect.\n\n1. **The \"Ghost Credit\" Bug (Missing Ledger Sync)**\n\n**The Issue:** When we create a credit note or mark it as \"Issued\" or \"Applied,\" the app only updates the credit_notes table. It does not record any entry in General Ledger (financial_records).\n\n**Why this is bad:** A credit note is a legal reduction of what a customer owes us. Because this isn't synced to Accounting Ledger, our Balance Sheet will continue to show the full original debt as an asset. We are effectively over-reporting our company's value to auditors and tax authorities because the \"Ghost Credits\" aren't being subtracted from total Accounts Receivable.\n\n**The Change Needed:** We must add a sync trigger (Database Trigger or RPC) that automatically posts a \"Credit\" entry to the General Ledger whenever a Credit Note status changes to issued or applied.\n\n\u200c\n\n2. **The \"Infinite Fetch\" Wall**\n\n**The Issue:** This screen fetches every credit note ever created by the organization in a single request (no .limit() and no .range()).\n\n**Why this is bad:** Credit notes are usually less frequent than invoices, but over 5\u201310 years of business, this will grow to thousands of records. Eventually, every time an accountant opens this page, their browser will download a multi-megabyte file, leading to slow load times and eventual \"Out of Memory\" crashes.\n\n**The Change Needed:** Implement standard server-side pagination so only 20\u201350 notes are loaded at a time.\n\n\u200c\n\n3. **Local Search & Filtering**\n\n**The Issue:** Searching for a specific Credit Note number or customer name happens entirely in the browser using JavaScript's .filter() method.\n\n**Why this is bad:** You cannot find a specific note unless you've already downloaded the entire database to the computer.\n\n**The Change Needed:** Move the search logic to the database level using Supabase .ilike().\n\n\u200c\n\n4. **Client-Side Math (Incorrect Stats)**\n\n**The Issue:** The \"Total Value\" card at the top of the screen is calculated by looping through the local array and summing the amounts.\n\n**The Change Needed:** This should be replaced with a single SQL query: SELECT sum(amount) FROM credit_notes WHERE status IN ('issued', 'applied'). This is 100x faster and always accurate.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-40"
+    },
+    {
+      "key": "GBC-41",
+      "summary": "Financial Suite --> Vendor Credits screen",
+      "description": "While this screen features a nice \"Status Stepper\" UI, it suffers from a major accounting flaw that makes it \"decoration\" rather than a functional part of General Ledger.\n\n1. **The \"Accounting Ghost\" (Major Flaw)**\n\n**The Issue:** When we change a Vendor Credit status to \"Applied\" (meaning we've used the credit to pay a bill), the code only updates a single text field in the database: status: \"applied\".\n\n**Why this is bad:** In a real ERP, applying for credit should automatically reduce Accounts Payable balance and record a journal entry in books. This screen doesn't do that. It doesn't link to a specific Bill, and it doesn't create any records in financial_records.\n\n**The Change Needed:** We need to add a \"Link to Bill\" selector. When a credit is applied, a Postgres Trigger should automatically deduct that amount from the target Bill and record the credit in the General Ledger.\n\n\u200c\n\n2. **The \"Infinite Fetch\" (No Scalability)**\n\n**The Issue:** Like the Reimbursements screen, this fetches every single credit note ever received by the company in one big list.\n\n**Why this is bad:** As the company grows over 5\u201310 years, this page will attempt to download thousands of historical credits every time it's opened. It will eventually become so slow that it will crash the browser tab.\n\n**The Change Needed:** Implement server-side pagination (.range()) so only the most recent 10\u201320 credits are loaded by default.\n\n\u200c\n\n3. **Local Math for Totals**\n\n**The Issue:** The \"Total Value\" card at the top uses a JavaScript .reduce() loop on the downloaded data.\n\n**Why this is bad:** If the list grows too large and we (correctly) limit the fetch to 100 rows, this card will start showing the wrong total. It will only sum the 100 rows on the screen, not the actual value of all credits in the database.\n\n**The Change Needed:** Move this calculation to a backend RPC function.\n\n\u200c\n\n4. **Search Bottleneck**\n\n**The Issue:** Searching for a credit number or vendor name only works on the data already downloaded to the browser.\n\n**Why this is bad:** If we are looking for an old credit from last year that isn't in the current batch of data, the search will return \"No results,\" even though the credit exists in the database. This leads to users accidentally creating duplicate records.\n\n**The Change Needed:** Move the search filter into the Supabase query using .ilike().",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-41"
+    },
+    {
+      "key": "GBC-42",
+      "summary": "Financial Suite --> CashFlow screen",
+      "description": "While this screen looks impressive with its \"Area Charts\" and \"Runway\" projections, it contains a significant technical bottleneck that will slow down the entire ERP as the company grows.\n\n1. **The \"Big Data\" Charting Bottleneck**\n\n**The Issue:** To draw the 6-point trend chart on this page, the useCashFlowData hook performs a select(\"\\*\") on the bank_transactions table for the last six months.\n\n**Why this is bad:** If a company processes 2,000 transactions a month (sales, payroll, vendor bills), this page will download 12,000 rows of raw data every time we open it. The browser then has to loop through all 12,000 rows in JavaScript just to calculate six monthly totals.\n\n**The Change Needed:** We should use a Postgres Group By query (or an RPC). The database should send only six rows to the browser (one for each month), reducing the data transfer by 99.9%.\n\n\u200c\n\n2. **Year-Crossing Bug**\n\n**The Issue:** The chart grouping logic only uses the name of the month (e.g., \"Jan\", \"Feb\") as a key.\n\n**Why this is bad:** If the 6-month report spans across December and January (the end of a year), and for some reason there is historical data in the fetch, the logic might accidentally combine January 2023 and January 2024 into the same bar on the chart.\n\n**The Change Needed:** The grouping key must include the year (e.g., \"Jan-2024\") to ensure financial accuracy across year-end boundaries.\n\n\u200c\n\n3. **Hardcoded 6-Month Visibility**\n\n**The Issue:** The entire screen is hardcoded to look back at the last 6 months.\n\n**Why this is bad:** Business owners often need to see their \"Annual Cash Flow\" (12 months) or \"Quarterly\" views. Currently, there is no way for a user to change the time range because the logic is hardcoded into the React hook.\n\n**The Change Needed:** Add a DateRangePicker that updates the month's parameter in the hook.\n\n\u200c\n\n4. **Fake Data Confusion**\n\n**The Issue:** If a new user has zero transactions, the app currently displays \"Default Mock Data\" (showing \u20b913.5L inflow) instead of an empty state.\n\n**Why this is bad:** A financial tool should never show \"fake\" numbers as a fallback. It can lead to a user thinking their bank account is connected when it isn't, or vice-versa.\n\n**The Change Needed:** Replace the getDefaultCashFlowData() fallback with a proper \"No Data Found\" empty state illustration.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Medium",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-42"
+    },
+    {
+      "key": "GBC-43",
+      "summary": "Financial Suite --> Payment Receipts screen",
+      "description": "This screen manages incoming cash flow from customers. While it includes some business logic to prevent overpayment, it shares the same critical \"Sync Risk\" found in the Expenses and Bills screens.\n\n1. **The \"Split-Transaction\" Risk (Data Integrity)**\n\n**The Issue:** When we record a payment, the useCreatePaymentReceipt hook performs five separate database actions in a row:\n\n* Insert the Payment Receipt.\n* Fetch the linked Invoice.\n* Calculate the new total paid amount.\n* Update the Invoice status (e.g., from \"Unpaid\" to \"Paid\").\n* Create a Bank Transaction record.\n\n**Why this is bad:** Because these five steps happen sequentially from the browser, they are not atomic. If a user's laptop lid is closed or their Wi-Fi drops between Step 1 and Step 5, books will be broken. They\u00a0 might have a payment recorded, but the Invoice will still say \"Unpaid,\" or the Invoice will say \"Paid\" but the money won't show up in the Bank Account ledger.\n\n**The Change Needed:** This entire flow must be moved to a Postgres RPC function. The frontend should send one \"Record Payment\" command, and the database should handle all five steps internally as a single transaction.\n\n\u200c\n\n2. **Performance Decay (The \"Infinite Fetch\" Problem)**\n\n**The Issue:** Unlike some other screens that had a 200-row limit, this screen fetches every single receipt the company has ever recorded.\n\n**Why this is bad:** This is a \"ticking time bomb\" for performance. When a company starts, it works fine. But once you have 5,000 receipts, the page will take seconds to load, and the browser will stutter every time you try to filter by date or payment method.\n\n**The Change Needed:** Implement server-side pagination (.range()) so the browser only ever has to deal with 10\u201320 records at a time.\n\n\u200c\n\n3. **Client-Side Validation is Bypassable**\n\n**The Issue:** The logic to prevent \"Future Dated Payments\" is written in JavaScript:\n\nconst today = new Date().toISOString().split(\"T\")\\[0\\];\n\nif (r.payment_date > today) throw new Error(\"Payment date cannot be in the future.\");\n\n**Why this is bad:** A user can easily bypass this by changing their computer's system clock or by using a script to send data directly to Supabase. This can lead to messy accounting where payments are recorded for dates that haven't happened yet.\n\n**The Change Needed:** Add a Postgres Check Constraint to the payment_receipts table to ensure the payment_date can never be greater than CURRENT_DATE.\n\n\u200c\n\n4. **No Real-Time Statistics**\n\n**The Issue:** Unlike the Bills or Expenses screens, this screen doesn't show any totals (e.g., \"Total Received This Month\").\n\n**The Change Needed:** Add KPI cards at the top that use a server-side aggregate query (SUM(amount)) to show the user their total collections at a glance.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Medium",
+      "tags": [
+        "Performance",
+        "Security",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-43"
+    },
+    {
+      "key": "GBC-44",
+      "summary": "Financial Suite --> Vendor Payments screen",
+      "description": "While this screen is simpler than the \"Bills\" screen, it contains the same systemic risks to financial data integrity.\n\n1. **The \"Split Payment\" Data Risk**\n\n**The Issue:** When we record a payment, the useCreateVendorPayment hook performs three separate database actions in a row from your browser:\n\n* Save the Payment record.\n* Update the Bill status (e.g., from \"Unpaid\" to \"Paid\").\n* Create a Bank Transaction record.\n\n**Why this is bad:** If the internet flickers or the browser tab is closed between Step 1 and Step 2, left with a \"Ghost Payment.\" The money will have been \"spent\" in Payments list, but the original Bill will still show as \"Unpaid.\" The accounts will never balance, and might accidentally pay the same vendor twice.\n\n**The Change Needed:** These three steps must be wrapped in a single Postgres RPC function. The browser should send one request, and the database should guarantee that all three tables are updated together.\n\n\u200c\n\n2. **The \"Infinite Fetch\" (No Scalability)**\n\n**The Issue:** Unlike the Bills or Expenses screens (which at least had a 500-row limit), this screen has no limit at all. It fetches every payment the company has ever made since the day it started using the app.\n\n**Why this is bad:** A busy company makes hundreds of payments a month. In two years, this page will be trying to download 10,000+ rows every time it loads. It will become slower every single day until it eventually crashes the browser.\n\n**The Change Needed:** Implement server-side pagination (.range()) so the app only loads the most recent 20\u201350 payments at a time.\n\n\u200c\n\n3. **Client-Side Date Filtering**\n\n**The Issue:** The date range filters (\"From\" and \"To\") are applied in JavaScript after the data has already been downloaded.\n\n**Why this is bad:** If we want to find a payment from January 2024, we have to download every payment from February, March, April, and so on, just to \"filter them out\" in the browser. This is a waste of bandwidth and processing power.\n\n**The Change Needed:** Move the date filters into the Supabase query so the server only sends the records we actually asked for.\n\n\u200c\n\n4. **Vendor Selection Lag**\n\n**The Issue:** The \"Record Payment\" form fetches an entire list of active vendors into a simple dropdown menu.\n\n**Why this is bad:** For an organization with 1,000+ vendors, clicking that dropdown will cause a noticeable lag (or \"stutter\") in the UI.\n\n**The Change Needed:** Switch to a searchable \"Combobox\" that fetches results from the server as the user types.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-44"
+    },
+    {
+      "key": "GBC-45",
+      "summary": "Financial Suite --> Exchange Rates screen",
+      "description": "This screen handles the multi-currency core of ERP and includes an impressive \"IAS 21 Unrealized Gain/Loss\" calculator. However, its reliance on the flawed \"Client-Side Fetching\" pattern we found earlier makes it dangerous for financial reporting.\n\n1. **Compliance Risk (Inaccurate IAS 21 Reporting)**\n\n**The Issue:** The app calculates \"Unrealized FX Gain/Loss\" (required for international accounting standards like IAS 21) by looping through the financialRecords array in the browser.\n\n**Why this is bad:** As we discovered in the Accounting module audit, the useFinancialRecords hook is likely limited to the most recent 200 or 500 transactions. This means the Exchange Rates screen is ignoring all older foreign-currency transactions when calculating Gains and Losses.\n\n**The Result:** Your Balance Sheet will show a \"Net Unrealized FX Gain/Loss\" that is mathematically incomplete, which would cause an immediate red flag during a financial audit.\n\n\u200c\n\n2. **The \"Free API\" Reliability Risk**\n\n**The Issue:** The \"Fetch Live Rates\" button calls a free third-party service (frankfurter.app).\n\n**Why this is bad:** For a professional ERP, relying on a free, unauthenticated API for currency valuations is risky. If that service has a \"bad day\" and returns an incorrect rate, staff might accidentally save it, instantly changing the book value of every foreign invoice in the system.\n\n**The Change Needed:** We should implement a validation step that compares the \"Live Rate\" against the \"Previous Saved Rate\" and warns the user if there is a sudden, suspicious jump (e.g., >5% change) before saving.\n\n\u200c\n\n3. **Non-Atomic Bulk Updates**\n\n**The Issue:** When we fetch live rates, the app sends multiple separate database requests in a loop (one for USD-INR, one for USD-EUR, etc.).\n\n**Why this is bad:** If the user's connection drops halfway through, we'll have some currencies updated to today's rate and others stuck on yesterday's. This creates internal inconsistency.\n\n**The Change Needed:** The \"Fetch Live Rates\" logic should use a single bulk .insert() command to ensure all rates are updated simultaneously.\n\n\u200c\n\n4. **No Historical Audit Trail**\n\n**The Issue:** While the screen lists \"Effective Dates,\" it is difficult to see the trend of a currency.\n\n**The Change Needed:** A simple line chart showing the trend of primary trading pairs (e.g., USD/INR) would help management spot high-volatility periods that affect their margins.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-45"
+    },
+    {
+      "key": "GBC-46",
+      "summary": "Financial Suite --> Assets screen",
+      "description": "This is a heavy-duty module that handles asset valuations, depreciation schedules, and physical tagging. However, it contains the same systemic scaling issues and some significant \"hidden\" financial risks.\n\n1. **The \"Million-Row Crash\" (Scalability)**\n\n**The Issue:** The useAssets hook fetches every single asset owned by the organization in a single query with no limits and no pagination.\n\n**Why this is bad:** For small companies with 50 laptops, this works fine. For a manufacturing plant or a hotel chain with 10,000+ pieces of equipment, furniture, and IT assets, this page will simply fail to load or crash the browser every time someone opens it.\n\n**The Change Needed:** We must implement server-side pagination (.range()) and server-side searching (.ilike()).\n\n\u200c\n\n2. **The \"Depreciation Desync\" (Audit Risk)**\n\n**The Issue:** When we click \"Run Depreciation\", the frontend performs three separate database updates:\n\n* Creates a depreciation entry record.\n* Updates the Asset's \"Current Book Value\" in the assets table.\n* Inserts two rows into the Accounting Ledger (financial_records) for the GL.\n\n**Why this is bad:** This is the same Data Integrity Risk found in Expenses and Bills. If the user's browser tab is closed or the internet stutters after Step 2, the asset's value will be reduced in the Assets module, but no expense will be recorded in the Accounting module. The Balance Sheet and Profit & Loss statement will now be mathematically mismatched.\n\n**The Change Needed:** This entire 3-step process must be moved into a single Atomic Postgres Function.\n\n\u200c\n\n3. **Bulk Upload Performance**\n\n**The Issue:** The \"Bulk Upload\" feature for assets runs a JavaScript for loop that performs a separate network request for every single row in the spreadsheet.\n\n**Why this is bad:** Uploading 500 assets will trigger 500 individual network calls. This is incredibly slow and will likely trigger Supabase's rate-limiting/DDoS protection, causing the upload to fail halfway through.\n\n**The Change Needed:** Replace the loop with a single Batch Insert (.insert(\\[...rows\\])) to upload all assets in one go.\n\n\u200c\n\n4. **Client-Side Valuation Math**\n\n**The Issue:** The statistics at the top of the screen (Total Book Value, Total Depreciation) are calculated using .reduce() on whatever assets were downloaded to the browser.\n\n**The Change Needed:** These totals should be calculated on the server. If a company has 5,000 assets but the browser only managed to download 1,000 before crashing, the dashboard will show a \"True\" total, not a \"Partial\" one.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-46"
+    },
+    {
+      "key": "GBC-47",
+      "summary": "Financial Suite --> Statutory Findings screen",
+      "description": "This is arguably the most critical page in the entire ERP because it generates the reports used to pay the government (GST, TDS, PF, ESI). Unfortunately, it is built on a very fragile \"Browser-Based Accounting\" model that carries significant compliance risks.\n\n1. **The \"Query Storm\" Performance Bug**\n\n**The Issue:** When we open this page, the app immediately fires off 10+ simultaneous database queries for every single tax module (GSTR-1, GSTR-3B, TDS, PF, ESI, etc.), regardless of which tab you are actually looking at.\n\n**Why this is bad:** If we just want to check PF contributions, browsers are still wasting resources downloading every invoice for GSTR-1 and every bill for TDS. This makes the page heavy to load and puts unnecessary strain on the Supabase database.\n\n**The Change Needed:** We should implement \"Lazy Loading.\" The app should only fetch the data for the specific tab the user has active.\n\n\u200c\n\n2. **High-Risk \"Estimation\" in GSTR-3B**\n\n**The Issue:** GSTR-3B liability (how much tax you owe) is calculated using JavaScript math in the browser. Specifically, it uses a proportional ratio to estimate tax reductions from Credit Notes:\n\nconst cnRatio = grossOutwardTaxable > 0 ? (1 - cnReduction / grossOutwardTaxable) : 1;\n\nconst cgstPayable = invoices.reduce(...) \\* Math.max(cnRatio, 0);\n\n**Why this is bad:** Tax authorities (like the GSTN in India) do not accept \"proportions.\" They require exact, invoice-by-invoice accounting. If the browser's \"estimated\" total is off by even 1 rupee from your actual ledger, you could be flagged for a tax audit.\n\n**The Change Needed:** The GSTR-3B totals must be calculated by a Database View in Postgres that performs exact summation of the invoices and credit_notes tables.\n\n\u200c\n\n3. **The \"Memory Crash\" Wall**\n\n**The Issue:** Unlike other screens, these hooks have no limit (no .limit(500)). They try to download every single invoice for the month.\n\n**Why this is bad:** If a company has 10,000 invoices in a month, the browser will attempt to download all of them (plus their thousands of line items) into the computer's RAM. Most browsers will freeze or crash before the report is even visible.\n\n**The Change Needed:** These reports should be processed on the server (using a Supabase Edge Function) and delivered as a downloadable file, rather than trying to render every single row in a browser table.\n\n\u200c\n\n4. **Hardcoded Compliance Rules**\n\n**The Issue:** Due dates for GST and TDS are hardcoded in the frontend code.\n\n**Why this is bad:** Government deadlines change frequently (due to holidays or technical extensions). If the government extends a deadline by 2 days, the app will still scream \"OVERDUE\" in red to users because the logic is \"burned\" into the code.\n\n**The Change Needed:** Deadlines should be stored in an organization_settings table so they can be updated globally without a code redeploy.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-47"
+    },
+    {
+      "key": "GBC-48",
+      "summary": "Financial Suite --> E-Way Bills screen",
+      "description": "This module is well-integrated with Indian GST rules (including automatic validity calculation based on distance), but it contains a \"performance time bomb\" that will cause the screen to become unusable as business grows.\n\n1. **The \"Million Row\" Performance Trap**\n\n**The Issue:** Unlike the other screens which were capped at 500 records, the E-Way Bills module has no limit at all. Every time we open this page, the app attempts to download every single E-Way Bill ever generated by the company.\n\n**Why this is bad:** If a logistics-heavy company generates 50 bills a day, they will have 15,000+ records in a year. Attempting to download and render all of them simultaneously will cause the browser tab to freeze or crash.\n\n**The Change Needed:** We must implement server-side pagination (.range()) so the browser only ever handles 20-50 bills at a time.\n\n\u200c\n\n2. **\"Maintenance-on-Read\" Bottleneck**\n\n**The Issue:** Inside the useEwayBills hook, there is logic that checks every single bill to see if it has expired, and then triggers a database update from the browser to mark it as \"expired.\"\n\n**Why this is bad:** This is a very inefficient way to manage data. We are forcing the user's browser to do \"janitorial work\" for the database every time they look at the screen. This makes the page load feel sluggish.\n\n**The Change Needed:** This expiration logic should be moved to a Postgres Background Task (Cron Job). The database should mark its own records as expired at midnight, so the frontend stays \"read-only\" and fast.\n\n\u200c\n\n3. **Disconnected Data Entry (Manual Entry)**\n\n**The Issue:** Even though the database supports linking E-Way Bills to Invoices and Sales Orders, the current \"New E-Way Bill\" form is 100% manual.\n\n**Why this is bad:** The staff has to manually type in the Invoice Number, the Customer's GSTIN, and the Total Value, all of which already exist in the system. This is a huge opportunity for human error (typos in GSTINs or amounts) which can lead to legal compliance issues with the GST department.\n\n**The Change Needed:** Add a \"Fetch from Invoice\" search bar that auto-fills the entire E-Way Bill form from an existing record in the system.\n\n\u200c\n\n4. **Client-Side Summary Counts**\n\n**The Issue:** The summary cards at the top (Active, Expiring Soon, Cancelled) are calculated by looping through the entire dataset in the browser's memory.\n\n**The Change Needed:** As we move to pagination, we must replace this with a backend query (RPC) that returns the counts instantly without downloading the records.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-48"
+    },
+    {
+      "key": "GBC-49",
+      "summary": "Financial Suite --> E-Invoices screen",
+      "description": "While this screen has a sophisticated \"Wizard\" interface for creating documents, it contains a significant technical discovery regarding its core functionality.\n\n1. **The \"Simulated\" IRN Generation**\n\n**The Discovery:** The \"Generate IRN\" feature which is the core purpose of this screen is currently fake. In useEInvoices.ts, the code contains this logic:\n\n// Simulate IRN generation (in production, this would call the NIC API)\n\nconst irn = \\`IRN${Date.now()}${Math.random().toString(36).substring(2, 10).toUpperCase()}\\`;\n\n**Why this is bad:** The app is generating random strings instead of communicating with the government's NIC/IRP portal. If a user clicks \"Generate IRN\" today, they are getting a placeholder value that has no legal standing with the GST department.\n\n**The Change Needed:** The frontend needs to be connected to a real Supabase Edge Function that authenticates with a GSP (GST Suvidha Provider) like ClearTax or Cygnet to generate legal, government-signed IRNs.\n\n\u200c\n\n2. **Massive Data-Fetching Bottleneck**\n\n**The Issue:** Unlike other screens that were capped at 200 or 500 rows, this screen has no limit at all.\n\n**Why this is bad:** The hook fetches every single e-invoice ever created by the organization (.select(\"\\*\")). Each e-invoice record is huge because it contains full seller/buyer addresses and an array of line items. If a business generates 100 e-invoices a day, this page will become unusable within two months as it tries to download 5MB+ of JSON data every time the screen loads.\n\n**The Change Needed:** Implement server-side pagination (.range()) immediately.\n\n\u200c\n\n3. **\"As Any\" Type Bypassing**\n\n**The Issue:** The hook uses (supabase as any) for almost every database interaction.\n\n**Why this is bad:** This completely disables TypeScript's safety features. If a developer changes a column name in the database (e.g., changing seller_gstin to seller_tax_id), the app will not show any errors during development but will crash for the user in production.\n\n**The Change Needed:** Remove the as any overrides and use the generated Database types to ensure the code stays in sync with the database schema.\n\n\u200c\n\n4. **Client-Side Financial Totals**\n\n**The Issue:** The \"Total E-Invoice Value\" card at the top is calculated by looping through the entire dataset in the browser.\n\n**Why this is bad:** Once the data-fetching is fixed (limited to 50 pages), this card will only show the total for the \"current page\" instead of the organization's entire history.\n\n**The Change Needed:** The totals must be calculated via a Supabase RPC function (e.g., get_einvoice_totals) to ensure the dashboard remains accurate regardless of how many rows are on the screen.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-49"
+    },
+    {
+      "key": "GBC-50",
+      "summary": "Financial Suite --> Analytics screen",
+      "description": "While the Analytics screen is the most visually impressive, it contains \"ticking time bombs\" that will cause performance failures as organization grows.\n\n1. **The \"Monthly Trend\" Performance Bomb**\n\n**The Issue:** To show the Revenue vs. Expense bar chart, the useMonthlyTrend() hook (in useAnalytics.ts) downloads every single journal line from the last 12 months into the browser.\n\n**Why this is bad:** If a company has 1,000 transactions a month, the browser is downloading and processing 30,000+ rows just to draw a simple chart. This is a classic \"Million Row Crash\" candidate. As the company scales, this chart will eventually freeze the user's browser tab.\n\n**The Change Needed:** We need to create a get_monthly_gl_totals() RPC in Postgres to return just 12 rows of data (one for each month) instead of 30,000.\n\n\u200c\n\n2. **Cross-Module Data Silos**\n\n**The Issue:** The CrossModuleKPIs and AICommandCenter attempt to join Finance, HR, and Payroll data by running multiple separate queries and combining them in React memory.\n\n**Why this is bad:** Because these queries often have different limits (some 200, some 500, some unlimited), the \"Insights\" generated by the AI might be based on incomplete data. For example, the \"Cost Per Employee\" metric might use a truncated employee list but a full payroll list, leading to mathematically impossible numbers.\n\n**The Change Needed:** We should implement a \"Unified Organization Vitals\" RPC that aggregates these cross-module metrics on the server side to ensure 100% accuracy for the AI.\n\n\u200c\n\n3. **Deprecated Schema \"Trap\"**\n\n**The Issue:** I found a warning in the code stating that the chart_of_accounts table is deprecated in favor of gl_accounts.\n\n**Why this is bad:** Having two tables for the same purpose is a \"technical debt trap.\" If the AI or a future developer accidentally writes to the old table, that data will become \"ghost data\" that exists in the database but never shows up on financial reports.\n\n**The Change Needed:** We need to verify if any legacy code still references the old table and then safely migrate and remove it.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-50"
+    },
+    {
+      "key": "GBC-51",
+      "summary": "Financial Suite --> Recurring screen",
+      "description": "This module has a very strong backend foundation (using Supabase Edge Functions), but the user interface is currently half-finished, making it impossible to use for real accounting automation.\n\n1. **The \"Useless Automation\" UI Bug**\n\n**The Issue:** The RecurringTransaction database table has columns for debit_account_id and credit_account_id. However, if we look at the \"New Recurring\" form in RecurringTransactions.tsx, there are no dropdowns to select GL Accounts.\n\n**Why this is bad:** Without being able to select which accounts are impacted (e.g., Rent Expense vs. Cash), this feature is just a \"reminder list.\" It cannot actually automate your journal entries because it doesn't know which part of the ledger to touch.\n\n**The Change Needed:** We need to add two Searchable Select components to the form so the user can link the recurring transaction to the Chart of Accounts.\n\n\u200c\n\n2. **Dangerous Client-Side Date Math**\n\n**The Issue:** The useCreateRecurringTransaction hook (in useRecurringTransactions.ts) contains a complex JavaScript function called calcNextRunDate. This function tries to predict when the next transaction should happen based on the user's computer clock.\n\n**Why this is bad:** If a user's computer clock is set incorrectly, or if they are in a different timezone than the server, the next_run_date will be saved with the wrong date. This could cause a \"Monthly Rent\" payment to trigger twice or not at all.\n\n**The Change Needed:** This calculation must be moved to a Postgres Database Trigger. The database should be the only \"Source of Truth\" for when a transaction is due.\n\n\u200c\n\n3. **Type Bypassing (Technical Debt)**\n\n**The Issue:** Every single database call in this module uses as any.\n\n**Why this is bad:** It appears the recurring_transactions table was added to the database after the TypeScript types were generated. By using as any, we've lost all protection. If a column name changes in the database, the app will crash silently without warning the developer.\n\n**The Change Needed:** We need to regenerate the Supabase types and replace all as any with the proper Database\\['public'\\]\\['Tables'\\]\\['recurring_transactions'\\] types.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-51"
+    },
+    {
+      "key": "GBC-52",
+      "summary": "Financial Suite --> Automation screen",
+      "description": "This is arguably the most powerful yet most fragile part of the entire ERP. It acts as a \"Mission Control\" for automated invoice follow-ups, but it has several architectural gaps that could lead to data loss.\n\n1. **The \"Fragile Builder\" (No Auto-Save)**\n\n**The Issue:** The entire Drag-and-Drop workflow builder stores our \"Draft\" in the browser's temporary memory.\n\n**Why this is bad:** If a finance manager spends 20 minutes building a complex 10-step follow-up sequence (Wait 3 days -> Check if Paid -> Send WhatsApp) and their browser tab crashes or they accidentally hit \"Refresh,\" everything is lost. There is no \"Auto-save Draft\" feature.\n\n**The Change Needed:** We should implement a \"Draft\" status in the database so that workflow changes are saved as you build them, preventing work loss.\n\n\u200c\n\n2. **High Schema Fragility (as any everywhere)**\n\n**The Issue:** This file is almost 1,000 lines long, and nearly every database call uses (supabase.from as any).\n\n**Why this is bad:** The automation system is completely untyped. Because the workflow engine relies on specific JSON configurations (delays, conditions, actions), even a tiny typo in the database schema will cause the entire automation engine to stop working without any clear error message in the code.\n\n**The Change Needed:** This file needs a strict TypeScript interface definition for the WorkflowStep and WorkflowDef types to prevent silent failures.\n\n\u200c\n\n3. **The \"100-Run Blind Spot\"**\n\n**The Issue:** The \"Live Automation Tracker\" at the bottom of the screen is hard-coded to only show the last 100 runs.\n\n.order(\"created_at\", { ascending: false }).limit(100);\n\n**Why this is bad:** As soon as the company sends its 101st automated invoice, the oldest invoice disappears from Mission Control. We can no longer see if it failed, you can't manually override it, and you can't see its history.\n\n**The Change Needed:** Switch to server-side pagination so admins can audit the history of every automation run, not just the last 100.\n\n\u200c\n\n4. **Manual Engine Triggering**\n\n**The Issue:** The dashboard has a prominent \"Run Engine\" button that manually kicks off the automation processing.\n\n**Why this is bad:** In a professional ERP, automation should be invisible and \"always on.\" Relying on a manual button suggests that the background cron jobs (scheduled tasks) might not be fully reliable yet.\n\n**The Change Needed:** We need to verify the cron-job triggers in Supabase and ensure the \"Run Engine\" button is only used for debugging, not as a requirement for the system to work",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "TypeScript"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-52"
+    },
+    {
+      "key": "GBC-53",
+      "summary": "Financial Suite --> CA Dashboard screen",
+      "description": "This is arguably the most dangerous screen in the entire application. It is designed to give Chartered Accountants a \"Health Check\" of our finances, but because of the data-fetching bugs I've identified, it is currently providing a false sense of security.\n\n1. **The \"False Positive\" Trial Balance**\n\n**The Issue:** The dashboard displays a \"Trial Balance OK\" badge based on a calculation performed in the browser.\n\nconst tbBalanced = trialBalance.reduce((s, r) => s + r.debit, 0) === trialBalance.reduce((s, r) => s + r.credit, 0);\n\n**Why this is bad:** As I discovered in earlier audits, data hooks are limited to the most recent 200 records. This means the dashboard is only checking if your latest 200 entries are balanced. If there is a massive accounting error at row 201, the CA Dashboard will still show a green checkmark saying \"Trial Balance OK.\"\n\n**The Change Needed:** The Trial Balance check must be moved to a backend RPC that sums every single row in the database.\n\n\u200c\n\n2. **Misleading Anomaly Detection**\n\n**The Issue:** The dashboard has a section for \"Backdated Entries\" (entries posted more than 7 days after the transaction date) and \"Manual Journal Ratio.\"\n\n**Why this is bad:** These metrics are also calculated only on the 200 rows fetched to the browser. If an accountant wants to audit the last year of data, this screen will only show them the last week or two. It effectively hides historical anomalies from the auditor.\n\n**The Change Needed:** Anomaly detection must be performed via a server-side query that scans the entire journal_entries table for the specified fiscal year.\n\n\u200c\n\n3. **High-Risk \"Period Close\" Logic**\n\n**The Issue:** The dashboard allows a CA to \"Close Period,\" which locks the accounting data to prevent further changes.\n\n**Why this is bad:** Because the Trial Balance and Reconciliation summaries on this screen are currently inaccurate (due to the 200-row limit), an accountant might \"Lock\" a period thinking the books are balanced when they are actually mathematically broken.\n\n**The Change Needed:** The \"Close Period\" button should be disabled unless a server-side validation confirms the entire ledger is balanced and all sub-ledgers match.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "High",
+      "tags": [
+        "Security",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-53"
+    },
+    {
+      "key": "GBC-54",
+      "summary": "Financial Suite --> CA Audit Console screen",
+      "description": "This is the most technically advanced part of the app. It uses an \"AI Audit Engine\" (powered by Supabase Edge Functions) to perform deep-dives into finances.\n\n1. **The \"Snapshot\" Delay (User Confusion)**\n\n**The Issue:** The Audit Console works on \"Snapshots.\" When we click \"Run AI Audit,\" it scans the database and saves the results into a separate audit table.\n\n**Why this is bad:** If an accountant fixes a mistake in the Journal Entry screen, the Audit Console will still show that mistake as an \"Anomaly\" until someone manually triggers a full re-audit. This leads to CAs chasing \"ghost errors\" that have already been fixed.\n\n**The Change Needed:** We should add a \"Sync Status\" indicator that shows the timestamp of the last audit run versus the timestamp of the last ledger update, so auditors know if they are looking at stale data.\n\n\u200c\n\n2. **Missing Result Filters**\n\n**The Issue:** The \"Smart Sampling\" and \"High-Risk Journals\" tabs (line 520) download every single result to the browser and filter them locally.\n\n**Why this is bad:** For a large enterprise, the AI might flag 2,000 \"High-Risk\" entries. Attempting to download and render 2,000 detailed anomaly cards at once will cause the browser to stutter or freeze.\n\n**The Change Needed:** Add server-side filtering to the audit results themselves (e.g., \"Only show Critical anomalies\" or \"Filter by Department\").\n\n\u200c\n\n3. **Excellent Architecture ( ICAIS )**\n\n**The Good:** Unlike the previous screens I audited, this module does not suffer from the \"200-row limit\" bug. Because the audit runs on a Supabase Edge Function (backend), it has full access to 100% of your data. This is the most reliable source of truth in the app.",
+      "category": "Screen Review \u2014 Financial Suite",
+      "severity": "Medium",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-54"
+    },
+    {
+      "key": "GBC-55",
+      "summary": "Inventory --> Items screen",
+      "description": "While the Inventory module has a cleaner UI than the Financial Suite, it introduces a dangerous Stock Integrity Risk that could lead to warehouse data becoming completely unreliable.\n\n1. **The \"Inventory Overwrite\" Risk**\n\n**The Issue:** In the \"Edit Item\" dialog, the user is allowed to manually type in a new number for the Current Stock.\n\n**Why this is bad:** In a professional ERP, stock levels should never be manually edited in a text box. They should only change through \"Stock Adjustments,\" \"Sales Invoices,\" or \"Purchase Receipts.\" If an admin edits an item's name and accidentally hits a key in the stock box, they will overwrite the actual physical stock count without any audit trail. This makes it impossible to track where inventory went.\n\n**The Change Needed:** The Current Stock field must be made read-only on the edit screen. Any changes to stock must be forced through the \"Stock Adjustment\" module to ensure every single unit is accounted for.\n\n\u200c\n\n2. **The \"Million SKU\" Performance Wall**\n\n**The Issue:** The useItems() hook fetches the entire product catalog at once.\n\n**Why this is bad:** If a business grows to have 5,000 or 10,000 SKUs, this screen will take 30+ seconds to load and will eventually crash the browser. The search bar at the top only searches the data already downloaded, so it will fail to find items once you implement any server-side limits.\n\n**The Change Needed:** Implement server-side pagination and search using Supabase .ilike() and .range().\n\n\u200c\n\n3. **Inaccurate \"Stock Value\" Dashboard**\n\n**The Issue:** The \"Stock Value\" KPI at the top (Total Value = Stock \u00d7 Purchase Price) is calculated in the browser using a JavaScript .reduce() loop.\n\n**Why this is bad:** As with the Financial Suite, if the item list is truncated or fails to load completely, our \"Stock Value\" will report a lower number than what is actually in the warehouse. We cannot use this number for insurance or tax purposes as it stands.\n\n**The Change Needed:** Create a backend RPC to calculate the total inventory value across the entire database.\n\n\u200c\n\n4. **Delete vs. Deactivate Logic**\n\n**The Issue:** The code has a complex \"Delete\" logic that tries to catch errors if an item has \"stock movements\" and then asks the user to deactivate it instead.\n\n**The Change Needed:** This is actually a good safety feature, but it's handled via \"Trial and Error\" (trying to delete and catching the error). It would be much cleaner to check for existing stock movements before offering the delete button to the user.",
+      "category": "Screen Review \u2014 Inventory",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-55"
+    },
+    {
+      "key": "GBC-56",
+      "summary": "Inventory --> Warehouse screen",
+      "description": "While this module is architecturally more stable than the Financial Suite, it contains a critical \"Partial Data\" bug that will cause your warehouse managers to report incorrect stock levels.\n\n1. **The \"Default Warehouse\" Dead-End**\n\n**The Issue:** Database has an is_default flag to mark primary warehouse. The UI displays a \"Default\" badge, but there is no way to change it.\n\n**Why this is bad:** If we open a new, larger facility and want to make it our primary shipping point, we currently cannot do so through the software. We would have to ask a developer to manually update the database.\n\n**The Change Needed:** We need to add a \"Set as Default\" action to the dropdown menu. This must trigger a single database transaction that unsets the old default and sets the new one simultaneously.\n\n\u200c\n\n2. **Cumulative Math Bug (Inaccurate Stock)**\n\n**The Issue:** While not directly in the Warehouses view, the underlying useStockLedger hook used by this module is hardcoded to a 500-row limit.\n\n**Why this is bad:** Stock-on-hand is a \"Running Total.\" To know we have exactly 52 items, the system must add up every single \"In\" and \"Out\" since the beginning of time. By only fetching the last 500 movements, the UI will report a mathematically incorrect stock quantity for any item that has been moved more than 500 times.\n\n**The Change Needed:** We must replace this client-side math with a server-side \"Stock Balance\" query that sums every movement in the database.\n\n\u200c\n\n3. **Missing Audit Trail**\n\n**The Issue:** When we create or update a warehouse, the system doesn't log who changed the address or when it was deactivated.\n\n**Why this is bad:** In a large organization, warehouse settings (like the contact person or shipping address) are sensitive. If an address is changed incorrectly, orders will be shipped to the wrong place.\n\n**The Change Needed:** We should implement a basic versioning or audit_log trigger on the warehouse's table.",
+      "category": "Screen Review \u2014 Inventory",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Frontend"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-56"
+    },
+    {
+      "key": "GBC-57",
+      "summary": "Inventory --> Stock Ledger screen",
+      "description": "We suspected the Inventory module had been built using the same \"Client-Side Only\" architecture that is causing issues in the Finance module.\n\n1. **The \"500 Row Blind Spot\"**\n\n**The Issue:** The useStockLedger hook is hard-coded to fetch only the latest 500 stock movements.\n\n**Why this is bad**: In a real warehouse, we can easily have 500 movements (purchases, sales, transfers) in a single week. Once we hit movement #501, the first movement disappears from this screen. If an auditor asks to see a stock movement from three months ago, it will be invisible, even if the user tries to search for it.\n\n**The Change Needed:** Replace the .limit(500) with server-side pagination so the user can scroll through the entire history of the warehouse.\n\n\u200c\n\n2. **Inaccurate Inventory Statistics**\n\n**The Issue:** The KPI cards at the top (Total Entries, Stock In, Stock Out) are calculated by looping through whatever data was downloaded to the browser.\n\n{(entries || \\[\\]).reduce((s, e) => s + Number(e.quantity), 0)}\n\n**Why this is bad:** If the database has 10,000 movements but the browser only downloaded 500, the \"Stock In\" and \"Stock Out\" totals will be 95% incorrect. Your inventory managers will be making decisions based on false numbers.\n\n**The Change Needed:** These totals must be calculated on the backend using a Postgres SUM() query across the entire table.\n\n\u200c\n\n3. **Inventory Valuation Risk**\n\n**The Issue:** The ledger tries to \"guess\" the value of a stock movement in the UI by multiplying quantity \\* rate if the value column is empty.\n\n**Why this is bad:** Real inventory valuation (FIFO/LIFO/Weighted Average) is complex. We cannot simply multiply quantity by rate for a \"Stock Out\" because that rate depends on when the original stock was bought. Calculating this in the UI is an accounting nightmare.\n\n**The Change Needed:** The value of a stock movement should be calculated and stored in the database at the moment the transaction happens, not guessed by the React frontend later.",
+      "category": "Screen Review \u2014 Inventory",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-57"
+    },
+    {
+      "key": "GBC-58",
+      "summary": "Inventory --> Adjustments screen",
+      "description": "This module is currently in a \"broken\" state, it provides the UI for the headers of an adjustment but is missing the logic to actually adjust items.\n\n1. **Major Functional Gap: Missing Line Items**\n\n**The Issue:** The \"New Adjustment\" form only asks for a Warehouse and a Reason. It has no way to select which items are being adjusted or by how much.\n\n**Why this is bad:** we can create a \"Stock Adjustment\" record, but it doesn't actually adjust stock. It's like writing an invoice header without listing any products.\n\n**The Change Needed:** We need to implement a \"Line Items\" table within the adjustment form where users can select an Item, the Quantity to adjust (positive or negative), and the Unit Cost.\n\n\u200c\n\n2. **Broken Stock Ledger Integration**\n\n**The Issue:** When an adjustment is marked as \"Posted,\" it should technically create entries in the stock_ledger table to update inventory levels.\n\n**Why this is bad:** Right now, changing the status to \"Posted\" does nothing except change a color on the screen. Inventory counts in the \"Items\" list will remain incorrect even after an adjustment is posted.\n\n**The Change Needed:** We must add a Database Trigger or an RPC that automatically creates stock_ledger movements whenever an adjustment status moves to posted.\n\n\u200c\n\n3. **The \"Invisible Stock\" Bug (500 Row Limit)**\n\n**The Issue:** The useStockLedger hook (used to see the history of stock movements) is hard-capped at .limit(500).\n\n**Why this is bad:** For a busy warehouse, 500 movements might represent only a single week of activity. If an auditor wants to see the stock history from a month ago, those records will be invisible to the UI, even though they exist in the database.\n\n**The Change Needed:** Implement server-side pagination for the Stock Ledger view.\n\n\u200c\n\n4. **Valuation Discrepancies**\n\n**The Issue:** There is no integration between Stock Adjustments and the General Ledger (Financial Suite).\n\n**Why this is bad:** If we \"write off\" \u20b910,000 worth of broken stock, our Inventory Asset account in the Balance Sheet should decrease. Currently, the Inventory and Finance modules are completely disconnected.\n\n**The Change Needed:** \"Posted\" adjustments should automatically create a Journal Entry to account for the loss or gain in inventory value.",
+      "category": "Screen Review \u2014 Inventory",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-58"
+    },
+    {
+      "key": "GBC-59",
+      "summary": "Procurement  --> Purchase orders screen",
+      "description": "This module handles the purchasing lifecycle, but it currently uses a \"Dangerous Edit\" pattern that could lead to permanent data corruption.\n\n1. **The \"Delete and Re-insert\" Data Risk**\n\n**The Issue:** When we edit a Purchase Order, the code first deletes every single line item from the database and then tries to re-insert the updated list one by one from your browser.\n\n**Why this is bad:** This is a non-atomic operation. If internet connection flickers or\u00a0 laptop battery dies in the split second between the \"Delete\" and the \"Insert,\" the Purchase Order will be wiped clean of all items. We will be left with an empty PO header and no record of what was actually ordered.\n\n**The Change Needed:** We must move this logic into a single Postgres Function (RPC) that handles the update as a single transaction, if the insert fails, the delete is rolled back automatically.\n\n\u200c\n\n2. **Disconnected Inventory Lifecycle**\n\n**The Issue:** There is a status called \"Received,\" but marking a PO as received does not actually update stock levels in the Inventory module.\n\n**Why this is bad:** The team has to do double-work: mark the PO as received in Procurement, and then manually create a \"Stock Adjustment\" in Inventory. This leads to human error where the stock count on paper doesn't match the actual warehouse shelf.\n\n**The Change Needed:** Marking a PO as \"Received\" should automatically trigger a stock_ledger entry and link it to a Goods Receipt record.\n\n\u200c\n\n3. **Floating-Point Math Errors**\n\n**The Issue:** The subtotal and tax calculations are performed in JavaScript using simple multiplication and .reduce().\n\n**Why this is bad:** JavaScript is notorious for rounding errors with decimals (e.g., 19.99 \\* 3 might result in 59.96999999999999). In accounting, even a 1-paisa discrepancy will prevent books from balancing during an audit.\n\n**The Change Needed:** All financial math (Quantity \\* Price + Tax) must be offloaded to Postgres using the NUMERIC data type, which is designed for perfect decimal precision.\n\n\u200c\n\n4. **The \"Million Row\" Scalability Wall**\n\n**The Issue:** Like every other screen audited so far, this one fetches the entire history of Purchase Orders into the browser cache.\n\n**Why this is bad:** While your first 50 POs will feel fast, once you have 5,000 POs over two years, this screen will take 30+ seconds to load and will eventually crash the user's browser.\n\n**The Change Needed:** Switch to server-side pagination so that the browser only ever downloads 25 POs at a time.",
+      "category": "Screen Review \u2014 Procurement",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-59"
+    },
+    {
+      "key": "GBC-60",
+      "summary": "Procurement  --> Good Receipts screen",
+      "description": "This module has a strong state machine (Draft \u2192 Inspecting \u2192 Accepted), but a major user-interface flaw makes it impossible to handle real-world shipping issues.\n\n1. **The \"All or Nothing\" Receipt Bug**\n\nThe Issue: When we create a Goods Receipt (GRN) from a Purchase Order, the app automatically assumes you have received 100% of the remaining items.\n\n**Why this is bad:** In real-world logistics, partial shipments are common (e.g., you ordered 100 laptops, but the vendor only sent 20 today). Currently, the UI gives the user no way to edit the quantity received. It just creates a full receipt the moment we click \"Create.\"\n\n**The Change Needed:** The \"Create Goods Receipt\" dialog needs a table where the user can manually enter the actual quantity that arrived at the warehouse.\n\n\u200c\n\n2. **The \"Invisible Data\" Fetching Risk**\n\n**The Issue:** Like every other list in the app, the Goods Receipts list fetches the entire history of the organization into the browser memory.\n\n**Why this is bad:** Once a company has processed a few hundred shipments, this screen will become sluggish. Searching for an old GRN will become a \"needle in a haystack\" problem for the browser's memory.\n\n**The Change Needed:** Implement server-side pagination and database-level searching using Supabase .ilike().\n\n\u200c\n\n3. **Brittle Mutation Cleanup (Lack of Transactions)**\n\n**The Issue:** When creating a Goods Receipt, the app performs three separate database actions in a row:\u00a0\n\n1. Create the Header, 2) Create the Items, 3) Update the Purchase Order status.\n\n**Why this is bad:** If the internet connection fails after Step 1 but before Step 3, the database becomes a mess. We will have a Goods Receipt that has no items, and a Purchase Order that thinks it hasn't been received yet.\n\n**The Change Needed:** These three steps must be wrapped in a single Postgres Transaction. It should be \"All or Nothing.\"\n\n\u200c\n\n4. **Duplicate \"Org Resolution\" Latency**\n\n**The Issue:** Every time we update a status or create a receipt, the app runs an extra query (resolveCallerOrg) to find out which organization you belong to.\n\n**Why this is bad:** This adds unnecessary delay (latency) to every single click.\n\n**The Change Needed:** The Organization ID should be stored in the global AuthContext so it's instantly available without a database round-trip.",
+      "category": "Screen Review \u2014 Procurement",
+      "severity": "Low",
+      "tags": [
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-60"
+    },
+    {
+      "key": "GBC-61",
+      "summary": "Procurement  --> Purchase return screen",
+      "description": "While this screen is more functional than the Inventory Adjustments screen (it actually has line items!), it contains a catastrophic data loss risk during the editing process.\n\n1. **The \"Vanishing Items\" Bug (Atomic Failure)**\n\n**The Issue:** When we edit a Purchase Return, the handleEditSave function performs three separate actions in your browser:\n\n* Updates the return header (Total Amount, Date).\n* Deletes every single item currently attached to that return.\n* Inserts the new list of items.\n\n**Why this is bad:** These are three independent network requests. If the internet connection flickers between Step 2 (Delete) and Step 3 (Insert), all items for that return will be permanently deleted and the new ones will never be saved. We will be left with an empty shell of a return and no record of what was actually returned.\n\n**The Change Needed:** This must be moved to a single Postgres RPC function to ensure that the delete and insert happen as an atomic \"all-or-nothing\" transaction.\n\n\u200c\n\n2. **Disconnected Inventory (Phantom Stock)**\n\n**The Issue:** Creating a Purchase Return does not impact warehouse stock levels.\n\n**Why this is bad:** If we return 50 defective laptops to a vendor, \"Inventory Items\" list will still show that you have those 50 laptops in stock. This leads to Phantom Stock, where the system thinks we have items available for sale that have actually already left the building.\n\n**The Change Needed:** Approving a Purchase Return should automatically create a \"Stock Out\" movement in the stock_ledger.\n\n\u200c\n\n3. **Vendor Credit Race Condition**\n\n**The Issue:** The \"Vendor Credit\" button (line 259) allows to turn a return into a credit note.\n\n**Why this is bad:** Similar to the Expense screen, this performs multiple un-atomic updates. If it fails halfway through, we may end up with a Vendor Credit that isn't properly linked to the original Return, making it impossible to audit later.\n\n**The Change Needed:** Use a backend function to handle the conversion from Return to Vendor Credit.\n\n\u200c\n\n4. **The \"Million Row\" Fetch**\n\n**The Issue:** Like every other screen audited so far, usePurchaseReturns fetches the entire organization's history in one go.\n\n**The Change Needed:** Server-side pagination is required before the company grows beyond a few hundred returns.",
+      "category": "Screen Review \u2014 Procurement",
+      "severity": "Low",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-61"
+    },
+    {
+      "key": "GBC-62",
+      "summary": "Sales --> Sales Order screen",
+      "description": "This module is the \"Engine Room\" of revenue, but it suffers from the same Atomic Deletion risks as the Procurement and Financial modules.\n\n1. **The \"Zombie Order\" Bug (Manual Rollbacks)**\n\n**The Issue:** In the useCreateSalesOrder hook, if the line items fail to save, the code attempts to \"manually\" delete the order header to clean up.\n\nif (itemErr) {\n\n\u00a0\u00a0await supabase.from(\"sales_orders\").delete().eq(\"id\", [soData.id](http://soData.id));\n\n\u00a0\u00a0throw itemErr;\n\n}\n\n**Why this is bad:** This is a \"Poor Man's Transaction.\" If internet connection drops after the items fail but before the manual delete finishes, we are left with a Zombie Order - a sales order with a total amount but zero items. This will break your Sales Reports and Analytics because the math won't add up.\n\n**The Change Needed:** We must replace this \"manual cleanup\" with a server-side Postgres Function (RPC) that ensures the Order and its Items are created together, or not at all.\n\n\u200c\n\n2. **The \"Vanishing Items\" Edit Risk**\n\n**The Issue:** Just like the Purchase Returns screen, editing a Sales Order (via useUpdateSalesOrder) involves deleting all existing items and inserting new ones as separate network calls.\n\n**Why this is bad:** If the browser crashes mid-save, the items are deleted from the database and never replaced. We will lose the customer's order details permanently.\n\n**The Change Needed:** Move the update logic to an atomic Postgres transaction.\n\n\u200c\n\n3. **No Stock Reservation (Over-Selling Risk)**\n\n**The Issue:** When we move a Sales Order from \"Draft\" to \"Confirmed,\" nothing happens in inventory.\n\n**Why this is bad:** A \"Confirmed\" order should ideally Reserve or Commit stock in the warehouse. Right now, we could confirm 100 orders for an item you only have 1 of in stock, and the system will never warn us. This leads to unhappy customers and shipping delays.\n\n**The Change Needed:** Confirmation should trigger a \"Stock Reservation\" movement in the stock_ledger to prevent over-selling.\n\n\u200c\n\n4. **Floating-Point Math Errors**\n\n**The Issue:** The code uses Math.round(tax \\* 100) / 100 (line 110) in the frontend.\n\n**Why this is bad:** Performing financial rounding in JavaScript is dangerous because of how floating-point numbers are handled. Over thousands of orders, these tiny rounding errors (\u20b90.01 differences) will add up and cause the Balance Sheet to be off by several rupees, which will infuriate your CA.\n\n**The Change Needed:** Use Postgres's built-in numeric type for all currency math to ensure 100% precision.",
+      "category": "Screen Review \u2014 Sales",
+      "severity": "High",
+      "tags": [
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-62"
+    },
+    {
+      "key": "GBC-63",
+      "summary": "Sales --> Deliveries screen",
+      "description": "This module is a good logistics tracker, but it suffers from a Stock Integrity Gap regarding returns.\n\n1. **The \"Ghost Return\" Problem**\n\n**The Issue:** The \"Actions\" menu allows us to mark a delivery as \"Returned.\"\n\n<DropdownMenuItem onClick={() => updateShipping.mutate({ id: [r.id](http://r.id), status: \"returned\" })}>\n\n\u00a0\u00a0Mark as Returned\n\n</DropdownMenuItem>\n\n**Why this is bad:** Clicking this button only changes the text on the screen to \"Returned.\" It does not actually put the items back into inventory.\n\n**The Change Needed:** Marking a delivery as \"Returned\" must trigger a \"Stock In\" movement in the stock_ledger so warehouse counts reflect the items coming back.\n\n\u200c\n\n2. **No Server-Side Search/Sort**\n\n**The Issue:** Like the other modules, the useQuery fetches the entire list of delivery notes from the database and filters them in the browser using JavaScript.\n\n**Why this is bad:** As soon as our company ships its 1,000th package, this screen will start to lag. By the 5,000th package, the page will likely crash or take 10+ seconds to load.\n\n**The Change Needed:** Implement server-side pagination and search using Supabase .ilike() and .range().\n\n\u200c\n\n3. **Orphaned Delivery Records**\n\n**The Issue:** The delivery note is loosely tied to a Sales Order.\n\n**Why this is bad:** There is no validation to prevent a user from deleting a Sales Order that has already been shipped. If the Sales Order is deleted, the Delivery Note loses its customer context, leaving with shipping records that have no \"Owner.\"\n\n**The Change Needed:** Add a database constraint to block the deletion of any Sales Order that has an associated Delivery Note.\n\n\u200c\n\n4. **Fragmented Shipping Updates**\n\n**The Issue:** Updating tracking numbers, carriers, and shipping costs are separate updates.\n\n**The Change Needed:** These should be wrapped in a single transaction to ensure that if a tracking number is added, the status is guaranteed to move to \"Dispatched.\"",
+      "category": "Screen Review \u2014 Sales",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-63"
+    },
+    {
+      "key": "GBC-64",
+      "summary": "Sales --> Sales Return screen",
+      "description": "This module manages the \"Paperwork\" of returns perfectly, but it completely ignores the physical stock and has high-risk synchronization gaps.\n\n1. **Disconnected Inventory (The \"Ghost Stock\" Problem)**\n\n**The Issue:** When we create and approve a Sales Return, the code correctly handles the Customer and the Credit Note. However, it does not update inventory.\n\n**Why this is bad:** When a customer returns 10 units of an item, those items are now back in the warehouse. But because the Sales Return module isn't connected to the Stock Ledger, the system will still think those 10 units are missing. This leads to \"Stock Outs\" on your website even when shelves are actually full.\n\n**The Change Needed:** The \"Confirm Return\" status transition must automatically trigger a stock_ledger entry to add the items back into the selected warehouse.\n\n\u200c\n\n2. **Non-Atomic Credit Note Sync**\n\n**The Issue:** The process of issuing a Credit Note from a Return happens in two separate steps from the browser:\n\n* Create the Credit Note record.\n* Update the Sales Return to link it to that Credit Note.\n\n**Why this is bad:** If the user's internet connection flickers between Step 1 and Step 2, we will have a \"Ghost Credit Note\" that isn't tied to any Return record. This makes it impossible for an accountant to track why that credit was given during a year-end audit.\n\n**The Change Needed:** Move this logic into a single Postgres RPC so that the Credit Note and the Return Link are created at the exact same microsecond.\n\n\u200c\n\n3. **The \"Scaling Wall\" Fetching Issue**\n\n**The Issue:** Just like every other screen we have audited, useSalesReturns() fetches every single return record for the organization at once.\n\n**Why this is bad:** As business grows and handles thousands of returns per year, this screen will take longer and longer to load until it eventually crashes the browser tab.\n\n**The Change Needed:** Implement server-side pagination (.range(0, 10)).\n\n\u200c\n\n4. **Duplicate Return Prevention**\n\n**The Issue:** There is currently no logic to prevent a user from returning more items than were originally shipped in the Sales Order.\n\n**The Change Needed:** We should add a backend check that compares the quantity_returned against the quantity_shipped to prevent \"Negative Inventory\" errors or fraudulent returns.",
+      "category": "Screen Review \u2014 Sales",
+      "severity": "High",
+      "tags": [
+        "Data Integrity",
+        "Frontend",
+        "Database"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-64"
+    },
+    {
+      "key": "GBC-65",
+      "summary": "Sales --> Sales invoices screen",
+      "description": "This is the most complex and feature-rich screen in the application, but it is also the most vulnerable to a total system crash once you have more than a few hundred customers.\n\n1. **The \"Big Data\" Performance Wall**\n\n**The Issue:** The page fetches entire invoice history and uses a useMemo loop (lines 208\u2013216) to filter and search through them.\n\n**Why this is bad:** Invoicing is usually the highest-volume table in an ERP. While it works fast with 50 invoices, it will become unusable with 5,000. The browser will freeze every time we type a single letter into the search bar.\n\n**The Change Needed:** We must move the search and status filtering to the Server (Supabase) using .ilike() and .eq() queries.\n\n\u200c\n\n2. **Unreliable Financial KPIs**\n\n**The Issue:** The \"Total Outstanding\" and \"Total Paid\" cards at the top of the screen are calculated by looping through the local data in the browser (lines 252\u2013267).\n\n**Why this is bad:** If the backend hook has any limit (like the 200-row limit found in other modules), the dashboard will report incorrect financial totals. A CEO might see \"\u20b910 Lakh Outstanding\" when the real number is \"\u20b950 Lakh\" because the browser simply stopped counting after the first 200 rows.\n\n**The Change Needed:** These totals must be calculated via a Postgres Aggregate (SUM) query to ensure 100% accuracy regardless of how many invoices exist.\n\n\u200c\n\n3. **Fragile Tax Math (Rounding Risks)**\n\n**The Issue:** GST (CGST, SGST, IGST) is calculated entirely in JavaScript within the browser (lines 155\u2013185).\n\n**Why this is bad:** JavaScript is notorious for floating-point rounding errors (e.g., 0.1 + 0.2 !== 0.3). In a financial system, a rounding error of even \u20b90.01 can cause your statutory tax filings to be rejected by the government.\n\n**The Change Needed:** Tax totals should be calculated or at least strictly validated by the Backend to ensure the numbers on the PDF invoice match the numbers in your Ledger exactly.",
+      "category": "Screen Review \u2014 Sales",
+      "severity": "High",
+      "tags": [
+        "Performance",
+        "Frontend",
+        "Database",
+        "PDF/Export",
+        "Search"
+      ],
+      "url": "https://grx10.atlassian.net/browse/GBC-65"
+    }
+  ]
+}
