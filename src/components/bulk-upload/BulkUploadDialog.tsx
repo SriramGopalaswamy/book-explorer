@@ -181,10 +181,14 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const [isDragging, setIsDragging] = useState(false);
   const [uploadSummary, setUploadSummary] = useState<{
     success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
+    cancelled?: boolean;
+    failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
   } | null>(null);
   const [pendingWarning, setPendingWarning] = useState<{ message: string; canOverride: boolean } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const { job: activeJob } = useJobSubscription(activeJobId);
+  const [liveProgress, setLiveProgress] = useState<{ processed: number; total: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
