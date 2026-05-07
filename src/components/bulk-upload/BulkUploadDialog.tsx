@@ -376,21 +376,27 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
   const errorCount = parsedRows.filter((r) => r.errors.length > 0).length;
   const validCount = parsedRows.length - errorCount;
 
-  const executeUpload = async () => {
+  const executeUpload = async (overrideRows?: Record<string, string>[]) => {
     setUploading(true);
     setPendingWarning(null);
+    setLiveProgress(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const validRows = overrideRows
+      ?? parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
+    setLiveProgress({ processed: 0, total: validRows.length });
 
     // Enqueue a job_queue row for audit + Realtime progress tracking.
-    // Falls through silently if enqueue fails (no org context yet, etc.)
     let jobId: string | null = null;
     try {
       jobId = await enqueueJob("bulk_upload", {
         module: config.module,
         file_name: fileName,
-        total_rows: parsedRows.length,
+        total_rows: validRows.length,
       });
       setActiveJobId(jobId);
-      // Mark job as running
       await supabase
         .from("job_queue")
         .update({ status: "running", progress: 5, progress_label: "Processing rows…" })
@@ -400,10 +406,12 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     }
 
     try {
-      const validRows = parsedRows.filter((r) => r.errors.length === 0).map((r) => r.data);
-      let result: { success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number };
+      let result: {
+        success: number; errors: string[]; warnings?: string[]; created?: number; updated?: number;
+        cancelled?: boolean;
+        failedRows?: Array<{ rowIndex: number; data: Record<string, string>; error: string }>;
+      };
 
-      // Advance to 30% so the bar visibly moves before onUpload starts.
       if (jobId) {
         await (supabase.from("job_queue") as any)
           .update({ progress: 30, progress_label: "Uploading rows…" })
@@ -411,10 +419,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       }
 
       try {
-        // Throttled progress reporter — emits at most 1 update per 400ms to
-        // avoid spamming the realtime channel for large files.
         let lastEmit = 0;
         const onProgress = (processed: number, total: number, label?: string) => {
+          setLiveProgress({ processed, total });
           if (!jobId || total <= 0) return;
           const now = Date.now();
           if (now - lastEmit < 400 && processed < total) return;
@@ -428,21 +435,26 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
             .eq("id", jobId)
             .then(undefined, () => {});
         };
-        result = await config.onUpload(validRows, onProgress);
+        result = await config.onUpload(validRows, onProgress, controller.signal);
       } catch (uploadErr: any) {
-        console.error("[BulkUpload] onUpload threw:", uploadErr);
-        result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+        if (controller.signal.aborted) {
+          result = { success: 0, errors: ["Upload cancelled by user. All changes rolled back."], cancelled: true };
+        } else {
+          console.error("[BulkUpload] onUpload threw:", uploadErr);
+          result = { success: 0, errors: [uploadErr.message || "Upload failed"] };
+        }
       }
 
       // Update job to terminal state
       if (jobId) {
-        const failed = result.errors.length > 0 && result.success === 0;
+        const cancelled = result.cancelled === true;
+        const failed = !cancelled && result.errors.length > 0 && result.success === 0;
         await supabase.from("job_queue").update({
-          status: failed ? "failed" : "completed",
+          status: cancelled ? "cancelled" : failed ? "failed" : "completed",
           progress: 100,
-          progress_label: failed ? "Failed" : `${result.success} rows uploaded`,
+          progress_label: cancelled ? "Cancelled" : failed ? "Failed" : `${result.success} rows uploaded`,
           result: { success: result.success, errors: result.errors.slice(0, 20) },
-          error_message: failed ? result.errors[0] ?? "Upload failed" : null,
+          error_message: cancelled ? "Cancelled by user" : failed ? result.errors[0] ?? "Upload failed" : null,
         }).eq("id", jobId);
       }
 
@@ -459,7 +471,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
           const { error: historyErr } = await supabase.from("bulk_upload_history").insert({
             module: config.module,
             file_name: fileName,
-            total_rows: parsedRows.length,
+            total_rows: validRows.length,
             successful_rows: result.success,
             failed_rows: result.errors.length + errorCount,
             errors: result.errors.slice(0, 50),
@@ -480,7 +492,9 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       setUploadSummary(result);
 
       const warnCount = result.warnings?.length ?? 0;
-      if (result.success === 0 && result.errors.length > 0) {
+      if (result.cancelled) {
+        toast.warning("Upload cancelled. All changes rolled back.");
+      } else if (result.success === 0 && result.errors.length > 0) {
         toast.error(`Upload failed: ${result.errors.length} error(s)`);
       } else if (result.errors.length > 0 && warnCount > 0) {
         toast.warning(`Uploaded ${result.success} rows — ${result.errors.length} failed, ${warnCount} saved with partial data`);
@@ -502,7 +516,28 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
     } finally {
       setUploading(false);
       setActiveJobId(null);
+      setLiveProgress(null);
+      abortRef.current = null;
     }
+  };
+
+  const handleCancel = async () => {
+    if (!abortRef.current) return;
+    abortRef.current.abort();
+    if (activeJobId) {
+      await (supabase.from("job_queue") as any)
+        .update({ status: "cancelled", progress: 100, progress_label: "Cancelled", error_message: "Cancelled by user" })
+        .eq("id", activeJobId)
+        .then(undefined, () => {});
+    }
+    toast.warning("Cancelling upload — rolling back changes…");
+  };
+
+  const handleRetryFailed = async () => {
+    if (!uploadSummary?.failedRows?.length) return;
+    const rows = uploadSummary.failedRows.map((f) => f.data);
+    setUploadSummary(null);
+    await executeUpload(rows);
   };
 
   const handleUpload = async () => {
