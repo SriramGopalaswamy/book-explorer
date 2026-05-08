@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import {
   Select,
   SelectContent,
@@ -497,7 +498,13 @@ export default function Employees() {
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 space-y-4">
+            <DataLoadingBar
+              isLoading={isLoading || roleLoading || viewRoleLoading}
+              loaded={employees.length}
+              total={stats.total || undefined}
+              label="Loading employee directory"
+            />
             {isLoading || roleLoading || viewRoleLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => (

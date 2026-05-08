@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -958,6 +959,13 @@ export default function Payroll() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  <DataLoadingBar
+                    isLoading={(isLoading || roleLoading) && !isPlaceholderData}
+                    loaded={records.length}
+                    total={orgRecordCount || undefined}
+                    label={`Loading payroll register for ${periodLabel(selectedPeriod)}`}
+                    className="mb-4"
+                  />
                   {isLoading || roleLoading ? (
                     <div className="space-y-3">
                       {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
