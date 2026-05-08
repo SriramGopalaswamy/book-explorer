@@ -34,8 +34,7 @@ function useOrgRolePermissions(role: string | null, orgId: string | undefined) {
       return (data ?? []) as RolePermission[];
     },
     enabled: !!user && !!orgId && !!role,
-    staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: false,
+    ...QUERY_PROFILES.ROLES_PERMS,
   });
 }
 
