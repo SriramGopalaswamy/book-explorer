@@ -34,6 +34,7 @@ export function useMasterCTCComponents() {
       return (data ?? []) as unknown as MasterCTCComponent[];
     },
     enabled: !!orgId,
+    ...QUERY_PROFILES.MASTER_DATA,
   });
 }
 
