@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -822,7 +823,14 @@ export default function OrgChart() {
           </CardHeader>
           <CardContent className="p-2">
             {isLoading || roleLoading ? (
-              <div className="h-[520px] flex items-center justify-center gap-8">
+              <div className="h-[520px] flex flex-col items-center justify-center gap-8">
+                <DataLoadingBar
+                  isLoading={isLoading || roleLoading}
+                  loaded={profiles.length}
+                  label="Building org chart"
+                  className="w-80"
+                />
+                <div className="flex items-center gap-8">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex flex-col items-center gap-4">
                     <Skeleton className="h-[110px] w-[172px] rounded-xl" />

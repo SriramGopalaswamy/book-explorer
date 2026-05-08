@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { 
   Calendar, 
   Clock, 
@@ -244,6 +245,12 @@ export default function Attendance() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="space-y-3 p-6">
+              <DataLoadingBar
+                isLoading={isLoading}
+                total={stats?.total}
+                loaded={attendance.length}
+                label="Loading attendance"
+              />
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}

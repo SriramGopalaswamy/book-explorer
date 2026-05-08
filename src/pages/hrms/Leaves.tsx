@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { Calendar, Check, X, Plus, Palmtree, Stethoscope, Baby, Briefcase, Home, Settings, Pencil, Paperclip, FileText, Image } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -629,6 +630,7 @@ export default function Leaves() {
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">
+                    <DataLoadingBar isLoading={isLoadingDisplayed} label="Loading leave requests" />
                     {Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton key={i} className="h-12 w-full" />
                     ))}
