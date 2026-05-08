@@ -604,11 +604,28 @@ export default function Invoicing() {
             <div>
               <h3 className="text-lg font-semibold text-foreground">
                 {statusFilter !== "all" ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Invoices` : "All Invoices"}
-                {searchQuery && <span className="text-muted-foreground font-normal text-sm ml-2">({filteredInvoices.length} results)</span>}
+                {(debouncedSearch || statusFilter !== "all") && pagedInvoices && (
+                  <span className="text-muted-foreground font-normal text-sm ml-2">
+                    ({pagedInvoices.total.toLocaleString("en-IN")} results)
+                  </span>
+                )}
               </h3>
               <p className="text-sm text-muted-foreground">Manage and track all your invoices</p>
             </div>
             <div className="flex items-center gap-2">
+              {orgData?.organizationId && (
+                <ExportDialog
+                  title="Export Invoices"
+                  description="Includes all invoices in your organization, even those beyond the 500-row live view."
+                  onExport={async (range) =>
+                    exportInvoicesCsv(orgData.organizationId!, {
+                      ...range,
+                      status: statusFilter,
+                      search: debouncedSearch,
+                    })
+                  }
+                />
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate("/financial/invoice-settings")}>
                 <Settings2 className="mr-2 h-4 w-4" /> Settings
               </Button>
