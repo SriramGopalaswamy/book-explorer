@@ -390,11 +390,17 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       processedCount++;
       onProgress?.(processedCount, rows.length);
       const errorsBefore = errors.length;
-      // ── Parse monthly inputs (mirrors usePayrollBulkUpload) ──────────────
-      const pf_monthly_raw   = parseFloat(row.pf_employee_monthly) || 0;
-      const prof_tax_raw     = parseFloat(row.professional_tax_monthly) || 0;
+
+      // ── Pass-through parsing (no derivations / consistency checks) ───────
+      // Per business decision: Payroll Register bulk upload trusts the file
+      // exactly as provided. We do NOT back-calculate PF/PT, do NOT split
+      // basic/HRA/allowances, and do NOT cross-check net pay. Every numeric
+      // column is taken at face value. Columns absent from the file simply
+      // resolve to 0.
+      const pf_monthly       = parseFloat(row.pf_employee_monthly) || 0;
+      const prof_tax         = parseFloat(row.professional_tax_monthly) || 0;
       const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
-      let   other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
+      const other_ded_raw    = parseFloat(row.other_deductions_col) || 0;
       const total_ded_file   = parseFloat(row.total_deductions_col) || 0;
       const monthly_gross    = parseFloat(row.monthly_gross) || 0;
       const grossEarningsExplicit = parseFloat(row.gross_earnings_monthly);
@@ -408,99 +414,18 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       const lwp_ded_val      = parseFloat(row.lwp_deduction_col) || 0;
       const net_from_file    = parseFloat(row.net_pay_file) || 0;
 
-      // ── Derive basic, HRA, other allowances ──────────────────────────────
-      let basic: number;
-      if (pf_monthly_raw > 0 && pf_monthly_raw < 1800) {
-        basic = Math.round(pf_monthly_raw / 0.12);
-      } else if (pf_monthly_raw >= 1800) {
-        basic = Math.max(Math.round(monthly_gross * 0.62), 15000);
-      } else {
-        basic = Math.round(monthly_gross * 0.62);
-      }
-      const hra = Math.round(monthly_gross * 0.248);
-      const other_allowances = Math.max(0, Math.round(monthly_gross - basic - hra));
+      // Earnings: store the gross as a single line; do not invent basic/HRA splits.
+      const basic = Math.round(gross_earn);
+      const hra = 0;
+      const other_allowances = 0;
 
-      // ── Resolve deduction components via back-calculation ─────────────────
-      let pf_monthly = pf_monthly_raw;
-      let prof_tax   = prof_tax_raw;
-
-      if (pf_monthly === 0 && prof_tax === 0 && total_ded_file > 0) {
-        const grossForPT = gross_earn || monthly_gross;
-        const ptDerived  = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
-        const pfActual   = Math.round(Math.min(basic, 15000) * 0.12);
-        const pfCeiling  = 1800;
-        for (const pf of [pfActual, pfCeiling]) {
-          if (Math.abs(pf + ptDerived - total_ded_file) <= 1) { pf_monthly = pf; prof_tax = ptDerived; break; }
-          if (Math.abs(pf - total_ded_file) <= 1) { pf_monthly = pf; break; }
-        }
-        if (pf_monthly === 0 && ptDerived > 0 && Math.abs(ptDerived - total_ded_file) <= 1) prof_tax = ptDerived;
-        if (pf_monthly > 0 || prof_tax > 0) {
-          warnings.push(
-            `Row ${row.employee_id || row.email_id}: PF (₹${pf_monthly}) and PT (₹${prof_tax}) ` +
-            `were derived from Total Deductions (₹${total_ded_file}) — ` +
-            `verify these match the employee's actual deductions.`
-          );
-        }
-      }
-
-      // ── Deduction consistency check ───────────────────────────────────────
-      if (total_ded_file > 0 && (pf_monthly_raw > 0 || prof_tax_raw > 0 || tds_monthly_raw > 0 || other_ded_raw > 0)) {
-        const componentSum = pf_monthly_raw + prof_tax_raw + tds_monthly_raw + other_ded_raw;
-        if (componentSum > total_ded_file + 2) {
-          errors.push(`Row ${row.employee_id || row.email_id}: Individual deductions (₹${componentSum}) exceed Total Deductions (₹${total_ded_file}).`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
-          continue;
-        }
-        const gap = total_ded_file - componentSum;
-        if (gap > 2) {
-          if (prof_tax === 0) {
-            const grossForPT = gross_earn || monthly_gross;
-            const ptExpected = grossForPT > 15000 ? 200 : grossForPT > 10000 ? 150 : 0;
-            if (ptExpected > 0 && gap >= ptExpected) prof_tax = ptExpected;
-          }
-          const remaining = total_ded_file - (pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw);
-          if (remaining > 0) other_ded_raw += remaining;
-        }
-      }
-
-      // ── Net pay cross-check ───────────────────────────────────────────────
-      // Formula: net = gross − deductions − LWP + bonus + incentive
-      // (Bonus and Incentive are taxable but TDS is already included in
-      //  total_ded_file by the upstream payroll team — they are added back
-      //  on top of the post-deduction subtotal.)
-      // Payroll Register upload trusts the pre-computed file. We surface
-      // mismatches as warnings (so reviewers can investigate) but never block
-      // the upload — the file's net_pay is authoritative by design.
-      if (net_from_file > 0 && total_ded_file > 0 && gross_earn > 0) {
-        const lwpForCheck = hasExplicitGross ? 0 : lwp_ded_val;
-        const expectedNet = Math.round(gross_earn - total_ded_file - lwpForCheck + bonus + incentive);
-        const diff = Math.abs(expectedNet - net_from_file);
-        if (diff > 5) {
-          warnings.push(
-            `Row ${row.employee_id || row.email_id}: Net Pay mismatch — ` +
-            `Gross (₹${gross_earn}) − Deductions (₹${total_ded_file})` +
-            `${lwpForCheck ? ` − LWP (₹${lwpForCheck})` : ""}` +
-            `${bonus ? ` + Bonus (₹${bonus})` : ""}` +
-            `${incentive ? ` + Incentive (₹${incentive})` : ""}` +
-            ` = ₹${expectedNet}, but file says ₹${net_from_file} (gap ₹${expectedNet - net_from_file}). ` +
-            `Saved using file value — please reconcile bonus/incentive/LWP columns.`
-          );
-        } else if (diff > 0) {
-          warnings.push(
-            `Row ${row.employee_id || row.email_id}: Net Pay rounding gap of ₹${diff} ` +
-            `(expected ₹${expectedNet}, file has ₹${net_from_file}) — saved using file value.`
-          );
-        }
-      }
-
-      const lwpForCalc = hasExplicitGross ? 0 : lwp_ded_val;
-      const totalDed   = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
-      // Stored gross includes variable pay so totals reconcile downstream:
-      //   gross − deductions − LWP === net_pay
+      // Deductions: sum components if total not provided; otherwise trust the file.
+      const componentSum = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
+      const totalDed = total_ded_file > 0 ? total_ded_file : componentSum;
       const grossWithVariable = gross_earn + bonus + incentive;
-      const net_pay    = net_from_file > 0
+      const net_pay = net_from_file > 0
         ? net_from_file
-        : Math.max(0, Math.round(grossWithVariable - totalDed - lwpForCalc));
+        : Math.max(0, Math.round(grossWithVariable - totalDed - lwp_ded_val));
 
       // ── Employee matching ─────────────────────────────────────────────────
       let profile;
