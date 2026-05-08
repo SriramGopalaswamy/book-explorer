@@ -33,7 +33,7 @@ import {
   Link,
 } from "lucide-react";
 import { toast } from "sonner";
-import grx10Logo from "@/assets/grx10-logo.webp";
+import grx10Logo from "@/assets/grx10-logo.svg";
 
 const STEPS = [
   { id: "entity", label: "Entity Identity", phase: 1 as const, icon: Building2 },

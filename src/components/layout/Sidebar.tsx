@@ -73,7 +73,7 @@ import {
    LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import grx10Logo from "@/assets/grx10-logo.webp";
+import grx10Logo from "@/assets/grx10-logo.svg";
 import grx10Icon from "@/assets/grx10-icon.png";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useModuleAccess } from "@/hooks/useModuleAccess";
