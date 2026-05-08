@@ -7325,6 +7325,7 @@ export type Database = {
           settings: Json | null
           slug: string | null
           status: string
+          timezone: string
           updated_at: string
           weekend_policy: string
         }
@@ -7343,6 +7344,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          timezone?: string
           updated_at?: string
           weekend_policy?: string
         }
@@ -7361,6 +7363,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          timezone?: string
           updated_at?: string
           weekend_policy?: string
         }
@@ -11846,6 +11849,7 @@ export type Database = {
         Returns: string
       }
       get_my_session_context: { Args: never; Returns: Json }
+      get_org_timezone: { Args: { p_org_id?: string }; Returns: string }
       get_payroll_unique_record_count: {
         Args: { p_org_id: string }
         Returns: number
@@ -11965,6 +11969,7 @@ export type Database = {
         Returns: string
       }
       org_has_transactions: { Args: { _org_id: string }; Returns: boolean }
+      org_now: { Args: never; Returns: string }
       post_asset_disposal_journal: {
         Args: { _asset_id: string }
         Returns: string
