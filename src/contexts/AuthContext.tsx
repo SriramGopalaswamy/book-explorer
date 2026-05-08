@@ -33,12 +33,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
 
         // On sign-out: drop all cached data + sessionStorage bootstrap.
-        // On sign-in: invalidate session-context for the new uid.
+        // On sign-in / token-refresh / user-update: ALWAYS purge the cached
+        // session-context for the new uid and force a fresh bootstrap.
+        // Without this, a stale `roles=[]` / `organization_id=null` snapshot
+        // from a previous session/migration would persist forever (staleTime:
+        // Infinity) and cause non-super-admin users to silently lose access
+        // while super-admins keep working.
         if (event === "SIGNED_OUT") {
           clearAllSessionContext();
           queryClient.clear();
-        } else if (event === "SIGNED_IN" && newUid) {
+        } else if (
+          (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") &&
+          newUid
+        ) {
+          clearAllSessionContext();
           queryClient.invalidateQueries({ queryKey: ["session-context", newUid] });
+          queryClient.invalidateQueries({ queryKey: ["session-context"] });
         }
       }
     );

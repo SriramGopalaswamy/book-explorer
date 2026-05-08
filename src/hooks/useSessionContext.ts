@@ -102,21 +102,29 @@ export function useSessionContext() {
           organization: payload.organization ?? null,
           subscription: payload.subscription ?? null,
         };
-        if (user.id) writeCachedSessionContext(user.id, ctx);
+
+        // SAFETY: Do NOT persist a degraded snapshot. A non-super-admin user
+        // with no organization_id or no roles is almost always a transient
+        // failure (RPC race with a migration, partial profile recreation,
+        // network hiccup). Caching it locks the user out until sign-out.
+        const isDegraded =
+          !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+        if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
         return ctx;
       } finally {
         clearTimeout(timer);
       }
     },
     enabled: !!user,
-    // Session-lifetime cache: never auto-refetch. Mutations that affect
-    // roles/subscription must call invalidateSessionContext().
-    staleTime: Infinity,
+    // Cache for the session, but allow self-healing refetches: if a previous
+    // bootstrap returned a degraded snapshot we want it re-fetched on the
+    // next focus/reconnect, not pinned forever.
+    staleTime: 5 * 60_000,
     gcTime: Infinity,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: "always",
     refetchOnMount: false,
-    refetchOnReconnect: false,
-    retry: 2,
+    refetchOnReconnect: "always",
+    retry: 3,
     retryDelay: (a) => Math.min(1000 * 2 ** a, 5000),
   });
 }
