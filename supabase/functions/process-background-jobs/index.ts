@@ -112,7 +112,8 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : (typeof e === "string" ? e : JSON.stringify(e));
+    console.error("worker_error", msg, e);
     return new Response(JSON.stringify({ error: msg }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
