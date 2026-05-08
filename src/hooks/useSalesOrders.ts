@@ -93,31 +93,19 @@ export function useCreateSalesOrder() {
       const tax = so.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const soNum = `SO-${Date.now().toString(36).toUpperCase()}`;
 
-      // Resolve org_id explicitly for RLS compliance
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found");
-
-      const { data: soData, error: soErr } = await supabase
-        .from("sales_orders" as any)
-        .insert({
-          so_number: soNum,
-          customer_name: so.customer_name.trim(),
-          customer_id: so.customer_id || null,
-          order_date: so.order_date,
-          expected_delivery: so.expected_delivery || null,
-          notes: so.notes || null,
-          subtotal,
-          tax_amount: Math.round(tax * 100) / 100,
-          total_amount: Math.round((subtotal + tax) * 100) / 100,
-          created_by: user.id,
-          organization_id: profile.organization_id,
-        } as any)
-        .select()
-        .single();
-      if (soErr) throw soErr;
-
-      const items = so.items.map((i) => ({
-        sales_order_id: (soData as any).id,
+      const header = {
+        so_number: soNum,
+        customer_name: so.customer_name.trim(),
+        customer_id: so.customer_id || null,
+        order_date: so.order_date,
+        expected_delivery: so.expected_delivery || null,
+        notes: so.notes || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+        status: "draft",
+      };
+      const lines = so.items.map((i) => ({
         description: i.description,
         quantity: i.quantity,
         unit_price: i.unit_price,
@@ -126,13 +114,13 @@ export function useCreateSalesOrder() {
         item_id: i.item_id || null,
       }));
 
-      if (items.length > 0) {
-        const { error: itemErr } = await supabase.from("sales_order_items" as any).insert(items as any);
-        if (itemErr) {
-          await supabase.from("sales_orders" as any).delete().eq("id", (soData as any).id);
-          throw itemErr;
-        }
-      }
+      const { data: rpcResult, error: rpcErr } = await (supabase as any).rpc(
+        "create_sales_order_with_lines",
+        { p_header: header as any, p_lines: lines as any },
+      );
+      if (rpcErr) throw rpcErr;
+      const newId = (rpcResult as any)?.id ?? rpcResult;
+      const { data: soData } = await supabase.from("sales_orders" as any).select("*").eq("id", newId).maybeSingle();
       return soData;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); toast.success("Sales order created"); },
@@ -167,7 +155,7 @@ export function useUpdateSalesOrder() {
       const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = params.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
 
-      const { error: soErr } = await supabase.from("sales_orders" as any).update({
+      const header = {
         customer_name: params.customer_name.trim(),
         order_date: params.order_date,
         expected_delivery: params.expected_delivery || null,
@@ -175,14 +163,8 @@ export function useUpdateSalesOrder() {
         subtotal,
         tax_amount: Math.round(tax * 100) / 100,
         total_amount: Math.round((subtotal + tax) * 100) / 100,
-        updated_at: new Date().toISOString(),
-      } as any).eq("id", params.id).eq("organization_id", profile.organization_id);
-      if (soErr) throw soErr;
-
-      // Replace items: delete old, insert new
-      await supabase.from("sales_order_items" as any).delete().eq("sales_order_id", params.id);
-      const newItems = params.items.map((i) => ({
-        sales_order_id: params.id,
+      };
+      const lines = params.items.map((i) => ({
         description: i.description,
         quantity: i.quantity,
         unit_price: i.unit_price,
@@ -190,10 +172,13 @@ export function useUpdateSalesOrder() {
         amount: Math.round(i.quantity * i.unit_price * (1 + i.tax_rate / 100) * 100) / 100,
         item_id: i.item_id || null,
       }));
-      if (newItems.length > 0) {
-        const { error: itemErr } = await supabase.from("sales_order_items" as any).insert(newItems as any);
-        if (itemErr) throw itemErr;
-      }
+
+      const { error: rpcErr } = await (supabase as any).rpc("update_sales_order_with_lines", {
+        p_so_id: params.id,
+        p_header: header as any,
+        p_lines: lines as any,
+      });
+      if (rpcErr) throw rpcErr;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); qc.invalidateQueries({ queryKey: ["so-items"] }); toast.success("Sales order updated"); },
     onError: (e: any) => toast.error(e.message),
