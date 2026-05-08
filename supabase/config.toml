@@ -27,6 +27,8 @@ project_id = "qfgudhbrjfjmbamwsfuj"
     verify_jwt = false
   [functions.process-reimbursement]
     verify_jwt = false
+  [functions.process-background-jobs]
+    verify_jwt = false
   [functions.send-notification-email]
     verify_jwt = false
   [functions.scan-bill]
