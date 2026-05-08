@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
+import { QUERY_PROFILES } from "@/lib/query-defaults";
 
 export interface MasterCTCComponent {
   id: string;
