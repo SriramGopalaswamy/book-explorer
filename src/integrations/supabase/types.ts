@@ -12086,6 +12086,16 @@ export type Database = {
         Args: { _code: string; _org_id: string }
         Returns: string
       }
+      get_invoice_kpis: {
+        Args: { p_org_id: string }
+        Returns: {
+          draft_count: number
+          overdue_count: number
+          total_count: number
+          total_outstanding: number
+          total_paid: number
+        }[]
+      }
       get_my_session_context: { Args: never; Returns: Json }
       get_org_timezone: { Args: { p_org_id?: string }; Returns: string }
       get_payroll_unique_record_count: {
@@ -12119,6 +12129,16 @@ export type Database = {
           period_2: number
           variance: number
           variance_pct: number
+        }[]
+      }
+      get_purchase_order_kpis: {
+        Args: { p_org_id: string }
+        Returns: {
+          draft_count: number
+          received_count: number
+          submitted_count: number
+          total_count: number
+          total_value: number
         }[]
       }
       get_trial_balance: {

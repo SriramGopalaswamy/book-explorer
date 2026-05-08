@@ -4,9 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 
-import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { ListState } from "@/components/ui/list-state";
+import { ExportDialog } from "@/components/ui/export-dialog";
+import { exportInvoicesCsv } from "@/lib/server-export";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePaginatedInvoices, useInvoiceKpis } from "@/hooks/usePaginatedInvoices";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +68,6 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
-  useInvoices,
   useCreateInvoice,
   useUpdateInvoice,
   useUpdateInvoiceStatus,
@@ -191,13 +194,16 @@ export default function Invoicing() {
   const { data: orgData } = useUserOrganization();
   const { compliance } = useOnboardingCompliance();
   const orgState = compliance?.state ?? null;
-  const { data: invoices = [], isLoading } = useInvoices();
-  const createInvoice = useCreateInvoice();
-  const updateInvoice = useUpdateInvoice();
-  const updateStatus = useUpdateInvoiceStatus();
-  const deleteInvoice = useDeleteInvoice();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset to first page when filters/search change
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
+  useMemo(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, pageSize]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -205,17 +211,19 @@ export default function Invoicing() {
   const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
     inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
 
-  const filteredInvoices = useMemo(() => invoices.filter((inv) => {
-    const matchesSearch = !searchQuery ||
-      inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.client_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.client_email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || inv.status === statusFilter ||
-      (statusFilter === "overdue" && isEffectivelyOverdue(inv));
-    return matchesSearch && matchesStatus;
-  }), [invoices, searchQuery, statusFilter]);
+  const {
+    data: pagedInvoices,
+    isLoading,
+    isError,
+    error: pagedError,
+    refetch: refetchInvoices,
+  } = usePaginatedInvoices({ page, pageSize, search: debouncedSearch, status: statusFilter });
+  const invoices = pagedInvoices?.rows ?? [];
 
-  const pagination = usePagination(filteredInvoices, 10);
+  const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
+  const updateStatus = useUpdateInvoiceStatus();
+  const deleteInvoice = useDeleteInvoice();
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers", user?.id],
@@ -249,22 +257,11 @@ export default function Invoicing() {
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
   const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", client_phone: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
-  const { totalOutstanding, totalPaid, overdueCount, draftCount } = useMemo(() => {
-    let outstanding = 0;
-    let paid = 0;
-    let overdue = 0;
-    let drafts = 0;
-    for (const inv of invoices) {
-      if (inv.status === "paid") {
-        paid += Number(inv.amount);
-      } else if (inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv)) {
-        outstanding += Number(inv.amount);
-      }
-      if (inv.status === "overdue" || isEffectivelyOverdue(inv)) overdue++;
-      if (inv.status === "draft") drafts++;
-    }
-    return { totalOutstanding: outstanding, totalPaid: paid, overdueCount: overdue, draftCount: drafts };
-  }, [invoices]);
+  const { data: kpis } = useInvoiceKpis();
+  const totalOutstanding = kpis?.total_outstanding ?? 0;
+  const totalPaid = kpis?.total_paid ?? 0;
+  const overdueCount = kpis?.overdue_count ?? 0;
+  const draftCount = kpis?.draft_count ?? 0;
 
   if (isCheckingRole) {
     return (
@@ -607,11 +604,28 @@ export default function Invoicing() {
             <div>
               <h3 className="text-lg font-semibold text-foreground">
                 {statusFilter !== "all" ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Invoices` : "All Invoices"}
-                {searchQuery && <span className="text-muted-foreground font-normal text-sm ml-2">({filteredInvoices.length} results)</span>}
+                {(debouncedSearch || statusFilter !== "all") && pagedInvoices && (
+                  <span className="text-muted-foreground font-normal text-sm ml-2">
+                    ({pagedInvoices.total.toLocaleString("en-IN")} results)
+                  </span>
+                )}
               </h3>
               <p className="text-sm text-muted-foreground">Manage and track all your invoices</p>
             </div>
             <div className="flex items-center gap-2">
+              {orgData?.organizationId && (
+                <ExportDialog
+                  title="Export Invoices"
+                  description="Includes all invoices in your organization, even those beyond the 500-row live view."
+                  onExport={async (range) =>
+                    exportInvoicesCsv(orgData.organizationId!, {
+                      ...range,
+                      status: statusFilter,
+                      search: debouncedSearch,
+                    })
+                  }
+                />
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate("/financial/invoice-settings")}>
                 <Settings2 className="mr-2 h-4 w-4" /> Settings
               </Button>
@@ -819,21 +833,16 @@ export default function Invoicing() {
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                {searchQuery || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {searchQuery || statusFilter !== "all" ? "Try adjusting your search or filter criteria" : "Create your first invoice to get started"}
-              </p>
-            </div>
-          ) : (
+          <ListState
+            isLoading={isLoading && !pagedInvoices}
+            isError={isError}
+            isEmpty={!!pagedInvoices && pagedInvoices.total === 0}
+            error={pagedError as any}
+            onRetry={() => refetchInvoices()}
+            emptyTitle={debouncedSearch || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
+            emptyDescription={debouncedSearch || statusFilter !== "all" ? "Try adjusting your search or filter criteria." : "Create your first invoice to get started."}
+            skeletonRows={pageSize > 10 ? 8 : 5}
+          >
             <div>
               <Table>
                 <TableHeader>
@@ -848,7 +857,7 @@ export default function Invoicing() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.paginatedItems.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const displayStatus = isEffectivelyOverdue(invoice) ? "overdue" : invoice.status;
                     const statusConfig = getStatusConfig(displayStatus);
                     const StatusIcon = statusConfig.icon;
@@ -958,20 +967,22 @@ export default function Invoicing() {
                   })}
                 </TableBody>
               </Table>
-              <div className="px-6 pb-4">
-                <TablePagination
-                  page={pagination.page}
-                  totalPages={pagination.totalPages}
-                  totalItems={pagination.totalItems}
-                  from={pagination.from}
-                  to={pagination.to}
-                  pageSize={pagination.pageSize}
-                  onPageChange={pagination.setPage}
-                  onPageSizeChange={pagination.setPageSize}
-                />
-              </div>
+              {pagedInvoices && pagedInvoices.total > 0 && (
+                <div className="px-6 pb-4">
+                  <TablePagination
+                    page={page}
+                    totalPages={pagedInvoices.totalPages}
+                    totalItems={pagedInvoices.total}
+                    from={(page - 1) * pageSize + 1}
+                    to={Math.min(page * pageSize, pagedInvoices.total)}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </ListState>
         </div>
 
         {/* Aadhaar eSign Modal */}

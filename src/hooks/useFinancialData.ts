@@ -97,7 +97,7 @@ export function useFinancialRecords() {
         .select("*")
 
         .eq("organization_id", orgId)
-        .order("record_date", { ascending: false });
+        .order("record_date", { ascending: false }).limit(500);
 
       if (error) throw error;
       return data as FinancialRecord[];

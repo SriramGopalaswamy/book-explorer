@@ -50,7 +50,7 @@ export function usePaymentReceipts() {
     queryKey: ["payment-receipts", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("payment_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("payment_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PaymentReceipt[];
     },
@@ -129,7 +129,7 @@ export function useVendorPayments() {
     queryKey: ["vendor-payments", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("vendor_payments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("vendor_payments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as VendorPayment[];
     },

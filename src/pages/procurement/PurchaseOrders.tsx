@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, Column } from "@/components/ui/data-table";
+import { TablePagination } from "@/components/ui/TablePagination";
+import { ListState } from "@/components/ui/list-state";
+import { ExportDialog } from "@/components/ui/export-dialog";
+import { exportPurchaseOrdersCsv } from "@/lib/server-export";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil, Eye, XCircle, MoreHorizontal } from "lucide-react";
-import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePOStatus, useDeletePurchaseOrder, PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { useCreatePurchaseOrder, useUpdatePOStatus, useDeletePurchaseOrder, PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { usePaginatedPurchaseOrders, usePurchaseOrderKpis } from "@/hooks/usePaginatedPurchaseOrders";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +46,6 @@ const PO_TRANSITIONS: Record<string, string[]> = {
 };
 
 export default function PurchaseOrders() {
-  const { data: orders = [], isLoading } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
   const updateStatus = useUpdatePOStatus();
   const deletePO = useDeletePurchaseOrder();
@@ -50,6 +55,23 @@ export default function PurchaseOrders() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const debouncedSearch = useDebouncedValue(search, 350);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, pageSize]);
+
+  const {
+    data: paged,
+    isLoading,
+    isError,
+    error: pagedError,
+    refetch,
+  } = usePaginatedPurchaseOrders({ page, pageSize, search: debouncedSearch, status: statusFilter });
+  const orders = paged?.rows ?? [];
+
+  const { data: kpis } = usePurchaseOrderKpis();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
@@ -63,24 +85,17 @@ export default function PurchaseOrders() {
     queryKey: ["vendors-list", orgId],
     enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name").limit(500);
       if (error) throw error;
       return data || [];
     },
   });
 
-  const filtered = orders.filter((o) => {
-    const matchesSearch = o.po_number.toLowerCase().includes(search.toLowerCase()) ||
-      o.vendor_name.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   const stats = {
-    total: orders.length,
-    draft: orders.filter((o) => o.status === "draft").length,
-    submitted: orders.filter((o) => o.status === "submitted").length,
-    received: orders.filter((o) => o.status === "received").length,
+    total: kpis?.total_count ?? 0,
+    draft: kpis?.draft_count ?? 0,
+    submitted: kpis?.submitted_count ?? 0,
+    received: kpis?.received_count ?? 0,
   };
 
   const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
@@ -327,9 +342,41 @@ export default function PurchaseOrders() {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+          {orgId && (
+            <ExportDialog
+              title="Export Purchase Orders"
+              description="Includes all purchase orders in your organization, even those beyond the live view."
+              onExport={async (range) =>
+                exportPurchaseOrdersCsv(orgId, { ...range, status: statusFilter, search: debouncedSearch })
+              }
+            />
+          )}
         </div>
 
-        <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No purchase orders yet" />
+        <ListState
+          isLoading={isLoading && !paged}
+          isError={isError}
+          isEmpty={!!paged && paged.total === 0}
+          error={pagedError as any}
+          onRetry={() => refetch()}
+          emptyTitle={debouncedSearch || statusFilter !== "all" ? "No purchase orders match your filters" : "No purchase orders yet"}
+          emptyDescription={debouncedSearch || statusFilter !== "all" ? "Try adjusting your search or filter criteria." : "Create your first purchase order to get started."}
+          skeletonRows={pageSize > 10 ? 8 : 5}
+        >
+          <DataTable columns={columns} data={orders} isLoading={false} emptyMessage="No purchase orders" paginate={false} />
+          {paged && paged.total > 0 && (
+            <TablePagination
+              page={page}
+              totalPages={paged.totalPages}
+              totalItems={paged.total}
+              from={(page - 1) * pageSize + 1}
+              to={Math.min(page * pageSize, paged.total)}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
+          )}
+        </ListState>
 
         {/* Edit PO Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
