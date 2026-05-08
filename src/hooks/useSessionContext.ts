@@ -37,8 +37,35 @@ const EMPTY: SessionContext = {
 };
 
 const STORAGE_PREFIX = "grx10_session_ctx_";
+const SUPER_ADMIN_PREFIX = "grx10_is_super_admin_";
 function storageKey(uid: string) {
   return STORAGE_PREFIX + uid;
+}
+function superAdminKey(uid: string) {
+  return SUPER_ADMIN_PREFIX + uid;
+}
+
+/**
+ * Persistent (across reloads/sign-ins) hint that a user is a super admin.
+ * Used to bypass loading guards immediately on subsequent sessions before
+ * the bootstrap RPC resolves. The server-side RLS still enforces the real
+ * permission check — this is purely a UX hint to avoid a misleading spinner.
+ */
+export function readPersistedSuperAdmin(uid: string): boolean {
+  try {
+    return localStorage.getItem(superAdminKey(uid)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedSuperAdmin(uid: string, isSuperAdmin: boolean) {
+  try {
+    if (isSuperAdmin) localStorage.setItem(superAdminKey(uid), "1");
+    else localStorage.removeItem(superAdminKey(uid));
+  } catch {
+    /* ignore */
+  }
 }
 
 export function readCachedSessionContext(uid: string): SessionContext | null {
@@ -110,6 +137,7 @@ export function useSessionContext() {
         const isDegraded =
           !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
         if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
+        if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
         return ctx;
       } finally {
         clearTimeout(timer);
