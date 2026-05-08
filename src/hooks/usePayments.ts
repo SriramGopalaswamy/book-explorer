@@ -68,43 +68,36 @@ export function useCreatePaymentReceipt() {
       if (!r.customer_name.trim()) throw new Error("Customer name is required.");
       if (!r.payment_date) throw new Error("Payment date is required.");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
-
-      // Prevent future-dated payments
+      // UX-only client-side validation (server enforces the security cases).
       const today = new Date().toISOString().split("T")[0];
       if (r.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to invoice, verify invoice exists and payment doesn't exceed remaining balance
+      // GBC-43: invoice-linked path goes through the atomic RPC. Receipt
+      // insert + invoice status flip + bank_transaction insert all run in
+      // one transaction. RPC also enforces overpayment server-side.
       if (r.invoice_id) {
-        const { data: inv, error: invErr } = await supabase
-          .from("invoices")
-          .select("amount, status")
-          .eq("id", r.invoice_id)
-          .single();
-        if (invErr || !inv) throw new Error("Linked invoice not found.");
-        if (inv.status === "paid") throw new Error("This invoice has already been fully paid.");
-
-        // Sum all existing payments against this invoice
-        const { data: existingPayments } = await supabase
-          .from("payment_receipts" as any)
-          .select("amount")
-          .eq("invoice_id", r.invoice_id)
-          .eq("status", "completed");
-        const totalPaid = (existingPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-        const remainingBalance = Number(inv.amount) - totalPaid;
-
-        if (r.amount > remainingBalance) {
-          throw new Error(`Payment (₹${r.amount}) exceeds remaining balance (₹${remainingBalance}).`);
-        }
+        if (!r.bank_account_id) throw new Error("Bank account is required for invoice-linked receipts.");
+        const { data, error } = await (supabase as any).rpc("record_payment_receipt", {
+          p_invoice_id: r.invoice_id,
+          p_amount: r.amount,
+          p_payment_method: r.payment_method,
+          p_bank_account_id: r.bank_account_id,
+          p_reference: r.reference_number ?? null,
+          p_payment_date: r.payment_date,
+        });
+        if (error) throw error;
+        return data as string;
       }
 
+      // Unlinked receipt — single insert, no atomicity to preserve.
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
       const num = `REC-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("payment_receipts" as any).insert({
         receipt_number: num,
         customer_name: r.customer_name.trim(),
         customer_id: r.customer_id || null,
-        invoice_id: r.invoice_id || null,
+        invoice_id: null,
         payment_date: r.payment_date,
         amount: r.amount,
         payment_method: r.payment_method,
@@ -115,44 +108,6 @@ export function useCreatePaymentReceipt() {
         organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
-
-      // ── Auto-update linked invoice status (partial → partially_paid, full → paid) ──
-      if (r.invoice_id) {
-        const { data: inv } = await supabase
-          .from("invoices")
-          .select("status, amount")
-          .eq("id", r.invoice_id)
-          .single();
-        if (inv && inv.status !== "paid" && inv.status !== "cancelled") {
-          // Sum ALL payments including the one just inserted
-          const { data: allPayments } = await supabase
-            .from("payment_receipts" as any)
-            .select("amount")
-            .eq("invoice_id", r.invoice_id)
-            .eq("status", "completed");
-          const totalPaid = (allPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-          const invoiceAmount = Number(inv.amount);
-          const newStatus = totalPaid >= invoiceAmount ? "paid" : "partially_paid";
-
-          await supabase
-            .from("invoices")
-            .update({ status: newStatus })
-            .eq("id", r.invoice_id)
-            .eq("organization_id", profile.organization_id);
-
-          // Create bank transaction for every payment (partial or full)
-          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-          await createBankTransaction({
-            userId: user.id,
-            amount: r.amount,
-            type: "credit",
-            description: `Payment received: ${num} — ${r.customer_name}`,
-            reference: num,
-            category: "Invoice Payment",
-            date: r.payment_date,
-          });
-        }
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payment-receipts"] });
@@ -192,43 +147,36 @@ export function useCreateVendorPayment() {
       if (!p.vendor_name.trim()) throw new Error("Vendor name is required.");
       if (!p.payment_date) throw new Error("Payment date is required.");
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
-
-      // Prevent future-dated payments
+      // UX-only client-side validation (server enforces the security cases).
       const today = new Date().toISOString().split("T")[0];
       if (p.payment_date > today) throw new Error("Payment date cannot be in the future.");
 
-      // If linked to bill, verify bill exists and payment doesn't exceed remaining balance
+      // GBC-44: bill-linked path goes through the atomic RPC (payment insert
+      // + bill status flip + bank_transaction insert all in one tx; server
+      // enforces overpayment).
       if (p.bill_id) {
-        const { data: bill, error: billErr } = await supabase
-          .from("bills")
-          .select("total_amount, status")
-          .eq("id", p.bill_id)
-          .single();
-        if (billErr || !bill) throw new Error("Linked bill not found.");
-        if (bill.status === "Paid") throw new Error("This bill has already been fully paid.");
-
-        // Sum all existing vendor payments against this bill
-        const { data: existingPayments } = await supabase
-          .from("vendor_payments" as any)
-          .select("amount")
-          .eq("bill_id", p.bill_id)
-          .eq("status", "completed");
-        const totalPaid = (existingPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
-        const remainingBalance = Number(bill.total_amount) - totalPaid;
-
-        if (p.amount > remainingBalance) {
-          throw new Error(`Payment (₹${p.amount}) exceeds remaining balance (₹${remainingBalance}).`);
-        }
+        if (!p.bank_account_id) throw new Error("Bank account is required for bill-linked payments.");
+        const { data, error } = await (supabase as any).rpc("record_vendor_payment", {
+          p_bill_id: p.bill_id,
+          p_amount: p.amount,
+          p_payment_method: p.payment_method,
+          p_bank_account_id: p.bank_account_id,
+          p_reference: p.reference_number ?? null,
+          p_payment_date: p.payment_date,
+        });
+        if (error) throw error;
+        return data as string;
       }
 
+      // Unlinked vendor payment — single insert.
+      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
       const num = `VPAY-${Date.now().toString(36).toUpperCase()}`;
       const { error } = await supabase.from("vendor_payments" as any).insert({
         payment_number: num,
         vendor_name: p.vendor_name.trim(),
         vendor_id: p.vendor_id || null,
-        bill_id: p.bill_id || null,
+        bill_id: null,
         payment_date: p.payment_date,
         amount: p.amount,
         payment_method: p.payment_method,
@@ -239,44 +187,6 @@ export function useCreateVendorPayment() {
         organization_id: profile.organization_id,
       } as any);
       if (error) throw error;
-
-      // ── Auto-update linked bill status (partial → Partially Paid, full → Paid) ──
-      if (p.bill_id) {
-        const { data: bill } = await supabase
-          .from("bills")
-          .select("status, total_amount")
-          .eq("id", p.bill_id)
-          .single();
-        if (bill && bill.status !== "Paid" && bill.status !== "Cancelled") {
-          // Sum ALL payments including the one just inserted
-          const { data: allPayments } = await supabase
-            .from("vendor_payments" as any)
-            .select("amount")
-            .eq("bill_id", p.bill_id)
-            .eq("status", "completed");
-          const totalPaid = (allPayments || []).reduce((sum: number, vp: any) => sum + Number(vp.amount), 0);
-          const billAmount = Number(bill.total_amount);
-          const newStatus = totalPaid >= billAmount ? "Paid" : "Partially Paid";
-
-          await supabase
-            .from("bills")
-            .update({ status: newStatus })
-            .eq("id", p.bill_id)
-            .eq("organization_id", profile.organization_id);
-
-          // Create bank transaction for every payment (partial or full)
-          const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-          await createBankTransaction({
-            userId: user.id,
-            amount: p.amount,
-            type: "debit",
-            description: `Vendor payment: ${num} — ${p.vendor_name}`,
-            reference: num,
-            category: "Bill Payment",
-            date: p.payment_date,
-          });
-        }
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor-payments"] });
