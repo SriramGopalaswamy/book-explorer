@@ -56,6 +56,6 @@ export const QUERY_PROFILES = {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   },
-} as const;
+};
 
 export type QueryProfileName = keyof typeof QUERY_PROFILES;
