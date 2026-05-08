@@ -627,6 +627,11 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                     <Ban className="h-5 w-5 text-warning" />
                     <p className="font-semibold text-sm">Upload Cancelled — All Changes Rolled Back</p>
                   </>
+                ) : uploadSummary.success === 0 && uploadSummary.errors.length > 0 ? (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    <p className="font-semibold text-sm">Upload Failed — No Rows Were Saved</p>
+                  </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-5 w-5 text-primary" />
