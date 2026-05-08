@@ -315,7 +315,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     };
 
     // ── Find or create payroll_run ─────────────────────────────────────────
-    const { data: existingRun } = await supabase
+    const t2 = Date.now();
+    const { data: existingRun, error: existingRunErr } = await supabase
       .from("payroll_runs")
       .select("id, status")
       .eq("organization_id", orgId)
@@ -323,6 +324,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    console.log("[PayrollUpload] existingRun", { ms: Date.now() - t2, existingRun, existingRunErr });
 
     const terminalStatuses = ["under_review", "approved", "locked"];
     if (existingRun && terminalStatuses.includes(existingRun.status)) {
@@ -341,6 +343,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
     if (existingRun) {
       runId = existingRun.id;
     } else {
+      const t3 = Date.now();
       const { data: newRun, error: runError } = await supabase
         .from("payroll_runs")
         .insert({
@@ -352,9 +355,10 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         })
         .select("id")
         .single();
+      console.log("[PayrollUpload] insert payroll_run", { ms: Date.now() - t3, newRun, runError });
 
       if (runError || !newRun) {
-        return { success: 0, errors: [`Failed to create payroll run: ${runError?.message}`] };
+        return { success: 0, errors: [`Failed to create payroll run: ${runError?.message ?? "unknown error"}`] };
       }
       runId = newRun.id;
       createdNewRun = true;
