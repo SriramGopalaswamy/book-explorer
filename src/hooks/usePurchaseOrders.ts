@@ -45,7 +45,8 @@ export function usePurchaseOrders() {
     queryKey: ["purchase-orders", orgId],
     queryFn: async () => {
       if (!orgId) return [] as PurchaseOrder[];
-      const { data, error } = await supabase.from("purchase_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      // Cap to 500 most-recent POs to avoid million-row trap on procurement-heavy tenants.
+      const { data, error } = await supabase.from("purchase_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];
     },
