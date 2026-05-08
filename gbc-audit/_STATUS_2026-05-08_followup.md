@@ -27,15 +27,34 @@ each new migration file under `supabase/migrations/2026050806*.sql`.
 | `src/pages/inventory/StockAdjustments.tsx` | Added a Line Items repeater table (item / qty Δ / unit cost / reason code) inside the New Adjustment dialog. Wired to `create_stock_adjustment_with_lines` RPC — replaces the `useCreateStockAdjustment` direct-insert flow. | **GBC-58** |
 | `src/pages/financial/Quotes.tsx` | `convertToInvoice` mutation collapsed from 3 sequential browser writes to a single `convert_quote_to_invoice` RPC call. Idempotent on retry (returns existing converted_invoice_id). | **GBC-36** |
 
-## Deliberately deferred to a follow-up
+## Hook wiring update (this branch)
 
-I did NOT rewrite `useCreatePaymentReceipt` / `useCreateVendorPayment` /
-expense `markAsPaid` / `Reimbursements approve` to call the new RPCs. The
-RPCs are written, granted to `authenticated`, and ready; the client-side
-hooks still use the multi-step pattern. Switching them is a small one-file
-change per hook (roughly: replace the multi-statement flow with one
-`supabase.rpc(...)` call, keep client-side UX validations like
-"future-dated payments" guard).
+`useCreatePaymentReceipt` (GBC-43) and `useCreateVendorPayment` (GBC-44)
+have been switched: invoice-linked / bill-linked paths now go through the
+atomic RPC; the unlinked-payment path stays as a single insert. UX-only
+client-side validation (future-date guard) preserved.
+
+Still deferred:
+- **`Expenses.markPaidMutation`** — the dialog has no bank-account
+  picker, but `mark_expense_paid` requires one. Needs a UI change.
+- **`ReimbursementsFinance.handleApprove`** — the existing flow inserts
+  directly into `financial_records` (legacy path that interacts with the
+  `trg_sync_financial_records` ownership rule per CLAUDE.md). The new
+  `approve_reimbursement` RPC doesn't replicate that insert because the
+  right pattern is to derive financial_records from journal posting.
+  Switching cleanly needs either (a) extend the RPC to post a journal
+  entry via `post_journal_entry`, or (b) accept that reimbursements won't
+  appear in Accounting until the journal-derived records do.
+
+## Migration patch applied before push
+
+First draft of `20260508060200_t6_residual_atomic_rpcs.sql` referenced
+`bank_transactions` columns that don't exist in this schema
+(`bank_account_id`, `reference_number`, `related_*_id`). Corrected in
+place to use actual columns: `account_id`, `reference`, plus required
+`user_id` / `category`. All four RPCs that insert into bank_transactions
+(mark_expense_paid, approve_reimbursement, record_payment_receipt,
+record_vendor_payment) updated.
 
 This was a context-budget call: the migrations and the structural fixes
 move the needle far more than the hook switches, and the hook switches are

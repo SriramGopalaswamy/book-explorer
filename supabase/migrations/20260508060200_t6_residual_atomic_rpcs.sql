@@ -118,17 +118,18 @@ BEGIN
    WHERE id = p_expense_id;
 
   -- bank_transactions row for the cash leg.
+  -- Column names match the existing schema: account_id (not bank_account_id),
+  -- reference (not reference_number). Linkage is via the `reference` text
+  -- field (an opaque doc id) since bank_transactions has no related_*_id
+  -- foreign keys.
   INSERT INTO public.bank_transactions
-    (organization_id, bank_account_id, transaction_date, transaction_type,
-     amount, description, reference_number, related_expense_id)
+    (organization_id, user_id, account_id, transaction_date, transaction_type,
+     amount, description, category, reference)
   VALUES
-    (v_org, p_bank_account_id, CURRENT_DATE, 'debit',
+    (v_org, COALESCE(v_exp.user_id, auth.uid()), p_bank_account_id, CURRENT_DATE, 'debit',
      v_exp.amount, COALESCE('Expense paid: ' || v_exp.description, 'Expense payment'),
-     p_reference, p_expense_id);
-  -- Note: AR/AP+expense JE is posted by the existing trg_invoice_auto_journal
-  -- /trg_bill_auto_journal patterns when the source doc lands. Here we only
-  -- need the cash leg because expenses without a vendor go straight to
-  -- expense ledger in Lovable's existing accounting_automation_triggers.
+     COALESCE(v_exp.category, 'Expense'),
+     COALESCE(p_reference, p_expense_id::text));
 
   RETURN p_expense_id;
 END;
@@ -173,14 +174,15 @@ BEGIN
      COALESCE(v_req.expense_date, CURRENT_DATE), 'paid')
   RETURNING id INTO v_exp_id;
 
-  -- 3. cash leg
+  -- 3. cash leg (column names per the existing schema: account_id, reference).
   INSERT INTO public.bank_transactions
-    (organization_id, bank_account_id, transaction_date, transaction_type,
-     amount, description, reference_number, related_expense_id)
+    (organization_id, user_id, account_id, transaction_date, transaction_type,
+     amount, description, category, reference)
   VALUES
-    (v_org, p_bank_account_id, CURRENT_DATE, 'debit',
+    (v_org, v_req.user_id, p_bank_account_id, CURRENT_DATE, 'debit',
      v_req.amount, 'Reimbursement: ' || COALESCE(v_req.vendor_name, 'employee'),
-     p_reference, v_exp_id);
+     'Reimbursement',
+     COALESCE(p_reference, v_exp_id::text));
 
   RETURN p_reimbursement_id;
 END;
@@ -248,14 +250,15 @@ BEGIN
     updated_at = now()
    WHERE id = p_invoice_id;
 
-  -- Cash leg
+  -- Cash leg (column names per the existing schema).
   INSERT INTO public.bank_transactions
-    (organization_id, bank_account_id, transaction_date, transaction_type,
-     amount, description, reference_number, related_invoice_id)
+    (organization_id, user_id, account_id, transaction_date, transaction_type,
+     amount, description, category, reference)
   VALUES
-    (v_org, p_bank_account_id, p_payment_date, 'credit',
+    (v_org, auth.uid(), p_bank_account_id, p_payment_date, 'credit',
      p_amount, 'Receipt for ' || v_inv.invoice_number,
-     p_reference, p_invoice_id);
+     'Invoice Payment',
+     COALESCE(p_reference, v_receipt_num));
 
   RETURN v_receipt_id;
 END;
@@ -322,12 +325,13 @@ BEGIN
    WHERE id = p_bill_id;
 
   INSERT INTO public.bank_transactions
-    (organization_id, bank_account_id, transaction_date, transaction_type,
-     amount, description, reference_number, related_bill_id)
+    (organization_id, user_id, account_id, transaction_date, transaction_type,
+     amount, description, category, reference)
   VALUES
-    (v_org, p_bank_account_id, p_payment_date, 'debit',
+    (v_org, auth.uid(), p_bank_account_id, p_payment_date, 'debit',
      p_amount, 'Vendor payment for ' || v_bill.bill_number,
-     p_reference, p_bill_id);
+     'Bill Payment',
+     COALESCE(p_reference, v_pay_num));
 
   RETURN v_pay_id;
 END;
