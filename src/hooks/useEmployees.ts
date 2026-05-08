@@ -85,7 +85,6 @@ export function useIsAdminHROrFinance() {
 // Fetch all employees (profiles) - ORGANIZATION-SCOPED to prevent cross-tenant data bleed
 export function useEmployees() {
   const { user } = useAuth();
-  const { data: hasAccess, isLoading: isRoleLoading } = useIsAdminHROrFinance();
   const isDevMode = useIsDevModeWithoutAuth();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
