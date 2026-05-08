@@ -342,9 +342,41 @@ export default function PurchaseOrders() {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+          {orgId && (
+            <ExportDialog
+              title="Export Purchase Orders"
+              description="Includes all purchase orders in your organization, even those beyond the live view."
+              onExport={async (range) =>
+                exportPurchaseOrdersCsv(orgId, { ...range, status: statusFilter, search: debouncedSearch })
+              }
+            />
+          )}
         </div>
 
-        <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No purchase orders yet" />
+        <ListState
+          isLoading={isLoading && !paged}
+          isError={isError}
+          isEmpty={!!paged && paged.total === 0}
+          error={pagedError as any}
+          onRetry={() => refetch()}
+          emptyTitle={debouncedSearch || statusFilter !== "all" ? "No purchase orders match your filters" : "No purchase orders yet"}
+          emptyDescription={debouncedSearch || statusFilter !== "all" ? "Try adjusting your search or filter criteria." : "Create your first purchase order to get started."}
+          skeletonRows={pageSize > 10 ? 8 : 5}
+        >
+          <DataTable columns={columns} data={orders} isLoading={false} emptyMessage="No purchase orders" paginate={false} />
+          {paged && paged.total > 0 && (
+            <TablePagination
+              page={page}
+              totalPages={paged.totalPages}
+              totalItems={paged.total}
+              from={(page - 1) * pageSize + 1}
+              to={Math.min(page * pageSize, paged.total)}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
+          )}
+        </ListState>
 
         {/* Edit PO Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
