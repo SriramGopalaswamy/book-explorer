@@ -42,6 +42,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -408,9 +409,7 @@ export default function Reimbursements() {
 
         {/* Requests list */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
-          </div>
+          <DataLoadingBar isLoading={isLoading} label="Loading reimbursement requests" />
         ) : requests.length === 0 ? (
           <Card className="border-border/50 bg-card/60">
             <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -149,6 +150,7 @@ export default function MyPayslips() {
                 <CardContent>
                   {myLoading ? (
                     <div className="space-y-3">
+                      <DataLoadingBar isLoading={myLoading} label="Loading your payslips" />
                       {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
                     </div>
                   ) : activeRecords.length === 0 ? (
@@ -286,6 +288,7 @@ export default function MyPayslips() {
                 <CardContent>
                   {compLoading ? (
                     <div className="space-y-3">
+                      <DataLoadingBar isLoading={compLoading} label="Loading compensation history" />
                       {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
                     </div>
                   ) : compensationHistory.length === 0 ? (
