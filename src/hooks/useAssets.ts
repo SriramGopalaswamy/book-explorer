@@ -118,7 +118,10 @@ export function useAssets() {
         .from("assets")
         .select("*, vendors!vendor_id(name), profiles!assigned_to(full_name)")
         .eq("organization_id", orgId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        // Hard cap to 500 most-recent assets to prevent unbounded scans on
+        // tenants with very large fixed-asset registers.
+        .limit(500);
 
       if (error) throw error;
       return (data || []).map((a: any) => ({
