@@ -1845,6 +1845,62 @@ export type Database = {
           },
         ]
       }
+      background_jobs: {
+        Row: {
+          created_at: string
+          created_by: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          module: string
+          organization_id: string
+          payload: Json
+          progress: number
+          result: Json | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          module: string
+          organization_id: string
+          payload?: Json
+          progress?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          module?: string
+          organization_id?: string
+          payload?: Json
+          progress?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "background_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_number: string
@@ -3635,6 +3691,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "document_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_status_transitions: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: number
+          new_status: string
+          old_status: string | null
+          organization_id: string
+          record_id: string
+          table_name: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: number
+          new_status: string
+          old_status?: string | null
+          organization_id: string
+          record_id: string
+          table_name: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: number
+          new_status?: string
+          old_status?: string | null
+          organization_id?: string
+          record_id?: string
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_status_transitions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -11760,6 +11857,66 @@ export type Database = {
         }
         Relationships: []
       }
+      v_orders_summary_by_org: {
+        Row: {
+          doc_count: number | null
+          kind: string | null
+          organization_id: string | null
+          status: string | null
+          total_value: number | null
+        }
+        Relationships: []
+      }
+      v_purchases_summary_by_org: {
+        Row: {
+          doc_count: number | null
+          last_activity_at: string | null
+          organization_id: string | null
+          status: string | null
+          total_value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bills_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_sales_summary_by_org: {
+        Row: {
+          doc_count: number | null
+          last_activity_at: string | null
+          organization_id: string | null
+          status: string | null
+          total_value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_invoices_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       check_ledger_balance: {
@@ -11812,6 +11969,10 @@ export type Database = {
       emergency_unlock_record: {
         Args: { p_reason?: string; p_record_id: string; p_table_name: string }
         Returns: boolean
+      }
+      enqueue_job: {
+        Args: { p_module: string; p_payload?: Json }
+        Returns: string
       }
       fn_refresh_financial_records_mv: { Args: never; Returns: undefined }
       fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
@@ -12130,6 +12291,20 @@ export type Database = {
         Args: { _org_id: string }
         Returns: undefined
       }
+      search_documents: {
+        Args: {
+          p_limit?: number
+          p_module: string
+          p_offset?: number
+          p_q?: string
+        }
+        Returns: {
+          id: string
+          label: string
+          sublabel: string
+          total_count: number
+        }[]
+      }
       seed_default_role_permissions: {
         Args: { p_org_id: string }
         Returns: undefined
@@ -12139,6 +12314,8 @@ export type Database = {
         Args: { _sandbox_user_id: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance" | "payroll"
