@@ -473,6 +473,8 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           paid_days:                 paid_days_val,
           earnings_breakdown:        earningsBreakdown,
           deductions_breakdown:      deductionsBreakdown,
+          pf_employee:               pf_monthly,
+          tds_amount:                tds_monthly_raw,
           status:                    "computed",
         },
       });
