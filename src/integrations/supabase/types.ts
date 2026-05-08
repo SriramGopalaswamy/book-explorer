@@ -11969,6 +11969,10 @@ export type Database = {
       complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
+      create_invoice_with_lines: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
       create_sandbox_org: {
         Args: { _auto_reset?: boolean; _name: string }
         Returns: string
@@ -12343,6 +12347,15 @@ export type Database = {
           credit_total: number
           debit_total: number
         }[]
+      }
+      update_invoice_with_lines: {
+        Args: {
+          p_expected_version?: number
+          p_header: Json
+          p_invoice_id: string
+          p_lines: Json
+        }
+        Returns: string
       }
     }
     Enums: {
