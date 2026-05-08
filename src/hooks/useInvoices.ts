@@ -38,6 +38,7 @@ export interface Invoice {
   signing_initiated_at?: string | null;
   signing_completed_at?: string | null;
   signing_failure_reason?: string | null;
+  version?: number;
 }
 
 export interface InvoiceItem {
@@ -92,6 +93,7 @@ export interface CreateInvoiceData {
 
 export interface UpdateInvoiceData extends CreateInvoiceData {
   id: string;
+  expected_version?: number;
 }
 
 export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
@@ -461,9 +463,20 @@ export function useUpdateInvoice() {
 
       const { error: rpcError } = await (supabase as any).rpc(
         "update_invoice_with_lines",
-        { p_invoice_id: data.id, p_header: header as any, p_lines: lines as any },
+        {
+          p_invoice_id: data.id,
+          p_header: header as any,
+          p_lines: lines as any,
+          p_expected_version: data.expected_version ?? null,
+        },
       );
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        if ((rpcError as any).code === "40001" || /version conflict/i.test(rpcError.message)) {
+          queryClient.invalidateQueries({ queryKey: ["invoices"] });
+          throw new Error("This invoice was modified by someone else. The latest version has been reloaded — please review and retry.");
+        }
+        throw rpcError;
+      }
 
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
