@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
-import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+export { useIsAdminOrHR } from "@/hooks/useRoles";
 import { mockEmployees } from "@/lib/mock-data";
 import { toast } from "sonner";
 
@@ -67,76 +67,17 @@ export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
   id: string;
 }
 
-// Check if user has admin/HR role — server-side only.
-// Super admins ALWAYS pass these gates regardless of user_roles entries,
-// since they may not have any org-scoped role row but must retain full access.
-export function useIsAdminOrHR() {
-  const { user } = useAuth();
-  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
-
-  const q = useQuery({
-    queryKey: ["user-role", user?.id],
-    queryFn: async () => {
-      if (!user) return false;
-
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .in("role", ["admin", "hr"]);
-
-      if (error) {
-        console.error("Error checking role:", error);
-        return false;
-      }
-
-      return data && data.length > 0;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-  });
-
-  return {
-    ...q,
-    data: isSuperAdmin ? true : q.data,
-    isLoading: q.isLoading || saLoading,
-  } as typeof q;
-}
-
 // Check if user has admin, HR, finance, or payroll role for read access
 export function useIsAdminHROrFinance() {
-  const { user } = useAuth();
-  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
-
-  const q = useQuery({
-    queryKey: ["user-role", user?.id, "admin-hr-finance"],
-    queryFn: async () => {
-      if (!user) return false;
-
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .in("role", ["admin", "hr", "finance", "payroll"]);
-
-      if (error) {
-        console.error("Error checking role:", error);
-        return false;
-      }
-
-      return data && data.length > 0;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-  });
-
+  const { data, isLoading } = useSessionContextShim();
   return {
-    ...q,
-    data: isSuperAdmin ? true : q.data,
-    isLoading: q.isLoading || saLoading,
-  } as typeof q;
+    data: data.isSuperAdmin
+      ? true
+      : data.organizationId
+        ? data.roles.some((r) => ["admin", "hr", "finance", "payroll"].includes(r))
+        : false,
+    isLoading,
+  };
 }
 
 // Fetch all employees (profiles) - ORGANIZATION-SCOPED to prevent cross-tenant data bleed
