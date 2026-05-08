@@ -808,9 +808,19 @@ export default function Payroll() {
           </div>
         </div>
       </div>
-      <div className="rounded-lg border bg-primary/5 border-primary/20 p-3 flex justify-between items-center">
-        <span className="font-medium">Net Pay</span>
-        <span className="text-lg font-bold text-gradient-primary">{formatCurrency(form.net_pay)}</span>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-muted-foreground">Net Pay</p>
+          <span className="text-xs text-muted-foreground">
+            Computed: {formatCurrency(calcNet(form))}
+          </span>
+        </div>
+        <Input
+          type="number"
+          value={form.net_pay || ""}
+          onChange={(e) => setField("net_pay", e.target.value)}
+          className="font-semibold"
+        />
       </div>
     </div>
   );
