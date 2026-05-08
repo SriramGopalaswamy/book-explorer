@@ -1,0 +1,10 @@
+ALTER FUNCTION public.audit_payroll_lock() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_breach_org() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_consent_org() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_erasure_org() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_eway_bill_org() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_org_for_delivery() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_org_for_procurement() SET search_path = public, pg_temp;
+ALTER FUNCTION public.auto_set_org_for_receipts() SET search_path = public, pg_temp;
+ALTER FUNCTION public.emergency_unlock_record(text, uuid, text) SET search_path = public, pg_temp;
+ALTER FUNCTION public.post_journal_entry(uuid, text, uuid, date, text, jsonb) SET search_path = public, pg_temp;
