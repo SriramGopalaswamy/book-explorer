@@ -19,6 +19,29 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// GBC-51: minimal hook to populate the GL-account dropdowns. Lives here
+// rather than in a shared hooks file because no other screen needs the
+// truncated (id, code, name, account_type) shape today; consolidate when a
+// second consumer appears.
+function useGLAccountsForRecurring(orgId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["gl-accounts-min", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("gl_accounts" as any)
+        .select("id, code, name, account_type")
+        .eq("organization_id", orgId as string)
+        .eq("is_active", true)
+        .order("code", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as { id: string; code: string; name: string; account_type: string }[];
+    },
+  });
+}
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/20 text-green-400",
@@ -33,6 +56,7 @@ export default function RecurringTransactionsPage() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
   const { data: transactions = [], isLoading } = useRecurringTransactions();
+  const { data: glAccounts = [] } = useGLAccountsForRecurring(orgId);
   const createTx = useCreateRecurringTransaction();
   const updateStatus = useUpdateRecurringTransactionStatus();
   const executeTx = useExecuteRecurringTransactions();
@@ -47,6 +71,8 @@ export default function RecurringTransactionsPage() {
     frequency: "monthly",
     amount: "",
     currency: "INR",
+    debit_account_id: "",
+    credit_account_id: "",
     start_date: new Date().toISOString().split("T")[0],
     end_date: "",
     notes: "",
@@ -61,6 +87,14 @@ export default function RecurringTransactionsPage() {
 
   const handleCreate = () => {
     if (!orgId) { toast.error("Organization not found"); return; }
+    if (!form.debit_account_id || !form.credit_account_id) {
+      toast.error("Both Debit and Credit GL accounts are required");
+      return;
+    }
+    if (form.debit_account_id === form.credit_account_id) {
+      toast.error("Debit and Credit accounts cannot be the same");
+      return;
+    }
     createTx.mutate(
       {
         name: form.name,
@@ -68,6 +102,8 @@ export default function RecurringTransactionsPage() {
         frequency: form.frequency,
         amount: parseFloat(form.amount) || 0,
         currency: form.currency,
+        debit_account_id: form.debit_account_id,
+        credit_account_id: form.credit_account_id,
         start_date: form.start_date,
         end_date: form.end_date || undefined,
         notes: form.notes || undefined,
@@ -75,7 +111,11 @@ export default function RecurringTransactionsPage() {
       {
         onSuccess: () => {
           setDialogOpen(false);
-          setForm({ name: "", description: "", frequency: "monthly", amount: "", currency: "INR", start_date: new Date().toISOString().split("T")[0], end_date: "", notes: "" });
+          setForm({
+            name: "", description: "", frequency: "monthly", amount: "", currency: "INR",
+            debit_account_id: "", credit_account_id: "",
+            start_date: new Date().toISOString().split("T")[0], end_date: "", notes: "",
+          });
         },
       }
     );
@@ -215,6 +255,40 @@ export default function RecurringTransactionsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label>Debit Account *</Label>
+                  <Select
+                    value={form.debit_account_id}
+                    onValueChange={(v) => setForm({ ...form, debit_account_id: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select debit account" /></SelectTrigger>
+                    <SelectContent>
+                      {glAccounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Credit Account *</Label>
+                  <Select
+                    value={form.credit_account_id}
+                    onValueChange={(v) => setForm({ ...form, credit_account_id: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select credit account" /></SelectTrigger>
+                    <SelectContent>
+                      {glAccounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label>Start Date *</Label>
                   <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
                 </div>
@@ -230,7 +304,16 @@ export default function RecurringTransactionsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createTx.isPending || !form.name || !form.amount}>
+              <Button
+                onClick={handleCreate}
+                disabled={
+                  createTx.isPending ||
+                  !form.name ||
+                  !form.amount ||
+                  !form.debit_account_id ||
+                  !form.credit_account_id
+                }
+              >
                 {createTx.isPending ? "Creating…" : "Create"}
               </Button>
             </DialogFooter>
