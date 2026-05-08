@@ -105,7 +105,7 @@ export function useStockTransfers() {
     queryKey: ["stock-transfers", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("stock_transfers" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("stock_transfers" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
@@ -228,7 +228,7 @@ export function usePickingLists() {
     queryKey: ["picking-lists", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("picking_lists" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("picking_lists" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
@@ -244,7 +244,7 @@ export function useInventoryCounts() {
     queryKey: ["inventory-counts", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("inventory_counts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("inventory_counts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },

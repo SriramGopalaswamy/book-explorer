@@ -130,7 +130,7 @@ export function useEInvoices() {
     queryKey: ["e_invoices", orgId],
     queryFn: async () => {
       if (!orgId) return [] as EInvoice[];
-      const { data, error } = await (supabase as any).from("e_invoices").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await (supabase as any).from("e_invoices").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return data as EInvoice[];
     },

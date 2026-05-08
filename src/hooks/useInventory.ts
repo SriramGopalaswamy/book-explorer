@@ -16,7 +16,7 @@ export function useItems() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name");
+      const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name").limit(500);
       if (error) throw error;
       return data as any[];
     },
@@ -280,7 +280,7 @@ export function useStockAdjustments() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("stock_adjustments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("stock_adjustments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return data as any[];
     },
