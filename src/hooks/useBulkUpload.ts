@@ -278,20 +278,25 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
   ) => {
     if (!user) throw new Error("Not authenticated");
 
-    const { data: currentProfile } = await supabase
+    console.log("[PayrollUpload] start, rows=", rows.length);
+    const t0 = Date.now();
+    const { data: currentProfile, error: cpErr } = await supabase
       .from("profiles")
       .select("organization_id")
       .eq("user_id", user.id)
       .maybeSingle();
+    console.log("[PayrollUpload] currentProfile", { ms: Date.now() - t0, cpErr, currentProfile });
 
     const orgId = currentProfile?.organization_id;
-    if (!orgId) return { success: 0, errors: ["No organization found."] };
+    if (!orgId) return { success: 0, errors: ["No organization found on your profile. Contact admin."] };
 
-    const { data: profiles } = await supabase
+    const t1 = Date.now();
+    const { data: profiles, error: profilesErr } = await supabase
       .from("profiles")
       .select("id, user_id, email, full_name")
       .eq("organization_id", orgId)
       .in("status", ["active", "on_leave"]);
+    console.log("[PayrollUpload] profiles list", { ms: Date.now() - t1, count: profiles?.length, profilesErr });
 
     const errors: string[] = [];
     const warnings: string[] = [];
