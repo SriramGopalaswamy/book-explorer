@@ -194,13 +194,16 @@ export default function Invoicing() {
   const { data: orgData } = useUserOrganization();
   const { compliance } = useOnboardingCompliance();
   const orgState = compliance?.state ?? null;
-  const { data: invoices = [], isLoading } = useInvoices();
-  const createInvoice = useCreateInvoice();
-  const updateInvoice = useUpdateInvoice();
-  const updateStatus = useUpdateInvoiceStatus();
-  const deleteInvoice = useDeleteInvoice();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset to first page when filters/search change
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
+  useMemo(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, pageSize]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -208,17 +211,19 @@ export default function Invoicing() {
   const isEffectivelyOverdue = (inv: { status: string; due_date?: string | null }) =>
     inv.status !== "paid" && inv.status !== "draft" && inv.due_date && new Date(inv.due_date) < today;
 
-  const filteredInvoices = useMemo(() => invoices.filter((inv) => {
-    const matchesSearch = !searchQuery ||
-      inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.client_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.client_email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || inv.status === statusFilter ||
-      (statusFilter === "overdue" && isEffectivelyOverdue(inv));
-    return matchesSearch && matchesStatus;
-  }), [invoices, searchQuery, statusFilter]);
+  const {
+    data: pagedInvoices,
+    isLoading,
+    isError,
+    error: pagedError,
+    refetch: refetchInvoices,
+  } = usePaginatedInvoices({ page, pageSize, search: debouncedSearch, status: statusFilter });
+  const invoices = pagedInvoices?.rows ?? [];
 
-  const pagination = usePagination(filteredInvoices, 10);
+  const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
+  const updateStatus = useUpdateInvoiceStatus();
+  const deleteInvoice = useDeleteInvoice();
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers", user?.id],
