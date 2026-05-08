@@ -11969,7 +11969,19 @@ export type Database = {
       complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
+      create_bill_with_lines: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
       create_invoice_with_lines: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
+      create_purchase_order_with_lines: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
+      create_sales_order_with_lines: {
         Args: { p_header: Json; p_lines: Json }
         Returns: string
       }
@@ -12348,12 +12360,39 @@ export type Database = {
           debit_total: number
         }[]
       }
+      update_bill_with_lines: {
+        Args: {
+          p_bill_id: string
+          p_expected_version?: number
+          p_header: Json
+          p_lines: Json
+        }
+        Returns: string
+      }
       update_invoice_with_lines: {
         Args: {
           p_expected_version?: number
           p_header: Json
           p_invoice_id: string
           p_lines: Json
+        }
+        Returns: string
+      }
+      update_purchase_order_with_lines: {
+        Args: {
+          p_expected_version?: number
+          p_header: Json
+          p_lines: Json
+          p_po_id: string
+        }
+        Returns: string
+      }
+      update_sales_order_with_lines: {
+        Args: {
+          p_expected_version?: number
+          p_header: Json
+          p_lines: Json
+          p_so_id: string
         }
         Returns: string
       }
