@@ -134,22 +134,28 @@ export function useEmployees() {
   const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["employees", user?.id, hasAccess, isDevMode, orgId],
+    // NOTE: queryKey intentionally omits `hasAccess` — RLS is the source of
+    // truth, and including a transient role-loading flag here used to cause
+    // a degraded empty-array snapshot to be cached against a different key
+    // than the eventual authoritative result, leaving the directory blank
+    // while the KPI (which doesn't depend on the role hook) showed 49.
+    queryKey: ["employees", user?.id, isDevMode, orgId],
     queryFn: async () => {
       if (isDevMode) return mockEmployees;
       if (!user) return [];
       // HARD GUARD: Never query profiles without org scope — prevents cross-tenant data bleed
       if (!orgId) return [];
 
-      if (hasAccess) {
-        // CRITICAL: Always filter by organization_id to enforce tenant isolation
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("organization_id", orgId)
-          .order("full_name", { ascending: true })
-          .limit(500);
-        if (error) throw error;
+      // Always attempt the full profiles select first — RLS will filter rows
+      // for non-admin viewers. Fall back to profiles_safe only if the row
+      // policy denies the read entirely (error path), never on empty results.
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id,user_id,organization_id,employee_id,full_name,email,avatar_url,job_title,department,status,join_date,phone,location,manager_id,created_at,updated_at")
+        .eq("organization_id", orgId)
+        .order("full_name", { ascending: true })
+        .limit(500);
+      if (!error && data) {
         const employees = data as unknown as Employee[];
 
         // Fix stale on_leave statuses: check if employee actually has an approved leave covering today
