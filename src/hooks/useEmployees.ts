@@ -196,23 +196,24 @@ export function useEmployees() {
         }
 
         return employees;
-      } else {
-        // Non-admin view: use safe view, also org-scoped
-        const { data, error } = await supabase
-          .from("profiles_safe" as any)
-          .select("*")
-          .eq("organization_id", orgId)
-          .order("full_name", { ascending: true })
-          .limit(500);
-        if (error) throw error;
-        return (data as any[]).map((d) => ({
-          ...d,
-          email: null,
-          phone: null,
-        })) as Employee[];
       }
+
+      // RLS denied the full row — fall back to the public-safe view so the
+      // directory still renders for non-admin/HR/Finance viewers.
+      const { data: safeData, error: safeError } = await supabase
+        .from("profiles_safe" as any)
+        .select("*")
+        .order("full_name", { ascending: true })
+        .limit(500);
+      if (safeError) throw safeError;
+      return (safeData as any[]).map((d) => ({
+        ...d,
+        organization_id: orgId,
+        email: null,
+        phone: null,
+      })) as Employee[];
     },
-    enabled: (!!user && !isRoleLoading && !!orgId) || isDevMode,
+    enabled: (!!user && !!orgId) || isDevMode,
     staleTime: 5 * 60_000, // 5 min — employee roster rarely changes mid-session
     refetchOnWindowFocus: false,
   });
