@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useSessionContext } from "@/hooks/useSessionContext";
 export { useIsAdminOrHR } from "@/hooks/useRoles";
 import { mockEmployees } from "@/lib/mock-data";
 import { toast } from "sonner";
@@ -69,7 +70,8 @@ export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
 
 // Check if user has admin, HR, finance, or payroll role for read access
 export function useIsAdminHROrFinance() {
-  const { data, isLoading } = useSessionContextShim();
+  const { data: session, isLoading } = useSessionContext();
+  const data = session ?? { isSuperAdmin: false, organizationId: null, roles: [] };
   return {
     data: data.isSuperAdmin
       ? true
