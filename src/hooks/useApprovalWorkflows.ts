@@ -53,7 +53,7 @@ export function useApprovalWorkflows() {
     queryKey: ["approval-workflows", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("approval_workflows").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("approval_workflows").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as ApprovalWorkflow[];
     },
@@ -166,7 +166,7 @@ export function useApprovalRequests() {
     queryKey: ["approval-requests", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as ApprovalRequest[];
     },

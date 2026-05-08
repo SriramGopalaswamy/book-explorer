@@ -43,7 +43,7 @@ export function useExchangeRates() {
     enabled: !!orgId,
     queryFn: async () => {
       if (!orgId) return [] as ExchangeRate[];
-      const { data, error } = await supabase.from("exchange_rates" as any).select("*").eq("organization_id", orgId).order("effective_date", { ascending: false });
+      const { data, error } = await supabase.from("exchange_rates" as any).select("*").eq("organization_id", orgId).order("effective_date", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as ExchangeRate[];
     },
@@ -80,7 +80,7 @@ export function useGSTFilingStatus(financialYear: string) {
     queryKey: ["gst-filing-status", financialYear, orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("gst_filing_status" as any).select("*").eq("financial_year", financialYear).order("period_month");
+      const { data, error } = await supabase.from("gst_filing_status" as any).select("*").eq("financial_year", financialYear).order("period_month").limit(500);
       if (error) throw error;
       return (data || []) as unknown as GSTFilingStatus[];
     },
