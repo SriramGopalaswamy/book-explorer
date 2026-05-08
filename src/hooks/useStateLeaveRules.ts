@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { QUERY_PROFILES } from "@/lib/query-defaults";
 
 export interface StateLeaveRule {
   id: string;
@@ -55,6 +56,7 @@ export function useStateLeaveRules() {
       return data as StateLeaveRule[];
     },
     enabled: !!user,
+    ...QUERY_PROFILES.MASTER_DATA,
   });
 }
 

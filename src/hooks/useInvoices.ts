@@ -143,7 +143,11 @@ export function useInvoices() {
         .from("invoices")
         .select(`*, invoice_items (*)`)
         .eq("organization_id", orgId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        // Cap to most-recent 500 invoices to prevent unbounded fetch on
+        // tenants with very large invoice histories. Older invoices remain
+        // accessible via Reports/exports/search.
+        .limit(500);
       if (error) throw error;
       return data as Invoice[];
     },
