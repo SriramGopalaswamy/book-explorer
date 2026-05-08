@@ -257,22 +257,11 @@ export default function Invoicing() {
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([{ ...emptyLineItem }]);
   const [editFormMeta, setEditFormMeta] = useState({ invoiceDate: "", dueDate: "", notes: "", placeOfSupply: "", paymentTerms: "Due on Receipt", customerGstin: "", client_phone: "", revenueRecognition: "point_in_time" as "point_in_time" | "over_time", performanceObligation: "" });
 
-  const { totalOutstanding, totalPaid, overdueCount, draftCount } = useMemo(() => {
-    let outstanding = 0;
-    let paid = 0;
-    let overdue = 0;
-    let drafts = 0;
-    for (const inv of invoices) {
-      if (inv.status === "paid") {
-        paid += Number(inv.amount);
-      } else if (inv.status === "sent" || inv.status === "overdue" || isEffectivelyOverdue(inv)) {
-        outstanding += Number(inv.amount);
-      }
-      if (inv.status === "overdue" || isEffectivelyOverdue(inv)) overdue++;
-      if (inv.status === "draft") drafts++;
-    }
-    return { totalOutstanding: outstanding, totalPaid: paid, overdueCount: overdue, draftCount: drafts };
-  }, [invoices]);
+  const { data: kpis } = useInvoiceKpis();
+  const totalOutstanding = kpis?.total_outstanding ?? 0;
+  const totalPaid = kpis?.total_paid ?? 0;
+  const overdueCount = kpis?.overdue_count ?? 0;
+  const draftCount = kpis?.draft_count ?? 0;
 
   if (isCheckingRole) {
     return (
