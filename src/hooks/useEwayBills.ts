@@ -116,7 +116,10 @@ export function useEwayBills() {
     queryKey: ["eway_bills", orgId],
     queryFn: async () => {
       if (!orgId) return [] as EwayBill[];
-      const { data, error } = await (supabase as any).from("eway_bills").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      // Hard cap fetch to most-recent 500 bills — prevents million-row trap
+      // for logistics-heavy tenants. UI paginates client-side; older bills
+      // are reachable via Reports/exports.
+      const { data, error } = await (supabase as any).from("eway_bills").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       const bills = data as EwayBill[];
 
