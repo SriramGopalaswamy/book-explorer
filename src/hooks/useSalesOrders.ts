@@ -132,7 +132,7 @@ export function useUpdateSalesOrder() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (params: { id: string; customer_name: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
+    mutationFn: async (params: { id: string; expected_version?: number; customer_name: string; order_date: string; expected_delivery?: string; notes?: string; items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[] }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.customer_name.trim()) throw new Error("Customer name is required.");
       if (!params.order_date) throw new Error("Order date is required.");
@@ -177,8 +177,15 @@ export function useUpdateSalesOrder() {
         p_so_id: params.id,
         p_header: header as any,
         p_lines: lines as any,
+        p_expected_version: params.expected_version ?? null,
       });
-      if (rpcErr) throw rpcErr;
+      if (rpcErr) {
+        if ((rpcErr as any).code === "40001" || /version conflict/i.test(rpcErr.message)) {
+          qc.invalidateQueries({ queryKey: ["sales-orders"] });
+          throw new Error("This sales order was modified by someone else. Please reopen and retry.");
+        }
+        throw rpcErr;
+      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); qc.invalidateQueries({ queryKey: ["so-items"] }); toast.success("Sales order updated"); },
     onError: (e: any) => toast.error(e.message),
