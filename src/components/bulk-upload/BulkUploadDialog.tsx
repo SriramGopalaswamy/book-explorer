@@ -397,10 +397,11 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
         total_rows: validRows.length,
       });
       setActiveJobId(jobId);
-      await supabase
+      void supabase
         .from("job_queue")
         .update({ status: "running", progress: 5, progress_label: "Processing rows…" })
-        .eq("id", jobId);
+        .eq("id", jobId)
+        .then(undefined, () => {});
     } catch {
       // Job queue unavailable — continue without progress tracking
     }
@@ -413,7 +414,7 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
       };
 
       if (jobId) {
-        await (supabase.from("job_queue") as any)
+        void (supabase.from("job_queue") as any)
           .update({ progress: 30, progress_label: "Uploading rows…" })
           .eq("id", jobId).then(undefined, () => {});
       }
@@ -625,6 +626,11 @@ export function BulkUploadDialog({ config, label = "Bulk Upload" }: { config: Bu
                   <>
                     <Ban className="h-5 w-5 text-warning" />
                     <p className="font-semibold text-sm">Upload Cancelled — All Changes Rolled Back</p>
+                  </>
+                ) : uploadSummary.success === 0 && uploadSummary.errors.length > 0 ? (
+                  <>
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    <p className="font-semibold text-sm">Upload Failed — No Rows Were Saved</p>
                   </>
                 ) : (
                   <>
