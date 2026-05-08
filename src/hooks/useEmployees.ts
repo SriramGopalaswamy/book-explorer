@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import { mockEmployees } from "@/lib/mock-data";
 import { toast } from "sonner";
 
@@ -66,11 +67,14 @@ export interface UpdateEmployeeData extends Partial<CreateEmployeeData> {
   id: string;
 }
 
-// Check if user has admin/HR role — server-side only
+// Check if user has admin/HR role — server-side only.
+// Super admins ALWAYS pass these gates regardless of user_roles entries,
+// since they may not have any org-scoped role row but must retain full access.
 export function useIsAdminOrHR() {
   const { user } = useAuth();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
-  return useQuery({
+  const q = useQuery({
     queryKey: ["user-role", user?.id],
     queryFn: async () => {
       if (!user) return false;
@@ -89,18 +93,23 @@ export function useIsAdminOrHR() {
       return data && data.length > 0;
     },
     enabled: !!user,
-    // Stable for 5 min — prevents re-fetch on window focus causing brief hasAccess=undefined
-    // that would make useEmployees re-query with the wrong access level after hard refresh.
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
+
+  return {
+    ...q,
+    data: isSuperAdmin ? true : q.data,
+    isLoading: q.isLoading || saLoading,
+  } as typeof q;
 }
 
 // Check if user has admin, HR, finance, or payroll role for read access
 export function useIsAdminHROrFinance() {
   const { user } = useAuth();
+  const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
 
-  return useQuery({
+  const q = useQuery({
     queryKey: ["user-role", user?.id, "admin-hr-finance"],
     queryFn: async () => {
       if (!user) return false;
@@ -119,10 +128,15 @@ export function useIsAdminHROrFinance() {
       return data && data.length > 0;
     },
     enabled: !!user,
-    // Stable for 5 min — same reasoning as useIsAdminOrHR above.
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
+
+  return {
+    ...q,
+    data: isSuperAdmin ? true : q.data,
+    isLoading: q.isLoading || saLoading,
+  } as typeof q;
 }
 
 // Fetch all employees (profiles) - ORGANIZATION-SCOPED to prevent cross-tenant data bleed
