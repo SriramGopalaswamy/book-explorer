@@ -46,7 +46,6 @@ const PO_TRANSITIONS: Record<string, string[]> = {
 };
 
 export default function PurchaseOrders() {
-  const { data: orders = [], isLoading } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
   const updateStatus = useUpdatePOStatus();
   const deletePO = useDeletePurchaseOrder();
@@ -56,6 +55,23 @@ export default function PurchaseOrders() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const debouncedSearch = useDebouncedValue(search, 350);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, pageSize]);
+
+  const {
+    data: paged,
+    isLoading,
+    isError,
+    error: pagedError,
+    refetch,
+  } = usePaginatedPurchaseOrders({ page, pageSize, search: debouncedSearch, status: statusFilter });
+  const orders = paged?.rows ?? [];
+
+  const { data: kpis } = usePurchaseOrderKpis();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
@@ -69,24 +85,17 @@ export default function PurchaseOrders() {
     queryKey: ["vendors-list", orgId],
     enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name");
+      const { data, error } = await supabase.from("vendors").select("id, name").eq("status", "active").eq("organization_id", orgId).order("name").limit(500);
       if (error) throw error;
       return data || [];
     },
   });
 
-  const filtered = orders.filter((o) => {
-    const matchesSearch = o.po_number.toLowerCase().includes(search.toLowerCase()) ||
-      o.vendor_name.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   const stats = {
-    total: orders.length,
-    draft: orders.filter((o) => o.status === "draft").length,
-    submitted: orders.filter((o) => o.status === "submitted").length,
-    received: orders.filter((o) => o.status === "received").length,
+    total: kpis?.total_count ?? 0,
+    draft: kpis?.draft_count ?? 0,
+    submitted: kpis?.submitted_count ?? 0,
+    received: kpis?.received_count ?? 0,
   };
 
   const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
