@@ -629,7 +629,6 @@ export default function Payroll() {
         ? Math.round((gross / next.working_days) * next.lop_days)
         : 0;
       next.paid_days = Math.max(0, next.working_days - next.lop_days);
-      next.net_pay = gross - next.pf_deduction - next.tax_deduction - next.other_deductions - next.lop_deduction;
       return next;
     });
   };
