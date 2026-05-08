@@ -94,14 +94,14 @@ export function useDispatchJob() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("background_jobs")
-        .insert({
+        .insert([{
           organization_id: orgId,
           module,
-          payload: payload ?? {},
+          payload: (payload ?? {}) as any,
           status: "queued",
           progress: 0,
           created_by: user?.id ?? null,
-        })
+        }] as any)
         .select("id")
         .single();
       if (error) throw error;
