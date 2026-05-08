@@ -3437,6 +3437,7 @@ export type Database = {
           id: string
           item_id: string | null
           ordered_quantity: number
+          organization_id: string
           sales_order_item_id: string | null
           shipped_quantity: number
           warehouse_id: string | null
@@ -3448,6 +3449,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           ordered_quantity?: number
+          organization_id: string
           sales_order_item_id?: string | null
           shipped_quantity?: number
           warehouse_id?: string | null
@@ -3459,6 +3461,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           ordered_quantity?: number
+          organization_id?: string
           sales_order_item_id?: string | null
           shipped_quantity?: number
           warehouse_id?: string | null
@@ -3476,6 +3479,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -5129,6 +5139,7 @@ export type Database = {
           item_id: string | null
           notes: string | null
           ordered_quantity: number
+          organization_id: string
           purchase_order_item_id: string | null
           received_quantity: number
           rejected_quantity: number
@@ -5143,6 +5154,7 @@ export type Database = {
           item_id?: string | null
           notes?: string | null
           ordered_quantity?: number
+          organization_id: string
           purchase_order_item_id?: string | null
           received_quantity?: number
           rejected_quantity?: number
@@ -5157,6 +5169,7 @@ export type Database = {
           item_id?: string | null
           notes?: string | null
           ordered_quantity?: number
+          organization_id?: string
           purchase_order_item_id?: string | null
           received_quantity?: number
           rejected_quantity?: number
@@ -5175,6 +5188,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipt_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -6308,6 +6328,7 @@ export type Database = {
           gl_account_id: string
           id: string
           journal_entry_id: string
+          organization_id: string
         }
         Insert: {
           asset_id?: string | null
@@ -6320,6 +6341,7 @@ export type Database = {
           gl_account_id: string
           id?: string
           journal_entry_id: string
+          organization_id: string
         }
         Update: {
           asset_id?: string | null
@@ -6332,6 +6354,7 @@ export type Database = {
           gl_account_id?: string
           id?: string
           journal_entry_id?: string
+          organization_id?: string
         }
         Relationships: [
           {
@@ -6368,6 +6391,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ledger_base"
             referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -8015,6 +8045,7 @@ export type Database = {
           id: string
           item_id: string | null
           item_name: string
+          organization_id: string
           picked_quantity: number
           picking_list_id: string
           required_quantity: number
@@ -8026,6 +8057,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name: string
+          organization_id: string
           picked_quantity?: number
           picking_list_id: string
           required_quantity?: number
@@ -8037,6 +8069,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name?: string
+          organization_id?: string
           picked_quantity?: number
           picking_list_id?: string
           required_quantity?: number
@@ -8055,6 +8088,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "picking_list_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -8433,6 +8473,7 @@ export type Database = {
           description: string
           id: string
           item_id: string | null
+          organization_id: string
           purchase_order_id: string
           quantity: number
           received_quantity: number
@@ -8445,6 +8486,7 @@ export type Database = {
           description: string
           id?: string
           item_id?: string | null
+          organization_id: string
           purchase_order_id: string
           quantity?: number
           received_quantity?: number
@@ -8457,6 +8499,7 @@ export type Database = {
           description?: string
           id?: string
           item_id?: string | null
+          organization_id?: string
           purchase_order_id?: string
           quantity?: number
           received_quantity?: number
@@ -8469,6 +8512,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -8721,6 +8771,7 @@ export type Database = {
           id: string
           igst_amount: number
           igst_rate: number
+          organization_id: string
           quantity: number
           quote_id: string
           rate: number
@@ -8737,6 +8788,7 @@ export type Database = {
           id?: string
           igst_amount?: number
           igst_rate?: number
+          organization_id: string
           quantity?: number
           quote_id: string
           rate: number
@@ -8753,6 +8805,7 @@ export type Database = {
           id?: string
           igst_amount?: number
           igst_rate?: number
+          organization_id?: string
           quantity?: number
           quote_id?: string
           rate?: number
@@ -8760,6 +8813,13 @@ export type Database = {
           sgst_rate?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "quote_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quote_items_quote_id_fkey"
             columns: ["quote_id"]
@@ -9128,6 +9188,7 @@ export type Database = {
           description: string
           id: string
           item_id: string | null
+          organization_id: string
           quantity: number
           sales_order_id: string
           shipped_quantity: number
@@ -9140,6 +9201,7 @@ export type Database = {
           description: string
           id?: string
           item_id?: string | null
+          organization_id: string
           quantity?: number
           sales_order_id: string
           shipped_quantity?: number
@@ -9152,6 +9214,7 @@ export type Database = {
           description?: string
           id?: string
           item_id?: string | null
+          organization_id?: string
           quantity?: number
           sales_order_id?: string
           shipped_quantity?: number
@@ -9164,6 +9227,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -9968,6 +10038,7 @@ export type Database = {
           id: string
           item_id: string
           new_qty: number
+          organization_id: string
           rate: number
           reason: string | null
           value_impact: number | null
@@ -9980,6 +10051,7 @@ export type Database = {
           id?: string
           item_id: string
           new_qty?: number
+          organization_id: string
           rate?: number
           reason?: string | null
           value_impact?: number | null
@@ -9992,6 +10064,7 @@ export type Database = {
           id?: string
           item_id?: string
           new_qty?: number
+          organization_id?: string
           rate?: number
           reason?: string | null
           value_impact?: number | null
@@ -10009,6 +10082,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -10168,6 +10248,7 @@ export type Database = {
           id: string
           item_id: string | null
           item_name: string
+          organization_id: string
           quantity: number
           to_bin_id: string | null
           transfer_id: string
@@ -10178,6 +10259,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name: string
+          organization_id: string
           quantity?: number
           to_bin_id?: string | null
           transfer_id: string
@@ -10188,6 +10270,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_name?: string
+          organization_id?: string
           quantity?: number
           to_bin_id?: string | null
           transfer_id?: string
@@ -10205,6 +10288,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
