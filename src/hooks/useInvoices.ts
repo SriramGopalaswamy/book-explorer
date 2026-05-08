@@ -233,6 +233,13 @@ export function useCreateInvoice() {
       if (fetchErr) throw fetchErr;
       return invoice;
     },
+    onSuccess: (invoice: any) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      toast.success(`Invoice ${invoice.invoice_number} has been created.`);
+    },
     onError: (error) => {
       toast.error(`Failed to create invoice: ${error.message}`);
     },
