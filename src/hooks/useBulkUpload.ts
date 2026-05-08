@@ -375,28 +375,21 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       return false;
     };
 
-    let processedCount = 0;
-    for (const row of rows) {
-      if (signal?.aborted) {
-        await rollbackAll();
-        return {
-          success: 0,
-          errors: ["Upload cancelled by user. All changes rolled back."],
-          warnings,
-          cancelled: true,
-          failedRows,
-        };
-      }
-      processedCount++;
-      onProgress?.(processedCount, rows.length);
-      const errorsBefore = errors.length;
+    // ── Pass 1: parse + validate every row, build payload list ────────────
+    // Heavy work was originally a per-row `await supabase.upsert(...).select().single()`
+    // which meant one round-trip per row. For 34 rows on a slow link the dialog
+    // would visibly stall. We now parse all rows synchronously, collect errors,
+    // and write valid rows in batches of 50 — typically 1-2 round-trips total.
+    type PendingPayload = {
+      rowIndex: number;
+      raw: Record<string, string>;
+      payload: Record<string, any>;
+    };
+    const pending: PendingPayload[] = [];
 
-      // ── Pass-through parsing (no derivations / consistency checks) ───────
-      // Per business decision: Payroll Register bulk upload trusts the file
-      // exactly as provided. We do NOT back-calculate PF/PT, do NOT split
-      // basic/HRA/allowances, and do NOT cross-check net pay. Every numeric
-      // column is taken at face value. Columns absent from the file simply
-      // resolve to 0.
+    rows.forEach((row, idx) => {
+      const rowIndex = idx + 1;
+
       const pf_monthly       = parseFloat(row.pf_employee_monthly) || 0;
       const prof_tax         = parseFloat(row.professional_tax_monthly) || 0;
       const tds_monthly_raw  = parseFloat(row.tds_monthly) || 0;
@@ -414,12 +407,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       const lwp_ded_val      = parseFloat(row.lwp_deduction_col) || 0;
       const net_from_file    = parseFloat(row.net_pay_file) || 0;
 
-      // Earnings: store the gross as a single line; do not invent basic/HRA splits.
       const basic = Math.round(gross_earn);
-      const hra = 0;
-      const other_allowances = 0;
-
-      // Deductions: sum components if total not provided; otherwise trust the file.
       const componentSum = pf_monthly + prof_tax + tds_monthly_raw + other_ded_raw;
       const totalDed = total_ded_file > 0 ? total_ded_file : componentSum;
       const grossWithVariable = gross_earn + bonus + incentive;
@@ -427,52 +415,46 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         ? net_from_file
         : Math.max(0, Math.round(grossWithVariable - totalDed - lwp_ded_val));
 
-      // ── Employee matching ─────────────────────────────────────────────────
       let profile;
       if (row.email_id?.trim()) {
         profile = findProfileByEmail(row.email_id.trim());
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No employee found with email "${row.email_id.trim()}"`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
-          continue;
+          const err = `Row ${row.employee_id || row.email_id}: No employee found with email "${row.email_id.trim()}"`;
+          errors.push(err);
+          failedRows.push({ rowIndex, data: row, error: err });
+          return;
         }
       } else {
         profile = findProfileByName(row.employee_id);
         if (!profile) {
-          errors.push(`Row ${row.employee_id}: No matching employee profile found`);
-          if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
-          continue;
+          const err = `Row ${row.employee_id}: No matching employee profile found`;
+          errors.push(err);
+          failedRows.push({ rowIndex, data: row, error: err });
+          return;
         }
       }
 
-      // ── Build JSONB breakdowns ────────────────────────────────────────────
-      // Bonus and Incentive are stored as separate line items (rather than the
-      // legacy combined "Incentives" line) so the payslip surfaces them
-      // distinctly. Both are taxable; TDS in deductions already accounts for them.
       const earningsBreakdown = [
-        { name: "Basic Salary",      monthly: basic,          annual: basic * 12,          is_taxable: true },
-        ...(hra > 0            ? [{ name: "HRA",              monthly: hra,                annual: hra * 12,                is_taxable: true }]  : []),
-        ...(other_allowances > 0 ? [{ name: "Other Allowances", monthly: other_allowances, annual: other_allowances * 12,   is_taxable: true }]  : []),
-        ...(bonus > 0          ? [{ name: "Bonus",            monthly: bonus,              annual: bonus * 12,              is_taxable: true }]  : []),
-        ...(incentive > 0      ? [{ name: "Incentive",        monthly: incentive,          annual: incentive * 12,          is_taxable: true }]  : []),
+        { name: "Basic Salary",      monthly: basic, annual: basic * 12, is_taxable: true },
+        ...(bonus > 0     ? [{ name: "Bonus",     monthly: bonus,     annual: bonus * 12,     is_taxable: true }] : []),
+        ...(incentive > 0 ? [{ name: "Incentive", monthly: incentive, annual: incentive * 12, is_taxable: true }] : []),
       ];
-
       const deductionsBreakdown = [
-        ...(pf_monthly > 0     ? [{ name: "PF Contribution",  monthly: pf_monthly,         annual: pf_monthly * 12,         is_taxable: false }] : []),
-        ...(prof_tax > 0       ? [{ name: "Professional Tax", monthly: prof_tax,            annual: prof_tax * 12,           is_taxable: false }] : []),
-        ...(tds_monthly_raw > 0 ? [{ name: "TDS",             monthly: tds_monthly_raw,    annual: tds_monthly_raw * 12,    is_taxable: false }] : []),
-        ...(other_ded_raw > 0  ? [{ name: "Other Deductions", monthly: other_ded_raw,      annual: other_ded_raw * 12,      is_taxable: false }] : []),
+        ...(pf_monthly > 0     ? [{ name: "PF Contribution",  monthly: pf_monthly,     annual: pf_monthly * 12,     is_taxable: false }] : []),
+        ...(prof_tax > 0       ? [{ name: "Professional Tax", monthly: prof_tax,       annual: prof_tax * 12,       is_taxable: false }] : []),
+        ...(tds_monthly_raw > 0 ? [{ name: "TDS",             monthly: tds_monthly_raw, annual: tds_monthly_raw * 12, is_taxable: false }] : []),
+        ...(other_ded_raw > 0  ? [{ name: "Other Deductions", monthly: other_ded_raw,  annual: other_ded_raw * 12,  is_taxable: false }] : []),
       ];
 
-      // ── Upsert payroll_entry ──────────────────────────────────────────────
-      const { data: entry, error: entryError } = await supabase
-        .from("payroll_entries")
-        .upsert({
+      pending.push({
+        rowIndex,
+        raw: row,
+        payload: {
           payroll_run_id:            runId,
           profile_id:                profile.id,
           organization_id:           orgId,
           compensation_structure_id: null,
-          annual_ctc:                grossWithVariable * 12, // approximation: bulk upload has no annual CTC column; (gross + variable pay) × 12 is a placeholder
+          annual_ctc:                grossWithVariable * 12,
           gross_earnings:            grossWithVariable,
           total_deductions:          totalDed,
           net_pay,
@@ -483,23 +465,66 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
           earnings_breakdown:        earningsBreakdown,
           deductions_breakdown:      deductionsBreakdown,
           status:                    "computed",
-        }, { onConflict: "payroll_run_id,profile_id" })
-        .select("id")
-        .single();
+        },
+      });
+    });
 
-      if (entryError) {
-        errors.push(`Row ${row.employee_id || row.email_id}: ${entryError.message}`);
-        if (await abortOnThreshold()) return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
+    // Initial progress signal — parsing complete
+    onProgress?.(0, rows.length, "Validating");
+
+    // Threshold abort BEFORE we hit the network if half of the rows already
+    // failed validation.
+    if (errors.length > rows.length * 0.5) {
+      await rollbackAll();
+      return {
+        success: 0,
+        errors: [...errors, "Bulk upload aborted: too many invalid rows. All changes rolled back."],
+        warnings,
+        failedRows,
+      };
+    }
+
+    // ── Pass 2: batch upserts ─────────────────────────────────────────────
+    const BATCH_SIZE = 50;
+    let processedCount = rows.length - pending.length; // skipped rows count as processed
+    onProgress?.(processedCount, rows.length, "Saving");
+
+    for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+      if (signal?.aborted) {
+        await rollbackAll();
+        return {
+          success: 0,
+          errors: ["Upload cancelled by user. All changes rolled back."],
+          warnings,
+          cancelled: true,
+          failedRows,
+        };
+      }
+      const slice = pending.slice(i, i + BATCH_SIZE);
+      const { data: inserted, error: batchErr } = await supabase
+        .from("payroll_entries")
+        .upsert(slice.map((p) => p.payload), { onConflict: "payroll_run_id,profile_id" })
+        .select("id");
+
+      if (batchErr) {
+        // Whole batch failed — record one error per row in the batch so the
+        // retry UI surfaces them, then check the abort threshold.
+        slice.forEach((p) => {
+          const err = `Row ${p.raw.employee_id || p.raw.email_id}: ${batchErr.message}`;
+          errors.push(err);
+          failedRows.push({ rowIndex: p.rowIndex, data: p.raw, error: err });
+        });
+        if (await abortOnThreshold()) {
+          return { success: 0, errors: [...errors, "Bulk upload aborted: too many errors. All changes rolled back."], failedRows };
+        }
       } else {
-        if (entry?.id) insertedEntryIds.push(entry.id);
-        success++;
+        if (inserted) {
+          for (const r of inserted) if (r?.id) insertedEntryIds.push(r.id);
+        }
+        success += slice.length;
       }
-
-      // Capture per-row error for retry UI
-      if (errors.length > errorsBefore) {
-        const newErr = errors[errors.length - 1];
-        failedRows.push({ rowIndex: processedCount, data: row, error: newErr });
-      }
+      processedCount += slice.length;
+      onProgress?.(processedCount, rows.length, "Saving");
     }
 
     // ── Re-aggregate run totals ───────────────────────────────────────────
