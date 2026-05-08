@@ -1,17 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSessionContext } from "@/hooks/useSessionContext";
+import { useSessionContext, readPersistedSuperAdmin } from "@/hooks/useSessionContext";
 import { toast } from "sonner";
 
 /**
  * Check if current user is a super_admin. Reads from the session-context
- * bootstrap (single round trip on login, cached for entire session).
+ * bootstrap (single round trip on login, cached for entire session). Falls
+ * back to a persisted localStorage hint while the bootstrap is still in
+ * flight so super admins never see a misleading "loading" / subscription
+ * gate. RLS still enforces the real permission server-side.
  */
 export function useIsSuperAdmin() {
+  const { user } = useAuth();
   const { data, isLoading, isFetching, isError, error } = useSessionContext();
+  const persistedHint = user?.id ? readPersistedSuperAdmin(user.id) : false;
+  const resolved = data?.isSuperAdmin;
   return {
-    data: data?.isSuperAdmin ?? undefined,
+    data: resolved !== undefined ? resolved : (isLoading ? persistedHint || undefined : false),
     isLoading,
     isFetching,
     isError,
