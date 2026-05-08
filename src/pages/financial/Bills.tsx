@@ -377,6 +377,7 @@ export default function Bills() {
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [editingBillVersion, setEditingBillVersion] = useState<number | null>(null);
   const [previewBill, setPreviewBill] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -477,8 +478,15 @@ export default function Bills() {
           p_bill_id: editingBillId,
           p_header: payload as any,
           p_lines: linePayload as any,
+          p_expected_version: editingBillVersion ?? null,
         });
-        if (rpcErr) throw rpcErr;
+        if (rpcErr) {
+          if ((rpcErr as any).code === "40001" || /version conflict/i.test(rpcErr.message)) {
+            queryClient.invalidateQueries({ queryKey: ["bills"] });
+            throw new Error("This bill was modified by someone else. Please reopen and retry.");
+          }
+          throw rpcErr;
+        }
         billId = editingBillId;
       } else {
         // Atomic create via transactional RPC
@@ -618,6 +626,7 @@ export default function Bills() {
 
   const openEditDialog = (bill: any) => {
     setEditingBillId(bill.id);
+    setEditingBillVersion(typeof bill.version === "number" ? bill.version : null);
     setForm({
       vendor_name: bill.vendor_name || "",
       bill_number: bill.bill_number || "",
