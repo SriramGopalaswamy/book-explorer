@@ -503,7 +503,7 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
       const slice = pending.slice(i, i + BATCH_SIZE);
       const { data: inserted, error: batchErr } = await supabase
         .from("payroll_entries")
-        .upsert(slice.map((p) => p.payload), { onConflict: "payroll_run_id,profile_id" })
+        .upsert(slice.map((p) => p.payload) as any, { onConflict: "payroll_run_id,profile_id" })
         .select("id");
 
       if (batchErr) {
