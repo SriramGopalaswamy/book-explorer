@@ -833,21 +833,16 @@ export default function Invoicing() {
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                {searchQuery || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
-              </h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {searchQuery || statusFilter !== "all" ? "Try adjusting your search or filter criteria" : "Create your first invoice to get started"}
-              </p>
-            </div>
-          ) : (
+          <ListState
+            isLoading={isLoading && !pagedInvoices}
+            isError={isError}
+            isEmpty={!!pagedInvoices && pagedInvoices.total === 0}
+            error={pagedError as any}
+            onRetry={() => refetchInvoices()}
+            emptyTitle={debouncedSearch || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
+            emptyDescription={debouncedSearch || statusFilter !== "all" ? "Try adjusting your search or filter criteria." : "Create your first invoice to get started."}
+            skeletonRows={pageSize > 10 ? 8 : 5}
+          >
             <div>
               <Table>
                 <TableHeader>
@@ -862,7 +857,7 @@ export default function Invoicing() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.paginatedItems.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const displayStatus = isEffectivelyOverdue(invoice) ? "overdue" : invoice.status;
                     const statusConfig = getStatusConfig(displayStatus);
                     const StatusIcon = statusConfig.icon;
@@ -972,20 +967,22 @@ export default function Invoicing() {
                   })}
                 </TableBody>
               </Table>
-              <div className="px-6 pb-4">
-                <TablePagination
-                  page={pagination.page}
-                  totalPages={pagination.totalPages}
-                  totalItems={pagination.totalItems}
-                  from={pagination.from}
-                  to={pagination.to}
-                  pageSize={pagination.pageSize}
-                  onPageChange={pagination.setPage}
-                  onPageSizeChange={pagination.setPageSize}
-                />
-              </div>
+              {pagedInvoices && pagedInvoices.total > 0 && (
+                <div className="px-6 pb-4">
+                  <TablePagination
+                    page={page}
+                    totalPages={pagedInvoices.totalPages}
+                    totalItems={pagedInvoices.total}
+                    from={(page - 1) * pageSize + 1}
+                    to={Math.min(page * pageSize, pagedInvoices.total)}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </ListState>
         </div>
 
         {/* Aadhaar eSign Modal */}
