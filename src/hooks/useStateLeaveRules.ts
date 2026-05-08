@@ -56,6 +56,7 @@ export function useStateLeaveRules() {
       return data as StateLeaveRule[];
     },
     enabled: !!user,
+    ...QUERY_PROFILES.MASTER_DATA,
   });
 }
 
