@@ -13,11 +13,9 @@ const corsHeaders = {
 interface Job {
   id: string;
   organization_id: string | null;
-  job_type: string;
+  module: string;
   status: string;
   payload: Record<string, unknown> | null;
-  attempts: number;
-  max_attempts: number;
 }
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -28,10 +26,9 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 });
 
 async function claimJobs(limit = 5): Promise<Job[]> {
-  // Atomically claim queued jobs by flipping their status to running.
   const { data, error } = await admin
     .from("background_jobs")
-    .select("id, organization_id, job_type, status, payload, attempts, max_attempts")
+    .select("id, organization_id, module, status, payload")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -41,14 +38,10 @@ async function claimJobs(limit = 5): Promise<Job[]> {
   const ids = data.map((j) => j.id);
   const { data: updated, error: upErr } = await admin
     .from("background_jobs")
-    .update({
-      status: "running",
-      started_at: new Date().toISOString(),
-      attempts: (data[0].attempts ?? 0) + 1,
-    })
+    .update({ status: "running", started_at: new Date().toISOString() })
     .in("id", ids)
-    .eq("status", "queued") // optimistic guard
-    .select("id, organization_id, job_type, status, payload, attempts, max_attempts");
+    .eq("status", "queued")
+    .select("id, organization_id, module, status, payload");
   if (upErr) throw upErr;
   return (updated as Job[]) ?? [];
 }
@@ -58,33 +51,33 @@ async function markCompleted(id: string, result: unknown) {
     .from("background_jobs")
     .update({
       status: "completed",
-      completed_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
+      progress: 100,
       result: result as never,
       error: null,
     })
     .eq("id", id);
 }
 
-async function markFailed(id: string, attempts: number, maxAttempts: number, err: string) {
-  const finalStatus = attempts >= maxAttempts ? "failed" : "queued";
+async function markFailed(id: string, err: string) {
   await admin
     .from("background_jobs")
     .update({
-      status: finalStatus,
+      status: "failed",
+      finished_at: new Date().toISOString(),
       error: err,
-      completed_at: finalStatus === "failed" ? new Date().toISOString() : null,
     })
     .eq("id", id);
 }
 
 async function runJob(job: Job): Promise<unknown> {
-  switch (job.job_type) {
+  switch (job.module) {
     case "noop":
       return { ok: true, at: new Date().toISOString() };
     case "ping":
       return { pong: true, payload: job.payload };
     default:
-      throw new Error(`Unknown job_type: ${job.job_type}`);
+      throw new Error(`Unknown module: ${job.module}`);
   }
 }
 
@@ -102,7 +95,7 @@ Deno.serve(async (req) => {
         results.push({ id: job.id, ok: true });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await markFailed(job.id, job.attempts, job.max_attempts, msg);
+        await markFailed(job.id, msg);
         results.push({ id: job.id, ok: false, error: msg });
       }
     }
