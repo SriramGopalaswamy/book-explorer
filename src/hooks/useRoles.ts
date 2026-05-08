@@ -5,6 +5,9 @@ import { useSessionContext } from "@/hooks/useSessionContext";
  * trip on login, cached for entire session). No additional network calls.
  *
  * NOTE: roles in session-context are already org-scoped server-side.
+ *
+ * SUPER ADMIN BYPASS: Super admins ALWAYS pass every role gate. They may not
+ * have any org-scoped user_roles entry yet still must retain full access.
  */
 
 function useOrgRoles() {
@@ -12,38 +15,50 @@ function useOrgRoles() {
   return {
     orgRoles: data?.roles ?? [],
     orgId: data?.organizationId ?? null,
+    isSuperAdmin: !!data?.isSuperAdmin,
     isLoading,
   };
 }
 
 export function useIsAdminOrHR() {
-  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  const { orgRoles, orgId, isSuperAdmin, isLoading } = useOrgRoles();
   return {
-    data: orgId ? orgRoles.some((r) => r === "admin" || r === "hr") : false,
+    data: isSuperAdmin
+      ? true
+      : orgId
+        ? orgRoles.some((r) => r === "admin" || r === "hr")
+        : false,
     isLoading,
   };
 }
 
 export function useIsFinance() {
-  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  const { orgRoles, orgId, isSuperAdmin, isLoading } = useOrgRoles();
   return {
-    data: orgId ? orgRoles.some((r) => r === "admin" || r === "finance") : false,
+    data: isSuperAdmin
+      ? true
+      : orgId
+        ? orgRoles.some((r) => r === "admin" || r === "finance")
+        : false,
     isLoading,
   };
 }
 
 export function useIsManager() {
-  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  const { orgRoles, orgId, isSuperAdmin, isLoading } = useOrgRoles();
   return {
-    data: orgId ? orgRoles.includes("manager") : false,
+    data: isSuperAdmin ? true : orgId ? orgRoles.includes("manager") : false,
     isLoading,
   };
 }
 
 export function useCurrentRole() {
-  const { orgRoles, orgId, isLoading } = useOrgRoles();
+  const { orgRoles, orgId, isSuperAdmin, isLoading } = useOrgRoles();
   let role: string | null = null;
-  if (orgId) {
+  if (isSuperAdmin) {
+    // Super admins are treated as admin everywhere for role-gated UI.
+    role = "admin";
+  } else if (orgId) {
     if (orgRoles.includes("admin")) role = "admin";
     else if (orgRoles.includes("hr")) role = "hr";
     else if (orgRoles.includes("finance")) role = "finance";
