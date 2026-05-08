@@ -137,6 +137,7 @@ export function useSessionContext() {
         const isDegraded =
           !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
         if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
+        if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
         return ctx;
       } finally {
         clearTimeout(timer);
