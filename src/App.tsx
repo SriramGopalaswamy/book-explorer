@@ -19,6 +19,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Loader2 } from "lucide-react";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { RESOURCES } from "@/lib/permissions";
+import Payroll from "./pages/hrms/Payroll";
 
 // Lazy-loaded page components — reduces initial bundle by ~80%
 const Index = lazy(() => import("./pages/Index"));
@@ -58,7 +59,6 @@ const Employees = lazy(() => import("./pages/hrms/Employees"));
 const Attendance = lazy(() => import("./pages/hrms/Attendance"));
 const AttendanceImport = lazy(() => import("./pages/hrms/AttendanceImport"));
 const Leaves = lazy(() => import("./pages/hrms/Leaves"));
-const Payroll = lazy(() => import("./pages/hrms/Payroll"));
 const CTCComponents = lazy(() => import("./pages/hrms/CTCComponents"));
 const MyPayslips = lazy(() => import("./pages/hrms/MyPayslips"));
 const Holidays = lazy(() => import("./pages/hrms/Holidays"));
