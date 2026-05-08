@@ -4542,6 +4542,59 @@ export type Database = {
           },
         ]
       }
+      export_audit_log: {
+        Row: {
+          created_at: string
+          file_url: string | null
+          format: string
+          id: string
+          ip_address: unknown
+          module: string
+          organization_id: string
+          profile_id: string | null
+          row_count: number
+          scope: Json
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_url?: string | null
+          format: string
+          id?: string
+          ip_address?: unknown
+          module: string
+          organization_id: string
+          profile_id?: string | null
+          row_count?: number
+          scope?: Json
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string | null
+          format?: string
+          id?: string
+          ip_address?: unknown
+          module?: string
+          organization_id?: string
+          profile_id?: string | null
+          row_count?: number
+          scope?: Json
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_records: {
         Row: {
           account_code: string | null
@@ -7325,6 +7378,7 @@ export type Database = {
           settings: Json | null
           slug: string | null
           status: string
+          timezone: string
           updated_at: string
           weekend_policy: string
         }
@@ -7343,6 +7397,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          timezone?: string
           updated_at?: string
           weekend_policy?: string
         }
@@ -7361,6 +7416,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          timezone?: string
           updated_at?: string
           weekend_policy?: string
         }
@@ -11846,6 +11902,7 @@ export type Database = {
         Returns: string
       }
       get_my_session_context: { Args: never; Returns: Json }
+      get_org_timezone: { Args: { p_org_id?: string }; Returns: string }
       get_payroll_unique_record_count: {
         Args: { p_org_id: string }
         Returns: number
@@ -11965,6 +12022,7 @@ export type Database = {
         Returns: string
       }
       org_has_transactions: { Args: { _org_id: string }; Returns: boolean }
+      org_now: { Args: never; Returns: string }
       post_asset_disposal_journal: {
         Args: { _asset_id: string }
         Returns: string
@@ -12034,6 +12092,16 @@ export type Database = {
         Returns: Json
       }
       reconcile_subledgers: { Args: { _org_id: string }; Returns: Json }
+      record_export: {
+        Args: {
+          p_file_url?: string
+          p_format: string
+          p_module: string
+          p_row_count?: number
+          p_scope?: Json
+        }
+        Returns: string
+      }
       redeem_subscription_key: {
         Args: { _org_id: string; _passkey: string }
         Returns: Json
