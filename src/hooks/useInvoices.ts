@@ -182,63 +182,58 @@ export function useCreateInvoice() {
 
       const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
 
-      const { data: invoice, error: invoiceError } = await supabase
+      // ── Atomic header + lines via transactional RPC ──
+      const header = {
+        invoice_number: invoiceNumber,
+        client_name: data.client_name.trim(),
+        client_email: data.client_email,
+        customer_id: data.customer_id || null,
+        amount: data.amount,
+        invoice_date: invoiceDate,
+        due_date: data.due_date,
+        status: data.status || "draft",
+        place_of_supply: data.place_of_supply || null,
+        payment_terms: data.payment_terms || "Due on Receipt",
+        subtotal: data.subtotal || data.amount,
+        cgst_total: data.cgst_total || 0,
+        sgst_total: data.sgst_total || 0,
+        igst_total: data.igst_total || 0,
+        total_amount: data.total_amount || data.amount,
+        notes: data.notes || null,
+        customer_gstin: data.customer_gstin || null,
+        client_phone: data.client_phone || null,
+      };
+
+      const lines = (data.items || []).map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount,
+        hsn_sac: item.hsn_sac || null,
+        cgst_rate: item.cgst_rate || 0,
+        sgst_rate: item.sgst_rate || 0,
+        igst_rate: item.igst_rate || 0,
+        cgst_amount: item.cgst_amount || 0,
+        sgst_amount: item.sgst_amount || 0,
+        igst_amount: item.igst_amount || 0,
+      }));
+
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+        "create_invoice_with_lines",
+        { p_header: header as any, p_lines: lines as any },
+      );
+      if (rpcError) throw rpcError;
+
+      const newId = (rpcResult as any)?.id ?? rpcResult;
+      const { data: invoice, error: fetchErr } = await supabase
         .from("invoices")
-        .insert({
-          user_id: user.id,
-          invoice_number: invoiceNumber,
-          client_name: data.client_name.trim(),
-          client_email: data.client_email,
-          customer_id: data.customer_id || null,
-          amount: data.amount,
-          invoice_date: invoiceDate,
-          due_date: data.due_date,
-          status: data.status || "draft",
-          place_of_supply: data.place_of_supply || null,
-          payment_terms: data.payment_terms || "Due on Receipt",
-          subtotal: data.subtotal || data.amount,
-          cgst_total: data.cgst_total || 0,
-          sgst_total: data.sgst_total || 0,
-          igst_total: data.igst_total || 0,
-          total_amount: data.total_amount || data.amount,
-          notes: data.notes || null,
-          customer_gstin: data.customer_gstin || null,
-          client_phone: data.client_phone || null,
-        } as any)
-        .select()
+        .select("*, invoice_items(*)")
+        .eq("id", newId)
         .single();
-
-      if (invoiceError) throw invoiceError;
-
-      if (data.items && data.items.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("invoice_items")
-          .insert(
-            data.items.map((item) => ({
-              invoice_id: invoice.id,
-              description: item.description,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-              hsn_sac: item.hsn_sac || null,
-              cgst_rate: item.cgst_rate || 0,
-              sgst_rate: item.sgst_rate || 0,
-              igst_rate: item.igst_rate || 0,
-              cgst_amount: item.cgst_amount || 0,
-              sgst_amount: item.sgst_amount || 0,
-              igst_amount: item.igst_amount || 0,
-            }))
-          );
-        if (itemsError) {
-          // Atomic rollback: delete orphaned invoice header
-          await supabase.from("invoices").delete().eq("id", invoice.id);
-          throw itemsError;
-        }
-      }
-
+      if (fetchErr) throw fetchErr;
       return invoice;
     },
-    onSuccess: (invoice) => {
+    onSuccess: (invoice: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
@@ -431,12 +426,11 @@ export function useUpdateInvoice() {
       if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
       if (!data.client_name?.trim()) throw new Error("Client name is required.");
 
-      // Build update payload
-      const updatePayload: Record<string, any> = {
+      // Build header for atomic transactional RPC
+      const header = {
         client_name: data.client_name,
         client_email: data.client_email,
         customer_id: data.customer_id || null,
-        amount: data.amount,
         invoice_date: data.invoice_date || undefined,
         due_date: data.due_date,
         place_of_supply: data.place_of_supply || null,
@@ -451,45 +445,25 @@ export function useUpdateInvoice() {
         client_phone: data.client_phone || null,
       };
 
-      const { data: updateResult, error: invoiceError } = await (supabase as any)
-        .from("invoices")
-        .update(updatePayload)
-        .eq("id", data.id)
-        .eq("organization_id", callerOrgId)
-        .select();
-      if (invoiceError) throw invoiceError;
-      if (!updateResult || updateResult.length === 0) {
-        throw new Error("Failed to update invoice. Please refresh and try again.");
-      }
+      const lines = (data.items || []).map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount,
+        hsn_sac: item.hsn_sac || null,
+        cgst_rate: item.cgst_rate || 0,
+        sgst_rate: item.sgst_rate || 0,
+        igst_rate: item.igst_rate || 0,
+        cgst_amount: item.cgst_amount || 0,
+        sgst_amount: item.sgst_amount || 0,
+        igst_amount: item.igst_amount || 0,
+      }));
 
-      // Delete old items and reinsert
-      const { error: deleteError } = await supabase
-        .from("invoice_items")
-        .delete()
-        .eq("invoice_id", data.id);
-      if (deleteError) throw deleteError;
-
-      if (data.items && data.items.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("invoice_items")
-          .insert(
-            data.items.map((item) => ({
-              invoice_id: data.id,
-              description: item.description,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-              hsn_sac: item.hsn_sac || null,
-              cgst_rate: item.cgst_rate || 0,
-              sgst_rate: item.sgst_rate || 0,
-              igst_rate: item.igst_rate || 0,
-              cgst_amount: item.cgst_amount || 0,
-              sgst_amount: item.sgst_amount || 0,
-              igst_amount: item.igst_amount || 0,
-            }))
-          );
-        if (itemsError) throw itemsError;
-      }
+      const { error: rpcError } = await (supabase as any).rpc(
+        "update_invoice_with_lines",
+        { p_invoice_id: data.id, p_header: header as any, p_lines: lines as any },
+      );
+      if (rpcError) throw rpcError;
 
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
