@@ -490,19 +490,7 @@ export default function Bills() {
         billId = (rpcResult as any)?.id ?? rpcResult;
       }
 
-      const validItems = lineItems.filter((i) => i.description.trim());
-      if (validItems.length > 0) {
-        const { error: itemsError } = await supabase.from("bill_items").insert(
-          validItems.map((i) => ({
-            bill_id: billId,
-            description: i.description,
-            quantity: i.quantity,
-            rate: i.rate,
-            amount: i.amount,
-          }))
-        );
-        if (itemsError) throw new Error(`Failed to save line items: ${itemsError.message}`);
-      }
+      void billId;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
