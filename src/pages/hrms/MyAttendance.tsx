@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import {
   Clock,
   LogIn,
@@ -281,6 +282,7 @@ export default function MyAttendance() {
               <CardContent>
                 {isLoadingHistory ? (
                   <div className="space-y-2">
+                    <DataLoadingBar isLoading={isLoadingHistory} loaded={history.length} label="Loading attendance history" />
                     {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
                   </div>
                 ) : history.length === 0 ? (
@@ -352,6 +354,7 @@ export default function MyAttendance() {
               <CardContent>
                 {isLoadingCorrections ? (
                   <div className="space-y-2">
+                    <DataLoadingBar isLoading={isLoadingCorrections} loaded={corrections.length} label="Loading correction requests" />
                     {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
                   </div>
                 ) : corrections.length === 0 ? (
