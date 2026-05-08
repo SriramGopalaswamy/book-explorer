@@ -114,6 +114,7 @@ const financialNav: NavItem[] = [
   { name: "Analytics", path: "/financial/analytics", icon: BarChart3, module: "financial" },
   { name: "Recurring", path: "/financial/recurring", icon: RefreshCw, module: "financial" },
   { name: "Automation", path: "/financial/automation", icon: Zap, module: "financial" },
+  { name: "Background Jobs", path: "/financial/background-jobs", icon: Loader2, module: "financial" },
   { name: "CA Dashboard", path: "/financial/ca-dashboard", icon: Shield, module: "financial" },
   { name: "CA Audit Console", path: "/financial/audit-console", icon: ShieldCheck, module: "financial" },
 ];
