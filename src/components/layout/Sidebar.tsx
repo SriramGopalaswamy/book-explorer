@@ -50,6 +50,7 @@ import {
   BookMarked,
   FileSpreadsheet,
   Zap,
+  Loader2,
   FlaskConical,
   Activity,
   ClipboardList,
