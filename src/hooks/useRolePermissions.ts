@@ -13,6 +13,7 @@ import {
   ConfigurableRole,
   CONFIGURABLE_ROLES,
 } from "@/lib/permissions";
+import { QUERY_PROFILES } from "@/lib/query-defaults";
 
 function useOrgRolePermissions(role: string | null, orgId: string | undefined) {
   const { user } = useAuth();
