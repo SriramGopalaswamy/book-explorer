@@ -27,6 +27,8 @@ export function PayrollRoute({ children }: PayrollRouteProps) {
   const roles = session?.roles ?? (legacyRole ? [legacyRole] : []);
   const hasAccess = roles.some((r) => ALLOWED.includes(r));
 
+  if (isSuperAdmin || hasAccess) return <>{children}</>;
+
   const stillLoading =
     sessionLoading && roleLoading && saLoading;
 
@@ -37,8 +39,6 @@ export function PayrollRoute({ children }: PayrollRouteProps) {
       </div>
     );
   }
-
-  if (isSuperAdmin || hasAccess) return <>{children}</>;
 
   return (
     <AccessDenied
