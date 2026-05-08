@@ -417,6 +417,7 @@ export default function Invoicing() {
     updateInvoice.mutate(
       {
         id: editingInvoice.id,
+        expected_version: (editingInvoice as any).version,
         client_name: customer.name,
         client_email: customer.email || "",
         customer_id: customer.id,
