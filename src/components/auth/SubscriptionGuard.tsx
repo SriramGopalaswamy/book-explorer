@@ -84,7 +84,7 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Verifying subscription…</p>
+          <p className="text-sm text-muted-foreground">Loading workspace…</p>
         </div>
       </div>
     );
