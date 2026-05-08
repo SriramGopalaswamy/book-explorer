@@ -12134,6 +12134,7 @@ export type Database = {
           total_debit: number
         }[]
       }
+      get_user_org: { Args: { _user_id: string }; Returns: string }
       get_user_org_id: { Args: { _user_id: string }; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       gl_account_balance: {
