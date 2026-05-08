@@ -461,31 +461,33 @@ export default function Bills() {
         payment_terms: form.payment_terms || null,
       };
 
+      const validItems = lineItems.filter((i) => i.description.trim());
+      const linePayload = validItems.map((i) => ({
+        description: i.description,
+        quantity: i.quantity,
+        rate: i.rate,
+        amount: i.amount,
+      }));
+
       let billId: string;
 
       if (editingBillId) {
-        // Update existing bill
-        const { data: bill, error } = await supabase
-          .from("bills")
-          .update(payload as any)
-          .eq("id", editingBillId)
-          .eq("organization_id", orgId)
-          .select()
-          .single();
-        if (error) throw error;
-        billId = bill.id;
-
-        // Delete existing line items and re-insert
-        await supabase.from("bill_items").delete().eq("bill_id", billId);
+        // Atomic update via transactional RPC
+        const { error: rpcErr } = await (supabase as any).rpc("update_bill_with_lines", {
+          p_bill_id: editingBillId,
+          p_header: payload as any,
+          p_lines: linePayload as any,
+        });
+        if (rpcErr) throw rpcErr;
+        billId = editingBillId;
       } else {
-        // Insert new bill
-        const { data: bill, error } = await supabase
-          .from("bills")
-          .insert({ ...payload, user_id: user!.id, organization_id: orgId } as any)
-          .select()
-          .single();
-        if (error) throw error;
-        billId = bill.id;
+        // Atomic create via transactional RPC
+        const { data: rpcResult, error: rpcErr } = await (supabase as any).rpc(
+          "create_bill_with_lines",
+          { p_header: payload as any, p_lines: linePayload as any },
+        );
+        if (rpcErr) throw rpcErr;
+        billId = (rpcResult as any)?.id ?? rpcResult;
       }
 
       const validItems = lineItems.filter((i) => i.description.trim());
