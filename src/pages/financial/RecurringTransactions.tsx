@@ -38,7 +38,7 @@ function useGLAccountsForRecurring(orgId: string | null | undefined) {
         .eq("is_active", true)
         .order("code", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as { id: string; code: string; name: string; account_type: string }[];
+      return (data ?? []) as unknown as { id: string; code: string; name: string; account_type: string }[];
     },
   });
 }
