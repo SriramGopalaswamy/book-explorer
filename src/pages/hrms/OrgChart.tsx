@@ -840,6 +840,7 @@ export default function OrgChart() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : profiles.length === 0 ? (
               <div className="h-[520px] flex flex-col items-center justify-center text-muted-foreground">
