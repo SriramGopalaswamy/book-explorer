@@ -615,12 +615,14 @@ export default function Bills() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingBillId(null);
+    setEditingBillVersion(null);
     resetForm();
   };
 
   const openDialog = () => {
     resetForm();
     setEditingBillId(null);
+    setEditingBillVersion(null);
     setDialogOpen(true);
   };
 
