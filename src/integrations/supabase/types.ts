@@ -11919,6 +11919,14 @@ export type Database = {
       }
     }
     Functions: {
+      cash_flow_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          inflow: number
+          net_cash: number
+          outflow: number
+        }[]
+      }
       check_ledger_balance: {
         Args: never
         Returns: {
@@ -12112,6 +12120,14 @@ export type Database = {
       }
       get_user_org_id: { Args: { _user_id: string }; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
+      gl_account_balance: {
+        Args: { p_account_id: string; p_as_of?: string }
+        Returns: {
+          balance: number
+          credit_total: number
+          debit_total: number
+        }[]
+      }
       has_role:
         | {
             Args: {
@@ -12316,6 +12332,18 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      trial_balance: {
+        Args: { p_as_of?: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          balance: number
+          credit_total: number
+          debit_total: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance" | "payroll"
