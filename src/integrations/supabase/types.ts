@@ -2155,6 +2155,7 @@ export type Database = {
           user_id: string
           vendor_id: string | null
           vendor_name: string
+          version: number
         }
         Insert: {
           ai_extracted?: boolean
@@ -2180,6 +2181,7 @@ export type Database = {
           user_id: string
           vendor_id?: string | null
           vendor_name: string
+          version?: number
         }
         Update: {
           ai_extracted?: boolean
@@ -2205,6 +2207,7 @@ export type Database = {
           user_id?: string
           vendor_id?: string | null
           vendor_name?: string
+          version?: number
         }
         Relationships: [
           {
@@ -3079,6 +3082,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
           amount: number
@@ -3094,6 +3098,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
           amount?: number
@@ -3109,6 +3114,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -3525,6 +3531,7 @@ export type Database = {
           tracking_number: string | null
           tracking_url: string | null
           updated_at: string
+          version: number
           weight_kg: number | null
         }
         Insert: {
@@ -3547,6 +3554,7 @@ export type Database = {
           tracking_number?: string | null
           tracking_url?: string | null
           updated_at?: string
+          version?: number
           weight_kg?: number | null
         }
         Update: {
@@ -3569,6 +3577,7 @@ export type Database = {
           tracking_number?: string | null
           tracking_url?: string | null
           updated_at?: string
+          version?: number
           weight_kg?: number | null
         }
         Relationships: [
@@ -4451,6 +4460,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string | null
+          version: number
         }
         Insert: {
           amount: number
@@ -4471,6 +4481,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          version?: number
         }
         Update: {
           amount?: number
@@ -4491,6 +4502,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -5226,6 +5238,7 @@ export type Database = {
           status: string
           updated_at: string
           vendor_id: string | null
+          version: number
         }
         Insert: {
           created_at?: string
@@ -5239,6 +5252,7 @@ export type Database = {
           status?: string
           updated_at?: string
           vendor_id?: string | null
+          version?: number
         }
         Update: {
           created_at?: string
@@ -5252,6 +5266,7 @@ export type Database = {
           status?: string
           updated_at?: string
           vendor_id?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -6243,6 +6258,7 @@ export type Database = {
           source_id: string | null
           source_type: string
           status: string
+          version: number
         }
         Insert: {
           created_at?: string
@@ -6260,6 +6276,7 @@ export type Database = {
           source_id?: string | null
           source_type: string
           status?: string
+          version?: number
         }
         Update: {
           created_at?: string
@@ -6277,6 +6294,7 @@ export type Database = {
           source_id?: string | null
           source_type?: string
           status?: string
+          version?: number
         }
         Relationships: [
           {
@@ -8118,6 +8136,7 @@ export type Database = {
           sales_order_id: string | null
           status: string
           updated_at: string
+          version: number
           warehouse_id: string
         }
         Insert: {
@@ -8131,6 +8150,7 @@ export type Database = {
           sales_order_id?: string | null
           status?: string
           updated_at?: string
+          version?: number
           warehouse_id: string
         }
         Update: {
@@ -8144,6 +8164,7 @@ export type Database = {
           sales_order_id?: string | null
           status?: string
           updated_at?: string
+          version?: number
           warehouse_id?: string
         }
         Relationships: [
@@ -8552,6 +8573,7 @@ export type Database = {
           updated_at: string
           vendor_id: string | null
           vendor_name: string
+          version: number
         }
         Insert: {
           approved_at?: string | null
@@ -8574,6 +8596,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           vendor_name: string
+          version?: number
         }
         Update: {
           approved_at?: string | null
@@ -8596,6 +8619,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           vendor_name?: string
+          version?: number
         }
         Relationships: [
           {
@@ -8853,6 +8877,7 @@ export type Database = {
           total_amount: number
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
           amount?: number
@@ -8877,6 +8902,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
           amount?: number
@@ -8901,6 +8927,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -9268,6 +9295,7 @@ export type Database = {
           tax_amount: number
           total_amount: number
           updated_at: string
+          version: number
         }
         Insert: {
           approved_at?: string | null
@@ -9291,6 +9319,7 @@ export type Database = {
           tax_amount?: number
           total_amount?: number
           updated_at?: string
+          version?: number
         }
         Update: {
           approved_at?: string | null
@@ -9314,6 +9343,7 @@ export type Database = {
           tax_amount?: number
           total_amount?: number
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -10107,6 +10137,7 @@ export type Database = {
           reason: string
           status: string
           updated_at: string
+          version: number
           warehouse_id: string
         }
         Insert: {
@@ -10122,6 +10153,7 @@ export type Database = {
           reason: string
           status?: string
           updated_at?: string
+          version?: number
           warehouse_id: string
         }
         Update: {
@@ -10137,6 +10169,7 @@ export type Database = {
           reason?: string
           status?: string
           updated_at?: string
+          version?: number
           warehouse_id?: string
         }
         Relationships: [
@@ -10328,6 +10361,7 @@ export type Database = {
           transfer_date: string
           transfer_number: string
           updated_at: string
+          version: number
         }
         Insert: {
           created_at?: string
@@ -10343,6 +10377,7 @@ export type Database = {
           transfer_date?: string
           transfer_number: string
           updated_at?: string
+          version?: number
         }
         Update: {
           created_at?: string
@@ -10358,6 +10393,7 @@ export type Database = {
           transfer_date?: string
           transfer_number?: string
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
