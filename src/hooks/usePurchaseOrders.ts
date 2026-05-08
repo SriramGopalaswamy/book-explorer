@@ -89,33 +89,23 @@ export function useCreatePurchaseOrder() {
         throw new Error("Expected delivery date cannot be before the order date.");
       }
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!profile?.organization_id) throw new Error("No organization found");
       const subtotal = po.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const tax = po.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const poNum = `PO-${Date.now().toString(36).toUpperCase()}`;
 
-      const { data: poData, error: poErr } = await supabase
-        .from("purchase_orders" as any)
-        .insert({
-          po_number: poNum,
-          vendor_name: po.vendor_name.trim(),
-          vendor_id: po.vendor_id || null,
-          order_date: po.order_date,
-          expected_delivery: po.expected_delivery || null,
-          notes: po.notes || null,
-          subtotal,
-          tax_amount: Math.round(tax * 100) / 100,
-          total_amount: Math.round((subtotal + tax) * 100) / 100,
-          created_by: user.id,
-          organization_id: profile.organization_id,
-        } as any)
-        .select()
-        .single();
-      if (poErr) throw poErr;
-
-      const items = po.items.map((i) => ({
-        purchase_order_id: (poData as any).id,
+      const header = {
+        po_number: poNum,
+        vendor_name: po.vendor_name.trim(),
+        vendor_id: po.vendor_id || null,
+        order_date: po.order_date,
+        expected_delivery: po.expected_delivery || null,
+        notes: po.notes || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+        status: "draft",
+      };
+      const lines = po.items.map((i) => ({
         description: i.description,
         quantity: i.quantity,
         unit_price: i.unit_price,
@@ -124,14 +114,13 @@ export function useCreatePurchaseOrder() {
         item_id: i.item_id || null,
       }));
 
-      if (items.length > 0) {
-        const { error: itemErr } = await supabase.from("purchase_order_items" as any).insert(items as any);
-        if (itemErr) {
-          // Rollback header on item insert failure
-          await supabase.from("purchase_orders" as any).delete().eq("id", (poData as any).id);
-          throw itemErr;
-        }
-      }
+      const { data: rpcResult, error: rpcErr } = await (supabase as any).rpc(
+        "create_purchase_order_with_lines",
+        { p_header: header as any, p_lines: lines as any },
+      );
+      if (rpcErr) throw rpcErr;
+      const newId = (rpcResult as any)?.id ?? rpcResult;
+      const { data: poData } = await supabase.from("purchase_orders" as any).select("*").eq("id", newId).maybeSingle();
       return poData;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Purchase order created"); },
