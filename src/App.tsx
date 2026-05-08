@@ -114,6 +114,7 @@ const ApprovalWorkflowsPage = lazy(() => import("./pages/admin/ApprovalWorkflows
 const MCPToolExplorer = lazy(() => import("./pages/admin/MCPToolExplorer"));
 const ExchangeRatesPage = lazy(() => import("./pages/financial/ExchangeRates"));
 const RecurringTransactionsPage = lazy(() => import("./pages/financial/RecurringTransactions"));
+const BackgroundJobs = lazy(() => import("./pages/financial/BackgroundJobs"));
 
 const Connectors = lazy(() => import("./pages/connectors/Connectors"));
 const ConnectorDetail = lazy(() => import("./pages/connectors/ConnectorDetail"));
@@ -235,6 +236,7 @@ const App = () => (
                   <Route path="/financial/e-invoices" element={<Guarded><FinanceRoute><EInvoices /></FinanceRoute></Guarded>} />
                   <Route path="/financial/recurring" element={<Guarded><FinanceRoute><RecurringTransactionsPage /></FinanceRoute></Guarded>} />
                   <Route path="/financial/automation" element={<Guarded><FinanceRoute><AutomationDashboard /></FinanceRoute></Guarded>} />
+                  <Route path="/financial/background-jobs" element={<Guarded><FinanceRoute><BackgroundJobs /></FinanceRoute></Guarded>} />
 
                   {/* Inventory */}
                   <Route path="/inventory/items" element={<Guarded><FinanceRoute><Items /></FinanceRoute></Guarded>} />
