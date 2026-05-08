@@ -2,7 +2,7 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
-import { useStockAdjustments, useCreateStockAdjustment, useWarehouses } from "@/hooks/useInventory";
+import { useStockAdjustments, useCreateStockAdjustment, useWarehouses, useItems } from "@/hooks/useInventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,10 +59,13 @@ function useDeleteAdjustment() {
   });
 }
 
+type LineDraft = { item_id: string; quantity_delta: string; unit_cost: string; reason_code: string };
+
 export default function StockAdjustments() {
   const { user } = useAuth();
   const { data: adjustments, isLoading } = useStockAdjustments();
   const { data: warehouses } = useWarehouses();
+  const { data: items } = useItems();
   const createAdj = useCreateStockAdjustment();
   const updateStatus = useUpdateAdjustmentStatus();
   const deleteAdj = useDeleteAdjustment();
@@ -70,6 +73,16 @@ export default function StockAdjustments() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({ adjustment_number: "", warehouse_id: "", reason: "", notes: "" });
+  const [lines, setLines] = useState<LineDraft[]>([{ item_id: "", quantity_delta: "", unit_cost: "", reason_code: "" }]);
+  const queryClient = useQueryClient();
+
+  function setLine(i: number, patch: Partial<LineDraft>) {
+    setLines(prev => prev.map((l, idx) => idx === i ? { ...l, ...patch } : l));
+  }
+  function addLine() { setLines(prev => [...prev, { item_id: "", quantity_delta: "", unit_cost: "", reason_code: "" }]); }
+  function removeLine(i: number) {
+    setLines(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
+  }
 
   const filtered = (adjustments || []).filter((a: any) => {
     const matchSearch = a.adjustment_number?.toLowerCase().includes(search.toLowerCase()) ||
@@ -91,20 +104,49 @@ export default function StockAdjustments() {
     return map[s] || "bg-muted text-muted-foreground";
   };
 
-  const handleCreate = () => {
-    createAdj.mutate({
-      adjustment_number: form.adjustment_number,
-      warehouse_id: form.warehouse_id,
-      reason: form.reason,
-      notes: form.notes || null,
-      created_by: user?.id,
-    }, {
-      onSuccess: () => {
-        setOpen(false);
-        setForm({ adjustment_number: "", warehouse_id: "", reason: "", notes: "" });
-      },
-    });
-  };
+  // GBC-58: atomic header + lines insert via SECURITY DEFINER RPC.
+  // The previous flow stored a header with no children; the trigger on
+  // stock_adjustments.status -> 'posted' (added in T13 migration) only
+  // posts to stock_ledger when child lines exist.
+  const createWithLinesRpc = useMutation({
+    mutationFn: async () => {
+      const validLines = lines
+        .map(l => ({
+          item_id: l.item_id,
+          quantity_delta: parseFloat(l.quantity_delta),
+          unit_cost: parseFloat(l.unit_cost) || 0,
+          reason_code: l.reason_code || null,
+        }))
+        .filter(l => l.item_id && !Number.isNaN(l.quantity_delta) && l.quantity_delta !== 0);
+
+      if (validLines.length === 0) {
+        throw new Error("Add at least one item with a non-zero quantity delta");
+      }
+
+      const { data, error } = await (supabase as any).rpc("create_stock_adjustment_with_lines", {
+        p_header: {
+          adjustment_number: form.adjustment_number,
+          warehouse_id: form.warehouse_id,
+          reason: form.reason,
+          notes: form.notes,
+          status: "draft",
+        },
+        p_lines: validLines,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments"] });
+      toast.success("Stock adjustment created");
+      setOpen(false);
+      setForm({ adjustment_number: "", warehouse_id: "", reason: "", notes: "" });
+      setLines([{ item_id: "", quantity_delta: "", unit_cost: "", reason_code: "" }]);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleCreate = () => createWithLinesRpc.mutate();
 
   return (
     <MainLayout title="Stock Adjustments" subtitle="Create and manage inventory adjustments">
@@ -151,22 +193,82 @@ export default function StockAdjustments() {
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />New Adjustment</Button></DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-3xl">
               <DialogHeader><DialogTitle>New Stock Adjustment</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
-                <div><Label>Adjustment # *</Label><Input value={form.adjustment_number} onChange={e => setForm(f => ({ ...f, adjustment_number: e.target.value }))} /></div>
-                <div><Label>Warehouse *</Label>
-                  <Select value={form.warehouse_id} onValueChange={v => setForm(f => ({ ...f, warehouse_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
-                    <SelectContent>
-                      {(warehouses || []).filter((w: any) => w.is_active !== false).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Adjustment # *</Label><Input value={form.adjustment_number} onChange={e => setForm(f => ({ ...f, adjustment_number: e.target.value }))} /></div>
+                  <div><Label>Warehouse *</Label>
+                    <Select value={form.warehouse_id} onValueChange={v => setForm(f => ({ ...f, warehouse_id: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                      <SelectContent>
+                        {(warehouses || []).filter((w: any) => w.is_active !== false).map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div><Label>Reason *</Label><Input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} /></div>
                 <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-                <Button onClick={handleCreate} disabled={!form.adjustment_number || !form.warehouse_id || !form.reason || createAdj.isPending}>
-                  {createAdj.isPending ? "Creating..." : "Create Adjustment"}
+
+                {/* GBC-58: Line items — quantity_delta can be negative (loss) or positive (found). */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Line Items *</Label>
+                    <Button variant="outline" size="sm" onClick={addLine}>
+                      <Plus className="h-3 w-3 mr-1" /> Add Item
+                    </Button>
+                  </div>
+                  <div className="rounded border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40%]">Item</TableHead>
+                          <TableHead>Qty Δ</TableHead>
+                          <TableHead>Unit Cost</TableHead>
+                          <TableHead>Reason Code</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {lines.map((l, i) => (
+                          <TableRow key={i}>
+                            <TableCell>
+                              <Select value={l.item_id} onValueChange={v => setLine(i, { item_id: v })}>
+                                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                                <SelectContent>
+                                  {(items || []).map((it: any) => (
+                                    <SelectItem key={it.id} value={it.id}>{it.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input type="number" step="0.001" placeholder="±0" value={l.quantity_delta}
+                                onChange={e => setLine(i, { quantity_delta: e.target.value })} />
+                            </TableCell>
+                            <TableCell>
+                              <Input type="number" step="0.01" placeholder="0.00" value={l.unit_cost}
+                                onChange={e => setLine(i, { unit_cost: e.target.value })} />
+                            </TableCell>
+                            <TableCell>
+                              <Input placeholder="e.g. damaged" value={l.reason_code}
+                                onChange={e => setLine(i, { reason_code: e.target.value })} />
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" onClick={() => removeLine(i)} disabled={lines.length === 1}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <Button onClick={handleCreate}
+                  disabled={!form.adjustment_number || !form.warehouse_id || !form.reason || createWithLinesRpc.isPending}>
+                  {createWithLinesRpc.isPending ? "Creating..." : "Create Adjustment"}
                 </Button>
               </div>
             </DialogContent>
