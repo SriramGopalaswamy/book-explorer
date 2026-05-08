@@ -16,9 +16,10 @@ export function useIsSuperAdmin() {
   const { data, isLoading, isFetching, isError, error } = useSessionContext();
   const persistedHint = user?.id ? readPersistedSuperAdmin(user.id) : false;
   const resolved = data?.isSuperAdmin;
+  const eagerSuperAdmin = resolved === true || (resolved === undefined && persistedHint);
   return {
     data: resolved !== undefined ? resolved : (isLoading ? persistedHint || undefined : false),
-    isLoading,
+    isLoading: eagerSuperAdmin ? false : isLoading,
     isFetching,
     isError,
     error,

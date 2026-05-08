@@ -51,7 +51,7 @@ export function useRolePermissions() {
   // intentionally excluded — `hasPermission` falls through to in-code
   // defaults if rows haven't loaded yet, so we never have to block the
   // whole page on it.
-  const isCoreLoading = roleLoading || orgLoading || saLoading;
+  const isCoreLoading = isSuperAdmin ? false : (roleLoading || orgLoading || saLoading);
   const isLoading = isCoreLoading || dbLoading;
 
   const hasPermission = useCallback(
