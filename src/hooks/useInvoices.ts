@@ -426,12 +426,11 @@ export function useUpdateInvoice() {
       if (data.amount <= 0) throw new Error("Invoice amount must be greater than zero.");
       if (!data.client_name?.trim()) throw new Error("Client name is required.");
 
-      // Build update payload
-      const updatePayload: Record<string, any> = {
+      // Build header for atomic transactional RPC
+      const header = {
         client_name: data.client_name,
         client_email: data.client_email,
         customer_id: data.customer_id || null,
-        amount: data.amount,
         invoice_date: data.invoice_date || undefined,
         due_date: data.due_date,
         place_of_supply: data.place_of_supply || null,
@@ -446,45 +445,25 @@ export function useUpdateInvoice() {
         client_phone: data.client_phone || null,
       };
 
-      const { data: updateResult, error: invoiceError } = await (supabase as any)
-        .from("invoices")
-        .update(updatePayload)
-        .eq("id", data.id)
-        .eq("organization_id", callerOrgId)
-        .select();
-      if (invoiceError) throw invoiceError;
-      if (!updateResult || updateResult.length === 0) {
-        throw new Error("Failed to update invoice. Please refresh and try again.");
-      }
+      const lines = (data.items || []).map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount,
+        hsn_sac: item.hsn_sac || null,
+        cgst_rate: item.cgst_rate || 0,
+        sgst_rate: item.sgst_rate || 0,
+        igst_rate: item.igst_rate || 0,
+        cgst_amount: item.cgst_amount || 0,
+        sgst_amount: item.sgst_amount || 0,
+        igst_amount: item.igst_amount || 0,
+      }));
 
-      // Delete old items and reinsert
-      const { error: deleteError } = await supabase
-        .from("invoice_items")
-        .delete()
-        .eq("invoice_id", data.id);
-      if (deleteError) throw deleteError;
-
-      if (data.items && data.items.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("invoice_items")
-          .insert(
-            data.items.map((item) => ({
-              invoice_id: data.id,
-              description: item.description,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-              hsn_sac: item.hsn_sac || null,
-              cgst_rate: item.cgst_rate || 0,
-              sgst_rate: item.sgst_rate || 0,
-              igst_rate: item.igst_rate || 0,
-              cgst_amount: item.cgst_amount || 0,
-              sgst_amount: item.sgst_amount || 0,
-              igst_amount: item.igst_amount || 0,
-            }))
-          );
-        if (itemsError) throw itemsError;
-      }
+      const { error: rpcError } = await (supabase as any).rpc(
+        "update_invoice_with_lines",
+        { p_invoice_id: data.id, p_header: header as any, p_lines: lines as any },
+      );
+      if (rpcError) throw rpcError;
 
       const { data: invoice, error: fetchError } = await supabase
         .from("invoices")
