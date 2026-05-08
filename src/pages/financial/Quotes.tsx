@@ -290,39 +290,19 @@ export default function Quotes() {
 
   const convertToSO = useConvertQuoteToSO();
 
+  // GBC-36: convert via single SECURITY DEFINER RPC; replaces the
+  // 3-step browser sequence (insert invoice → insert items → update quote)
+  // that left "orphaned invoice" rows when the network dropped mid-flow.
   const convertToInvoice = useMutation({
     mutationFn: async (quote: Quote) => {
       if (!user) throw new Error("Not authenticated");
       if (!orgId) throw new Error("Organization not found");
-      const invoiceNum = `INV-${Date.now().toString().slice(-8)}`;
-      const { data: inv, error } = await supabase.from("invoices").insert({
-        user_id: user.id, invoice_number: invoiceNum, client_name: quote.client_name,
-        client_email: quote.client_email ?? "", amount: quote.amount, due_date: quote.due_date,
-        customer_id: quote.customer_id,
-        place_of_supply: quote.place_of_supply || null,
-        payment_terms: quote.payment_terms || "Due on Receipt",
-        customer_gstin: quote.customer_gstin || null,
-        subtotal: quote.subtotal || quote.amount,
-        cgst_total: quote.cgst_total || 0,
-        sgst_total: quote.sgst_total || 0,
-        igst_total: quote.igst_total || 0,
-        total_amount: quote.total_amount || quote.amount,
-        notes: quote.notes || null,
-        organization_id: orgId,
-      }).select().single();
+      const { data, error } = await (supabase as any).rpc(
+        "convert_quote_to_invoice",
+        { p_quote_id: quote.id, p_due_date: quote.due_date }
+      );
       if (error) throw error;
-
-      const qItems = quote.quote_items || [];
-      if (qItems.length > 0) {
-        await supabase.from("invoice_items").insert(qItems.map(i => ({
-          invoice_id: inv.id, description: i.description, quantity: i.quantity, rate: i.rate, amount: i.amount,
-          hsn_sac: i.hsn_sac || null,
-          cgst_rate: i.cgst_rate || 0, sgst_rate: i.sgst_rate || 0, igst_rate: i.igst_rate || 0,
-          cgst_amount: i.cgst_amount || 0, sgst_amount: i.sgst_amount || 0, igst_amount: i.igst_amount || 0,
-          organization_id: orgId,
-        })) as any);
-      }
-      await supabase.from("quotes").update({ status: "converted", converted_invoice_id: inv.id }).eq("id", quote.id).eq("organization_id", orgId);
+      return data as string;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
