@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { authTrace } from "@/lib/auth-trace";
 
 export interface SessionOrganization {
   id: string;
@@ -45,6 +46,10 @@ function superAdminKey(uid: string) {
   return SUPER_ADMIN_PREFIX + uid;
 }
 
+export function isSessionContextDegraded(ctx: SessionContext | null | undefined): boolean {
+  return !!ctx && !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+}
+
 /**
  * Persistent (across reloads/sign-ins) hint that a user is a super admin.
  * Used to bypass loading guards immediately on subsequent sessions before
@@ -72,15 +77,47 @@ export function readCachedSessionContext(uid: string): SessionContext | null {
   try {
     const raw = sessionStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    return JSON.parse(raw) as SessionContext;
+    const parsed = JSON.parse(raw) as SessionContext;
+    if (isSessionContextDegraded(parsed)) {
+      sessionStorage.removeItem(storageKey(uid));
+      authTrace("session", "drop_degraded_cache", {
+        uid,
+        orgId: parsed.organizationId,
+        roles: parsed.roles?.length ?? 0,
+      });
+      return null;
+    }
+    return parsed;
   } catch {
+    try {
+      sessionStorage.removeItem(storageKey(uid));
+    } catch {
+      /* ignore */
+    }
     return null;
   }
 }
 
 function writeCachedSessionContext(uid: string, ctx: SessionContext) {
   try {
+    if (isSessionContextDegraded(ctx)) {
+      sessionStorage.removeItem(storageKey(uid));
+      authTrace("session", "skip_degraded_cache", {
+        uid,
+        orgId: ctx.organizationId,
+        roles: ctx.roles.length,
+      });
+      return;
+    }
     sessionStorage.setItem(storageKey(uid), JSON.stringify(ctx));
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeCachedSessionContext(uid: string) {
+  try {
+    sessionStorage.removeItem(storageKey(uid));
   } catch {
     /* ignore */
   }
@@ -261,12 +298,21 @@ export function useSessionContext() {
     queryFn: async () => {
       if (!user) return EMPTY;
       const ctx = await bootstrapSession(user.id);
-      const isDegraded =
-        !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
-      // Always cache so the UI never gets stuck in a loading spinner. Degraded
-      // results are short-lived; the next focus/refetch self-heals.
+      const isDegraded = isSessionContextDegraded(ctx);
+      // Healthy snapshots are safe to reuse across a reload. Degraded snapshots
+      // (no super-admin + missing org/roles) are transient bootstrap failures:
+      // never persist them, or the subscription guard can misread them as a
+      // real "no subscription" state and bounce the user to activation.
       if (user.id) writeCachedSessionContext(user.id, ctx);
       if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
+      if (isDegraded) {
+        removeCachedSessionContext(user.id);
+        authTrace("session", "degraded_resolved_uncached", {
+          uid: user.id,
+          orgId: ctx.organizationId,
+          roles: ctx.roles.length,
+        });
+      }
       // eslint-disable-next-line no-console
       console.log("[session-ctx] resolved", {
         orgId: ctx.organizationId,
@@ -286,11 +332,9 @@ export function useSessionContext() {
       return degraded ? 0 : 5 * 60_000;
     },
     gcTime: Infinity,
-    // Avoid focus storms — bootstrap is expensive and roles do not change
-    // while the tab sits in the background.
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: true,
+    refetchOnWindowFocus: "always",
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
     retry: (failureCount, error: any) => {
       if (error?.name === "AbortError") return false;
       const code = error?.code || error?.cause?.code;

@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode, useMemo } from "react";
-import { useSessionContext } from "@/hooks/useSessionContext";
+import { isSessionContextDegraded, useSessionContext } from "@/hooks/useSessionContext";
 
 interface SubscriptionState {
   needsActivation: boolean;
@@ -27,7 +27,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, isError } = useSessionContext();
 
   const state = useMemo<SubscriptionState>(() => {
-    if (isLoading && !data) {
+    const degraded = isSessionContextDegraded(data);
+
+    if ((isLoading && !data) || degraded) {
       return {
         needsActivation: false,
         readOnlyMode: false,

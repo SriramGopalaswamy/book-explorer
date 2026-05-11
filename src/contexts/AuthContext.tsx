@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // session-context cache (which used to leave the user with empty roles).
         // Visible in the in-app Session Diagnostics panel (Ctrl+Shift+D).
         const willClearCache =
-          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid);
+          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid) || event === "TOKEN_REFRESHED" || event === "USER_UPDATED";
         // eslint-disable-next-line no-console
         console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
 
@@ -44,16 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // On sign-in: purge any stale snapshot from a previous session and
         // force a fresh bootstrap.
         //
-        // IMPORTANT: Do NOT clear on TOKEN_REFRESHED or USER_UPDATED. The
-        // Supabase client fires TOKEN_REFRESHED periodically (every hour by
-        // default, and on every tab focus) — clearing cache there caused a
-        // storm of session-context refetches that aborted each other, leaving
-        // the page stuck on "Loading…" with empty roles/orgId. Roles and org
-        // membership cannot change via token refresh, so the cache stays valid.
+        // IMPORTANT: Auth events must purge session-context snapshots so stale
+        // or degraded role/org payloads cannot survive into the next routing
+        // decision and bounce a valid user to subscription activation.
         if (event === "SIGNED_OUT") {
           clearAllSessionContext();
           queryClient.clear();
-        } else if (event === "SIGNED_IN" && newUid) {
+        } else if (newUid && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
           clearAllSessionContext();
           queryClient.invalidateQueries({ queryKey: ["session-context", newUid] });
         }
