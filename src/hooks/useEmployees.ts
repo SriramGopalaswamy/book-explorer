@@ -115,6 +115,8 @@ export function useEmployees() {
         .order("full_name", { ascending: true })
         .limit(500);
       if (!error && data) {
+        // eslint-disable-next-line no-console
+        console.log("[useEmployees] profiles loaded", { ms: Math.round(performance.now() - t0), count: data.length });
         const employees = data as unknown as Employee[];
 
         // Fix stale on_leave statuses: check if employee actually has an approved leave covering today
