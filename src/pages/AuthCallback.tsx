@@ -1,25 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [authComplete, setAuthComplete] = useState(false);
-
-  // Navigate only after React has committed the auth state
-  useEffect(() => {
-    if (authComplete && user) {
-      navigate("/", { replace: true });
-    }
-  }, [authComplete, user, navigate]);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -87,30 +75,16 @@ export default function AuthCallback() {
             refresh_token: data.session.refresh_token,
           });
 
-          // Pre-warm the single session-context bootstrap. One round trip
-          // returns super-admin flag, org metadata, roles, and subscription —
-          // everything Index.tsx and the route guards need.
-          const uid = data.session.user.id;
-          queryClient.prefetchQuery({
-            queryKey: ["session-context", uid],
-            staleTime: Infinity,
-            queryFn: async () => {
-              const { data: payload } = await supabase.rpc("get_my_session_context");
-              const p = (payload ?? {}) as any;
-              return {
-                isSuperAdmin: !!p.is_super_admin,
-                organizationId: p.organization_id ?? null,
-                roles: Array.isArray(p.roles) ? p.roles : [],
-                organization: p.organization ?? null,
-                subscription: p.subscription ?? null,
-              };
-            },
-          });
-
           toast.success("Signed in with Microsoft 365!");
-          // Don't navigate here — let the useEffect above handle it
-          // once AuthContext has committed the user state
-          setAuthComplete(true);
+
+          // Navigate immediately. AuthContext's onAuthStateChange handler will
+          // have already fired SIGNED_IN (synchronously inside setSession),
+          // invalidated the session-context query, and updated the user
+          // state. Index.tsx + useSessionContext drive the bootstrap from
+          // here. The previous flow deferred navigation until a separate
+          // effect saw the user state round-trip through React, which
+          // intermittently hung until a hard refresh.
+          navigate("/", { replace: true });
         } else {
           setError("No session returned");
           setTimeout(() => navigate("/auth", { replace: true }), 3000);
