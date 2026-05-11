@@ -658,6 +658,7 @@ export default function Employees() {
         }}
         canEditCompensation={!!hasViewAccess}
       />
+      </SessionGate>
     </MainLayout>
   );
 }
