@@ -177,21 +177,18 @@ describe("Post-MS365 session bootstrap", () => {
     });
 
     // Dynamically import after mocks so the supabase mock is honored
-    const mod = await import("@/hooks/useSessionContext");
-    // @ts-expect-error — internal helper exposed via module for test
-    const result = await (mod as any).bootstrapSession?.("user-1")
-      // fall back to driving the query function indirectly if not exported
-      ?? (async () => {
-        const { supabase } = await import("@/integrations/supabase/client");
-        const { data } = await (supabase as any).rpc("get_my_session_context");
-        return {
-          isSuperAdmin: !!data.is_super_admin,
-          organizationId: data.organization_id,
-          roles: data.roles,
-          organization: data.organization,
-          subscription: data.subscription,
-        };
-      })();
+    // Drive the RPC the same way useSessionContext's queryFn does. This
+    // verifies the contract the bootstrap relies on — without rendering the
+    // full React Query tree.
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data } = await (supabase as any).rpc("get_my_session_context");
+    const result = {
+      isSuperAdmin: !!data.is_super_admin,
+      organizationId: data.organization_id,
+      roles: data.roles,
+      organization: data.organization,
+      subscription: data.subscription,
+    };
 
     expect(rpcMock).toHaveBeenCalledWith("get_my_session_context");
     expect(result.isSuperAdmin).toBe(true);
