@@ -97,6 +97,9 @@ export function useEmployees() {
     // while the KPI (which doesn't depend on the role hook) showed 49.
     queryKey: ["employees", user?.id, isDevMode, orgId],
     queryFn: async () => {
+      // eslint-disable-next-line no-console
+      console.log("[useEmployees] start", { orgId, hasUser: !!user, isDevMode });
+      const t0 = performance.now();
       if (isDevMode) return mockEmployees;
       if (!user) return [];
       // HARD GUARD: Never query profiles without org scope — prevents cross-tenant data bleed
