@@ -133,11 +133,18 @@ export function usePayrollRecords(payPeriod?: string) {
   return useQuery({
     queryKey: ["payroll", user?.id, payPeriod, orgId, isDevMode],
     queryFn: async () => {
+      // eslint-disable-next-line no-console
+      console.log("[usePayrollRecords] start", { payPeriod, orgId, hasUser: !!user, isDevMode });
+      const t0 = performance.now();
       if (isDevMode) {
         if (payPeriod) return mockPayrollRecords.filter(r => r.pay_period === payPeriod);
         return mockPayrollRecords;
       }
-      if (!user || !orgId) return [];
+      if (!user || !orgId) {
+        // eslint-disable-next-line no-console
+        console.log("[usePayrollRecords] gated — no user/orgId", { hasUser: !!user, orgId });
+        return [];
+      }
       // Sentinel used by the page to disable this query when the Review tab
       // isn't open. Short-circuit instead of hitting the network twice.
       if (payPeriod === "__never__") return [];
@@ -201,6 +208,12 @@ export function usePayrollRecords(payPeriod?: string) {
       );
 
       const engineRecords = engineData.map(engineEntryToPayrollRecord);
+      // eslint-disable-next-line no-console
+      console.log("[usePayrollRecords] done", {
+        ms: Math.round(performance.now() - t0),
+        engine: engineRecords.length,
+        legacy: filteredLegacy.length,
+      });
       return [...engineRecords, ...filteredLegacy] as PayrollRecord[];
     },
     enabled: (!!user && !!orgId) || isDevMode,
