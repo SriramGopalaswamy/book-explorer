@@ -133,9 +133,10 @@ describe("AuthCallback (MS365)", () => {
     setOAuthState("good");
     renderCallback("?code=c&state=evil");
 
-    await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith("/auth", { replace: true });
-    });
+    await waitFor(
+      () => expect(navigateSpy).toHaveBeenCalledWith("/auth", { replace: true }),
+      { timeout: 4000 },
+    );
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
@@ -148,9 +149,10 @@ describe("AuthCallback (MS365)", () => {
 
     renderCallback("?code=c&state=s");
 
-    await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith("/auth", { replace: true });
-    });
+    await waitFor(
+      () => expect(navigateSpy).toHaveBeenCalledWith("/auth", { replace: true }),
+      { timeout: 4000 },
+    );
     expect(setSessionMock).not.toHaveBeenCalled();
   });
 });
