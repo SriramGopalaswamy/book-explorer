@@ -35,7 +35,7 @@ export function useCreateItem() {
       if (!item.name?.trim()) throw new Error("Item name is required");
       if (item.selling_price !== undefined && item.selling_price < 0) throw new Error("Selling price cannot be negative");
       if (item.purchase_price !== undefined && item.purchase_price < 0) throw new Error("Purchase price cannot be negative");
-      const { data, error } = await supabase.from("items").insert({ ...item, organization_id: orgId, created_by: user.id }).select().single();
+      const { data, error } = await (supabase.from("items") as any).insert({ ...item, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -131,7 +131,7 @@ export function useCreateWarehouse() {
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
       if (!wh.name?.trim()) throw new Error("Warehouse name is required");
-      const { data, error } = await supabase.from("warehouses").insert({ ...wh, organization_id: orgId }).select().single();
+      const { data, error } = await (supabase.from("warehouses") as any).insert({ ...wh, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
@@ -308,7 +308,7 @@ export function useCreateStockAdjustment() {
       if (!orgId) throw new Error("No organization found");
       if (!adj.reason?.trim()) throw new Error("A reason is required for stock adjustments.");
 
-      const { data, error } = await supabase.from("stock_adjustments").insert({ ...adj, organization_id: orgId, created_by: user.id }).select().single();
+      const { data, error } = await (supabase.from("stock_adjustments") as any).insert({ ...adj, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -352,7 +352,7 @@ export function useCreateUOM() {
       if (!user) throw new Error("Not authenticated");
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
-      const { data, error } = await supabase.from("units_of_measure").insert({ ...uom, organization_id: orgId }).select().single();
+      const { data, error } = await (supabase.from("units_of_measure") as any).insert({ ...uom, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
