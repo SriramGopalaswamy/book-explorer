@@ -2,7 +2,8 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
 import { Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { authTrace } from "@/lib/auth-trace";
 
 const MAX_LOADING_MS = 8000; // 8 seconds hard cap — never hang longer
 
