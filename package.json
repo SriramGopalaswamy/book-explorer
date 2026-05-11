@@ -20,7 +20,8 @@
     "backend:start": "cd backend && npm start",
     "supabase:seed": "node scripts/seed-supabase.cjs",
     "seed:all": "npm run backend:seed && npm run supabase:seed",
-    "postinstall": "test -d backend && npm run backend:install || echo 'Skipping backend install (not needed for Lovable deployment)'"
+    "postinstall": "test -d backend && npm run backend:install || echo 'Skipping backend install (not needed for Lovable deployment)'",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
