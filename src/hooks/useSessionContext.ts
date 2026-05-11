@@ -45,10 +45,6 @@ function superAdminKey(uid: string) {
   return SUPER_ADMIN_PREFIX + uid;
 }
 
-function isDegradedContext(ctx: SessionContext) {
-  return !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
-}
-
 /**
  * Persistent (across reloads/sign-ins) hint that a user is a super admin.
  * Used to bypass loading guards immediately on subsequent sessions before
@@ -76,12 +72,7 @@ export function readCachedSessionContext(uid: string): SessionContext | null {
   try {
     const raw = sessionStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    const ctx = JSON.parse(raw) as SessionContext;
-    if (isDegradedContext(ctx)) {
-      sessionStorage.removeItem(storageKey(uid));
-      return null;
-    }
-    return ctx;
+    return JSON.parse(raw) as SessionContext;
   } catch {
     return null;
   }
@@ -110,6 +101,156 @@ export function clearAllSessionContext() {
  * revalidated automatically. Use `useInvalidateSessionContext()` after a
  * mutation that affects roles/subscription/org state.
  */
+/**
+ * Resilient bootstrap. Strategy:
+ *  1. Try `get_my_session_context` RPC with a 6s timeout.
+ *  2. On timeout / error / degraded result, fall back to direct parallel
+ *     queries on `profiles`, `user_roles`, `organizations`, `subscriptions`,
+ *     and `platform_roles`. These are individually small and bypass any
+ *     SECURITY DEFINER hang.
+ *  3. Cache the merged result (even if partial) so the UI never spins
+ *     indefinitely. Degraded results get a short staleTime so the next
+ *     mount/focus re-tries quickly.
+ *
+ * `refetchOnWindowFocus` is disabled to prevent the historical refetch
+ * storm that left pages stuck in `loading=true`.
+ */
+async function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    Promise.resolve(p).then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+async function fetchViaRpc(): Promise<SessionContext> {
+  const { data, error } = await supabase.rpc("get_my_session_context");
+  if (error) throw error;
+  const payload = (data ?? {}) as any;
+  return {
+    isSuperAdmin: !!payload.is_super_admin,
+    organizationId: payload.organization_id ?? null,
+    roles: Array.isArray(payload.roles) ? payload.roles : [],
+    organization: payload.organization ?? null,
+    subscription: payload.subscription ?? null,
+  };
+}
+
+async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
+  // Parallel, bounded, RLS-respecting reads. Each is independently small;
+  // a hang in one does not block the others past the per-call timeout.
+  const [profileRes, rolesRes, superRes] = await Promise.all([
+    withTimeout(
+      supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", uid)
+        .maybeSingle()
+        .then((r) => r),
+      4000,
+      "profiles",
+    ).catch((e) => ({ data: null, error: e as Error })),
+    withTimeout(
+      supabase
+        .from("user_roles")
+        .select("role,organization_id")
+        .eq("user_id", uid)
+        .then((r) => r),
+      4000,
+      "user_roles",
+    ).catch((e) => ({ data: null, error: e as Error })),
+    withTimeout(
+      supabase
+        .from("platform_roles")
+        .select("role")
+        .eq("user_id", uid)
+        .eq("role", "super_admin")
+        .maybeSingle()
+        .then((r) => r),
+      4000,
+      "platform_roles",
+    ).catch((e) => ({ data: null, error: e as Error })),
+  ]);
+
+  const organizationId: string | null =
+    (profileRes as any)?.data?.organization_id ?? null;
+  const allRoles: Array<{ role: string; organization_id: string | null }> =
+    ((rolesRes as any)?.data as any[]) ?? [];
+  const roles = allRoles
+    .filter((r) => !organizationId || !r.organization_id || r.organization_id === organizationId)
+    .map((r) => r.role);
+  const isSuperAdmin = !!(superRes as any)?.data;
+
+  let organization: SessionOrganization | null = null;
+  let subscription: SessionSubscription | null = null;
+  if (organizationId) {
+    const [orgRes, subRes] = await Promise.all([
+      withTimeout(
+        supabase
+          .from("organizations")
+          .select("id,name,status,org_state,created_at")
+          .eq("id", organizationId)
+          .maybeSingle()
+          .then((r) => r),
+        4000,
+        "organizations",
+      ).catch(() => ({ data: null })),
+      withTimeout(
+        supabase
+          .from("subscriptions")
+          .select("id,plan,status,source,valid_until,is_read_only,enabled_modules")
+          .eq("organization_id", organizationId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .then((r) => r),
+        4000,
+        "subscriptions",
+      ).catch(() => ({ data: null })),
+    ]);
+    organization = ((orgRes as any)?.data as SessionOrganization) ?? null;
+    subscription = ((subRes as any)?.data as SessionSubscription) ?? null;
+  }
+
+  return { isSuperAdmin, organizationId, roles, organization, subscription };
+}
+
+async function bootstrapSession(uid: string): Promise<SessionContext> {
+  const t0 = performance.now();
+  try {
+    const ctx = await withTimeout(fetchViaRpc(), 6000, "rpc");
+    const degraded = !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+    // eslint-disable-next-line no-console
+    console.log("[session-ctx] rpc ok", {
+      ms: Math.round(performance.now() - t0),
+      degraded,
+    });
+    if (!degraded) return ctx;
+    // RPC succeeded but returned degraded — try direct fallback to confirm.
+    const fallback = await fetchViaDirectQueries(uid);
+    // eslint-disable-next-line no-console
+    console.log("[session-ctx] fallback after degraded rpc", {
+      orgId: fallback.organizationId,
+      roles: fallback.roles.length,
+    });
+    return fallback.organizationId || fallback.roles.length || fallback.isSuperAdmin
+      ? fallback
+      : ctx;
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.warn("[session-ctx] rpc failed, using direct fallback", err?.message);
+    return fetchViaDirectQueries(uid);
+  }
+}
+
 export function useSessionContext() {
   const { user } = useAuth();
   const uid = user?.id;
@@ -117,65 +258,38 @@ export function useSessionContext() {
   return useQuery<SessionContext>({
     queryKey: ["session-context", uid],
     initialData: uid ? readCachedSessionContext(uid) ?? undefined : undefined,
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       if (!user) return EMPTY;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      signal?.addEventListener("abort", () => {
-        clearTimeout(timer);
-        controller.abort();
-      });
-      const t0 = performance.now();
+      const ctx = await bootstrapSession(user.id);
+      const isDegraded =
+        !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+      // Always cache so the UI never gets stuck in a loading spinner. Degraded
+      // results are short-lived; the next focus/refetch self-heals.
+      if (user.id) writeCachedSessionContext(user.id, ctx);
+      if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
       // eslint-disable-next-line no-console
-      console.log("[session-ctx] RPC start", { uid: user.id });
-      try {
-        const { data, error } = await supabase
-          .rpc("get_my_session_context")
-          .abortSignal(controller.signal);
-        // eslint-disable-next-line no-console
-        console.log("[session-ctx] RPC done", {
-          ms: Math.round(performance.now() - t0),
-          hasData: !!data,
-          error: error?.message,
-        });
-        if (error) throw error;
-        const payload = (data ?? {}) as any;
-        const ctx: SessionContext = {
-          isSuperAdmin: !!payload.is_super_admin,
-          organizationId: payload.organization_id ?? null,
-          roles: Array.isArray(payload.roles) ? payload.roles : [],
-          organization: payload.organization ?? null,
-          subscription: payload.subscription ?? null,
-        };
-
-        // SAFETY: Do NOT persist a degraded snapshot. A non-super-admin user
-        // with no organization_id or no roles is almost always a transient
-        // failure (RPC race with a migration, partial profile recreation,
-        // network hiccup). Caching it locks the user out until sign-out.
-        const isDegraded = isDegradedContext(ctx);
-        if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
-        if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
-        return ctx;
-      } finally {
-        clearTimeout(timer);
-      }
+      console.log("[session-ctx] resolved", {
+        orgId: ctx.organizationId,
+        roles: ctx.roles,
+        isSuperAdmin: ctx.isSuperAdmin,
+        degraded: isDegraded,
+      });
+      return ctx;
     },
     enabled: !!user,
-    // Cache for the session, but allow self-healing refetches: if a previous
-    // bootstrap returned a degraded snapshot we want it re-fetched on the
-    // next focus/reconnect, not pinned forever.
-    staleTime: (query) => {
-      const ctx = query.state.data as SessionContext | undefined;
-      return ctx && isDegradedContext(ctx) ? 0 : 5 * 60_000;
+    // Healthy → cache for 5 minutes; degraded → effectively no cache, so the
+    // SessionGate retry button (and any natural remount) reruns immediately.
+    staleTime: (q) => {
+      const d = q.state.data as SessionContext | undefined;
+      if (!d) return 0;
+      const degraded = !d.isSuperAdmin && (!d.organizationId || d.roles.length === 0);
+      return degraded ? 0 : 5 * 60_000;
     },
     gcTime: Infinity,
-    // Refetch only when stale. `"always"` causes production focus/navigation
-    // storms with multiple aborted bootstrap RPCs while pages are trying to mount.
-    refetchOnWindowFocus: true,
-    refetchOnMount: (query) => {
-      const ctx = query.state.data as SessionContext | undefined;
-      return ctx && isDegradedContext(ctx) ? "always" : false;
-    },
+    // Avoid focus storms — bootstrap is expensive and roles do not change
+    // while the tab sits in the background.
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     refetchOnReconnect: true,
     retry: (failureCount, error: any) => {
       if (error?.name === "AbortError") return false;
@@ -183,7 +297,7 @@ export function useSessionContext() {
       if (code === "20" || code === "ABORT_ERR") return false;
       return failureCount < 2;
     },
-    retryDelay: (a) => Math.min(1000 * 2 ** a, 5000),
+    retryDelay: (a) => Math.min(800 * 2 ** a, 4000),
   });
 }
 

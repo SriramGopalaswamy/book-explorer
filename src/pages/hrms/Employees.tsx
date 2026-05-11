@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { SessionGate } from "@/components/session/SessionGate";
 
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Button } from "@/components/ui/button";
@@ -329,7 +330,8 @@ export default function Employees() {
 
   return (
     <MainLayout title="Employees" subtitle="Manage your workforce and employee information">
-      <div className="space-y-6 animate-fade-in">
+      <SessionGate label="Employees">
+        <div className="space-y-6 animate-fade-in">
         
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -656,6 +658,7 @@ export default function Employees() {
         }}
         canEditCompensation={!!hasViewAccess}
       />
+      </SessionGate>
     </MainLayout>
   );
 }
