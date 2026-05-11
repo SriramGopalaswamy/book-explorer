@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { SessionGate } from "@/components/session/SessionGate";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -827,6 +828,7 @@ export default function Payroll() {
 
   return (
     <MainLayout title="Payroll" subtitle="Manage salaries and compensation">
+      <SessionGate label="Payroll" watchdogMs={15000}>
       <div className="space-y-6">
         
         {/* Stats */}
@@ -1411,6 +1413,7 @@ export default function Payroll() {
       </AlertDialog>
 
       {/* Bulk Upload History - only shown in register tab handled above */}
+      </SessionGate>
     </MainLayout>
   );
 }

@@ -45,10 +45,6 @@ function superAdminKey(uid: string) {
   return SUPER_ADMIN_PREFIX + uid;
 }
 
-function isDegradedContext(ctx: SessionContext) {
-  return !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
-}
-
 /**
  * Persistent (across reloads/sign-ins) hint that a user is a super admin.
  * Used to bypass loading guards immediately on subsequent sessions before
@@ -76,12 +72,7 @@ export function readCachedSessionContext(uid: string): SessionContext | null {
   try {
     const raw = sessionStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    const ctx = JSON.parse(raw) as SessionContext;
-    if (isDegradedContext(ctx)) {
-      sessionStorage.removeItem(storageKey(uid));
-      return null;
-    }
-    return ctx;
+    return JSON.parse(raw) as SessionContext;
   } catch {
     return null;
   }
@@ -152,7 +143,8 @@ export function useSessionContext() {
         // with no organization_id or no roles is almost always a transient
         // failure (RPC race with a migration, partial profile recreation,
         // network hiccup). Caching it locks the user out until sign-out.
-        const isDegraded = isDegradedContext(ctx);
+        const isDegraded =
+          !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
         if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
         if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
         return ctx;
@@ -164,18 +156,12 @@ export function useSessionContext() {
     // Cache for the session, but allow self-healing refetches: if a previous
     // bootstrap returned a degraded snapshot we want it re-fetched on the
     // next focus/reconnect, not pinned forever.
-    staleTime: (query) => {
-      const ctx = query.state.data as SessionContext | undefined;
-      return ctx && isDegradedContext(ctx) ? 0 : 5 * 60_000;
-    },
+    staleTime: 5 * 60_000,
     gcTime: Infinity,
     // Refetch only when stale. `"always"` causes production focus/navigation
     // storms with multiple aborted bootstrap RPCs while pages are trying to mount.
     refetchOnWindowFocus: true,
-    refetchOnMount: (query) => {
-      const ctx = query.state.data as SessionContext | undefined;
-      return ctx && isDegradedContext(ctx) ? "always" : false;
-    },
+    refetchOnMount: false,
     refetchOnReconnect: true,
     retry: (failureCount, error: any) => {
       if (error?.name === "AbortError") return false;
