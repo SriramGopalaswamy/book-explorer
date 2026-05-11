@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { authTrace, authTraceReset } from "@/lib/auth-trace";
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
@@ -10,16 +11,26 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    authTraceReset();
+    const tStart = performance.now();
+    authTrace("ms365", "callback_mount");
+
     const code = searchParams.get("code");
     const stateParam = searchParams.get("state");
     const savedState = sessionStorage.getItem("ms365_oauth_state");
     const errorParam = searchParams.get("error");
     const errorDesc = searchParams.get("error_description");
 
-    console.log("[AuthCallback] code:", !!code, "state match:", stateParam === savedState, "error:", errorParam);
+    authTrace("ms365", "params_parsed", {
+      hasCode: !!code,
+      stateMatch: stateParam === savedState,
+      hasSavedState: !!savedState,
+      errorParam,
+    });
 
     if (errorParam) {
       const msg = errorDesc || errorParam || "Authentication was denied";
+      authTrace("ms365", "provider_error", { msg });
       setError(msg);
       toast.error(msg);
       setTimeout(() => navigate("/auth", { replace: true }), 3000);
@@ -27,6 +38,7 @@ export default function AuthCallback() {
     }
 
     if (!code) {
+      authTrace("ms365", "missing_code");
       setError("No authorization code received");
       setTimeout(() => navigate("/auth", { replace: true }), 3000);
       return;
@@ -34,6 +46,7 @@ export default function AuthCallback() {
 
     if (!savedState || stateParam !== savedState) {
       sessionStorage.removeItem("ms365_oauth_state");
+      authTrace("ms365", "state_mismatch");
       const msg = "Authentication failed: invalid state parameter. Please try signing in again.";
       setError(msg);
       toast.error(msg);
@@ -45,7 +58,8 @@ export default function AuthCallback() {
 
     const exchangeCode = async () => {
       try {
-        console.log("[AuthCallback] Exchanging code...");
+        const tExchangeStart = performance.now();
+        authTrace("ms365", "exchange_start");
         const { data, error: fnError } = await supabase.functions.invoke("ms365-auth", {
           body: {
             action: "exchange_code",
@@ -53,11 +67,17 @@ export default function AuthCallback() {
             redirect_uri: `${window.location.origin}/auth/callback`,
           },
         });
-
-        console.log("[AuthCallback] Response:", data, fnError);
+        authTrace("ms365", "exchange_complete", {
+          elapsedMs: Math.round(performance.now() - tExchangeStart),
+          hasSession: !!data?.session,
+          pending: !!data?.pending,
+          fnError: fnError?.message,
+          dataError: data?.error,
+        });
 
         if (fnError || data?.error) {
           const msg = data?.error || fnError?.message || "Authentication failed";
+          authTrace("ms365", "exchange_failed", { msg });
           setError(msg);
           toast.error(msg);
           setTimeout(() => navigate("/auth", { replace: true }), 3000);
@@ -65,14 +85,21 @@ export default function AuthCallback() {
         }
 
         if (data?.pending) {
+          authTrace("ms365", "navigate_pending_approval", {
+            totalMs: Math.round(performance.now() - tStart),
+          });
           navigate("/pending-approval", { replace: true });
           return;
         }
 
         if (data?.session) {
+          const tSetStart = performance.now();
           await supabase.auth.setSession({
             access_token: data.session.access_token,
             refresh_token: data.session.refresh_token,
+          });
+          authTrace("ms365", "set_session_complete", {
+            elapsedMs: Math.round(performance.now() - tSetStart),
           });
 
           toast.success("Signed in with Microsoft 365!");
@@ -84,12 +111,19 @@ export default function AuthCallback() {
           // here. The previous flow deferred navigation until a separate
           // effect saw the user state round-trip through React, which
           // intermittently hung until a hard refresh.
+          authTrace("ms365", "navigate_home", {
+            totalMs: Math.round(performance.now() - tStart),
+          });
           navigate("/", { replace: true });
         } else {
+          authTrace("ms365", "no_session_returned");
           setError("No session returned");
           setTimeout(() => navigate("/auth", { replace: true }), 3000);
         }
       } catch (err) {
+        authTrace("ms365", "exchange_exception", {
+          msg: (err as Error)?.message,
+        });
         console.error("[AuthCallback] Error:", err);
         setError("An unexpected error occurred");
         toast.error("An unexpected error occurred");
