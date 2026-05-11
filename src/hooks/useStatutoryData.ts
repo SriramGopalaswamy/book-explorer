@@ -475,7 +475,6 @@ export function useTDS26QData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["tds26q", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       // Use bills with TDS section allocated
       const { data, error } = await supabase
@@ -517,7 +516,6 @@ export function usePFECRData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["pf_ecr", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): PFECRRow => {
@@ -552,7 +550,6 @@ export function useESIData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["esi", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(
         from, to, ["processed", "approved", "locked"], "esi_eligible"
