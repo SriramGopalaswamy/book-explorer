@@ -164,12 +164,18 @@ export function useSessionContext() {
     // Cache for the session, but allow self-healing refetches: if a previous
     // bootstrap returned a degraded snapshot we want it re-fetched on the
     // next focus/reconnect, not pinned forever.
-    staleTime: 5 * 60_000,
+    staleTime: (query) => {
+      const ctx = query.state.data as SessionContext | undefined;
+      return ctx && isDegradedContext(ctx) ? 0 : 5 * 60_000;
+    },
     gcTime: Infinity,
     // Refetch only when stale. `"always"` causes production focus/navigation
     // storms with multiple aborted bootstrap RPCs while pages are trying to mount.
     refetchOnWindowFocus: true,
-    refetchOnMount: false,
+    refetchOnMount: (query) => {
+      const ctx = query.state.data as SessionContext | undefined;
+      return ctx && isDegradedContext(ctx) ? "always" : false;
+    },
     refetchOnReconnect: true,
     retry: (failureCount, error: any) => {
       if (error?.name === "AbortError") return false;
