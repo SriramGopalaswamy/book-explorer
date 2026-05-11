@@ -32,6 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newSession?.user ?? null);
         setLoading(false);
 
+        // Diagnostic logging — verify that token refreshes are NOT clearing the
+        // session-context cache (which used to leave the user with empty roles).
+        // Visible in the in-app Session Diagnostics panel (Ctrl+Shift+D).
+        const willClearCache =
+          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid);
+        // eslint-disable-next-line no-console
+        console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
+
         // On sign-out: drop all cached data + sessionStorage bootstrap.
         // On sign-in: purge any stale snapshot from a previous session and
         // force a fresh bootstrap.
