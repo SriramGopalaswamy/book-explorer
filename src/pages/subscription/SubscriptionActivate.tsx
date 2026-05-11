@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KeyRound, Loader2, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import grx10Logo from "@/assets/grx10-logo.svg";
+import grx10Logo from "@/assets/grx10-logo.webp";
 
 export default function SubscriptionActivate() {
   const [passkey, setPasskey] = useState("");
