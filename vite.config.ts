@@ -19,6 +19,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Emit source maps for production debugging and Lighthouse insights
+    sourcemap: true,
     // Increase chunk size warning limit to 1000kb for enterprise apps
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
