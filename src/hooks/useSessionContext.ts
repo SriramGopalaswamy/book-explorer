@@ -116,10 +116,19 @@ export function useSessionContext() {
         clearTimeout(timer);
         controller.abort();
       });
+      const t0 = performance.now();
+      // eslint-disable-next-line no-console
+      console.log("[session-ctx] RPC start", { uid: user.id });
       try {
         const { data, error } = await supabase
           .rpc("get_my_session_context")
           .abortSignal(controller.signal);
+        // eslint-disable-next-line no-console
+        console.log("[session-ctx] RPC done", {
+          ms: Math.round(performance.now() - t0),
+          hasData: !!data,
+          error: error?.message,
+        });
         if (error) throw error;
         const payload = (data ?? {}) as any;
         const ctx: SessionContext = {
