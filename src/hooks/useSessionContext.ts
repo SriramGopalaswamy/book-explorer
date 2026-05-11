@@ -158,10 +158,17 @@ export function useSessionContext() {
     // next focus/reconnect, not pinned forever.
     staleTime: 5 * 60_000,
     gcTime: Infinity,
-    refetchOnWindowFocus: "always",
+    // Refetch only when stale. `"always"` causes production focus/navigation
+    // storms with multiple aborted bootstrap RPCs while pages are trying to mount.
+    refetchOnWindowFocus: true,
     refetchOnMount: false,
-    refetchOnReconnect: "always",
-    retry: 3,
+    refetchOnReconnect: true,
+    retry: (failureCount, error: any) => {
+      if (error?.name === "AbortError") return false;
+      const code = error?.code || error?.cause?.code;
+      if (code === "20" || code === "ABORT_ERR") return false;
+      return failureCount < 2;
+    },
     retryDelay: (a) => Math.min(1000 * 2 ** a, 5000),
   });
 }

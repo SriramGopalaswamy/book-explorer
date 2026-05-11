@@ -268,7 +268,6 @@ export function useGSTR1Data(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["gstr1", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       // Fetch invoices
       const { data, error } = await supabase
@@ -358,7 +357,6 @@ export function useGSTR3BData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["gstr3b", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       // Outward supplies from invoices
       const { data: invoices } = await supabase
@@ -446,7 +444,6 @@ export function useTDS24QData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["tds24q", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed", "approved", "locked"]);
       return data.map((p): TDS24QRow => {
@@ -478,7 +475,6 @@ export function useTDS26QData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["tds26q", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       // Use bills with TDS section allocated
       const { data, error } = await supabase
@@ -520,7 +516,6 @@ export function usePFECRData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["pf_ecr", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): PFECRRow => {
@@ -555,7 +550,6 @@ export function useESIData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["esi", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(
         from, to, ["processed", "approved", "locked"], "esi_eligible"
@@ -602,7 +596,6 @@ export function useProfTaxData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["prof_tax", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): ProfTaxRow => {

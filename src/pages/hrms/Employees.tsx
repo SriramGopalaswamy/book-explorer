@@ -216,7 +216,8 @@ export default function Employees() {
   const { data: employees = [], isLoading } = useEmployees();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
   const { data: hasViewAccess, isLoading: viewRoleLoading } = useIsAdminHROrFinance();
-  const isReadOnly = hasViewAccess && !isAdmin; // Finance can view but not edit
+  const canEdit = isAdmin === true;
+  const isReadOnly = hasViewAccess === true && !canEdit; // Finance can view but not edit
   const stats = useEmployeeStats();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
@@ -386,7 +387,7 @@ export default function Employees() {
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-              {!isReadOnly && (
+              {canEdit && (
                 <div className="flex items-center gap-2">
                   <BulkUploadDialog config={employeeBulkConfig} label="Bulk Add Employees" />
                   <BulkUploadDialog config={employeeDetailsBulkConfig} label="Update Employee Details" />
@@ -500,12 +501,12 @@ export default function Employees() {
 
           <div className="p-6 space-y-4">
             <DataLoadingBar
-              isLoading={isLoading || roleLoading || viewRoleLoading}
+              isLoading={isLoading}
               loaded={employees.length}
               total={stats.total || undefined}
               label="Loading employee directory"
             />
-            {isLoading || roleLoading || viewRoleLoading ? (
+            {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <Skeleton key={i} className="h-40 rounded-lg" />
@@ -541,7 +542,7 @@ export default function Employees() {
                           <h4 className="truncate font-medium text-foreground">
                             {employee.full_name || "Unnamed"}
                           </h4>
-                          {!isReadOnly && (
+                          {canEdit && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
