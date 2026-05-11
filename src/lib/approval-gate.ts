@@ -37,7 +37,7 @@ export async function checkApprovalGate(
   if (amount >= wf.threshold_amount) {
     // Count chain steps
     const { data: steps } = await supabase
-      .from("approval_workflow_steps" as any)
+      .from("approval_workflow_steps")
       .select("id")
       .eq("workflow_id", wf.id);
     const totalSteps = steps && steps.length > 0 ? steps.length : 1;
@@ -66,7 +66,7 @@ export async function createApprovalRequest(params: {
 }): Promise<void> {
   // Prevent duplicate pending requests for the same document
   const { data: existing } = await supabase
-    .from("approval_requests" as any)
+    .from("approval_requests")
     .select("id")
     .eq("document_id", params.documentId)
     .eq("document_type", params.documentType)
@@ -77,7 +77,7 @@ export async function createApprovalRequest(params: {
     throw new Error("An approval request for this document is already pending.");
   }
 
-  const { error } = await supabase.from("approval_requests" as any).insert({
+  const { error } = await supabase.from("approval_requests").insert({
     workflow_id: params.workflowId,
     document_type: params.documentType,
     document_id: params.documentId,

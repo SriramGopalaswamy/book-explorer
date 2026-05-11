@@ -74,7 +74,7 @@ export function useOnboardingCompliance() {
     queryFn: async () => {
       if (!orgId) return null;
       const { data, error } = await supabase
-        .from("organization_compliance" as any)
+        .from("organization_compliance")
         .select("*")
         .eq("organization_id", orgId)
         .maybeSingle();
@@ -90,20 +90,20 @@ export function useOnboardingCompliance() {
 
       // Check if record exists
       const { data: existing } = await supabase
-        .from("organization_compliance" as any)
+        .from("organization_compliance")
         .select("id")
         .eq("organization_id", orgId)
         .maybeSingle();
 
       if (existing) {
         const { error } = await supabase
-          .from("organization_compliance" as any)
+          .from("organization_compliance")
           .update({ ...updates, updated_at: new Date().toISOString() } as any)
           .eq("organization_id", orgId);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from("organization_compliance" as any)
+          .from("organization_compliance")
           .insert({ organization_id: orgId, ...updates } as any);
         if (error) throw error;
       }
@@ -150,7 +150,7 @@ export function useOrganizationRoles() {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from("organization_roles" as any)
+        .from("organization_roles")
         .select("*")
         .eq("organization_id", orgId);
       if (error) throw error;
@@ -163,7 +163,7 @@ export function useOrganizationRoles() {
     mutationFn: async (role: { role_type: string; name: string; email: string }) => {
       if (!orgId) throw new Error("No organization");
       const { data: existing } = await supabase
-        .from("organization_roles" as any)
+        .from("organization_roles")
         .select("id")
         .eq("organization_id", orgId)
         .eq("role_type", role.role_type)
@@ -171,14 +171,14 @@ export function useOrganizationRoles() {
 
       if (existing) {
         const { error } = await supabase
-          .from("organization_roles" as any)
+          .from("organization_roles")
           .update({ name: role.name, email: role.email } as any)
           .eq("organization_id", orgId)
           .eq("role_type", role.role_type);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from("organization_roles" as any)
+          .from("organization_roles")
           .insert({ organization_id: orgId, ...role } as any);
         if (error) throw error;
       }

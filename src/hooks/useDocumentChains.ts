@@ -50,7 +50,7 @@ export function useConvertQuoteToSO() {
       const subtotal = items.reduce((s, i) => s + i.amount, 0) || quote.amount;
 
       const { data: so, error: soErr } = await supabase
-        .from("sales_orders" as any)
+        .from("sales_orders")
         .insert({
           so_number: soNum,
           customer_name: quote.client_name,
@@ -80,9 +80,9 @@ export function useConvertQuoteToSO() {
           amount: i.amount,
           item_id: null,
         }));
-        const { error: itemErr } = await supabase.from("sales_order_items" as any).insert(soItems as any);
+        const { error: itemErr } = await supabase.from("sales_order_items").insert(soItems as any);
         if (itemErr) {
-          await supabase.from("sales_orders" as any).delete().eq("id", (so as any).id);
+          await supabase.from("sales_orders").delete().eq("id", (so as any).id);
           throw itemErr;
         }
       }
@@ -119,13 +119,13 @@ export function useCreateGoodsReceipt() {
       const callerOrgId = await resolveCallerOrg(user.id);
 
       // Verify PO belongs to caller's org
-      const { data: poCheck } = await supabase.from("purchase_orders" as any).select("id").eq("id", params.purchase_order_id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: poCheck } = await supabase.from("purchase_orders").select("id").eq("id", params.purchase_order_id).eq("organization_id", callerOrgId).maybeSingle();
       if (!poCheck) throw new Error("Purchase order not found in your organization.");
 
       const grnNum = `GRN-${Date.now().toString(36).toUpperCase()}`;
 
       const { data: gr, error: grErr } = await supabase
-        .from("goods_receipts" as any)
+        .from("goods_receipts")
         .insert({
           grn_number: grnNum,
           purchase_order_id: params.purchase_order_id,
@@ -148,9 +148,9 @@ export function useCreateGoodsReceipt() {
         unit_price: i.unit_price ?? null,
         amount: i.amount ?? (i.unit_price != null ? i.quantity_received * i.unit_price : null),
       }));
-      const { error: itemErr } = await supabase.from("goods_receipt_items" as any).insert(grItems as any);
+      const { error: itemErr } = await supabase.from("goods_receipt_items").insert(grItems as any);
       if (itemErr) {
-        await supabase.from("goods_receipts" as any).delete().eq("id", (gr as any).id);
+        await supabase.from("goods_receipts").delete().eq("id", (gr as any).id);
         throw itemErr;
       }
 
@@ -158,13 +158,13 @@ export function useCreateGoodsReceipt() {
       for (const item of params.items) {
         if (item.item_id) {
           const { data: poItem } = await supabase
-            .from("purchase_order_items" as any)
+            .from("purchase_order_items")
             .select("id, received_quantity")
             .eq("purchase_order_id", params.purchase_order_id)
             .eq("item_id", item.item_id)
             .maybeSingle();
           if (poItem) {
-            await supabase.from("purchase_order_items" as any)
+            await supabase.from("purchase_order_items")
               .update({ received_quantity: Number((poItem as any).received_quantity || 0) + item.quantity_received } as any)
               .eq("id", (poItem as any).id);
           }
@@ -173,16 +173,16 @@ export function useCreateGoodsReceipt() {
 
       // Check if PO should transition to partially_received or received
       const { data: poItems } = await supabase
-        .from("purchase_order_items" as any)
+        .from("purchase_order_items")
         .select("quantity, received_quantity")
         .eq("purchase_order_id", params.purchase_order_id);
       if (poItems && (poItems as any[]).length > 0) {
         const allReceived = (poItems as any[]).every((i: any) => Number(i.received_quantity) >= Number(i.quantity));
         const someReceived = (poItems as any[]).some((i: any) => Number(i.received_quantity) > 0);
         if (allReceived) {
-          await supabase.from("purchase_orders" as any).update({ status: "received" } as any).eq("id", params.purchase_order_id).eq("organization_id", callerOrgId);
+          await supabase.from("purchase_orders").update({ status: "received" } as any).eq("id", params.purchase_order_id).eq("organization_id", callerOrgId);
         } else if (someReceived) {
-          await supabase.from("purchase_orders" as any).update({ status: "partially_received" } as any).eq("id", params.purchase_order_id).eq("organization_id", callerOrgId);
+          await supabase.from("purchase_orders").update({ status: "partially_received" } as any).eq("id", params.purchase_order_id).eq("organization_id", callerOrgId);
         }
       }
 
@@ -207,14 +207,14 @@ export function useUpdateGRStatus() {
       if (!user) throw new Error("Not authenticated");
       const callerOrgId = await resolveCallerOrg(user.id);
 
-      const { data: current } = await supabase.from("goods_receipts" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: current } = await supabase.from("goods_receipts").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!current) throw new Error("Goods receipt not found in your organization.");
       const currentStatus = (current as any)?.status;
       const allowed = GR_TRANSITIONS[currentStatus];
       if (!allowed || !allowed.includes(status)) {
         throw new Error(`Cannot transition GR from "${currentStatus}" to "${status}"`);
       }
-      const { error } = await supabase.from("goods_receipts" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("goods_receipts").update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto stock-in when GR is accepted ──
@@ -242,7 +242,7 @@ export function useCreateBillFromGR() {
       const callerOrgId = await resolveCallerOrg(user.id);
 
       // Guard: check GR is still in 'accepted' status (not already bill_created)
-      const { data: gr } = await supabase.from("goods_receipts" as any)
+      const { data: gr } = await supabase.from("goods_receipts")
         .select("status")
         .eq("id", params.goods_receipt_id)
         .eq("organization_id", callerOrgId)
@@ -260,7 +260,7 @@ export function useCreateBillFromGR() {
       if (existingBill && existingBill.length > 0) throw new Error("A bill already exists for this Goods Receipt.");
 
       // Verify PO belongs to caller's org
-      const { data: po } = await supabase.from("purchase_orders" as any)
+      const { data: po } = await supabase.from("purchase_orders")
         .select("vendor_name, vendor_id, subtotal, tax_amount, total_amount")
         .eq("id", params.purchase_order_id).eq("organization_id", callerOrgId).single();
       if (!po) throw new Error("Purchase Order not found in your organization.");
@@ -283,7 +283,7 @@ export function useCreateBillFromGR() {
       if (error) throw error;
 
       // Copy PO items as bill items
-      const { data: poItems } = await supabase.from("purchase_order_items" as any)
+      const { data: poItems } = await supabase.from("purchase_order_items")
         .select("*").eq("purchase_order_id", params.purchase_order_id);
       if (poItems && (poItems as any[]).length > 0) {
         const billItems = (poItems as any[]).map((i: any) => ({
@@ -297,7 +297,7 @@ export function useCreateBillFromGR() {
       }
 
       // Update GR status to "bill_created"
-      const { error: grUpdateError, data: grUpdateData } = await supabase.from("goods_receipts" as any)
+      const { error: grUpdateError, data: grUpdateData } = await supabase.from("goods_receipts")
         .update({ status: "bill_created" } as any)
         .eq("id", params.goods_receipt_id)
         .eq("organization_id", callerOrgId)
@@ -336,13 +336,13 @@ export function useCreateDeliveryNote() {
       const callerOrgId = await resolveCallerOrg(user.id);
 
       // Verify SO belongs to caller's org
-      const { data: soCheck } = await supabase.from("sales_orders" as any).select("id").eq("id", params.sales_order_id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: soCheck } = await supabase.from("sales_orders").select("id").eq("id", params.sales_order_id).eq("organization_id", callerOrgId).maybeSingle();
       if (!soCheck) throw new Error("Sales order not found in your organization.");
 
       const dnNum = `DN-${Date.now().toString(36).toUpperCase()}`;
 
       const { data: dn, error } = await supabase
-        .from("delivery_notes" as any)
+        .from("delivery_notes")
         .insert({
           dn_number: dnNum,
           sales_order_id: params.sales_order_id,
@@ -358,7 +358,7 @@ export function useCreateDeliveryNote() {
 
       // Copy SO items as DN items
       const { data: soItems } = await supabase
-        .from("sales_order_items" as any)
+        .from("sales_order_items")
         .select("*")
         .eq("sales_order_id", params.sales_order_id);
       if (soItems && (soItems as any[]).length > 0) {
@@ -375,10 +375,10 @@ export function useCreateDeliveryNote() {
           if (i.id) item.sales_order_item_id = i.id;
           return item;
         });
-        const { error: itemErr } = await supabase.from("delivery_note_items" as any).insert(dnItems as any);
+        const { error: itemErr } = await supabase.from("delivery_note_items").insert(dnItems as any);
         if (itemErr) {
           console.error("Delivery note items insert error:", itemErr);
-          await supabase.from("delivery_notes" as any).delete().eq("id", (dn as any).id);
+          await supabase.from("delivery_notes").delete().eq("id", (dn as any).id);
           throw new Error(`Failed to create delivery note items: ${itemErr.message}`);
         }
       }
@@ -403,14 +403,14 @@ export function useUpdateDNStatus() {
       if (!user) throw new Error("Not authenticated");
       const callerOrgId = await resolveCallerOrg(user.id);
 
-      const { data: current } = await supabase.from("delivery_notes" as any).select("status, sales_order_id").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: current } = await supabase.from("delivery_notes").select("status, sales_order_id").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!current) throw new Error("Delivery note not found in your organization.");
       const currentStatus = (current as any)?.status;
       const allowed = DN_TRANSITIONS[currentStatus];
       if (!allowed || !allowed.includes(status)) {
         throw new Error(`Cannot transition DN from "${currentStatus}" to "${status}"`);
       }
-      const { error } = await supabase.from("delivery_notes" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("delivery_notes").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto stock-out when DN is delivered ──
@@ -425,13 +425,13 @@ export function useUpdateDNStatus() {
       // Auto-update SO status when DN is delivered or returned (org-scoped)
       const soId = (current as any)?.sales_order_id;
       if (status === "delivered" && soId) {
-        await supabase.from("sales_orders" as any).update({ status: "delivered" } as any).eq("id", soId).eq("organization_id", callerOrgId);
+        await supabase.from("sales_orders").update({ status: "delivered" } as any).eq("id", soId).eq("organization_id", callerOrgId);
       } else if (status === "returned" && soId) {
-        await supabase.from("sales_orders" as any).update({ status: "returned" } as any).eq("id", soId).eq("organization_id", callerOrgId);
+        await supabase.from("sales_orders").update({ status: "returned" } as any).eq("id", soId).eq("organization_id", callerOrgId);
       } else if (status === "dispatched" && soId) {
-        const { data: so } = await supabase.from("sales_orders" as any).select("status").eq("id", soId).eq("organization_id", callerOrgId).maybeSingle();
+        const { data: so } = await supabase.from("sales_orders").select("status").eq("id", soId).eq("organization_id", callerOrgId).maybeSingle();
         if ((so as any)?.status === "processing" || (so as any)?.status === "confirmed") {
-          await supabase.from("sales_orders" as any).update({ status: "shipped" } as any).eq("id", soId).eq("organization_id", callerOrgId);
+          await supabase.from("sales_orders").update({ status: "shipped" } as any).eq("id", soId).eq("organization_id", callerOrgId);
         }
       }
     },
@@ -459,7 +459,7 @@ export function useConvertSOToInvoice() {
       const callerOrgId = await resolveCallerOrg(user.id);
 
       // Verify SO belongs to caller's org
-      const { data: soCheck } = await supabase.from("sales_orders" as any).select("id").eq("id", so.id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: soCheck } = await supabase.from("sales_orders").select("id").eq("id", so.id).eq("organization_id", callerOrgId).maybeSingle();
       if (!soCheck) throw new Error("Sales order not found in your organization.");
 
       const invoiceNum = `INV-${Date.now().toString().slice(-8)}`;
@@ -481,7 +481,7 @@ export function useConvertSOToInvoice() {
 
       // Copy SO items as invoice items
       const { data: soItems } = await supabase
-        .from("sales_order_items" as any)
+        .from("sales_order_items")
         .select("*")
         .eq("sales_order_id", so.id);
       if (soItems && (soItems as any[]).length > 0) {
@@ -500,7 +500,7 @@ export function useConvertSOToInvoice() {
       }
 
       // Mark SO as invoiced (org-scoped)
-      await supabase.from("sales_orders" as any).update({ status: "invoiced" } as any).eq("id", so.id).eq("organization_id", callerOrgId);
+      await supabase.from("sales_orders").update({ status: "invoiced" } as any).eq("id", so.id).eq("organization_id", callerOrgId);
       return inv;
     },
     onSuccess: () => {

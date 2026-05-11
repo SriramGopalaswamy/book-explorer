@@ -45,7 +45,17 @@ export function useSalesOrders() {
     queryKey: ["sales-orders", orgId],
     queryFn: async () => {
       if (!orgId) return [] as SalesOrder[];
-      const { data, error } = await supabase.from("sales_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      // GBC-27: explicit column list instead of select("*").
+      const { data, error } = await supabase
+        .from("sales_orders")
+        .select(
+          "id, organization_id, so_number, customer_id, customer_name, order_date, " +
+          "expected_delivery, status, subtotal, tax_amount, total_amount, notes, " +
+          "approved_by, approved_at, created_by, created_at, updated_at",
+        )
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return (data || []) as unknown as SalesOrder[];
     },
@@ -59,7 +69,7 @@ export function useSalesOrderItems(soId?: string) {
     enabled: !!soId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("sales_order_items" as any)
+        .from("sales_order_items")
         .select("*")
         .eq("sales_order_id", soId!);
       if (error) throw error;
@@ -120,7 +130,7 @@ export function useCreateSalesOrder() {
       );
       if (rpcErr) throw rpcErr;
       const newId = (rpcResult as any)?.id ?? rpcResult;
-      const { data: soData } = await supabase.from("sales_orders" as any).select("*").eq("id", newId).maybeSingle();
+      const { data: soData } = await supabase.from("sales_orders").select("*").eq("id", newId).maybeSingle();
       return soData;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); toast.success("Sales order created"); },
@@ -148,7 +158,7 @@ export function useUpdateSalesOrder() {
       if (!profile?.organization_id) throw new Error("No organization found");
 
       // Verify it's still draft
-      const { data: current } = await supabase.from("sales_orders" as any).select("status").eq("id", params.id).eq("organization_id", profile.organization_id).maybeSingle();
+      const { data: current } = await supabase.from("sales_orders").select("status").eq("id", params.id).eq("organization_id", profile.organization_id).maybeSingle();
       if (!current) throw new Error("Sales order not found.");
       if ((current as any).status !== "draft") throw new Error("Only draft sales orders can be edited.");
 
@@ -213,14 +223,14 @@ export function useDeleteSalesOrder() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      const { data: so } = await supabase.from("sales_orders" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: so } = await supabase.from("sales_orders").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!so) throw new Error("Sales order not found in your organization.");
       const status = (so as any)?.status;
       if (status && status !== "draft") {
         throw new Error(`Cannot delete a "${status}" sales order. Only drafts can be deleted.`);
       }
-      await supabase.from("sales_order_items" as any).delete().eq("sales_order_id", id);
-      const { error } = await supabase.from("sales_orders" as any).delete().eq("id", id).eq("organization_id", callerOrgId);
+      await supabase.from("sales_order_items").delete().eq("sales_order_id", id);
+      const { error } = await supabase.from("sales_orders").delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); toast.success("Sales order deleted"); },
@@ -241,14 +251,14 @@ export function useUpdateSOStatus() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      const { data: current } = await supabase.from("sales_orders" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: current } = await supabase.from("sales_orders").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!current) throw new Error("Sales order not found in your organization.");
       const currentStatus = (current as any)?.status;
       if (currentStatus && SO_TRANSITIONS[currentStatus] && !SO_TRANSITIONS[currentStatus].includes(status)) {
         throw new Error(`Cannot transition SO from '${currentStatus}' to '${status}'`);
       }
 
-      const { error } = await supabase.from("sales_orders" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("sales_orders").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-orders"] }); toast.success("Status updated"); },

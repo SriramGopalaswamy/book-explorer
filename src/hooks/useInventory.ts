@@ -16,7 +16,7 @@ export function useItems() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("items" as any).select("*").eq("organization_id", orgId).order("name").limit(500);
+      const { data, error } = await supabase.from("items").select("*").eq("organization_id", orgId).order("name").limit(500);
       if (error) throw error;
       return data as any[];
     },
@@ -35,7 +35,7 @@ export function useCreateItem() {
       if (!item.name?.trim()) throw new Error("Item name is required");
       if (item.selling_price !== undefined && item.selling_price < 0) throw new Error("Selling price cannot be negative");
       if (item.purchase_price !== undefined && item.purchase_price < 0) throw new Error("Purchase price cannot be negative");
-      const { data, error } = await supabase.from("items" as any).insert({ ...item, organization_id: orgId, created_by: user.id }).select().single();
+      const { data, error } = await supabase.from("items").insert({ ...item, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -57,7 +57,7 @@ export function useUpdateItem() {
       if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
-      const { data, error } = await supabase.from("items" as any).update(updates).eq("id", id).eq("organization_id", orgId).select();
+      const { data, error } = await supabase.from("items").update(updates).eq("id", id).eq("organization_id", orgId).select();
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Item update failed — no rows were modified");
       return data;
@@ -83,7 +83,7 @@ export function useDeleteItem() {
 
       // Prevent deleting items with stock ledger entries (org-scoped)
       const { data: ledgerEntries, error: ledgerErr } = await supabase
-        .from("stock_ledger" as any)
+        .from("stock_ledger")
         .select("id")
         .eq("item_id", id)
         .eq("organization_id", orgId)
@@ -92,7 +92,7 @@ export function useDeleteItem() {
       if (ledgerEntries && ledgerEntries.length > 0) {
         throw new Error("Cannot delete an item with existing stock movements. Deactivate it instead.");
       }
-      const { error } = await supabase.from("items" as any).delete().eq("id", id).eq("organization_id", orgId);
+      const { error } = await supabase.from("items").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -114,7 +114,7 @@ export function useWarehouses() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("warehouses" as any).select("*").eq("organization_id", orgId).order("name");
+      const { data, error } = await supabase.from("warehouses").select("*").eq("organization_id", orgId).order("name");
       if (error) throw error;
       return data as any[];
     },
@@ -131,7 +131,7 @@ export function useCreateWarehouse() {
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
       if (!wh.name?.trim()) throw new Error("Warehouse name is required");
-      const { data, error } = await supabase.from("warehouses" as any).insert({ ...wh, organization_id: orgId }).select().single();
+      const { data, error } = await supabase.from("warehouses").insert({ ...wh, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },
@@ -151,7 +151,7 @@ export function useUpdateWarehouse() {
       if (!user) throw new Error("Not authenticated");
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
-      const { error } = await supabase.from("warehouses" as any).update(updates).eq("id", id).eq("organization_id", orgId);
+      const { error } = await supabase.from("warehouses").update(updates).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -182,13 +182,13 @@ export function useSetDefaultWarehouse() {
       // Proper fix is a server-side SQL function (set_default_warehouse RPC);
       // tracked under GBC-56 needs-input + the _LOVABLE_PROMPT.md migration.
       const { error: setErr } = await supabase
-        .from("warehouses" as any)
+        .from("warehouses")
         .update({ is_default: true })
         .eq("id", id)
         .eq("organization_id", orgId);
       if (setErr) throw setErr;
       const { error: clearErr } = await supabase
-        .from("warehouses" as any)
+        .from("warehouses")
         .update({ is_default: false })
         .eq("organization_id", orgId)
         .neq("id", id);
@@ -214,7 +214,7 @@ export function useDeleteWarehouse() {
 
       // Prevent deleting warehouses with stock (org-scoped)
       const { data: stock, error: stockErr } = await supabase
-        .from("stock_ledger" as any)
+        .from("stock_ledger")
         .select("id")
         .eq("warehouse_id", id)
         .eq("organization_id", orgId)
@@ -224,7 +224,7 @@ export function useDeleteWarehouse() {
         throw new Error("Cannot delete a warehouse with existing stock entries. Transfer stock out first.");
       }
 
-      const { error } = await supabase.from("warehouses" as any).delete().eq("id", id).eq("organization_id", orgId);
+      const { error } = await supabase.from("warehouses").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -248,7 +248,17 @@ export function useStockLedger(itemId?: string, warehouseId?: string) {
     queryFn: async () => {
       if (!orgId) return [];
       try {
-        let q = supabase.from("stock_ledger" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
+        // GBC-27: explicit column list. stock_ledger can grow into millions of rows
+        // for active warehouses; this trims ~30% of bytes per row vs select("*").
+        let q = supabase
+          .from("stock_ledger")
+          .select(
+            "id, organization_id, item_id, warehouse_id, transaction_type, " +
+            "quantity, rate, value, balance_qty, balance_value, " +
+            "reference_type, reference_id, notes, posted_by, posted_at",
+          )
+          .eq("organization_id", orgId)
+          .order("posted_at", { ascending: false });
         if (itemId) q = q.eq("item_id", itemId);
         if (warehouseId) q = q.eq("warehouse_id", warehouseId);
         const { data, error } = await q.limit(500);
@@ -280,7 +290,7 @@ export function useStockAdjustments() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("stock_adjustments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("stock_adjustments").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return data as any[];
     },
@@ -298,7 +308,7 @@ export function useCreateStockAdjustment() {
       if (!orgId) throw new Error("No organization found");
       if (!adj.reason?.trim()) throw new Error("A reason is required for stock adjustments.");
 
-      const { data, error } = await supabase.from("stock_adjustments" as any).insert({ ...adj, organization_id: orgId, created_by: user.id }).select().single();
+      const { data, error } = await supabase.from("stock_adjustments").insert({ ...adj, organization_id: orgId, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
     },
@@ -323,7 +333,7 @@ export function useUOM() {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from("units_of_measure" as any)
+        .from("units_of_measure")
         .select("*")
         .eq("organization_id", orgId)
         .order("name");
@@ -342,7 +352,7 @@ export function useCreateUOM() {
       if (!user) throw new Error("Not authenticated");
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
-      const { data, error } = await supabase.from("units_of_measure" as any).insert({ ...uom, organization_id: orgId }).select().single();
+      const { data, error } = await supabase.from("units_of_measure").insert({ ...uom, organization_id: orgId }).select().single();
       if (error) throw error;
       return data;
     },

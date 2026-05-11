@@ -74,7 +74,7 @@ export default function DeliveryNotes() {
     enabled: !!user && !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("delivery_notes" as any)
+        .from("delivery_notes")
         .select("*, sales_orders:sales_order_id(so_number, customer_name)")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
@@ -91,7 +91,7 @@ export default function DeliveryNotes() {
     mutationFn: async (update: { id: string; carrier_name?: string; tracking_number?: string; tracking_url?: string; shipping_method?: string; estimated_delivery?: string; shipping_cost?: number; weight_kg?: number; packages_count?: number; status?: string }) => {
       if (!orgId) throw new Error("Organization not found");
       const { id, ...fields } = update;
-      const { error } = await supabase.from("delivery_notes" as any).update({ ...fields, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
+      const { error } = await supabase.from("delivery_notes").update({ ...fields, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery-notes"] }); toast.success("Shipping details updated"); },
@@ -119,7 +119,7 @@ export default function DeliveryNotes() {
 
   const openViewDialog = async (dn: DeliveryNote) => {
     setViewDN(dn);
-    const { data } = await supabase.from("delivery_note_items" as any).select("*").eq("delivery_note_id", dn.id);
+    const { data } = await supabase.from("delivery_note_items").select("*").eq("delivery_note_id", dn.id);
     setViewItems((data as any[]) || []);
   };
 

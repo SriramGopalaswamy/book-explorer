@@ -40,6 +40,17 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-muted text-muted-foreground",
 };
 
+// GBC-60: line draft for editable partial-receipt quantities. Pre-filled
+// with the remaining qty (ordered - already-received) when a PO is
+// selected; user can edit down or set to 0 to skip a line.
+type GRLineDraft = {
+  item_id: string | null;
+  description: string;
+  unit_price: number;
+  remaining: number;      // ordered - already_received (for the "Max" UI hint)
+  receive_now: string;    // user-editable, kept as string for input control
+};
+
 export default function GoodsReceipts() {
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
@@ -48,6 +59,9 @@ export default function GoodsReceipts() {
   const [selectedPO, setSelectedPO] = useState("");
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  // GBC-60: editable line drafts for the create-GR dialog
+  const [poLines, setPoLines] = useState<GRLineDraft[]>([]);
+  const [poLinesLoading, setPoLinesLoading] = useState(false);
   const [viewingGR, setViewingGR] = useState<GoodsReceipt | null>(null);
   const [viewGRItems, setViewGRItems] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -58,7 +72,7 @@ export default function GoodsReceipts() {
     queryKey: ["goods-receipts", orgId],
     enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("goods_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("goods_receipts").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as GoodsReceipt[];
     },
@@ -74,7 +88,7 @@ export default function GoodsReceipts() {
   const deleteGR = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      const { data: deleted, error } = await supabase.from("goods_receipts" as any).delete().eq("id", id).eq("organization_id", orgId).select("id");
+      const { data: deleted, error } = await supabase.from("goods_receipts").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0)
         throw new Error("Receipt not found or could not be deleted. You may not have permission.");
@@ -86,31 +100,86 @@ export default function GoodsReceipts() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // GBC-60: when a PO is selected, fetch its open lines and prefill the
+  // editable drafts. Lines with zero remaining are excluded.
+  const loadPoLines = async (poId: string) => {
+    if (!poId) { setPoLines([]); return; }
+    setPoLinesLoading(true);
+    try {
+      const { data: poItems, error } = await supabase
+        .from("purchase_order_items")
+        .select("item_id, description, quantity, received_quantity, unit_price")
+        .eq("purchase_order_id", poId);
+      if (error) throw error;
+      const drafts: GRLineDraft[] = ((poItems as any[]) || []).map((i: any) => {
+        const remaining = Math.max(Number(i.quantity) - Number(i.received_quantity || 0), 0);
+        return {
+          item_id: i.item_id ?? null,
+          description: i.description,
+          unit_price: Number(i.unit_price || 0),
+          remaining,
+          receive_now: remaining > 0 ? String(remaining) : "0",
+        };
+      }).filter(d => d.remaining > 0);
+      setPoLines(drafts);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load PO lines");
+      setPoLines([]);
+    } finally {
+      setPoLinesLoading(false);
+    }
+  };
+
+  // Refresh draft lines whenever the PO changes.
+  // (eslint-disable-next-line react-hooks/exhaustive-deps — loadPoLines is stable enough)
+  // Intentionally not using useEffect to keep the change minimal — call from onValueChange.
+
   const handleCreate = async () => {
     if (!selectedPO) { toast.error("Select a Purchase Order"); return; }
 
-    const { data: poItems } = await supabase
-      .from("purchase_order_items" as any)
-      .select("item_id, description, quantity, received_quantity, unit_price")
-      .eq("purchase_order_id", selectedPO);
+    // GBC-60: build items from the editable drafts. Any receive_now <= 0 is
+    // dropped (skipped); the remaining unreceived qty stays open on the PO
+    // line item, so subsequent GRNs naturally back-order it.
+    const items = poLines
+      .map(d => {
+        const qty = Number(d.receive_now || 0);
+        if (!Number.isFinite(qty) || qty <= 0) return null;
+        if (qty > d.remaining + 0.0001) {
+          throw new Error(
+            `Cannot receive ${qty} of "${d.description}" — only ${d.remaining} remaining on PO`,
+          );
+        }
+        return {
+          item_id: d.item_id || undefined,
+          description: d.description,
+          quantity_received: qty,
+          unit_price: d.unit_price || undefined,
+          amount: d.unit_price ? qty * d.unit_price : undefined,
+        };
+      })
+      .filter((i): i is NonNullable<typeof i> => i !== null);
 
-    const items = ((poItems as any[]) || []).map((i: any) => {
-      const qty = Number(i.quantity) - Number(i.received_quantity || 0);
-      const unitPrice = Number(i.unit_price || 0);
-      return {
-        item_id: i.item_id || undefined,
-        description: i.description,
-        quantity_received: qty,
-        unit_price: unitPrice || undefined,
-        amount: unitPrice ? qty * unitPrice : undefined,
-      };
-    }).filter(i => i.quantity_received > 0);
+    if (items.length === 0) { toast.error("Set a non-zero received qty on at least one line"); return; }
 
-    if (items.length === 0) { toast.error("All items already received for this PO"); return; }
-
-    createGR.mutate({ purchase_order_id: selectedPO, receipt_date: receiptDate, notes, items }, {
-      onSuccess: () => { setShowCreate(false); setSelectedPO(""); setNotes(""); },
-    });
+    try {
+      await new Promise((resolve, reject) =>
+        createGR.mutate(
+          { purchase_order_id: selectedPO, receipt_date: receiptDate, notes, items },
+          {
+            onSuccess: () => {
+              setShowCreate(false);
+              setSelectedPO("");
+              setPoLines([]);
+              setNotes("");
+              resolve(null);
+            },
+            onError: (e) => reject(e),
+          },
+        ),
+      );
+    } catch (e: any) {
+      // useCreateGoodsReceipt already surfaces a toast in onError; nothing more to do.
+    }
   };
 
   const stats = {
@@ -132,7 +201,7 @@ export default function GoodsReceipts() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={async () => {
               setViewingGR(r);
-              const { data } = await supabase.from("goods_receipt_items" as any).select("*").eq("goods_receipt_id", r.id);
+              const { data } = await supabase.from("goods_receipt_items").select("*").eq("goods_receipt_id", r.id);
               setViewGRItems((data as any[]) || []);
             }}>
               <Eye className="h-4 w-4 mr-2" /> View Receipt
@@ -221,27 +290,84 @@ export default function GoodsReceipts() {
         })} isLoading={isLoading} emptyMessage="No goods receipts yet. Create one from a Purchase Order." />
 
         {/* Create GR Dialog */}
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogContent>
+        <Dialog open={showCreate} onOpenChange={(v) => { if (!v) { setSelectedPO(""); setPoLines([]); } setShowCreate(v); }}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader><DialogTitle>Create Goods Receipt from PO</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div>
-                <Label>Purchase Order</Label>
-                <Select value={selectedPO} onValueChange={setSelectedPO}>
-                  <SelectTrigger><SelectValue placeholder="Select PO" /></SelectTrigger>
-                  <SelectContent>
-                    {approvedPOs.map(po => (
-                      <SelectItem key={po.id} value={po.id}>
-                        {po.po_number} — {po.vendor_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Purchase Order</Label>
+                  <Select
+                    value={selectedPO}
+                    onValueChange={(v) => { setSelectedPO(v); loadPoLines(v); }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select PO" /></SelectTrigger>
+                    <SelectContent>
+                      {approvedPOs.map(po => (
+                        <SelectItem key={po.id} value={po.id}>
+                          {po.po_number} — {po.vendor_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Receipt Date</Label>
+                  <Input type="date" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
+                </div>
               </div>
-              <div>
-                <Label>Receipt Date</Label>
-                <Input type="date" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
-              </div>
+
+              {/* GBC-60: editable per-line received quantity */}
+              {selectedPO && (
+                <div className="space-y-2">
+                  <Label>Items Received (edit Qty to receive partial; 0 to skip)</Label>
+                  {poLinesLoading ? (
+                    <p className="text-xs text-muted-foreground">Loading PO lines…</p>
+                  ) : poLines.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">All items already received for this PO.</p>
+                  ) : (
+                    <div className="rounded border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Description</TableHead>
+                            <TableHead className="text-xs text-right">Remaining</TableHead>
+                            <TableHead className="text-xs text-right w-32">Receive Now</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {poLines.map((d, i) => (
+                            <TableRow key={`${d.item_id ?? "noitem"}-${i}`}>
+                              <TableCell className="text-sm">{d.description}</TableCell>
+                              <TableCell className="text-right text-sm text-muted-foreground">
+                                {d.remaining.toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={d.remaining}
+                                  step="0.001"
+                                  value={d.receive_now}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setPoLines(prev => prev.map((row, idx) => idx === i ? { ...row, receive_now: v } : row));
+                                  }}
+                                  className="text-right h-8"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Unreceived quantity stays open on the PO — additional GRNs will pick it up automatically.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Label>Notes</Label>
                 <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" />
@@ -249,7 +375,7 @@ export default function GoodsReceipts() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createGR.isPending}>
+              <Button onClick={handleCreate} disabled={createGR.isPending || poLines.length === 0}>
                 {createGR.isPending ? "Creating..." : "Create GRN"}
               </Button>
             </DialogFooter>

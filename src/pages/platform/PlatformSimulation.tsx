@@ -252,7 +252,7 @@ function useSimulationRuns(orgId: string | null) {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from("simulation_runs" as any)
+        .from("simulation_runs")
         .select("*")
         .eq("sandbox_org_id", orgId)
         .order("created_at", { ascending: false })

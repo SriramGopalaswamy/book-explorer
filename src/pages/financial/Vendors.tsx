@@ -80,12 +80,11 @@ export default function Vendors() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) {
-        newErrors.tax_number = "Must be exactly 15 alphanumeric characters";
-      } else {
-        const taxErr = validateTaxNumber(form.tax_number, form.country);
-        if (taxErr) newErrors.tax_number = taxErr;
-      }
+      // GBC-33: country-aware validation. Strict GSTIN for India,
+      // strict country-specific patterns for other countries in
+      // COUNTRY_TAX_CONFIG, free-text accept for unknown countries.
+      const taxErr = validateTaxNumber(form.tax_number, form.country);
+      if (taxErr) newErrors.tax_number = taxErr;
     }
     setErrors(newErrors);
   }, [form.email, form.phone, form.tax_number, form.country]);
@@ -165,7 +164,7 @@ export default function Vendors() {
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
     if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "Tax / GST number is required.", variant: "destructive" });
-    if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) return toast({ title: "Invalid Tax Number", description: "Must be exactly 15 alphanumeric characters.", variant: "destructive" });
+    // GBC-33: country-aware validation (was hardcoded 15-char GSTIN that blocked non-India).
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 

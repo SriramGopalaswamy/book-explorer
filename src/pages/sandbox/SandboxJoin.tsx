@@ -69,7 +69,7 @@ export default function SandboxJoin() {
     queryFn: async () => {
       if (!token) throw new Error("No token provided");
       const { data, error } = await supabase
-        .from("sandbox_invite_links" as any)
+        .from("sandbox_invite_links")
         .select("id, sandbox_org_id, expires_at, is_active, label")
         .eq("token", token)
         .eq("is_active", true)

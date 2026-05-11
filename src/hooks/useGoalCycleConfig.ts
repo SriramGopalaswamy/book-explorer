@@ -26,7 +26,7 @@ export function useGoalCycleConfig() {
       if (!orgId) return null;
       // Fetch default config (cycle_month = '*') or latest
       const { data, error } = await supabase
-        .from("goal_cycle_config" as any)
+        .from("goal_cycle_config")
         .select("*")
         .eq("organization_id", orgId)
         .eq("is_active", true)
@@ -49,7 +49,7 @@ export function useGoalCycleConfigs() {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from("goal_cycle_config" as any)
+        .from("goal_cycle_config")
         .select("*")
         .eq("organization_id", orgId)
         .order("cycle_month", { ascending: false });
@@ -82,7 +82,7 @@ export function useUpsertGoalCycleConfig() {
       if (config.scoring_start_day > config.scoring_deadline_day) throw new Error("Scoring start day must be before deadline");
 
       const { error } = await supabase
-        .from("goal_cycle_config" as any)
+        .from("goal_cycle_config")
         .upsert(
           {
             organization_id: orgId,

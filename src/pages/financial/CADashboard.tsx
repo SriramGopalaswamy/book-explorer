@@ -196,7 +196,16 @@ export default function CADashboard() {
                 {(depnResult.errors?.length ?? 0) > 0 && (
                   <span className="text-destructive">{depnResult.errors!.length} error(s)</span>
                 )}
-                <button className="ml-auto text-muted-foreground hover:text-foreground" onClick={() => setDepnResult(null)}>×</button>
+                {/* GBC-23: close button using the shared Button primitive */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => setDepnResult(null)}
+                  aria-label="Close depreciation result"
+                >
+                  ×
+                </Button>
               </div>
             )}
             <div className="rounded-xl border bg-card">

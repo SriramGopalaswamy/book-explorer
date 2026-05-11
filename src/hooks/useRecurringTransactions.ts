@@ -34,7 +34,7 @@ export function useRecurringTransactions() {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from("recurring_transactions" as any)
+        .from("recurring_transactions")
         .select("*")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
@@ -110,7 +110,7 @@ export function useCreateRecurringTransaction() {
       const nextRunDate = calcNextRunDate(params.start_date, params.frequency);
 
       const { data, error } = await supabase
-        .from("recurring_transactions" as any)
+        .from("recurring_transactions")
         .insert({
           name: params.name.trim(),
           description: params.description || null,
@@ -152,7 +152,7 @@ export function useUpdateRecurringTransactionStatus() {
       if (!profile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase
-        .from("recurring_transactions" as any)
+        .from("recurring_transactions")
         .update({ status, updated_at: new Date().toISOString() } as any)
         .eq("id", id)
         .eq("organization_id", profile.organization_id);

@@ -79,7 +79,7 @@ export default function SalesReturnsPage() {
 
   const openView = async (r: any) => {
     setViewingReturn(r);
-    const { data } = await supabase.from("sales_return_items" as any).select("*").eq("sales_return_id", r.id);
+    const { data } = await supabase.from("sales_return_items").select("*").eq("sales_return_id", r.id);
     setViewItems((data as any[]) || []);
   };
 

@@ -50,6 +50,11 @@ import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@/hooks/useOnboardingCompliance";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+// GBC-21 + GBC-20: Settings.tsx extraction starts here. Each Section
+// component lives under src/components/settings/ and uses react-hook-form
+// + zod (the deps are already in package.json). Migrate sections one at
+// a time so any regression can be bisected.
+import OrganizationInfoSection from "@/components/settings/OrganizationInfoSection";
 import { useGoalCycleConfigs, useUpsertGoalCycleConfig, GoalCycleConfig } from "@/hooks/useGoalCycleConfig";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
 import { ExitProcessingDialog } from "@/components/employees/ExitProcessingDialog";
@@ -108,103 +113,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // ─── Organization Info Section ────────────────────────────────────────────────
-function OrganizationInfoSection() {
-  const { compliance, upsert } = useOnboardingCompliance();
-  const [local, setLocal] = useState({ legal_name: "", registered_address: "", state: "", pincode: "" });
-  const [initialized, setInitialized] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (compliance && !initialized) {
-      setLocal({
-        legal_name: compliance.legal_name || "",
-        registered_address: compliance.registered_address || "",
-        state: compliance.state || "",
-        pincode: compliance.pincode || "",
-      });
-      setInitialized(true);
-    }
-  }, [compliance, initialized]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await upsert.mutateAsync({
-        legal_name: local.legal_name,
-        registered_address: local.registered_address,
-        state: local.state,
-        pincode: local.pincode,
-      });
-      toast.success("Organization info saved");
-    } catch {
-      toast.error("Failed to save organization info");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-primary" />
-          Organization Details
-        </CardTitle>
-        <CardDescription>
-          This information appears on payslips and official documents.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="legal_name">Legal Name</Label>
-            <Input
-              id="legal_name"
-              value={local.legal_name}
-              onChange={(e) => setLocal((p) => ({ ...p, legal_name: e.target.value }))}
-              placeholder="e.g. Acme Technologies Pvt Ltd"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="state">State</Label>
-            <Input
-              id="state"
-              value={local.state}
-              onChange={(e) => setLocal((p) => ({ ...p, state: e.target.value }))}
-              placeholder="e.g. Karnataka"
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="registered_address">Registered Address</Label>
-          <Textarea
-            id="registered_address"
-            value={local.registered_address}
-            onChange={(e) => setLocal((p) => ({ ...p, registered_address: e.target.value }))}
-            placeholder="Full registered office address"
-            rows={3}
-          />
-        </div>
-        <div className="space-y-1.5 sm:w-1/3">
-          <Label htmlFor="pincode">Pincode</Label>
-          <Input
-            id="pincode"
-            value={local.pincode}
-            onChange={(e) => setLocal((p) => ({ ...p, pincode: e.target.value }))}
-            placeholder="e.g. 560001"
-            maxLength={6}
-          />
-        </div>
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// OrganizationInfoSection extracted to src/components/settings/OrganizationInfoSection.tsx
+// (GBC-21 + GBC-20). See import at top of file.
 
 // ─── Branding Section ─────────────────────────────────────────────────────────
 function BrandingSection() {

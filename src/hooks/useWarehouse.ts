@@ -67,7 +67,7 @@ export function useBinLocations(warehouseId?: string) {
     queryKey: ["bin-locations", warehouseId, orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      let q = supabase.from("bin_locations" as any).select("*").eq("organization_id", orgId).order("bin_code");
+      let q = supabase.from("bin_locations").select("*").eq("organization_id", orgId).order("bin_code");
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);
       const { data, error } = await q;
       if (error) throw error;
@@ -88,7 +88,7 @@ export function useCreateBinLocation() {
       if (!orgId) throw new Error("No organization found");
       if (!bin.bin_code?.trim()) throw new Error("Bin code is required");
       if (!bin.warehouse_id) throw new Error("Warehouse is required");
-      const { data, error } = await supabase.from("bin_locations" as any).insert({ ...bin, organization_id: orgId } as any).select().single();
+      const { data, error } = await supabase.from("bin_locations").insert({ ...bin, organization_id: orgId } as any).select().single();
       if (error) throw error;
       return data;
     },
@@ -105,7 +105,7 @@ export function useStockTransfers() {
     queryKey: ["stock-transfers", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("stock_transfers" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("stock_transfers").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as StockTransfer[];
     },
@@ -146,17 +146,17 @@ export function useCreateStockTransfer() {
       if (!profile?.organization_id) throw new Error("No organization found");
 
       const num = `TRF-${Date.now().toString(36).toUpperCase()}`;
-      const { data, error } = await supabase.from("stock_transfers" as any)
+      const { data, error } = await supabase.from("stock_transfers")
         .insert({ transfer_number: num, from_warehouse_id: t.from_warehouse_id, to_warehouse_id: t.to_warehouse_id, transfer_date: t.transfer_date, notes: t.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (error) throw error;
 
       if (t.items.length > 0) {
         const items = t.items.map((i) => ({ transfer_id: (data as any).id, item_name: i.item_name, quantity: i.quantity, item_id: i.item_id || null, from_bin_id: i.from_bin_id || null, to_bin_id: i.to_bin_id || null }));
-        const { error: ie } = await supabase.from("stock_transfer_items" as any).insert(items as any);
+        const { error: ie } = await supabase.from("stock_transfer_items").insert(items as any);
         if (ie) {
           // Rollback: delete the transfer header if items fail
-          await supabase.from("stock_transfers" as any).delete().eq("id", (data as any).id);
+          await supabase.from("stock_transfers").delete().eq("id", (data as any).id);
           throw ie;
         }
       }
@@ -191,7 +191,7 @@ export function useUpdateTransferStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("stock_transfers" as any).select("status, from_warehouse_id, to_warehouse_id").eq("id", id).eq("organization_id", callerOrgId).single();
+        .from("stock_transfers").select("status, from_warehouse_id, to_warehouse_id").eq("id", id).eq("organization_id", callerOrgId).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = TRANSFER_TRANSITIONS[currentStatus];
@@ -199,7 +199,7 @@ export function useUpdateTransferStatus() {
         throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
       }
 
-      const { error } = await supabase.from("stock_transfers" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("stock_transfers").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto stock ledger entries when transfer is received ──
@@ -228,7 +228,7 @@ export function usePickingLists() {
     queryKey: ["picking-lists", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("picking_lists" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("picking_lists").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PickingList[];
     },
@@ -244,7 +244,7 @@ export function useInventoryCounts() {
     queryKey: ["inventory-counts", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("inventory_counts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("inventory_counts").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as InventoryCount[];
     },
@@ -268,7 +268,7 @@ export function useCountLines(countId?: string) {
     queryKey: ["count-lines", countId],
     enabled: !!countId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId!).order("item_name");
+      const { data, error } = await supabase.from("inventory_count_lines").select("*").eq("count_id", countId!).order("item_name");
       if (error) throw error;
       return (data || []) as unknown as CountLine[];
     },
@@ -291,7 +291,7 @@ export function useCreateInventoryCount() {
 
       const countNumber = `CNT-${Date.now().toString(36).toUpperCase()}`;
       const { data: countData, error: countErr } = await supabase
-        .from("inventory_counts" as any)
+        .from("inventory_counts")
         .insert({ count_number: countNumber, warehouse_id: params.warehouse_id, count_date: params.count_date, status: "draft", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (countErr) throw countErr;
@@ -305,9 +305,9 @@ export function useCreateInventoryCount() {
         variance: null,
         bin_id: item.bin_id || null,
       }));
-      const { error: linesErr } = await supabase.from("inventory_count_lines" as any).insert(lines as any);
+      const { error: linesErr } = await supabase.from("inventory_count_lines").insert(lines as any);
       if (linesErr) {
-        await supabase.from("inventory_counts" as any).delete().eq("id", (countData as any).id);
+        await supabase.from("inventory_counts").delete().eq("id", (countData as any).id);
         throw linesErr;
       }
       return countData;
@@ -322,10 +322,10 @@ export function useUpdateCountLine() {
   return useMutation({
     mutationFn: async ({ id, actual_qty, notes }: { id: string; actual_qty: number; notes?: string }) => {
       if (actual_qty < 0) throw new Error("Actual quantity cannot be negative");
-      const { data: line, error: fetchErr } = await supabase.from("inventory_count_lines" as any).select("expected_qty").eq("id", id).single();
+      const { data: line, error: fetchErr } = await supabase.from("inventory_count_lines").select("expected_qty").eq("id", id).single();
       if (fetchErr) throw fetchErr;
       const variance = actual_qty - Number((line as any).expected_qty);
-      const { error } = await supabase.from("inventory_count_lines" as any).update({ actual_qty, variance, notes: notes || null } as any).eq("id", id);
+      const { error } = await supabase.from("inventory_count_lines").update({ actual_qty, variance, notes: notes || null } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
@@ -347,7 +347,7 @@ export function useApproveInventoryCount() {
       const callerOrgId = orgProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization not found");
 
-      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
+      const { data: count, error: cErr } = await supabase.from("inventory_counts").select("status, created_by").eq("id", countId).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       if ((count as any).status !== "draft") throw new Error("Only draft counts can be approved");
 
@@ -357,13 +357,13 @@ export function useApproveInventoryCount() {
       }
 
       // Verify all lines have actual quantities
-      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId);
+      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines").select("*").eq("count_id", countId);
       if (lErr) throw lErr;
       const unrecorded = (lines as any[]).filter((l) => l.actual_qty === null || l.actual_qty === undefined);
       if (unrecorded.length > 0) throw new Error(`${unrecorded.length} line(s) still have no actual count. Record all quantities before approving.`);
 
       // Mark count as approved (no stock posting yet)
-      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
+      const { error: updErr } = await supabase.from("inventory_counts").update({ status: "approved" } as any).eq("id", countId).eq("organization_id", callerOrgId);
       if (updErr) throw updErr;
     },
     onSuccess: () => {
@@ -386,11 +386,11 @@ export function usePostInventoryCount() {
       const callerOrgId = orgProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization not found");
 
-      const { data: count, error: cErr } = await supabase.from("inventory_counts" as any).select("status, warehouse_id").eq("id", countId).eq("organization_id", callerOrgId).single();
+      const { data: count, error: cErr } = await supabase.from("inventory_counts").select("status, warehouse_id").eq("id", countId).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       if ((count as any).status !== "approved") throw new Error("Only approved counts can be posted");
 
-      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines" as any).select("*").eq("count_id", countId);
+      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines").select("*").eq("count_id", countId);
       if (lErr) throw lErr;
 
       // Post stock adjustment ledger entries for variances
@@ -400,7 +400,7 @@ export function usePostInventoryCount() {
       const variantItemIds = [...new Set(variantLines.map((l: any) => l.item_id))];
       const itemRateMap = new Map<string, number>();
       if (variantItemIds.length > 0) {
-        const { data: itemData } = await supabase.from("items" as any).select("id, purchase_price, selling_price, current_stock").in("id", variantItemIds);
+        const { data: itemData } = await supabase.from("items").select("id, purchase_price, selling_price, current_stock").in("id", variantItemIds);
         if (itemData) {
           for (const item of itemData as any[]) {
             const r = Number(item.purchase_price || item.selling_price || 0);
@@ -414,7 +414,7 @@ export function usePostInventoryCount() {
       const balanceMap = new Map<string, number>();
       for (const itemId of variantItemIds) {
         const { data: lastEntry } = await supabase
-          .from("stock_ledger" as any)
+          .from("stock_ledger")
           .select("balance_qty")
           .eq("item_id", itemId)
           .eq("warehouse_id", warehouseId)
@@ -433,7 +433,7 @@ export function usePostInventoryCount() {
         const newBalance = prevBalance + signedQty;
         balanceMap.set(line.item_id, newBalance);
 
-        await supabase.from("stock_ledger" as any).insert({
+        await supabase.from("stock_ledger").insert({
           organization_id: callerOrgId,
           item_id: line.item_id,
           warehouse_id: warehouseId,
@@ -450,13 +450,13 @@ export function usePostInventoryCount() {
         } as any);
 
         // Keep items.current_stock in sync
-        const { data: itemRow } = await supabase.from("items" as any).select("current_stock").eq("id", line.item_id).maybeSingle();
+        const { data: itemRow } = await supabase.from("items").select("current_stock").eq("id", line.item_id).maybeSingle();
         const currentStock = Number((itemRow as any)?.current_stock ?? 0);
-        await supabase.from("items" as any).update({ current_stock: currentStock + signedQty } as any).eq("id", line.item_id);
+        await supabase.from("items").update({ current_stock: currentStock + signedQty } as any).eq("id", line.item_id);
       }
 
       // Mark count as posted
-      const { error: updErr } = await supabase.from("inventory_counts" as any).update({ status: "posted" } as any).eq("id", countId).eq("organization_id", callerOrgId);
+      const { error: updErr } = await supabase.from("inventory_counts").update({ status: "posted" } as any).eq("id", countId).eq("organization_id", callerOrgId);
       if (updErr) throw updErr;
     },
     onSuccess: () => {
@@ -477,7 +477,7 @@ export function useUpdateBinLocation() {
       if (updates.bin_code !== undefined && !updates.bin_code?.trim()) throw new Error("Bin code cannot be empty");
       const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
       if (!orgData?.organization_id) throw new Error("Organization not found");
-      const { error } = await supabase.from("bin_locations" as any).update(updates as any).eq("id", id).eq("organization_id", orgData.organization_id);
+      const { error } = await supabase.from("bin_locations").update(updates as any).eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location updated"); },
@@ -491,7 +491,7 @@ export function useDeleteBinLocation() {
     mutationFn: async (id: string) => {
       const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").maybeSingle();
       if (!orgData?.organization_id) throw new Error("Organization not found");
-      const { error } = await supabase.from("bin_locations" as any).delete().eq("id", id).eq("organization_id", orgData.organization_id);
+      const { error } = await supabase.from("bin_locations").delete().eq("id", id).eq("organization_id", orgData.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bin-locations"] }); toast.success("Bin location deleted"); },
@@ -514,7 +514,7 @@ export function useGeneratePickingList() {
 
       const pickNumber = `PICK-${Date.now().toString(36).toUpperCase()}`;
       const { data: pickData, error: pickErr } = await supabase
-        .from("picking_lists" as any)
+        .from("picking_lists")
         .insert({ pick_number: pickNumber, warehouse_id: params.warehouse_id, sales_order_id: params.sales_order_id || null, status: "pending", notes: params.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (pickErr) throw pickErr;
@@ -528,10 +528,10 @@ export function useGeneratePickingList() {
         bin_id: item.bin_id || null,
         status: "pending",
       }));
-      const { error: linesErr } = await supabase.from("picking_list_items" as any).insert(lines as any);
+      const { error: linesErr } = await supabase.from("picking_list_items").insert(lines as any);
       if (linesErr) {
         console.error("Picking list items insert error:", linesErr);
-        await supabase.from("picking_lists" as any).delete().eq("id", (pickData as any).id);
+        await supabase.from("picking_lists").delete().eq("id", (pickData as any).id);
         throw new Error(`Failed to create picking list items: ${linesErr.message}. Please check that the warehouse module is fully set up.`);
       }
       return pickData;
@@ -558,11 +558,11 @@ export function useUpdatePickingListStatus() {
       const callerOrgId = orgProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization not found");
 
-      const { data: current, error: cErr } = await supabase.from("picking_lists" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).single();
+      const { data: current, error: cErr } = await supabase.from("picking_lists").select("status").eq("id", id).eq("organization_id", callerOrgId).single();
       if (cErr) throw cErr;
       const allowed = TRANSITIONS[(current as any).status] ?? [];
       if (!allowed.includes(status)) throw new Error(`Cannot transition picking list from "${(current as any).status}" to "${status}"`);
-      const { error } = await supabase.from("picking_lists" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("picking_lists").update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["picking-lists"] }); toast.success("Status updated"); },

@@ -158,7 +158,7 @@ export default function PickingLists() {
     setViewItems([]);
     setViewItemsLoading(true);
     try {
-      const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
+      const { data } = await supabase.from("picking_list_items").select("*").eq("picking_list_id", list.id);
       setViewItems((data as any[]) || []);
     } catch (e) {
       console.error("Failed to load picking list items:", e);
@@ -174,7 +174,7 @@ export default function PickingLists() {
     setEditPickItems([]);
     setEditItemsLoading(true);
     try {
-      const { data } = await supabase.from("picking_list_items" as any).select("*").eq("picking_list_id", list.id);
+      const { data } = await supabase.from("picking_list_items").select("*").eq("picking_list_id", list.id);
       const loaded = ((data as any[]) || []).map((it: any) => ({
         item_id: it.item_id || undefined,
         item_name: it.item_name || "",
@@ -201,8 +201,8 @@ export default function PickingLists() {
         .eq("id", editList.id).eq("organization_id", orgId);
       if (error) throw error;
       // Replace items
-      await supabase.from("picking_list_items" as any).delete().eq("picking_list_id", editList.id);
-      await supabase.from("picking_list_items" as any).insert(
+      await supabase.from("picking_list_items").delete().eq("picking_list_id", editList.id);
+      await supabase.from("picking_list_items").insert(
         validItems.map((it) => ({
           picking_list_id: editList.id,
           item_id: it.item_id || null,
@@ -235,7 +235,7 @@ export default function PickingLists() {
   const handleDelete = async (id: string) => {
     if (!orgId) { toast.error("Organization not found"); return; }
     try {
-      await supabase.from("picking_list_items" as any).delete().eq("picking_list_id", id);
+      await supabase.from("picking_list_items").delete().eq("picking_list_id", id);
       const { error } = await (supabase as any).from("picking_lists").delete().eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
       toast.success("Picking list deleted");

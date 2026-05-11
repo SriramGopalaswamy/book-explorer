@@ -13,7 +13,7 @@ function writeAudit(entry: {
   target_user_id?: string; target_name?: string;
   metadata?: Record<string, unknown>;
 }) {
-  supabase.from("audit_logs" as any).insert({
+  supabase.from("audit_logs").insert({
     actor_id: entry.actor_id,
     actor_name: entry.actor_name,
     action: entry.action,

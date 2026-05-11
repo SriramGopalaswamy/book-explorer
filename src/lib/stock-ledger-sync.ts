@@ -36,7 +36,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
   let itemRateMap: Map<string, number> = new Map();
   if (uniqueItemIds.length > 0) {
     const { data: itemData } = await supabase
-      .from("items" as any)
+      .from("items")
       .select("id, purchase_price, selling_price")
       .in("id", uniqueItemIds);
     if (itemData) {
@@ -56,7 +56,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
   for (const pair of uniquePairs) {
     const [itemId, warehouseId] = pair.split("__");
     let q = supabase
-      .from("stock_ledger" as any)
+      .from("stock_ledger")
       .select("balance_qty")
       .eq("item_id", itemId)
       .eq("warehouse_id", warehouseId);
@@ -92,7 +92,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     };
   });
 
-  const { error } = await supabase.from("stock_ledger" as any).insert(rows as any);
+  const { error } = await supabase.from("stock_ledger").insert(rows as any);
   if (error) throw error;
 
   // Update items.current_stock to reflect actual ledger balance (per item across all warehouses)
@@ -105,13 +105,13 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
     if (delta === 0) continue;
     // Fetch current stock and add delta
     const { data: itemRow } = await supabase
-      .from("items" as any)
+      .from("items")
       .select("current_stock")
       .eq("id", itemId)
       .maybeSingle();
     const currentStock = Number((itemRow as any)?.current_stock ?? 0);
     const { error: stockUpdateErr } = await supabase
-      .from("items" as any)
+      .from("items")
       .update({ current_stock: currentStock + delta } as any)
       .eq("id", itemId);
     if (stockUpdateErr) throw new Error(`Failed to update stock count for item ${itemId}: ${stockUpdateErr.message}`);
@@ -124,7 +124,7 @@ async function postStockEntries(entries: StockEntry[]): Promise<void> {
 export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<void> {
   // Fetch GR items
   const { data: grItems, error: grErr } = await supabase
-    .from("goods_receipt_items" as any)
+    .from("goods_receipt_items")
     .select("item_id, quantity_received")
     .eq("goods_receipt_id", goodsReceiptId);
   if (grErr) throw grErr;
@@ -132,7 +132,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
 
   // Fetch GR → PO → warehouse + organization_id
   const { data: gr } = await supabase
-    .from("goods_receipts" as any)
+    .from("goods_receipts")
     .select("purchase_order_id, organization_id")
     .eq("id", goodsReceiptId)
     .single();
@@ -140,7 +140,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
   const grOrgId = (gr as any).organization_id;
 
   const { data: po } = await supabase
-    .from("purchase_orders" as any)
+    .from("purchase_orders")
     .select("warehouse_id")
     .eq("id", (gr as any).purchase_order_id)
     .maybeSingle();
@@ -149,7 +149,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
   let warehouseId = (po as any)?.warehouse_id;
   if (!warehouseId && grOrgId) {
     const { data: defaultWh } = await supabase
-      .from("warehouses" as any)
+      .from("warehouses")
       .select("id")
       .eq("organization_id", grOrgId)
       .limit(1);
@@ -178,7 +178,7 @@ export async function postGoodsReceiptStock(goodsReceiptId: string): Promise<voi
  */
 export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<void> {
   const { data: dnItems, error: dnErr } = await supabase
-    .from("delivery_note_items" as any)
+    .from("delivery_note_items")
     .select("item_id, shipped_quantity")
     .eq("delivery_note_id", deliveryNoteId);
   if (dnErr) throw dnErr;
@@ -186,7 +186,7 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
 
   // Fetch DN's organization for org-scoped warehouse lookup
   const { data: dn } = await supabase
-    .from("delivery_notes" as any)
+    .from("delivery_notes")
     .select("organization_id")
     .eq("id", deliveryNoteId)
     .maybeSingle();
@@ -196,7 +196,7 @@ export async function postDeliveryNoteStock(deliveryNoteId: string): Promise<voi
   let warehouseId: string | undefined;
   if (dnOrgId) {
     const { data: defaultWh } = await supabase
-      .from("warehouses" as any)
+      .from("warehouses")
       .select("id")
       .eq("organization_id", dnOrgId)
       .limit(1);
@@ -229,7 +229,7 @@ export async function postStockTransferEntries(
   toWarehouseId: string
 ): Promise<void> {
   const { data: items, error } = await supabase
-    .from("stock_transfer_items" as any)
+    .from("stock_transfer_items")
     .select("item_id, item_name, quantity")
     .eq("transfer_id", transferId);
   if (error) throw error;
@@ -237,7 +237,7 @@ export async function postStockTransferEntries(
 
   // Fetch organization_id from the transfer record so ledger rows are org-scoped
   const { data: transfer } = await supabase
-    .from("stock_transfers" as any)
+    .from("stock_transfers")
     .select("organization_id")
     .eq("id", transferId)
     .maybeSingle();
@@ -282,7 +282,7 @@ export async function postStockTransferEntries(
 export async function consumeBOMForWorkOrder(workOrderId: string): Promise<"ok" | "no_bom"> {
   // Fetch work order details
   const { data: wo, error: woErr } = await supabase
-    .from("work_orders" as any)
+    .from("work_orders")
     .select("id, bom_id, completed_quantity, warehouse_id")
     .eq("id", workOrderId)
     .single();
@@ -292,17 +292,17 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<"ok" 
 
   // Fetch BOM lines
   const { data: lines, error: lErr } = await supabase
-    .from("bom_lines" as any)
+    .from("bom_lines")
     .select("item_id, material_name, quantity, wastage_pct")
     .eq("bom_id", woData.bom_id);
   if (lErr || !lines || lines.length === 0) return;
 
   // Resolve warehouse — org-scoped
   let warehouseId = woData.warehouse_id;
-  const { data: woFull } = await supabase.from("work_orders" as any).select("organization_id").eq("id", workOrderId).maybeSingle();
+  const { data: woFull } = await supabase.from("work_orders").select("organization_id").eq("id", workOrderId).maybeSingle();
   const woOrgId = (woFull as any)?.organization_id;
   if (!warehouseId && woOrgId) {
-    const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").eq("organization_id", woOrgId).limit(1);
+    const { data: defaultWh } = await supabase.from("warehouses").select("id").eq("organization_id", woOrgId).limit(1);
     warehouseId = (defaultWh as any)?.[0]?.id;
   }
   if (!warehouseId) return;
@@ -345,13 +345,13 @@ export async function consumeBOMForWorkOrder(workOrderId: string): Promise<"ok" 
     // Delete any existing consumption records for this WO first (prevents duplicates
     // when both useRecordProduction and consumeBOMForWorkOrder are called)
     const { error: delErr } = await supabase
-      .from("material_consumption" as any)
+      .from("material_consumption")
       .delete()
       .eq("work_order_id", workOrderId)
       .eq("organization_id", woOrgId);
     if (delErr) throw new Error(`Failed to clear existing consumption records: ${delErr.message}`);
     const { error: mcErr } = await supabase
-      .from("material_consumption" as any)
+      .from("material_consumption")
       .insert(consumptionRecords as any);
     if (mcErr) throw new Error(`Failed to write consumption records: ${mcErr.message}`);
   }
@@ -366,7 +366,7 @@ export async function checkReorderAlerts(organizationId: string): Promise<
 > {
   // Get items with reorder_level set
   const { data: items, error: iErr } = await supabase
-    .from("items" as any)
+    .from("items")
     .select("id, name, reorder_level")
     .eq("organization_id", organizationId)
     .gt("reorder_level", 0);
@@ -375,7 +375,7 @@ export async function checkReorderAlerts(organizationId: string): Promise<
   // Batch: fetch ALL stock ledger entries for the org in one query (eliminates N+1)
   const itemIds = (items as any[]).map((i: any) => i.id);
   const { data: allLedger } = await supabase
-    .from("stock_ledger" as any)
+    .from("stock_ledger")
     .select("item_id, quantity")
     .eq("organization_id", organizationId)
     .in("item_id", itemIds);

@@ -50,7 +50,7 @@ export function usePaymentReceipts() {
     queryKey: ["payment-receipts", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("payment_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("payment_receipts").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PaymentReceipt[];
     },
@@ -93,7 +93,7 @@ export function useCreatePaymentReceipt() {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
       const num = `REC-${Date.now().toString(36).toUpperCase()}`;
-      const { error } = await supabase.from("payment_receipts" as any).insert({
+      const { error } = await supabase.from("payment_receipts").insert({
         receipt_number: num,
         customer_name: r.customer_name.trim(),
         customer_id: r.customer_id || null,
@@ -129,7 +129,7 @@ export function useVendorPayments() {
     queryKey: ["vendor-payments", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("vendor_payments" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("vendor_payments").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as VendorPayment[];
     },
@@ -172,7 +172,7 @@ export function useCreateVendorPayment() {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
       const num = `VPAY-${Date.now().toString(36).toUpperCase()}`;
-      const { error } = await supabase.from("vendor_payments" as any).insert({
+      const { error } = await supabase.from("vendor_payments").insert({
         payment_number: num,
         vendor_name: p.vendor_name.trim(),
         vendor_id: p.vendor_id || null,

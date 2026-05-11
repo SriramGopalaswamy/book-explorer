@@ -82,7 +82,7 @@ function useBrandingInfo(userId: string | undefined, organizationId: string | un
       }
       const [{ data: compliance }, { data: org }] = await Promise.all([
         supabase
-          .from("organization_compliance" as any)
+          .from("organization_compliance")
           .select("brand_color, legal_name, registered_address, state, pincode")
           .eq("organization_id", orgId)
           .maybeSingle(),

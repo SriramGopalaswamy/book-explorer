@@ -32,7 +32,7 @@ function useUpdateAdjustmentStatus() {
       if (!orgId) throw new Error("No organization found");
       const VALID = ["draft", "approved", "posted", "cancelled"];
       if (!VALID.includes(status)) throw new Error(`Invalid status: ${status}`);
-      const { error } = await supabase.from("stock_adjustments" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
+      const { error } = await supabase.from("stock_adjustments").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-adjustments"] }); toast.success("Status updated"); },
@@ -49,7 +49,7 @@ function useDeleteAdjustment() {
       if (!user) throw new Error("Not authenticated");
       const orgId = orgData?.organizationId;
       if (!orgId) throw new Error("No organization found");
-      const { data: deleted, error } = await supabase.from("stock_adjustments" as any).delete().eq("id", id).eq("organization_id", orgId).select("id");
+      const { data: deleted, error } = await supabase.from("stock_adjustments").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0)
         throw new Error("Adjustment not found or could not be deleted. You may not have permission.");

@@ -177,7 +177,7 @@ function SandboxContentInner() {
     queryFn: async () => {
       if (!selectedOrg) return [];
       const { data, error } = await supabase
-        .from("sandbox_invite_links" as any)
+        .from("sandbox_invite_links")
         .select("*")
         .eq("sandbox_org_id", selectedOrg)
         .eq("is_active", true)
@@ -309,7 +309,7 @@ function SandboxContentInner() {
   const generateLink = useMutation({
     mutationFn: async (orgId: string) => {
       const { data, error } = await supabase
-        .from("sandbox_invite_links" as any)
+        .from("sandbox_invite_links")
         .insert({
           sandbox_org_id: orgId,
           created_by: user?.id,
@@ -335,7 +335,7 @@ function SandboxContentInner() {
   const revokeLink = useMutation({
     mutationFn: async (linkId: string) => {
       const { error } = await supabase
-        .from("sandbox_invite_links" as any)
+        .from("sandbox_invite_links")
         .update({ is_active: false })
         .eq("id", linkId);
       if (error) throw error;

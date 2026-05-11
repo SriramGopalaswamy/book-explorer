@@ -43,7 +43,7 @@ export default function ExchangeRatesPage() {
   const { data: allCurrencies = [], isLoading: allCurLoading } = useQuery({
     queryKey: ["currencies-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("currencies" as any).select("*").order("code");
+      const { data, error } = await supabase.from("currencies").select("*").order("code");
       if (error) throw error;
       return (data || []) as unknown as import("@/hooks/useCurrencyAndFiling").Currency[];
     },
@@ -59,7 +59,7 @@ export default function ExchangeRatesPage() {
   const toggleCurrency = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { data, error } = await supabase
-        .from("currencies" as any)
+        .from("currencies")
         .update({ is_active: !is_active })
         .eq("id", id)
         .select();

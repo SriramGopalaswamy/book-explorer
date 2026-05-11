@@ -141,7 +141,7 @@ export default function PurchaseOrders() {
     setEditingPO(po);
     setEditForm({ vendor_name: po.vendor_name, order_date: po.order_date, expected_delivery: po.expected_delivery || "", notes: po.notes || "" });
     // Fetch PO items
-    const { data: poItems } = await supabase.from("purchase_order_items" as any).select("*").eq("purchase_order_id", po.id);
+    const { data: poItems } = await supabase.from("purchase_order_items").select("*").eq("purchase_order_id", po.id);
     if (poItems && (poItems as any[]).length > 0) {
       setEditItems((poItems as any[]).map((i: any) => ({ description: i.description, quantity: i.quantity, unit_price: i.unit_price, tax_rate: i.tax_rate || 0 })));
     } else {
@@ -158,7 +158,7 @@ export default function PurchaseOrders() {
       const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
 
-      const { error } = await supabase.from("purchase_orders" as any).update({
+      const { error } = await supabase.from("purchase_orders").update({
         vendor_name: editForm.vendor_name,
         order_date: editForm.order_date,
         expected_delivery: editForm.expected_delivery || null,
@@ -170,10 +170,10 @@ export default function PurchaseOrders() {
       if (error) throw error;
 
       // Delete and re-insert items
-      await supabase.from("purchase_order_items" as any).delete().eq("purchase_order_id", editingPO.id);
+      await supabase.from("purchase_order_items").delete().eq("purchase_order_id", editingPO.id);
       const validItems = editItems.filter(i => i.description.trim());
       if (validItems.length > 0) {
-        const { error: itemErr } = await supabase.from("purchase_order_items" as any).insert(
+        const { error: itemErr } = await supabase.from("purchase_order_items").insert(
           validItems.map(i => ({
             purchase_order_id: editingPO.id,
             description: i.description,
@@ -200,7 +200,7 @@ export default function PurchaseOrders() {
 
   const openViewDialog = async (po: PurchaseOrder) => {
     setViewingPO(po);
-    const { data: poItems } = await supabase.from("purchase_order_items" as any).select("*").eq("purchase_order_id", po.id);
+    const { data: poItems } = await supabase.from("purchase_order_items").select("*").eq("purchase_order_id", po.id);
     setViewPOItems((poItems as any[]) || []);
   };
 

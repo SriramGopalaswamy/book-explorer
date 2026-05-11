@@ -120,7 +120,7 @@ export default function BillOfMaterials() {
     setEditingBom(r);
     setEditForm({ product_name: r.product_name, notes: r.notes || "" });
     // Load existing lines
-    const { data: existingLines } = await supabase.from("bom_lines" as any).select("*").eq("bom_id", r.id).order("sort_order");
+    const { data: existingLines } = await supabase.from("bom_lines").select("*").eq("bom_id", r.id).order("sort_order");
     if (existingLines && existingLines.length > 0) {
       setEditLines((existingLines as any[]).map((l: any) => ({ material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct || 0, est_cost: l.est_cost || 0 })));
     } else {
@@ -134,14 +134,14 @@ export default function BillOfMaterials() {
     if (!orgId) { toast.error("Organization not found"); return; }
     setSavingEdit(true);
     try {
-      const { error } = await supabase.from("bill_of_materials" as any).update({ product_name: editForm.product_name.trim(), notes: editForm.notes || null, updated_at: new Date().toISOString() } as any).eq("id", editingBom.id).eq("organization_id", orgId);
+      const { error } = await supabase.from("bill_of_materials").update({ product_name: editForm.product_name.trim(), notes: editForm.notes || null, updated_at: new Date().toISOString() } as any).eq("id", editingBom.id).eq("organization_id", orgId);
       if (error) throw error;
       // Delete old lines and re-insert
-      await supabase.from("bom_lines" as any).delete().eq("bom_id", editingBom.id);
+      await supabase.from("bom_lines").delete().eq("bom_id", editingBom.id);
       const validLines = editLines.filter(l => l.material_name.trim());
       if (validLines.length > 0) {
         const lines = validLines.map((l, i) => ({ bom_id: editingBom.id, material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, est_cost: l.est_cost || 0, sort_order: i }));
-        const { error: lErr } = await supabase.from("bom_lines" as any).insert(lines as any);
+        const { error: lErr } = await supabase.from("bom_lines").insert(lines as any);
         if (lErr) throw lErr;
       }
       toast.success("BOM updated");

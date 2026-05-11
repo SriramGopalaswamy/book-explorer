@@ -16,6 +16,8 @@ interface MaterialConsumption {
   actual_quantity: number;
   wastage_quantity: number;
   consumed_at: string;
+  // GBC-24: surfaced via the embedded join below (work_orders!work_order_id)
+  work_orders?: { wo_number: string | null; status: string | null } | null;
 }
 
 export default function MaterialConsumptionPage() {
@@ -26,7 +28,12 @@ export default function MaterialConsumptionPage() {
     queryKey: ["material-consumption", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("material_consumption" as any).select("*").eq("organization_id", orgId).order("consumed_at", { ascending: false });
+      // GBC-24: join work_orders so the Work Order # column has data.
+      const { data, error } = await supabase
+        .from("material_consumption")
+        .select("*, work_orders!work_order_id(wo_number, status)")
+        .eq("organization_id", orgId)
+        .order("consumed_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as MaterialConsumption[];
     },
@@ -38,6 +45,16 @@ export default function MaterialConsumptionPage() {
   const totalWastage = records.reduce((s, r) => s + Number(r.wastage_quantity), 0);
 
   const columns: Column<MaterialConsumption>[] = [
+    {
+      key: "work_order_id",
+      header: "Work Order #",
+      render: (r) =>
+        r.work_orders?.wo_number ? (
+          <span className="font-mono text-sm text-foreground">{r.work_orders.wo_number}</span>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        ),
+    },
     { key: "material_name", header: "Material", render: (r) => <span className="font-semibold text-foreground">{r.material_name}</span> },
     { key: "planned_quantity", header: "Planned Qty", render: (r) => Number(r.planned_quantity).toLocaleString() },
     { key: "actual_quantity", header: "Actual Qty", render: (r) => <span className="font-semibold text-foreground">{Number(r.actual_quantity).toLocaleString()}</span> },

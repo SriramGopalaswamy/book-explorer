@@ -87,7 +87,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
     queryKey: ["audit-logs", orgId, JSON.stringify(filters), page, pageSize],
     queryFn: async () => {
       let query = supabase
-        .from("audit_logs" as any)
+        .from("audit_logs")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
@@ -117,7 +117,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
       // avoid pulling the entire audit log on every render. For deeper history
       // counts, build a server-side aggregate view.
       let actorsQuery = supabase
-        .from("audit_logs" as any)
+        .from("audit_logs")
         .select("actor_id")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
@@ -143,49 +143,11 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
   });
 }
 
-// Helper: write an audit log entry from the client
-export function useWriteAuditLog() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (entry: {
-      action: string;
-      entity_type: string;
-      entity_id?: string;
-      actor_name?: string;
-      actor_role?: string;
-      target_user_id?: string;
-      target_name?: string;
-      metadata?: Record<string, unknown>;
-    }) => {
-      if (!user) throw new Error("Not authenticated");
-
-      // Validate required fields
-      if (!entry.action?.trim()) throw new Error("Audit action is required");
-      if (!entry.entity_type?.trim()) throw new Error("Entity type is required");
-
-      // Sanitize string fields to prevent injection via ilike filters
-      const sanitize = (s?: string) => s?.replace(/[%_]/g, "").trim().slice(0, 500);
-
-      // Sanitize metadata — deep-clone to prevent prototype pollution
-      const sanitizedMetadata = entry.metadata ? JSON.parse(JSON.stringify(entry.metadata)) : {};
-
-      const { error } = await supabase.from("audit_logs" as any).insert({
-        actor_id: user.id,
-        actor_name: sanitize(entry.actor_name) ?? user.user_metadata?.full_name ?? user.email ?? "Unknown",
-        actor_role: sanitize(entry.actor_role) ?? null,
-        action: entry.action.trim(),
-        entity_type: entry.entity_type.trim(),
-        entity_id: entry.entity_id ?? null,
-        target_user_id: entry.target_user_id ?? null,
-        target_name: sanitize(entry.target_name) ?? null,
-        metadata: sanitizedMetadata,
-      } as any);
-      if (error) console.warn("Audit log write failed:", error.message);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
-    },
-  });
-}
+// GBC-16: useWriteAuditLog was removed in 2026-05-08 audit close-out.
+// Audit log entries are written exclusively by database triggers (AFTER
+// INSERT/UPDATE/DELETE on source tables). A client-writable hook is
+// tamperable via DevTools and breaks the forensic integrity guarantee.
+// If a future caller needs to log a custom action, add a SECURITY DEFINER
+// server-side RPC for that specific action — do NOT re-introduce a
+// generic client-callable audit insert. No call sites existed at the
+// time of removal.

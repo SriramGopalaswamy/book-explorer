@@ -109,41 +109,21 @@ export default function Expenses() {
   const markPaidMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      // Update expense status to paid
-      const { error } = await supabase.from("expenses").update({ status: "paid", reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq("id", id).eq("organization_id", orgId);
+      // GBC-37: route through the atomic SECURITY DEFINER RPC.
+      // mark_expense_paid runs the status flip + bank_transactions insert
+      // in one transaction; bank_account_id null means the RPC resolves
+      // the org's first-active bank account internally.
+      // Note: the legacy `financial_records` direct insert (which lived
+      // here pre-audit) was a "legacy" path — the modern trigger-derived
+      // sync (trg_sync_financial_records) populates financial_records
+      // from journal_lines, so direct inserts here would conflict.
+      const { error } = await (supabase as any).rpc("mark_expense_paid", {
+        p_expense_id: id,
+        p_payment_method: "bank_transfer",
+        p_bank_account_id: null,
+        p_reference: id.slice(0, 8),
+      });
       if (error) throw error;
-
-      // Fetch the expense details to create a financial_records entry
-      const { data: expense, error: fetchErr } = await supabase.from("expenses").select("*").eq("id", id).eq("organization_id", orgId).single();
-      if (fetchErr || !expense) {
-        console.warn("Could not fetch expense to sync to financial_records:", fetchErr);
-        return;
-      }
-
-      // Create corresponding entry in financial_records so it shows in Accounting
-      const { error: frError } = await supabase.from("financial_records").insert({
-        type: "expense",
-        category: expense.category,
-        amount: Number(expense.amount),
-        description: expense.description || `Expense: ${expense.category}`,
-        record_date: expense.expense_date,
-        user_id: user!.id,
-        organization_id: orgId,
-      });
-      if (frError) console.warn("Failed to sync expense to financial_records:", frError);
-
-      // Auto-create bank transaction (debit/money out)
-      const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-      await createBankTransaction({
-        userId: user!.id,
-        amount: Number(expense.amount),
-        type: "debit",
-        description: `Expense paid: ${expense.category}${expense.description ? ` — ${expense.description}` : ""}`,
-        reference: id.slice(0, 8),
-        category: expense.category,
-        date: expense.expense_date,
-        organizationId: orgId,
-      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses-all"] });
