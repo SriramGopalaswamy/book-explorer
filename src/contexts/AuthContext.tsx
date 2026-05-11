@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // session-context cache (which used to leave the user with empty roles).
         // Visible in the in-app Session Diagnostics panel (Ctrl+Shift+D).
         const willClearCache =
-          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid);
+          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid) || event === "TOKEN_REFRESHED" || event === "USER_UPDATED";
         // eslint-disable-next-line no-console
         console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
 
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === "SIGNED_OUT") {
           clearAllSessionContext();
           queryClient.clear();
-        } else if (event === "SIGNED_IN" && newUid) {
+        } else if (newUid && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
           clearAllSessionContext();
           queryClient.invalidateQueries({ queryKey: ["session-context", newUid] });
         }
