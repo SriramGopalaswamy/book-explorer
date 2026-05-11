@@ -1,6 +1,7 @@
 # GBC-5: No centralised global store (Zustand/Redux)
 
-**Severity:** Low · **Category:** Cross-cutting — Frontend Architecture · **Status:** needs-input
+**Severity:** Low · **Category:** Cross-cutting — Frontend Architecture · **Status:** closed (wontfix — architectural by design)
+**Closed:** 2026-05-11 — React Query is the de-facto global store; adding Zustand/Redux would duplicate it. Any specific cross-module staleness bugs surface as their own Jira tickets with concrete reproduction steps; the "build an invalidation matrix" prophylactic work is not warranted absent evidence of real user-visible staleness.
 **Branch:** `claude/execute-code-prompt-txEjJ` · **Jira:** https://grx10.atlassian.net/browse/GBC-5
 
 ## Root cause
