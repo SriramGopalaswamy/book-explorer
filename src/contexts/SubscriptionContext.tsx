@@ -24,12 +24,12 @@ const SubscriptionContext = createContext<SubscriptionState>({
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading, isError } = useSessionContext();
+  const { data, isLoading, isFetching, isError } = useSessionContext();
 
   const state = useMemo<SubscriptionState>(() => {
     const degraded = isSessionContextDegraded(data);
 
-    if ((isLoading && !data) || degraded) {
+    if ((isLoading && !data) || (degraded && isFetching)) {
       return {
         needsActivation: false,
         readOnlyMode: false,
@@ -90,7 +90,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       organizationId: orgId,
       enabledModules: subscription?.enabled_modules ?? null,
     };
-  }, [data, isLoading, isError]);
+  }, [data, isLoading, isFetching, isError]);
 
   return (
     <SubscriptionContext.Provider value={state}>
