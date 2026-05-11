@@ -19,43 +19,79 @@ export interface GLAccountBalance {
 }
 
 export interface TrialBalanceRow {
+  account_id?: string;
   code: string;
   name: string;
   account_type: string;
   debit: number;
   credit: number;
+  balance?: number;
 }
 
 const ALL_TIME_FROM = "2000-01-01";
 const getAllTimeTo = () => new Date().toISOString().split("T")[0];
 
 /**
- * Trial Balance via get_trial_balance RPC
+ * GBC-53: Trial Balance via the canonical `trial_balance(p_as_of)` RPC.
+ * The RPC is org-scoped server-side via get_user_organization_id(auth.uid())
+ * so no p_org_id is needed. The hook still takes an optional orgId for
+ * queryKey tenancy.
  */
-export const useTrialBalance = (_organizationId?: string) => {
+export const useTrialBalance = (_organizationId?: string, asOf?: string) => {
   const { user } = useAuth();
   const { data: org } = useUserOrganization();
   const orgId = _organizationId || org?.organizationId;
+  const asOfDate = asOf || getAllTimeTo();
 
   return useQuery({
-    queryKey: ["rpc-trial-balance", orgId],
+    queryKey: ["rpc-trial-balance", orgId, asOfDate],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.rpc("get_trial_balance", {
-        p_org_id: orgId,
-        p_from: ALL_TIME_FROM,
-        p_to: getAllTimeTo(),
-      });
+      const { data, error } = await supabase.rpc("trial_balance", { p_as_of: asOfDate });
       if (error) throw error;
       return (data || []).map((r: any) => ({
+        account_id: r.account_id,
         code: r.account_code,
         name: r.account_name,
         account_type: r.account_type,
-        debit: Number(r.total_debit),
-        credit: Number(r.total_credit),
+        debit: Number(r.debit_total),
+        credit: Number(r.credit_total),
+        balance: Number(r.balance),
       })) as TrialBalanceRow[];
     },
     enabled: !!user && !!orgId,
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
+/**
+ * GBC-32: Server-side balance for a single GL account.
+ * Returns total debits / credits / net balance as of `asOf` (default today).
+ */
+export const useGLAccountBalance = (accountId: string | null, asOf?: string) => {
+  const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+  const asOfDate = asOf || getAllTimeTo();
+
+  return useQuery({
+    queryKey: ["rpc-gl-account-balance", orgId, accountId, asOfDate],
+    queryFn: async () => {
+      if (!accountId) return null;
+      const { data, error } = await supabase.rpc("gl_account_balance", {
+        p_account_id: accountId,
+        p_as_of: asOfDate,
+      });
+      if (error) throw error;
+      const row = (data || [])[0];
+      if (!row) return { debit_total: 0, credit_total: 0, balance: 0 };
+      return {
+        debit_total: Number(row.debit_total),
+        credit_total: Number(row.credit_total),
+        balance: Number(row.balance),
+      };
+    },
+    enabled: !!user && !!orgId && !!accountId,
     staleTime: 1000 * 60 * 5,
   });
 };

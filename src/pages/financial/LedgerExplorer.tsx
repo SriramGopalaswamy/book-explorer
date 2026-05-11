@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
 import { useGLAccounts, useJournalEntries, type GLAccount, type JournalEntryWithLines } from "@/hooks/useLedger";
+import { useGLAccountBalance } from "@/hooks/useCanonicalViews";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
@@ -30,6 +31,12 @@ export default function LedgerExplorer() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntryWithLines | null>(null);
+
+  // GBC-32: server-side balance for the selected account (covers all
+  // postings, not just the latest 200 entries fetched client-side).
+  const { data: serverBalance, isLoading: loadingBalance } = useGLAccountBalance(
+    selectedAccount === "all" ? null : selectedAccount,
+  );
 
   // Compute running balance per account
   const accountLedger = useMemo(() => {
@@ -183,6 +190,37 @@ export default function LedgerExplorer() {
                       <Button variant="ghost" size="sm" onClick={() => setSelectedAccount("all")}>← All Accounts</Button>
                       <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       <span className="font-semibold">{accounts.find(a => a.id === selectedAccount)?.code} — {accounts.find(a => a.id === selectedAccount)?.name}</span>
+                    </div>
+                  </div>
+
+                  {/* GBC-32: authoritative balance from gl_account_balance RPC.
+                      The per-row running balance below is client-side over the
+                      latest 200 entries and may not reflect older history. */}
+                  <div className="px-6 py-3 border-b bg-card flex flex-wrap items-baseline gap-x-8 gap-y-1">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total debits</p>
+                      <p className="font-mono text-sm">
+                        {loadingBalance ? "…" : formatAmount(serverBalance?.debit_total ?? 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total credits</p>
+                      <p className="font-mono text-sm">
+                        {loadingBalance ? "…" : formatAmount(serverBalance?.credit_total ?? 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net balance (as of today)</p>
+                      <p className="font-mono text-base font-semibold">
+                        {loadingBalance
+                          ? "…"
+                          : (() => {
+                              const acct = accounts.find(a => a.id === selectedAccount);
+                              const raw = serverBalance?.balance ?? 0;
+                              const signed = acct?.normal_balance === "credit" ? -raw : raw;
+                              return formatAmount(signed);
+                            })()}
+                      </p>
                     </div>
                   </div>
                   <Table>

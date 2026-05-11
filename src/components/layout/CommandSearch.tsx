@@ -65,6 +65,13 @@ import {
 } from "lucide-react";
 import { useCurrentRole } from "@/hooks/useRoles";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import {
+  useSearchDocumentsMulti,
+  moduleToRoute,
+  moduleLabel,
+  RPC_SUPPORTED_MODULES,
+  type SearchModule,
+} from "@/hooks/useSearchDocuments";
 
 interface SearchItem {
   name: string;
@@ -193,6 +200,21 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // GBC-31: live search over operational records (customers, vendors,
+  // items, invoices, bills) via the search_documents RPC. We debounce
+  // the input so we don't fire 5 RPCs on every keystroke.
+  const [rawQuery, setRawQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(rawQuery), 250);
+    return () => clearTimeout(id);
+  }, [rawQuery]);
+  const records = useSearchDocumentsMulti(debouncedQuery, {
+    limit: 5,
+    modules: RPC_SUPPORTED_MODULES,
+    minQueryLength: 2,
+  });
+
   // Close on click outside
   useEffect(() => {
     if (!open) return;
@@ -280,6 +302,18 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
     [navigate, setOpen]
   );
 
+  // GBC-31: record hits navigate to the relevant list page with a `?q=`
+  // hint that list pages can pick up to pre-filter (no list page consumes
+  // this yet — follow-up work).
+  const handleRecordSelect = useCallback(
+    (module: SearchModule, label: string) => {
+      setOpen(false);
+      const params = new URLSearchParams({ q: label });
+      navigate(`${moduleToRoute(module)}?${params.toString()}`);
+    },
+    [navigate, setOpen]
+  );
+
   if (!open) return null;
 
   return (
@@ -287,10 +321,50 @@ export function CommandSearch({ open, setOpen }: { open: boolean; setOpen: (v: b
       ref={containerRef}
       className="absolute top-0 right-0 w-80 z-50 rounded-xl border bg-popover shadow-lg overflow-hidden"
     >
-      <Command className="rounded-xl">
-        <CommandInput placeholder="Search menus…" autoFocus />
-        <CommandList className="max-h-72">
-          <CommandEmpty>No results found.</CommandEmpty>
+      <Command
+        className="rounded-xl"
+        // GBC-31: cmdk's built-in client-side filter would hide our
+        // server-fetched record hits (whose `value` is the record id).
+        // We do our own filtering via `value` strings on each item.
+        shouldFilter={true}
+      >
+        <CommandInput
+          placeholder="Search menus or records…"
+          autoFocus
+          value={rawQuery}
+          onValueChange={setRawQuery}
+        />
+        <CommandList className="max-h-96">
+          <CommandEmpty>
+            {records.isLoading && records.enabled ? "Searching…" : "No results found."}
+          </CommandEmpty>
+
+          {/* GBC-31: server-side record hits, grouped by module */}
+          {records.enabled &&
+            RPC_SUPPORTED_MODULES.map((m) => {
+              const hits = records.byModule[m] ?? [];
+              if (hits.length === 0) return null;
+              return (
+                <CommandGroup key={`records-${m}`} heading={moduleLabel(m)}>
+                  {hits.map((hit) => (
+                    <CommandItem
+                      key={`${m}:${hit.id}`}
+                      value={`${m} ${hit.label} ${hit.sublabel ?? ""}`}
+                      onSelect={() => handleRecordSelect(m, hit.label)}
+                      className="gap-3 cursor-pointer"
+                    >
+                      <span className="flex-1 truncate">
+                        <span className="font-medium">{hit.label}</span>
+                        {hit.sublabel && (
+                          <span className="text-muted-foreground ml-2 text-xs">{hit.sublabel}</span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            })}
+
           {Object.entries(grouped).map(([section, items]) => (
             <CommandGroup key={section} heading={section}>
               {items.map((item) => {
