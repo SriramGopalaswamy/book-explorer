@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { authTrace, authTraceReset } from "@/lib/auth-trace";
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
