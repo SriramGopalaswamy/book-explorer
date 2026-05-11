@@ -115,10 +115,10 @@ export function clearAllSessionContext() {
  * `refetchOnWindowFocus` is disabled to prevent the historical refetch
  * storm that left pages stuck in `loading=true`.
  */
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+async function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
-    p.then(
+    Promise.resolve(p).then(
       (v) => {
         clearTimeout(t);
         resolve(v);
