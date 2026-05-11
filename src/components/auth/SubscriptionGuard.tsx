@@ -9,24 +9,29 @@ const MAX_LOADING_MS = 8000; // 8 seconds hard cap — never hang longer
 // Maps URL path prefixes to the module name stored in subscriptions.enabled_modules.
 // If a path prefix matches and the module is NOT in enabled_modules, access is denied.
 // Paths not listed here are always accessible (dashboard, profile, etc.).
+// Module names are compared case-insensitively because the DB stores them
+// lowercase (e.g. "financial", "hrms") while older code referenced uppercase
+// constants. Normalize on read so we never accidentally bounce a paid user
+// to the activation page over a casing mismatch.
 const MODULE_PATH_MAP: [string, string][] = [
-  ["/financial", "FINANCIAL"],
-  ["/inventory", "INVENTORY"],
-  ["/manufacturing", "MANUFACTURING"],
-  ["/procurement", "PROCUREMENT"],
-  ["/sales", "SALES"],
-  ["/warehouse", "WAREHOUSE"],
-  ["/hrms", "HRMS"],
-  ["/performance", "PERFORMANCE"],
-  ["/connectors", "FINANCIAL"], // Connectors are part of the financial suite
+  ["/financial", "financial"],
+  ["/inventory", "inventory"],
+  ["/manufacturing", "manufacturing"],
+  ["/procurement", "procurement"],
+  ["/sales", "sales"],
+  ["/warehouse", "warehouse"],
+  ["/hrms", "hrms"],
+  ["/performance", "performance"],
+  ["/connectors", "financial"], // Connectors are part of the financial suite
 ];
 
 function isModuleAllowed(pathname: string, enabledModules: string[] | null): boolean {
   // null means no restriction (plan includes everything or not yet loaded)
   if (!enabledModules || enabledModules.length === 0) return true;
+  const normalized = enabledModules.map((m) => m.toLowerCase());
   for (const [prefix, moduleName] of MODULE_PATH_MAP) {
     if (pathname.startsWith(prefix)) {
-      return enabledModules.includes(moduleName);
+      return normalized.includes(moduleName);
     }
   }
   return true; // core pages (/, /profile, etc.) always allowed
