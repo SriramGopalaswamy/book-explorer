@@ -1732,6 +1732,7 @@ export type Database = {
           id: string
           metadata: Json | null
           organization_id: string
+          search_vector: unknown
           target_name: string | null
           target_user_id: string | null
         }
@@ -1746,6 +1747,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           organization_id?: string
+          search_vector?: unknown
           target_name?: string | null
           target_user_id?: string | null
         }
@@ -1760,6 +1762,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           organization_id?: string
+          search_vector?: unknown
           target_name?: string | null
           target_user_id?: string | null
         }
@@ -2035,6 +2038,7 @@ export type Database = {
           reconciled: boolean | null
           reconciled_at: string | null
           reference: string | null
+          search_vector: unknown
           transaction_date: string
           transaction_type: string
           user_id: string
@@ -2057,6 +2061,7 @@ export type Database = {
           reconciled?: boolean | null
           reconciled_at?: string | null
           reference?: string | null
+          search_vector?: unknown
           transaction_date?: string
           transaction_type: string
           user_id: string
@@ -2079,6 +2084,7 @@ export type Database = {
           reconciled?: boolean | null
           reconciled_at?: string | null
           reference?: string | null
+          search_vector?: unknown
           transaction_date?: string
           transaction_type?: string
           user_id?: string
@@ -2275,6 +2281,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           purchase_order_id: string | null
+          search_vector: unknown
           status: string
           tax_amount: number
           tds_rate: number | null
@@ -2303,6 +2310,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
+          search_vector?: unknown
           status?: string
           tax_amount?: number
           tds_rate?: number | null
@@ -2331,6 +2339,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
+          search_vector?: unknown
           status?: string
           tax_amount?: number
           tds_rate?: number | null
@@ -4481,6 +4490,7 @@ export type Database = {
           product_name: string | null
           quantity: number | null
           sales_order_id: string | null
+          search_vector: unknown
           sgst_rate: number | null
           status: string
           sub_supply_type: string | null
@@ -4536,6 +4546,7 @@ export type Database = {
           product_name?: string | null
           quantity?: number | null
           sales_order_id?: string | null
+          search_vector?: unknown
           sgst_rate?: number | null
           status?: string
           sub_supply_type?: string | null
@@ -4591,6 +4602,7 @@ export type Database = {
           product_name?: string | null
           quantity?: number | null
           sales_order_id?: string | null
+          search_vector?: unknown
           sgst_rate?: number | null
           status?: string
           sub_supply_type?: string | null
@@ -6327,6 +6339,7 @@ export type Database = {
           payment_terms: string | null
           place_of_supply: string | null
           sales_order_id: string | null
+          search_vector: unknown
           sgst_total: number
           signed_pdf_path: string | null
           signing_completed_at: string | null
@@ -6364,6 +6377,7 @@ export type Database = {
           payment_terms?: string | null
           place_of_supply?: string | null
           sales_order_id?: string | null
+          search_vector?: unknown
           sgst_total?: number
           signed_pdf_path?: string | null
           signing_completed_at?: string | null
@@ -6401,6 +6415,7 @@ export type Database = {
           payment_terms?: string | null
           place_of_supply?: string | null
           sales_order_id?: string | null
+          search_vector?: unknown
           sgst_total?: number
           signed_pdf_path?: string | null
           signing_completed_at?: string | null
@@ -6632,6 +6647,7 @@ export type Database = {
           organization_id: string
           posted_at: string
           reversed_entry_id: string | null
+          search_vector: unknown
           source_id: string | null
           source_type: string
           status: string
@@ -6652,6 +6668,7 @@ export type Database = {
           organization_id: string
           posted_at?: string
           reversed_entry_id?: string | null
+          search_vector?: unknown
           source_id?: string | null
           source_type: string
           status?: string
@@ -6672,6 +6689,7 @@ export type Database = {
           organization_id?: string
           posted_at?: string
           reversed_entry_id?: string | null
+          search_vector?: unknown
           source_id?: string | null
           source_type?: string
           status?: string
@@ -9877,6 +9895,7 @@ export type Database = {
           order_date: string
           organization_id: string
           quote_id: string | null
+          search_vector: unknown
           so_number: string
           status: string
           subtotal: number
@@ -9901,6 +9920,7 @@ export type Database = {
           order_date?: string
           organization_id: string
           quote_id?: string | null
+          search_vector?: unknown
           so_number: string
           status?: string
           subtotal?: number
@@ -9925,6 +9945,7 @@ export type Database = {
           order_date?: string
           organization_id?: string
           quote_id?: string | null
+          search_vector?: unknown
           so_number?: string
           status?: string
           subtotal?: number
@@ -10867,6 +10888,7 @@ export type Database = {
           rate: number
           reference_id: string | null
           reference_type: string | null
+          search_vector: unknown
           serial_no: string | null
           transaction_type: string
           value: number
@@ -10887,6 +10909,7 @@ export type Database = {
           rate?: number
           reference_id?: string | null
           reference_type?: string | null
+          search_vector?: unknown
           serial_no?: string | null
           transaction_type: string
           value?: number
@@ -10907,6 +10930,7 @@ export type Database = {
           rate?: number
           reference_id?: string | null
           reference_type?: string | null
+          search_vector?: unknown
           serial_no?: string | null
           transaction_type?: string
           value?: number
