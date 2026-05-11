@@ -1284,10 +1284,13 @@ export type Database = {
           data_reference: Json | null
           deviation_pct: number | null
           id: string
+          is_stale: boolean
           last_year_value: number | null
           organization_id: string
           risk_score: number
           run_id: string
+          stale_marked_at: string | null
+          stale_reason: string | null
           suggested_audit_action: string | null
           theme_id: string | null
           trigger_condition: string
@@ -1300,10 +1303,13 @@ export type Database = {
           data_reference?: Json | null
           deviation_pct?: number | null
           id?: string
+          is_stale?: boolean
           last_year_value?: number | null
           organization_id: string
           risk_score?: number
           run_id: string
+          stale_marked_at?: string | null
+          stale_reason?: string | null
           suggested_audit_action?: string | null
           theme_id?: string | null
           trigger_condition: string
@@ -1316,10 +1322,13 @@ export type Database = {
           data_reference?: Json | null
           deviation_pct?: number | null
           id?: string
+          is_stale?: boolean
           last_year_value?: number | null
           organization_id?: string
           risk_score?: number
           run_id?: string
+          stale_marked_at?: string | null
+          stale_reason?: string | null
           suggested_audit_action?: string | null
           theme_id?: string | null
           trigger_condition?: string
@@ -4719,6 +4728,7 @@ export type Database = {
           type: string
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
           account_code?: string | null
@@ -4746,6 +4756,7 @@ export type Database = {
           type: string
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
           account_code?: string | null
@@ -4773,6 +4784,7 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -6257,6 +6269,7 @@ export type Database = {
           uom_id: string | null
           updated_at: string
           valuation_method: string
+          version: number
         }
         Insert: {
           barcode?: string | null
@@ -6284,6 +6297,7 @@ export type Database = {
           uom_id?: string | null
           updated_at?: string
           valuation_method?: string
+          version?: number
         }
         Update: {
           barcode?: string | null
@@ -6311,6 +6325,7 @@ export type Database = {
           uom_id?: string | null
           updated_at?: string
           valuation_method?: string
+          version?: number
         }
         Relationships: [
           {
@@ -8516,6 +8531,7 @@ export type Database = {
           status: string | null
           updated_at: string
           user_id: string
+          version: number
         }
         Insert: {
           archived_at?: string | null
@@ -8548,6 +8564,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id: string
+          version?: number
         }
         Update: {
           archived_at?: string | null
@@ -8580,6 +8597,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -9307,6 +9325,62 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_jobs: {
+        Row: {
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          organization_id: string
+          page_count: number | null
+          params: Json
+          progress_pct: number
+          report_type: string
+          started_at: string | null
+          status: string
+          storage_path: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          page_count?: number | null
+          params?: Json
+          progress_pct?: number
+          report_type: string
+          started_at?: string | null
+          status?: string
+          storage_path?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          page_count?: number | null
+          params?: Json
+          progress_pct?: number
+          report_type?: string
+          started_at?: string | null
+          status?: string
+          storage_path?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -10272,6 +10346,67 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_adjustment_lines: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          notes: string | null
+          organization_id: string
+          quantity_delta: number
+          reason_code: string | null
+          stock_adjustment_id: string
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          notes?: string | null
+          organization_id: string
+          quantity_delta: number
+          reason_code?: string | null
+          stock_adjustment_id: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          notes?: string | null
+          organization_id?: string
+          quantity_delta?: number
+          reason_code?: string | null
+          stock_adjustment_id?: string
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_adjustment_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_adjustment_lines_stock_adjustment_id_fkey"
+            columns: ["stock_adjustment_id"]
+            isOneToOne: false
+            referencedRelation: "stock_adjustments"
             referencedColumns: ["id"]
           },
         ]
@@ -11404,6 +11539,44 @@ export type Database = {
           },
         ]
       }
+      workflow_drafts: {
+        Row: {
+          created_at: string
+          definition: Json
+          id: string
+          last_saved_at: string
+          name: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          definition: Json
+          id?: string
+          last_saved_at?: string
+          name: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          definition?: Json
+          id?: string
+          last_saved_at?: string
+          name?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_events: {
         Row: {
           created_at: string
@@ -11919,6 +12092,20 @@ export type Database = {
       }
     }
     Functions: {
+      _resolve_default_bank_account: {
+        Args: { p_org_id: string }
+        Returns: string
+      }
+      approve_reimbursement: {
+        Args: {
+          p_bank_account_id?: string
+          p_category?: string
+          p_finance_notes?: string
+          p_reference?: string
+          p_reimbursement_id: string
+        }
+        Returns: string
+      }
       cash_flow_summary: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -11961,6 +12148,10 @@ export type Database = {
         }
       }
       cleanup_stale_sessions: { Args: never; Returns: undefined }
+      clear_audit_anomaly_stale: {
+        Args: { p_anomaly_id: string }
+        Returns: string
+      }
       clear_sandbox_impersonation: { Args: never; Returns: undefined }
       close_fiscal_period: {
         Args: { _org_id: string; _period_id: string }
@@ -11969,6 +12160,10 @@ export type Database = {
       complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
+      convert_quote_to_invoice: {
+        Args: { p_due_date?: string; p_quote_id: string }
+        Returns: string
+      }
       create_bill_with_lines: {
         Args: { p_header: Json; p_lines: Json }
         Returns: string
@@ -11989,6 +12184,10 @@ export type Database = {
         Args: { _auto_reset?: boolean; _name: string }
         Returns: string
       }
+      create_stock_adjustment_with_lines: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
       delete_sandbox_org: { Args: { _org_id: string }; Returns: undefined }
       emergency_unlock_record: {
         Args: { p_reason?: string; p_record_id: string; p_table_name: string }
@@ -11997,6 +12196,14 @@ export type Database = {
       enqueue_job: {
         Args: { p_module: string; p_payload?: Json }
         Returns: string
+      }
+      enqueue_report_job: {
+        Args: { p_params?: Json; p_report_type: string }
+        Returns: string
+      }
+      fn_mark_audit_anomalies_stale: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: number
       }
       fn_refresh_financial_records_mv: { Args: never; Returns: undefined }
       fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
@@ -12227,6 +12434,24 @@ export type Database = {
         Args: { _sandbox_user_id: string; _token: string }
         Returns: Json
       }
+      mark_expense_paid: {
+        Args: {
+          p_bank_account_id?: string
+          p_expense_id: string
+          p_payment_method: string
+          p_reference?: string
+        }
+        Returns: string
+      }
+      mark_report_job_failed: {
+        Args: { p_error: string; p_id: string }
+        Returns: undefined
+      }
+      mark_report_job_running: { Args: { p_id: string }; Returns: undefined }
+      mark_report_job_succeeded: {
+        Args: { p_id: string; p_page_count: number; p_storage_path: string }
+        Returns: undefined
+      }
       migrate_legacy_payroll_to_engine: {
         Args: { p_org_id?: string; p_user_id?: string }
         Returns: Json
@@ -12316,6 +12541,28 @@ export type Database = {
         }
         Returns: string
       }
+      record_payment_receipt: {
+        Args: {
+          p_amount: number
+          p_bank_account_id?: string
+          p_invoice_id: string
+          p_payment_date?: string
+          p_payment_method: string
+          p_reference?: string
+        }
+        Returns: string
+      }
+      record_vendor_payment: {
+        Args: {
+          p_amount: number
+          p_bank_account_id?: string
+          p_bill_id: string
+          p_payment_date?: string
+          p_payment_method: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       redeem_subscription_key: {
         Args: { _org_id: string; _passkey: string }
         Returns: Json
@@ -12343,6 +12590,10 @@ export type Database = {
       sandbox_force_reset_tables: {
         Args: { _org_id: string }
         Returns: undefined
+      }
+      save_workflow_draft: {
+        Args: { p_definition: Json; p_name: string }
+        Returns: string
       }
       search_documents: {
         Args: {
@@ -12381,6 +12632,21 @@ export type Database = {
           debit_total: number
         }[]
       }
+      unrealized_fx_pnl: {
+        Args: { p_as_of?: string }
+        Returns: {
+          currency_code: string
+          net_unrealized: number
+          payable_foreign: number
+          payable_inr_at_as_of: number
+          payable_inr_at_booking: number
+          payable_unrealized: number
+          receivable_foreign: number
+          receivable_inr_at_as_of: number
+          receivable_inr_at_booking: number
+          receivable_unrealized: number
+        }[]
+      }
       update_bill_with_lines: {
         Args: {
           p_bill_id: string
@@ -12407,6 +12673,19 @@ export type Database = {
           p_po_id: string
         }
         Returns: string
+      }
+      update_purchase_return_with_lines: {
+        Args: {
+          p_expected_version?: number
+          p_header: Json
+          p_lines: Json
+          p_return_id: string
+        }
+        Returns: string
+      }
+      update_report_job_progress: {
+        Args: { p_id: string; p_pct: number }
+        Returns: undefined
       }
       update_sales_order_with_lines: {
         Args: {
