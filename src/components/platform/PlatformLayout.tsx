@@ -8,7 +8,7 @@ import {
   ChevronLeft,
   FlaskConical,
 } from "lucide-react";
-import grx10Logo from "@/assets/grx10-logo.svg";
+import grx10Logo from "@/assets/grx10-logo.webp";
 import { PlatformOrgBanner } from "./PlatformOrgBanner";
 
 const platformNav = [
