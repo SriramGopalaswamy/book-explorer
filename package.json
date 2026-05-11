@@ -20,7 +20,8 @@
     "backend:start": "cd backend && npm start",
     "supabase:seed": "node scripts/seed-supabase.cjs",
     "seed:all": "npm run backend:seed && npm run supabase:seed",
-    "postinstall": "test -d backend && npm run backend:install || echo 'Skipping backend install (not needed for Lovable deployment)'"
+    "postinstall": "test -d backend && npm run backend:install || echo 'Skipping backend install (not needed for Lovable deployment)'",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -85,6 +86,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@faker-js/faker": "^10.3.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
