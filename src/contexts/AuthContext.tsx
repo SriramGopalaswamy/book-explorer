@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,12 +22,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         const newUid = newSession?.user?.id ?? null;
+        const previousUid = currentUserIdRef.current;
+        currentUserIdRef.current = newUid;
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setLoading(false);
@@ -42,10 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // storm of session-context refetches that aborted each other, leaving
         // the page stuck on "Loading…" with empty roles/orgId. Roles and org
         // membership cannot change via token refresh, so the cache stays valid.
+        // Also avoid clearing on repeated SIGNED_IN events for the same user —
+        // the auth client may emit them on tab focus/session recovery.
         if (event === "SIGNED_OUT") {
           clearAllSessionContext();
           queryClient.clear();
-        } else if (event === "SIGNED_IN" && newUid) {
+        } else if (event === "SIGNED_IN" && newUid && previousUid !== newUid) {
           clearAllSessionContext();
           queryClient.invalidateQueries({ queryKey: ["session-context", newUid] });
         }
@@ -54,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      currentUserIdRef.current = session?.user?.id ?? null;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -160,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearClientSessionArtifacts();
     clearAllSessionContext();
     queryClient.clear();
+    currentUserIdRef.current = null;
     setSession(null);
     setUser(null);
     setLoading(false);
