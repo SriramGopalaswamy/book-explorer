@@ -13,7 +13,7 @@
 export type AuthTraceEvent = {
   ts: number;            // epoch ms
   rel: number;           // ms since first event in this session
-  scope: "ms365" | "subscription" | "session";
+  scope: "ms365" | "subscription" | "session" | "roles-ready-gate" | "auth";
   type: string;          // short event name
   data?: Record<string, unknown>;
 };
