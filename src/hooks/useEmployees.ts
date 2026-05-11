@@ -156,6 +156,8 @@ export function useEmployees() {
           }
         }
 
+        // eslint-disable-next-line no-console
+        console.log("[useEmployees] done", { ms: Math.round(performance.now() - t0), count: employees.length });
         return employees;
       }
 
