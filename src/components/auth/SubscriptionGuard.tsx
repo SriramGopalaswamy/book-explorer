@@ -79,13 +79,42 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     exemptPaths.some((p) => location.pathname.startsWith(p)) ||
     location.pathname.startsWith("/platform");
 
-  if (isExempt) return <>{children}</>;
+  // Trace every decision once per path/state change so the bounce path
+  // (/x → /subscription/activate) leaves a breadcrumb trail in the console
+  // and in window.__authTrace.
+  const lastDecisionRef = useRef<string>("");
+  const decide = (decision: string, extra?: Record<string, unknown>) => {
+    const key = `${location.pathname}|${decision}|${loading}|${saLoading}|${timedOut}|${isSuperAdmin}|${needsActivation}|${onboardingRequired}|${(enabledModules ?? []).join(",")}`;
+    if (lastDecisionRef.current !== key) {
+      lastDecisionRef.current = key;
+      authTrace("subscription", decision, {
+        path: location.pathname,
+        loading,
+        saLoading,
+        timedOut,
+        isSuperAdmin: !!isSuperAdmin,
+        needsActivation,
+        onboardingRequired,
+        enabledModules,
+        ...extra,
+      });
+    }
+  };
+
+  if (isExempt) {
+    decide("allow:exempt");
+    return <>{children}</>;
+  }
 
   // Super admins ALWAYS bypass — check first, even while still loading
-  if (isSuperAdmin) return <>{children}</>;
+  if (isSuperAdmin) {
+    decide("allow:super_admin");
+    return <>{children}</>;
+  }
 
   // Still loading but haven't timed out yet — show spinner
   if ((loading || saLoading) && !timedOut) {
+    decide("wait:loading");
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -98,23 +127,31 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   // If timed out, allow access rather than blocking
   if (timedOut) {
+    decide("allow:timeout");
     console.warn("SubscriptionGuard: timed out after", MAX_LOADING_MS, "ms — allowing access");
     return <>{children}</>;
   }
 
   if (needsActivation) {
+    decide("redirect:activate:needs_activation");
     return <Navigate to="/subscription/activate" replace />;
   }
 
   if (onboardingRequired) {
+    decide("redirect:onboarding");
     return <Navigate to="/onboarding" replace />;
   }
 
   // Module-level gating: if this org's plan doesn't include the module for this path,
   // redirect to activation so they can upgrade. Only enforced once subscription is loaded.
   if (!loading && !isModuleAllowed(location.pathname, enabledModules)) {
+    decide("redirect:activate:module_blocked", {
+      matchedPrefix: MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[0],
+      requiredModule: MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[1],
+    });
     return <Navigate to="/subscription/activate" replace state={{ moduleRequired: true, from: location.pathname }} />;
   }
 
+  decide("allow:ok");
   return <>{children}</>;
 }
