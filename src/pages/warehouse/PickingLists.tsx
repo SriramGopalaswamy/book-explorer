@@ -205,6 +205,7 @@ export default function PickingLists() {
       await supabase.from("picking_list_items").insert(
         validItems.map((it) => ({
           picking_list_id: editList.id,
+          organization_id: orgId,
           item_id: it.item_id || null,
           item_name: it.item_name,
           required_quantity: it.quantity,
