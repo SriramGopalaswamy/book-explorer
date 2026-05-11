@@ -45,6 +45,7 @@ export default function CADashboard() {
 
   const periodsPagination = usePagination(periods, 10);
   const overridesPagination = usePagination(overrides, 10);
+  const trialBalancePagination = usePagination(trialBalance, 20);
 
   if (checkingRole) return <MainLayout title="CA Dashboard"><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-6 w-6 animate-spin" /></div></MainLayout>;
   if (!hasAccess) return <AccessDenied message="Finance Access Required" description="You need finance or admin role." />;
@@ -121,6 +122,7 @@ export default function CADashboard() {
         <Tabs defaultValue="reconciliation" className="space-y-4">
           <TabsList>
             <TabsTrigger value="reconciliation">Sub-ledger Reconciliation</TabsTrigger>
+            <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
             <TabsTrigger value="periods">Period Close</TabsTrigger>
             <TabsTrigger value="overrides">Control Overrides</TabsTrigger>
             <TabsTrigger value="anomalies">Anomalies</TabsTrigger>
@@ -169,6 +171,70 @@ export default function CADashboard() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* GBC-53: Trial Balance Tab — sourced from trial_balance(p_as_of) RPC */}
+          <TabsContent value="trial-balance" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Trial Balance</h3>
+                <p className="text-xs text-muted-foreground">Every GL account, as of today, sourced from <code>trial_balance</code> RPC over <code>journal_lines</code></p>
+              </div>
+              <Badge variant="outline" className={tbBalanced ? "text-emerald-700 border-emerald-300" : "text-destructive border-destructive"}>
+                {tbBalanced ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                {tbBalanced ? "Balanced" : "Mismatch"}
+              </Badge>
+            </div>
+            <div className="rounded-xl border bg-card">
+              {trialBalance.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">No accounts yet.</div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Debit</TableHead>
+                        <TableHead className="text-right">Credit</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {trialBalancePagination.paginatedItems.map((r) => (
+                        <TableRow key={r.account_id ?? r.code}>
+                          <TableCell className="font-mono text-xs">{r.code}</TableCell>
+                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs capitalize">{r.account_type}</Badge></TableCell>
+                          <TableCell className="text-right font-mono">{r.debit > 0 ? formatAmount(r.debit) : "—"}</TableCell>
+                          <TableCell className="text-right font-mono">{r.credit > 0 ? formatAmount(r.credit) : "—"}</TableCell>
+                          <TableCell className="text-right font-mono font-semibold">{formatAmount(r.balance ?? r.debit - r.credit)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell colSpan={3}>Total</TableCell>
+                        <TableCell className="text-right font-mono">{formatAmount(trialBalance.reduce((s, r) => s + r.debit, 0))}</TableCell>
+                        <TableCell className="text-right font-mono">{formatAmount(trialBalance.reduce((s, r) => s + r.credit, 0))}</TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                  <div className="p-4">
+                    <TablePagination
+                      page={trialBalancePagination.page}
+                      totalPages={trialBalancePagination.totalPages}
+                      totalItems={trialBalancePagination.totalItems}
+                      from={trialBalancePagination.from}
+                      to={trialBalancePagination.to}
+                      pageSize={trialBalancePagination.pageSize}
+                      onPageChange={trialBalancePagination.setPage}
+                      onPageSizeChange={(s) => { trialBalancePagination.setPageSize(s); trialBalancePagination.setPage(1); }}
+                    />
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>
