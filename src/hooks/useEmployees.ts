@@ -97,6 +97,9 @@ export function useEmployees() {
     // while the KPI (which doesn't depend on the role hook) showed 49.
     queryKey: ["employees", user?.id, isDevMode, orgId],
     queryFn: async () => {
+      // eslint-disable-next-line no-console
+      console.log("[useEmployees] start", { orgId, hasUser: !!user, isDevMode });
+      const t0 = performance.now();
       if (isDevMode) return mockEmployees;
       if (!user) return [];
       // HARD GUARD: Never query profiles without org scope — prevents cross-tenant data bleed
@@ -112,6 +115,8 @@ export function useEmployees() {
         .order("full_name", { ascending: true })
         .limit(500);
       if (!error && data) {
+        // eslint-disable-next-line no-console
+        console.log("[useEmployees] profiles loaded", { ms: Math.round(performance.now() - t0), count: data.length });
         const employees = data as unknown as Employee[];
 
         // Fix stale on_leave statuses: check if employee actually has an approved leave covering today
@@ -151,6 +156,8 @@ export function useEmployees() {
           }
         }
 
+        // eslint-disable-next-line no-console
+        console.log("[useEmployees] done", { ms: Math.round(performance.now() - t0), count: employees.length });
         return employees;
       }
 
