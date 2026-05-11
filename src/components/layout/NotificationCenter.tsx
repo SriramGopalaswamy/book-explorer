@@ -94,21 +94,44 @@ export function NotificationCenter() {
   } = useNotifications();
 
   const prevUnreadRef = useRef(unreadCount);
+  const hasUserGestureRef = useRef(false);
+
+  // Track whether the user has interacted with the page. AudioContext can
+  // only be started after a user gesture, so we suppress the chime until then
+  // to avoid noisy "AudioContext was not allowed to start" console warnings.
+  useEffect(() => {
+    const markGesture = () => {
+      hasUserGestureRef.current = true;
+      window.removeEventListener("pointerdown", markGesture);
+      window.removeEventListener("keydown", markGesture);
+    };
+    window.addEventListener("pointerdown", markGesture, { once: true });
+    window.addEventListener("keydown", markGesture, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", markGesture);
+      window.removeEventListener("keydown", markGesture);
+    };
+  }, []);
 
   useEffect(() => {
-    if (unreadCount > prevUnreadRef.current) {
+    if (unreadCount > prevUnreadRef.current && hasUserGestureRef.current) {
       try {
         const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
+        if (ctx.state === "suspended") {
+          // Browser still blocks — bail silently.
+          ctx.close().catch(() => {});
+        } else {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 880;
+          osc.type = "sine";
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+        }
       } catch {
         // Ignore audio errors
       }
