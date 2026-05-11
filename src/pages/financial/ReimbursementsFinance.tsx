@@ -154,85 +154,28 @@ export default function ReimbursementsFinance() {
     }
   };
 
-  // Finance approves: record as expense, mark paid
+  // Finance approves: route through the atomic SECURITY DEFINER RPC.
+  // GBC-39: approve_reimbursement runs reimbursement-status flip +
+  // expense creation + bank_transaction insert in one transaction. The
+  // bank account is auto-resolved to the org's first-active when null.
+  // Replaces the previous 3-step browser-driven chain with manual
+  // rollbacks; the legacy direct financial_records insert is gone
+  // (trigger trg_sync_financial_records derives FR rows from journal_lines).
   const handleApprove = async () => {
     if (!approveDialog || !user) return;
     setSubmitting(true);
     try {
       const category = classifyCategory || approveDialog.category || "Other";
-      const orgId = approveDialog.organization_id;
-
-      // 1. Create expense record in HRMS expenses table
-      const { data: expense, error: expErr } = await supabase
-        .from("expenses")
-        .insert({
-          user_id: approveDialog.user_id,
-          organization_id: orgId,
-          amount: approveDialog.amount,
-          category,
-          description: `[Reimbursement] ${approveDialog.vendor_name} — ${approveDialog.description || ""}`,
-          expense_date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
-          status: "approved",
-          notes: `Approved reimbursement for ${approveDialog.profiles?.full_name || "employee"}. ${financeNotes || ""}`,
-        })
-        .select()
-        .single();
-
-      if (expErr) throw expErr;
-
-      // 2. Also record as a financial_records expense so it appears in the Accounting module
-      const { data: frData, error: frErr } = await supabase
-        .from("financial_records")
-        .insert({
-          user_id: approveDialog.user_id,
-          organization_id: orgId,
-          type: "expense",
-          category,
-          amount: approveDialog.amount,
-          description: `[Reimbursement] ${approveDialog.vendor_name}${approveDialog.profiles?.full_name ? ` (${approveDialog.profiles.full_name})` : ""} — ${approveDialog.description || ""}`,
-          record_date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
-        })
-        .select("id")
-        .single();
-
-      if (frErr) {
-        // financial_records failure is fatal — roll back the expense record and abort
-        await supabase.from("expenses").delete().eq("id", expense.id);
-        throw new Error(`Accounting sync failed: ${frErr.message}. Approval rolled back.`);
-      }
-
-      // 3. Update reimbursement status to paid
-      const { error: updErr } = await supabase
-        .from("reimbursement_requests")
-        .update({
-          status: "paid",
-          finance_notes: financeNotes || null,
-          expense_id: expense.id,
-          finance_reviewed_at: new Date().toISOString(),
-          finance_reviewed_by: user.id,
-        })
-        .eq("id", approveDialog.id);
-
-      if (updErr) {
-        // Roll back both expense and the specific financial_records row by captured ID
-        await supabase.from("expenses").delete().eq("id", expense.id);
-        if (frData?.id) await supabase.from("financial_records").delete().eq("id", frData.id);
-        throw updErr;
-      }
-
-      // Auto-create bank transaction (debit/money out)
-      const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-      await createBankTransaction({
-        userId: user.id,
-        amount: Number(approveDialog.amount),
-        type: "debit",
-        description: `Reimbursement paid: ${approveDialog.vendor_name} — ${approveDialog.profiles?.full_name || "employee"}`,
-        reference: approveDialog.id.slice(0, 8),
-        category: category,
-        date: approveDialog.expense_date || new Date().toISOString().split("T")[0],
+      const { error } = await (supabase as any).rpc("approve_reimbursement", {
+        p_reimbursement_id: approveDialog.id,
+        p_bank_account_id: null, // RPC resolves the org's first-active bank account
+        p_reference: approveDialog.id.slice(0, 8),
+        p_finance_notes: financeNotes || null,
+        p_category: category,
       });
+      if (error) throw error;
 
-      // Notify
+      // Notify (best-effort — failure here does not roll back the approval)
       supabase.functions.invoke("send-notification-email", {
         body: {
           type: "reimbursement_finance_decided",

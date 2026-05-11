@@ -102,37 +102,43 @@ export default function PurchaseReturnsPage() {
     setEditOpen(true);
   };
 
+  // GBC-61: route the edit through the atomic SECURITY DEFINER RPC.
+  // update_purchase_return_with_lines runs the header update + DELETE-all
+  // children + re-INSERT children inside one transaction. The old flow
+  // was three sequential supabase.from(...) calls; a network drop between
+  // the header update and the items-delete left the return with phantom
+  // line items, and a drop between delete and insert wiped the children
+  // entirely ("vanishing items" bug from the audit).
   const handleEditSave = async () => {
     if (!editingReturn || !orgId || editSaving) return;
     setEditSaving(true);
     try {
       const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
-      const { error } = await supabase.from("purchase_returns" as any).update({
-        vendor_name: editForm.vendor_name,
-        return_date: editForm.return_date,
-        reason: editForm.reason || null,
-        notes: editForm.notes || null,
-        subtotal,
-        tax_amount: taxAmount,
-        total_amount: subtotal + taxAmount,
-      } as any).eq("id", editingReturn.id).eq("organization_id", orgId);
-      if (error) { toast.error(error.message); return; }
-      await supabase.from("purchase_return_items" as any).delete().eq("purchase_return_id", editingReturn.id);
       const valid = editItems.filter(i => i.description.trim());
-      if (valid.length > 0) {
-        await supabase.from("purchase_return_items" as any).insert(
-          valid.map(i => ({
-            purchase_return_id: editingReturn.id,
-            description: i.description,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            tax_rate: i.tax_rate,
-            amount: i.quantity * i.unit_price * (1 + i.tax_rate / 100),
-            reason: i.reason || null,
-          }))
-        );
-      }
+
+      const { error } = await (supabase as any).rpc("update_purchase_return_with_lines", {
+        p_return_id: editingReturn.id,
+        p_header: {
+          vendor_name: editForm.vendor_name,
+          return_date: editForm.return_date,
+          reason: editForm.reason || null,
+          notes: editForm.notes || null,
+          subtotal: String(subtotal),
+          tax_amount: String(taxAmount),
+          total_amount: String(subtotal + taxAmount),
+        },
+        p_lines: valid.map(i => ({
+          description: i.description,
+          quantity: String(i.quantity),
+          unit_price: String(i.unit_price),
+          tax_rate: String(i.tax_rate),
+          amount: String(i.quantity * i.unit_price * (1 + i.tax_rate / 100)),
+          reason: i.reason || null,
+        })),
+        p_expected_version: null,
+      });
+      if (error) { toast.error(error.message); return; }
       await queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
       toast.success("Purchase return updated");
       setEditOpen(false);
