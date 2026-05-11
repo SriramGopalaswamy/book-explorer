@@ -615,6 +615,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "asset_depreciation_entries_financial_record_id_fkey"
+            columns: ["financial_record_id"]
+            isOneToOne: false
+            referencedRelation: "v_financial_records_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fk_ade_org"
             columns: ["organization_id"]
             isOneToOne: false
@@ -782,10 +789,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "assets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "assets_bill_id_fkey"
             columns: ["bill_id"]
             isOneToOne: false
             referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
             referencedColumns: ["id"]
           },
           {
@@ -890,6 +911,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_correction_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fk_acr_org"
             columns: ["organization_id"]
             isOneToOne: false
@@ -980,6 +1008,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
           {
@@ -1092,6 +1127,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attendance_punches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       attendance_records: {
@@ -1161,6 +1203,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
           {
@@ -1976,8 +2025,10 @@ export type Database = {
           amount: number
           category: string | null
           created_at: string
+          deleted_at: string | null
           description: string
           id: string
+          is_deleted: boolean
           is_duplicate_flag: boolean | null
           organization_id: string
           reconcile_status: string | null
@@ -1996,8 +2047,10 @@ export type Database = {
           amount: number
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           description: string
           id?: string
+          is_deleted?: boolean
           is_duplicate_flag?: boolean | null
           organization_id?: string
           reconcile_status?: string | null
@@ -2016,8 +2069,10 @@ export type Database = {
           amount?: number
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string
           id?: string
+          is_deleted?: boolean
           is_duplicate_flag?: boolean | null
           organization_id?: string
           reconcile_status?: string | null
@@ -2136,6 +2191,13 @@ export type Database = {
             referencedRelation: "bills"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bill_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bill_of_materials: {
@@ -2204,10 +2266,12 @@ export type Database = {
           bill_number: string
           created_at: string
           currency_code: string | null
+          deleted_at: string | null
           due_date: string | null
           exchange_rate: number | null
           goods_receipt_id: string | null
           id: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           purchase_order_id: string | null
@@ -2230,10 +2294,12 @@ export type Database = {
           bill_number: string
           created_at?: string
           currency_code?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -2256,10 +2322,12 @@ export type Database = {
           bill_number?: string
           created_at?: string
           currency_code?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           exchange_rate?: number | null
           goods_receipt_id?: string | null
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           purchase_order_id?: string | null
@@ -2551,9 +2619,11 @@ export type Database = {
           account_type: string
           created_at: string
           current_balance: number
+          deleted_at: string | null
           description: string | null
           id: string
           is_active: boolean
+          is_deleted: boolean
           opening_balance: number
           organization_id: string
           parent_id: string | null
@@ -2566,9 +2636,11 @@ export type Database = {
           account_type: string
           created_at?: string
           current_balance?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
+          is_deleted?: boolean
           opening_balance?: number
           organization_id?: string
           parent_id?: string | null
@@ -2581,9 +2653,11 @@ export type Database = {
           account_type?: string
           created_at?: string
           current_balance?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
+          is_deleted?: boolean
           opening_balance?: number
           organization_id?: string
           parent_id?: string | null
@@ -2603,6 +2677,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_chart_of_accounts_active"
             referencedColumns: ["id"]
           },
           {
@@ -2745,6 +2826,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       compensation_structures: {
@@ -2820,6 +2908,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -2980,6 +3075,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ledger_base"
             referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "control_account_overrides_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_journal_entries_active"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "control_account_overrides_organization_id_fkey"
@@ -3194,6 +3296,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
             referencedColumns: ["id"]
           },
           {
@@ -3914,6 +4023,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "e_invoices_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "e_invoices_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4018,6 +4134,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_code_mappings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -4142,6 +4265,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "employee_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       employee_documents: {
@@ -4214,6 +4344,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -4294,6 +4431,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
           {
@@ -4487,6 +4631,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "eway_bills_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "eway_bills_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4552,10 +4703,12 @@ export type Database = {
           category: string
           created_at: string
           currency_code: string
+          deleted_at: string | null
           description: string | null
           exchange_rate: number
           expense_date: string
           id: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           profile_id: string | null
@@ -4573,10 +4726,12 @@ export type Database = {
           category: string
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number
           expense_date?: string
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4594,10 +4749,12 @@ export type Database = {
           category?: string
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number
           expense_date?: string
           id?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           profile_id?: string | null
@@ -4637,6 +4794,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
           {
@@ -4710,10 +4874,12 @@ export type Database = {
           credit: number
           currency_code: string | null
           debit: number
+          deleted_at: string | null
           description: string | null
           exchange_rate: number | null
           id: string
           ind_as_category: string | null
+          is_deleted: boolean
           is_posted: boolean
           journal_entry_id: string | null
           memo: string | null
@@ -4738,10 +4904,12 @@ export type Database = {
           credit?: number
           currency_code?: string | null
           debit?: number
+          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number | null
           id?: string
           ind_as_category?: string | null
+          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -4766,10 +4934,12 @@ export type Database = {
           credit?: number
           currency_code?: string | null
           debit?: number
+          deleted_at?: string | null
           description?: string | null
           exchange_rate?: number | null
           id?: string
           ind_as_category?: string | null
+          is_deleted?: boolean
           is_posted?: boolean
           journal_entry_id?: string | null
           memo?: string | null
@@ -5044,6 +5214,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "form16_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       gl_accounts: {
@@ -5239,6 +5416,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_plans_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -5929,6 +6113,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "investment_declarations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       invoice_items: {
@@ -5937,12 +6128,14 @@ export type Database = {
           cgst_amount: number
           cgst_rate: number
           created_at: string
+          deleted_at: string | null
           description: string
           hsn_sac: string | null
           id: string
           igst_amount: number
           igst_rate: number
           invoice_id: string
+          is_deleted: boolean
           quantity: number
           rate: number
           sgst_amount: number
@@ -5953,12 +6146,14 @@ export type Database = {
           cgst_amount?: number
           cgst_rate?: number
           created_at?: string
+          deleted_at?: string | null
           description: string
           hsn_sac?: string | null
           id?: string
           igst_amount?: number
           igst_rate?: number
           invoice_id: string
+          is_deleted?: boolean
           quantity?: number
           rate: number
           sgst_amount?: number
@@ -5969,12 +6164,14 @@ export type Database = {
           cgst_amount?: number
           cgst_rate?: number
           created_at?: string
+          deleted_at?: string | null
           description?: string
           hsn_sac?: string | null
           id?: string
           igst_amount?: number
           igst_rate?: number
           invoice_id?: string
+          is_deleted?: boolean
           quantity?: number
           rate?: number
           sgst_amount?: number
@@ -5986,6 +6183,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
             referencedColumns: ["id"]
           },
         ]
@@ -6108,6 +6312,7 @@ export type Database = {
           currency_code: string | null
           customer_gstin: string | null
           customer_id: string | null
+          deleted_at: string | null
           delivery_note_id: string | null
           due_date: string
           exchange_rate: number | null
@@ -6115,6 +6320,7 @@ export type Database = {
           igst_total: number
           invoice_date: string
           invoice_number: string
+          is_deleted: boolean
           notes: string | null
           organization_id: string
           original_pdf_path: string | null
@@ -6143,6 +6349,7 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date: string
           exchange_rate?: number | null
@@ -6150,6 +6357,7 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           original_pdf_path?: string | null
@@ -6178,6 +6386,7 @@ export type Database = {
           currency_code?: string | null
           customer_gstin?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
           delivery_note_id?: string | null
           due_date?: string
           exchange_rate?: number | null
@@ -6185,6 +6394,7 @@ export type Database = {
           igst_total?: number
           invoice_date?: string
           invoice_number?: string
+          is_deleted?: boolean
           notes?: string | null
           organization_id?: string
           original_pdf_path?: string | null
@@ -6410,10 +6620,12 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           document_sequence_number: string | null
           entry_date: string
           fiscal_period_id: string | null
           id: string
+          is_deleted: boolean
           is_posted: boolean
           is_reversal: boolean
           memo: string | null
@@ -6428,10 +6640,12 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
+          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
@@ -6446,10 +6660,12 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           document_sequence_number?: string | null
           entry_date?: string
           fiscal_period_id?: string | null
           id?: string
+          is_deleted?: boolean
           is_posted?: boolean
           is_reversal?: boolean
           memo?: string | null
@@ -6496,6 +6712,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ledger_base"
             referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_journal_entries_active"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6574,6 +6797,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ledger_base"
             referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_journal_entries_active"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "journal_lines_organization_id_fkey"
@@ -6655,6 +6885,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -6745,6 +6982,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -7612,6 +7856,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_receipts_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_receipts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -7757,6 +8008,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payroll_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       payroll_events: {
@@ -7825,6 +8083,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payroll_events_entry_id_fkey"
             columns: ["entry_id"]
             isOneToOne: false
@@ -7852,9 +8117,11 @@ export type Database = {
           basic_salary: number
           created_at: string
           currency_code: string
+          deleted_at: string | null
           exchange_rate: number
           hra: number
           id: string
+          is_deleted: boolean
           is_superseded: boolean
           lop_days: number
           lop_deduction: number
@@ -7882,9 +8149,11 @@ export type Database = {
           basic_salary?: number
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           exchange_rate?: number
           hra?: number
           id?: string
+          is_deleted?: boolean
           is_superseded?: boolean
           lop_days?: number
           lop_deduction?: number
@@ -7912,9 +8181,11 @@ export type Database = {
           basic_salary?: number
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           exchange_rate?: number
           hra?: number
           id?: string
+          is_deleted?: boolean
           is_superseded?: boolean
           lop_days?: number
           lop_deduction?: number
@@ -7961,6 +8232,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payroll_records_original_record_id_fkey"
+            columns: ["original_record_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payroll_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
@@ -7982,10 +8260,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payroll_records_superseded_by_fkey"
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
             referencedColumns: ["id"]
           },
         ]
@@ -8150,6 +8442,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payslip_disputes_payroll_record_id_fkey"
+            columns: ["payroll_record_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payslip_disputes_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
@@ -8171,10 +8470,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payslip_disputes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payslip_disputes_revised_payroll_record_id_fkey"
             columns: ["revised_payroll_record_id"]
             isOneToOne: false
             referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_revised_payroll_record_id_fkey"
+            columns: ["revised_payroll_record_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
             referencedColumns: ["id"]
           },
         ]
@@ -8497,6 +8810,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profile_change_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -8505,6 +8825,7 @@ export type Database = {
           asset_return_confirmed: boolean | null
           avatar_url: string | null
           created_at: string
+          deleted_at: string | null
           department: string | null
           email: string | null
           employee_id: string | null
@@ -8515,6 +8836,7 @@ export type Database = {
           fnf_status: string | null
           full_name: string | null
           id: string
+          is_deleted: boolean
           job_title: string | null
           join_date: string | null
           knowledge_transfer_status: string | null
@@ -8538,6 +8860,7 @@ export type Database = {
           asset_return_confirmed?: boolean | null
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           department?: string | null
           email?: string | null
           employee_id?: string | null
@@ -8548,6 +8871,7 @@ export type Database = {
           fnf_status?: string | null
           full_name?: string | null
           id?: string
+          is_deleted?: boolean
           job_title?: string | null
           join_date?: string | null
           knowledge_transfer_status?: string | null
@@ -8571,6 +8895,7 @@ export type Database = {
           asset_return_confirmed?: boolean | null
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           department?: string | null
           email?: string | null
           employee_id?: string | null
@@ -8581,6 +8906,7 @@ export type Database = {
           fnf_status?: string | null
           full_name?: string | null
           id?: string
+          is_deleted?: boolean
           job_title?: string | null
           join_date?: string | null
           knowledge_transfer_status?: string | null
@@ -8629,6 +8955,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profiles_manager_signoff_by_fkey"
             columns: ["manager_signoff_by"]
             isOneToOne: false
@@ -8647,6 +8980,13 @@ export type Database = {
             columns: ["manager_signoff_by"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
           {
@@ -9116,6 +9456,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quotes_converted_invoice_id_fkey"
+            columns: ["converted_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quotes_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -9300,6 +9647,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reimbursement_requests_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "v_expenses_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "reimbursement_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -9325,6 +9679,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reimbursement_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -9823,8 +10184,10 @@ export type Database = {
           amount: number
           category: string | null
           created_at: string
+          deleted_at: string | null
           due_date: string
           id: string
+          is_deleted: boolean
           name: string
           organization_id: string
           payment_type: string
@@ -9838,8 +10201,10 @@ export type Database = {
           amount: number
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           due_date: string
           id?: string
+          is_deleted?: boolean
           name: string
           organization_id?: string
           payment_type?: string
@@ -9853,8 +10218,10 @@ export type Database = {
           amount?: number
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           due_date?: string
           id?: string
+          is_deleted?: boolean
           name?: string
           organization_id?: string
           payment_type?: string
@@ -10012,6 +10379,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shopify_invoice_map_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
             referencedColumns: ["id"]
           },
           {
@@ -11141,6 +11515,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vendor_credits_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_credits_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -11224,6 +11605,13 @@ export type Database = {
             columns: ["bill_id"]
             isOneToOne: false
             referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
             referencedColumns: ["id"]
           },
           {
@@ -11832,6 +12220,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profiles_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -11939,6 +12334,13 @@ export type Database = {
             referencedColumns: ["journal_entry_id"]
           },
           {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_journal_entries_active"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "journal_lines_gl_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
@@ -11989,6 +12391,13 @@ export type Database = {
             referencedRelation: "profiles_safe"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles_safe: {
@@ -12030,6 +12439,854 @@ export type Database = {
         }
         Relationships: []
       }
+      v_bank_transactions_active: {
+        Row: {
+          account_id: string | null
+          ai_match_id: string | null
+          ai_match_type: string | null
+          ai_suggested_category: string | null
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          id: string | null
+          is_deleted: boolean | null
+          is_duplicate_flag: boolean | null
+          organization_id: string | null
+          reconcile_status: string | null
+          reconciled: boolean | null
+          reconciled_at: string | null
+          reference: string | null
+          transaction_date: string | null
+          transaction_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          ai_match_id?: string | null
+          ai_match_type?: string | null
+          ai_suggested_category?: string | null
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_duplicate_flag?: boolean | null
+          organization_id?: string | null
+          reconcile_status?: string | null
+          reconciled?: boolean | null
+          reconciled_at?: string | null
+          reference?: string | null
+          transaction_date?: string | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          ai_match_id?: string | null
+          ai_match_type?: string | null
+          ai_suggested_category?: string | null
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_duplicate_flag?: boolean | null
+          organization_id?: string | null
+          reconcile_status?: string | null
+          reconciled?: boolean | null
+          reconciled_at?: string | null
+          reference?: string | null
+          transaction_date?: string | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bank_txn_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_bills_active: {
+        Row: {
+          ai_extracted: boolean | null
+          amount: number | null
+          attachment_url: string | null
+          bill_date: string | null
+          bill_number: string | null
+          created_at: string | null
+          currency_code: string | null
+          deleted_at: string | null
+          due_date: string | null
+          exchange_rate: number | null
+          goods_receipt_id: string | null
+          id: string | null
+          is_deleted: boolean | null
+          notes: string | null
+          organization_id: string | null
+          purchase_order_id: string | null
+          status: string | null
+          tax_amount: number | null
+          tds_rate: number | null
+          tds_section: string | null
+          total_amount: number | null
+          updated_at: string | null
+          user_id: string | null
+          vendor_id: string | null
+          vendor_name: string | null
+          version: number | null
+        }
+        Insert: {
+          ai_extracted?: boolean | null
+          amount?: number | null
+          attachment_url?: string | null
+          bill_date?: string | null
+          bill_number?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          exchange_rate?: number | null
+          goods_receipt_id?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          purchase_order_id?: string | null
+          status?: string | null
+          tax_amount?: number | null
+          tds_rate?: number | null
+          tds_section?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+          version?: number | null
+        }
+        Update: {
+          ai_extracted?: boolean | null
+          amount?: number | null
+          attachment_url?: string | null
+          bill_date?: string | null
+          bill_number?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          exchange_rate?: number | null
+          goods_receipt_id?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          purchase_order_id?: string | null
+          status?: string | null
+          tax_amount?: number | null
+          tds_rate?: number | null
+          tds_section?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_goods_receipt_id_fkey"
+            columns: ["goods_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bills_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_chart_of_accounts_active: {
+        Row: {
+          account_code: string | null
+          account_name: string | null
+          account_type: string | null
+          created_at: string | null
+          current_balance: number | null
+          deleted_at: string | null
+          description: string | null
+          id: string | null
+          is_active: boolean | null
+          is_deleted: boolean | null
+          opening_balance: number | null
+          organization_id: string | null
+          parent_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          account_code?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          created_at?: string | null
+          current_balance?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          opening_balance?: number | null
+          organization_id?: string | null
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_code?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          created_at?: string | null
+          current_balance?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          is_deleted?: boolean | null
+          opening_balance?: number | null
+          organization_id?: string | null
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_chart_of_accounts_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_coa_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_expenses_active: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          currency_code: string | null
+          deleted_at: string | null
+          description: string | null
+          exchange_rate: number | null
+          expense_date: string | null
+          id: string | null
+          is_deleted: boolean | null
+          notes: string | null
+          organization_id: string | null
+          profile_id: string | null
+          receipt_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+          version: number | null
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          exchange_rate?: number | null
+          expense_date?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          profile_id?: string | null
+          receipt_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          exchange_rate?: number | null
+          expense_date?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          profile_id?: string | null
+          receipt_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_expenses_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_financial_records_active: {
+        Row: {
+          account_code: string | null
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          credit: number | null
+          currency_code: string | null
+          debit: number | null
+          deleted_at: string | null
+          description: string | null
+          exchange_rate: number | null
+          id: string | null
+          ind_as_category: string | null
+          is_deleted: boolean | null
+          is_posted: boolean | null
+          journal_entry_id: string | null
+          memo: string | null
+          organization_id: string | null
+          performance_obligation: string | null
+          posted_at: string | null
+          posting_date: string | null
+          recognition_method: string | null
+          record_date: string | null
+          reference_id: string | null
+          reference_type: string | null
+          type: string | null
+          updated_at: string | null
+          user_id: string | null
+          version: number | null
+        }
+        Insert: {
+          account_code?: string | null
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          credit?: number | null
+          currency_code?: string | null
+          debit?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string | null
+          ind_as_category?: string | null
+          is_deleted?: boolean | null
+          is_posted?: boolean | null
+          journal_entry_id?: string | null
+          memo?: string | null
+          organization_id?: string | null
+          performance_obligation?: string | null
+          posted_at?: string | null
+          posting_date?: string | null
+          recognition_method?: string | null
+          record_date?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Update: {
+          account_code?: string | null
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          credit?: number | null
+          currency_code?: string | null
+          debit?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string | null
+          ind_as_category?: string | null
+          is_deleted?: boolean | null
+          is_posted?: boolean | null
+          journal_entry_id?: string | null
+          memo?: string | null
+          organization_id?: string | null
+          performance_obligation?: string | null
+          posted_at?: string | null
+          posting_date?: string | null
+          recognition_method?: string | null
+          record_date?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_fr_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_invoice_items_active: {
+        Row: {
+          amount: number | null
+          cgst_amount: number | null
+          cgst_rate: number | null
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          hsn_sac: string | null
+          id: string | null
+          igst_amount: number | null
+          igst_rate: number | null
+          invoice_id: string | null
+          is_deleted: boolean | null
+          quantity: number | null
+          rate: number | null
+          sgst_amount: number | null
+          sgst_rate: number | null
+        }
+        Insert: {
+          amount?: number | null
+          cgst_amount?: number | null
+          cgst_rate?: number | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          hsn_sac?: string | null
+          id?: string | null
+          igst_amount?: number | null
+          igst_rate?: number | null
+          invoice_id?: string | null
+          is_deleted?: boolean | null
+          quantity?: number | null
+          rate?: number | null
+          sgst_amount?: number | null
+          sgst_rate?: number | null
+        }
+        Update: {
+          amount?: number | null
+          cgst_amount?: number | null
+          cgst_rate?: number | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          hsn_sac?: string | null
+          id?: string | null
+          igst_amount?: number | null
+          igst_rate?: number | null
+          invoice_id?: string | null
+          is_deleted?: boolean | null
+          quantity?: number | null
+          rate?: number | null
+          sgst_amount?: number | null
+          sgst_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoices_active"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_invoices_active: {
+        Row: {
+          amount: number | null
+          cgst_total: number | null
+          client_email: string | null
+          client_name: string | null
+          created_at: string | null
+          currency_code: string | null
+          customer_gstin: string | null
+          customer_id: string | null
+          deleted_at: string | null
+          delivery_note_id: string | null
+          due_date: string | null
+          exchange_rate: number | null
+          id: string | null
+          igst_total: number | null
+          invoice_date: string | null
+          invoice_number: string | null
+          is_deleted: boolean | null
+          notes: string | null
+          organization_id: string | null
+          original_pdf_path: string | null
+          payment_terms: string | null
+          place_of_supply: string | null
+          sales_order_id: string | null
+          sgst_total: number | null
+          signed_pdf_path: string | null
+          signing_completed_at: string | null
+          signing_failure_reason: string | null
+          signing_initiated_at: string | null
+          signing_status: string | null
+          status: string | null
+          subtotal: number | null
+          total_amount: number | null
+          updated_at: string | null
+          user_id: string | null
+          version: number | null
+        }
+        Insert: {
+          amount?: number | null
+          cgst_total?: number | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          customer_gstin?: string | null
+          customer_id?: string | null
+          deleted_at?: string | null
+          delivery_note_id?: string | null
+          due_date?: string | null
+          exchange_rate?: number | null
+          id?: string | null
+          igst_total?: number | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          original_pdf_path?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
+          sales_order_id?: string | null
+          sgst_total?: number | null
+          signed_pdf_path?: string | null
+          signing_completed_at?: string | null
+          signing_failure_reason?: string | null
+          signing_initiated_at?: string | null
+          signing_status?: string | null
+          status?: string | null
+          subtotal?: number | null
+          total_amount?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Update: {
+          amount?: number | null
+          cgst_total?: number | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          currency_code?: string | null
+          customer_gstin?: string | null
+          customer_id?: string | null
+          deleted_at?: string | null
+          delivery_note_id?: string | null
+          due_date?: string | null
+          exchange_rate?: number | null
+          id?: string | null
+          igst_total?: number | null
+          invoice_date?: string | null
+          invoice_number?: string | null
+          is_deleted?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          original_pdf_path?: string | null
+          payment_terms?: string | null
+          place_of_supply?: string | null
+          sales_order_id?: string | null
+          sgst_total?: number | null
+          signed_pdf_path?: string | null
+          signing_completed_at?: string | null
+          signing_failure_reason?: string | null
+          signing_initiated_at?: string | null
+          signing_status?: string | null
+          status?: string | null
+          subtotal?: number | null
+          total_amount?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_invoices_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_journal_entries_active: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deleted_at: string | null
+          document_sequence_number: string | null
+          entry_date: string | null
+          fiscal_period_id: string | null
+          id: string | null
+          is_deleted: boolean | null
+          is_posted: boolean | null
+          is_reversal: boolean | null
+          memo: string | null
+          organization_id: string | null
+          posted_at: string | null
+          reversed_entry_id: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+          version: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deleted_at?: string | null
+          document_sequence_number?: string | null
+          entry_date?: string | null
+          fiscal_period_id?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_posted?: boolean | null
+          is_reversal?: boolean | null
+          memo?: string | null
+          organization_id?: string | null
+          posted_at?: string | null
+          reversed_entry_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          version?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deleted_at?: string | null
+          document_sequence_number?: string | null
+          entry_date?: string | null
+          fiscal_period_id?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_posted?: boolean | null
+          is_reversal?: boolean | null
+          memo?: string | null
+          organization_id?: string | null
+          posted_at?: string | null
+          reversed_entry_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_fiscal_period_id_fkey"
+            columns: ["fiscal_period_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_records_gl_mv"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_base"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_entry_id_fkey"
+            columns: ["reversed_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_journal_entries_active"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_orders_summary_by_org: {
         Row: {
           doc_count: number | null
@@ -12039,6 +13296,355 @@ export type Database = {
           total_value: number | null
         }
         Relationships: []
+      }
+      v_payroll_records_active: {
+        Row: {
+          basic_salary: number | null
+          created_at: string | null
+          currency_code: string | null
+          deleted_at: string | null
+          exchange_rate: number | null
+          hra: number | null
+          id: string | null
+          is_deleted: boolean | null
+          is_superseded: boolean | null
+          lop_days: number | null
+          lop_deduction: number | null
+          net_pay: number | null
+          notes: string | null
+          organization_id: string | null
+          original_record_id: string | null
+          other_allowances: number | null
+          other_deductions: number | null
+          paid_days: number | null
+          pay_period: string | null
+          pf_deduction: number | null
+          processed_at: string | null
+          profile_id: string | null
+          status: string | null
+          superseded_by: string | null
+          tax_deduction: number | null
+          transport_allowance: number | null
+          updated_at: string | null
+          user_id: string | null
+          version: number | null
+          working_days: number | null
+        }
+        Insert: {
+          basic_salary?: number | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          exchange_rate?: number | null
+          hra?: number | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_superseded?: boolean | null
+          lop_days?: number | null
+          lop_deduction?: number | null
+          net_pay?: number | null
+          notes?: string | null
+          organization_id?: string | null
+          original_record_id?: string | null
+          other_allowances?: number | null
+          other_deductions?: number | null
+          paid_days?: number | null
+          pay_period?: string | null
+          pf_deduction?: number | null
+          processed_at?: string | null
+          profile_id?: string | null
+          status?: string | null
+          superseded_by?: string | null
+          tax_deduction?: number | null
+          transport_allowance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+          working_days?: number | null
+        }
+        Update: {
+          basic_salary?: number | null
+          created_at?: string | null
+          currency_code?: string | null
+          deleted_at?: string | null
+          exchange_rate?: number | null
+          hra?: number | null
+          id?: string | null
+          is_deleted?: boolean | null
+          is_superseded?: boolean | null
+          lop_days?: number | null
+          lop_deduction?: number | null
+          net_pay?: number | null
+          notes?: string | null
+          organization_id?: string | null
+          original_record_id?: string | null
+          other_allowances?: number | null
+          other_deductions?: number | null
+          paid_days?: number | null
+          pay_period?: string | null
+          pf_deduction?: number | null
+          processed_at?: string | null
+          profile_id?: string | null
+          status?: string | null
+          superseded_by?: string | null
+          tax_deduction?: number | null
+          transport_allowance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+          working_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_payroll_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_original_record_id_fkey"
+            columns: ["original_record_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_original_record_id_fkey"
+            columns: ["original_record_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_records_active"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_profiles_active: {
+        Row: {
+          archived_at: string | null
+          asset_return_confirmed: boolean | null
+          avatar_url: string | null
+          created_at: string | null
+          deleted_at: string | null
+          department: string | null
+          email: string | null
+          employee_id: string | null
+          esi_eligible: boolean | null
+          exit_date: string | null
+          exit_interview_completed: boolean | null
+          exit_reason: string | null
+          fnf_status: string | null
+          full_name: string | null
+          id: string | null
+          is_deleted: boolean | null
+          job_title: string | null
+          join_date: string | null
+          knowledge_transfer_status: string | null
+          last_working_day: string | null
+          location: string | null
+          manager_id: string | null
+          manager_signoff_at: string | null
+          manager_signoff_by: string | null
+          notice_served: boolean | null
+          organization_id: string | null
+          pending_manager_email: string | null
+          phone: string | null
+          rehire_eligible: boolean | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+          version: number | null
+        }
+        Insert: {
+          archived_at?: string | null
+          asset_return_confirmed?: boolean | null
+          avatar_url?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          department?: string | null
+          email?: string | null
+          employee_id?: string | null
+          esi_eligible?: boolean | null
+          exit_date?: string | null
+          exit_interview_completed?: boolean | null
+          exit_reason?: string | null
+          fnf_status?: string | null
+          full_name?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          job_title?: string | null
+          join_date?: string | null
+          knowledge_transfer_status?: string | null
+          last_working_day?: string | null
+          location?: string | null
+          manager_id?: string | null
+          manager_signoff_at?: string | null
+          manager_signoff_by?: string | null
+          notice_served?: boolean | null
+          organization_id?: string | null
+          pending_manager_email?: string | null
+          phone?: string | null
+          rehire_eligible?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Update: {
+          archived_at?: string | null
+          asset_return_confirmed?: boolean | null
+          avatar_url?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          department?: string | null
+          email?: string | null
+          employee_id?: string | null
+          esi_eligible?: boolean | null
+          exit_date?: string | null
+          exit_interview_completed?: boolean | null
+          exit_reason?: string | null
+          fnf_status?: string | null
+          full_name?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          job_title?: string | null
+          join_date?: string | null
+          knowledge_transfer_status?: string | null
+          last_working_day?: string | null
+          location?: string | null
+          manager_id?: string | null
+          manager_signoff_at?: string | null
+          manager_signoff_by?: string | null
+          notice_served?: boolean | null
+          organization_id?: string | null
+          pending_manager_email?: string | null
+          phone?: string | null
+          rehire_eligible?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_profiles_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_purchases_summary_by_org: {
         Row: {
@@ -12083,6 +13689,75 @@ export type Database = {
           },
           {
             foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scheduled_payments_active: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          deleted_at: string | null
+          due_date: string | null
+          id: string | null
+          is_deleted: boolean | null
+          name: string | null
+          organization_id: string | null
+          payment_type: string | null
+          recurrence_interval: string | null
+          recurring: boolean | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          payment_type?: string | null
+          recurrence_interval?: string | null
+          recurring?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          name?: string | null
+          organization_id?: string | null
+          payment_type?: string | null
+          recurrence_interval?: string | null
+          recurring?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_sched_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
