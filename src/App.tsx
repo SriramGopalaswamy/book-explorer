@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { SessionTrackerProvider } from "@/components/auth/SessionTrackerProvider";
 import { UserOrgPrefetch } from "@/components/auth/UserOrgPrefetch";
+import { SessionDiagnosticsPanel } from "@/components/session/SessionDiagnosticsPanel";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
