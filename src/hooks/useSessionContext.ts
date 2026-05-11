@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { authTrace } from "@/lib/auth-trace";
 
 export interface SessionOrganization {
   id: string;
@@ -45,6 +46,10 @@ function superAdminKey(uid: string) {
   return SUPER_ADMIN_PREFIX + uid;
 }
 
+export function isSessionContextDegraded(ctx: SessionContext | null | undefined): boolean {
+  return !!ctx && !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+}
+
 /**
  * Persistent (across reloads/sign-ins) hint that a user is a super admin.
  * Used to bypass loading guards immediately on subsequent sessions before
@@ -72,15 +77,47 @@ export function readCachedSessionContext(uid: string): SessionContext | null {
   try {
     const raw = sessionStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    return JSON.parse(raw) as SessionContext;
+    const parsed = JSON.parse(raw) as SessionContext;
+    if (isSessionContextDegraded(parsed)) {
+      sessionStorage.removeItem(storageKey(uid));
+      authTrace("session", "drop_degraded_cache", {
+        uid,
+        orgId: parsed.organizationId,
+        roles: parsed.roles?.length ?? 0,
+      });
+      return null;
+    }
+    return parsed;
   } catch {
+    try {
+      sessionStorage.removeItem(storageKey(uid));
+    } catch {
+      /* ignore */
+    }
     return null;
   }
 }
 
 function writeCachedSessionContext(uid: string, ctx: SessionContext) {
   try {
+    if (isSessionContextDegraded(ctx)) {
+      sessionStorage.removeItem(storageKey(uid));
+      authTrace("session", "skip_degraded_cache", {
+        uid,
+        orgId: ctx.organizationId,
+        roles: ctx.roles.length,
+      });
+      return;
+    }
     sessionStorage.setItem(storageKey(uid), JSON.stringify(ctx));
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeCachedSessionContext(uid: string) {
+  try {
+    sessionStorage.removeItem(storageKey(uid));
   } catch {
     /* ignore */
   }
