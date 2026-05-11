@@ -596,7 +596,6 @@ export function useProfTaxData(from: string, to: string) {
   const orgId = orgData?.organizationId;
   return useQuery({
     queryKey: ["prof_tax", from, to, orgId],
-    enabled: !!orgId,
     queryFn: async () => {
       const data = await fetchDualSourceStatutoryPayroll(from, to, ["processed"]);
       return data.map((p): ProfTaxRow => {
