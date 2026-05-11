@@ -187,14 +187,13 @@ export default function Customers() {
     const phoneErr = validatePhone(form.phone, form.country);
     if (phoneErr) return toast({ title: "Invalid Phone", description: phoneErr, variant: "destructive" });
     
-    if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "GST / Tax Number is required.", variant: "destructive" });
-    
-    // GST validation: must be exactly 15 alphanumeric characters (standard GSTIN format)
-    const gstRaw = form.tax_number.trim();
-    if (!/^[A-Za-z0-9]{15}$/.test(gstRaw)) {
-      return toast({ title: "Invalid GST Number", description: "GST Number must be exactly 15 alphanumeric characters.", variant: "destructive" });
-    }
-    
+    if (!form.tax_number.trim()) return toast({ title: "Validation Error", description: "Tax Number is required.", variant: "destructive" });
+
+    // GBC-33: country-aware tax-ID validation. Strict format only for countries
+    // present in COUNTRY_TAX_CONFIG (India GSTIN, US EIN, UK VAT, etc.).
+    // For everything else validateTaxNumber returns null = accept any opaque
+    // string (free-text), so the previously-hardcoded 15-char GSTIN check that
+    // blocked international customers is removed here.
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 

@@ -1,23 +1,40 @@
-# GBC-49: E-Invoices — IRN generation is FAKE
+# GBC-49: E-Invoices — fake IRN generation
 
-**Severity:** High · **Category:** Screen Review — Financial Suite · **Status:** needs-input
+**Severity:** High · **Category:** Screen Review — Financial Suite · **Status:** parked (separate workstream)
+**Parked:** 2026-05-08 — user-confirmed not in audit scope.
 
-## Root cause
-`useEInvoices.ts` "Generate IRN" generates a random string locally:
-```
+## What's still broken (compliance gap)
+
+`src/hooks/useEInvoices.ts:167-168` generates a fake IRN with `Math.random()` instead of calling the NIC e-invoice API. Any invoice "generated" via this path is **not legally compliant** under Indian GST rules; production records carrying these fake IRNs need to be reissued through a real GSP integration.
+
+```ts
+// Simulate IRN generation (in production, this would call the NIC API via edge function)
 const irn = `IRN${Date.now()}${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 ```
-Comment in the code admits "Simulate IRN generation (in production, this would call the NIC API)". The IRN should be obtained from the NIC e-invoice API (https://einvoice1.gst.gov.in/Others/EVerifyApi). Companies treating these fake IRNs as compliant face GST penalties.
 
-## Council verdict (compressed)
-- This is a stub flagged for production. Treat as a critical compliance gap, not a code-cleanup task.
-- Implement properly: NIC OAuth handshake + invoice payload builder + IRN/QR storage. Full integration requires NIC sandbox credentials and a paid integration with an authorized GSP (GST Suvidha Provider) or the NIC API directly.
-- Until then, **disable the "Generate IRN" button** and surface a banner: "E-invoicing not configured. Configure your GSP credentials in Settings → Compliance to enable real IRN generation."
+## Why parked
 
-## Status
-needs-input — major integration work. **Severity is correct (High); urgency is now (compliance).**
+NIC e-invoice integration requires:
+1. GSP (GST Suvidha Provider) credentials with the National Informatics Centre or an authorized GSP partner (paid).
+2. A sandbox period for testing the OAuth handshake, payload schema, IRN/QR retrieval.
+3. Legal review of how to handle the existing in-production fake-IRN records (re-issue path, customer notifications).
 
-## Risks
-1. Existing fake IRNs in production data are *not* legally valid; affected invoices need to be re-issued through the proper API.
-2. Need explicit product/legal sign-off before disabling the button — companies relying on the fake flow will break.
-3. Lint/build/test could not run in this sandbox.
+None of that is in the audit's scope; it's a separate compliance workstream that needs procurement + legal sign-off before engineering can take it on.
+
+## Minimum mitigation suggested (not done in this branch)
+
+Until the real integration ships, consider disabling the "Generate IRN" button at the UI layer with a clear banner explaining the limitation. That avoids more fake IRNs leaking into production. Suggested code change:
+
+```tsx
+// src/pages/financial/EInvoices.tsx — replace the Generate IRN button with:
+<Tooltip>
+  <Button disabled>Generate IRN (NIC integration not configured)</Button>
+  <TooltipContent>
+    Configure your GSP credentials in Settings → Compliance to enable real
+    IRN generation. The previous "Generate IRN" action created randomised
+    IDs that are NOT legally valid — those invoices need to be reissued.
+  </TooltipContent>
+</Tooltip>
+```
+
+User chose to leave it as-is for now; recorded for future tracking.
