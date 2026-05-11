@@ -186,6 +186,7 @@ const App = () => (
       <AuthProvider>
         <SessionTrackerProvider />
         <UserOrgPrefetch />
+        <SessionDiagnosticsPanel />
         <SubscriptionProvider>
           <TooltipProvider>
             <Toaster />
