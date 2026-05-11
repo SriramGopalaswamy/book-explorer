@@ -33,22 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
 
         // On sign-out: drop all cached data + sessionStorage bootstrap.
-        // On sign-in / token-refresh / user-update: ALWAYS purge the cached
-        // session-context for the new uid and force a fresh bootstrap.
-        // Without this, a stale `roles=[]` / `organization_id=null` snapshot
-        // from a previous session/migration would persist forever (staleTime:
-        // Infinity) and cause non-super-admin users to silently lose access
-        // while super-admins keep working.
+        // On sign-in: purge any stale snapshot from a previous session and
+        // force a fresh bootstrap.
+        //
+        // IMPORTANT: Do NOT clear on TOKEN_REFRESHED or USER_UPDATED. The
+        // Supabase client fires TOKEN_REFRESHED periodically (every hour by
+        // default, and on every tab focus) — clearing cache there caused a
+        // storm of session-context refetches that aborted each other, leaving
+        // the page stuck on "Loading…" with empty roles/orgId. Roles and org
+        // membership cannot change via token refresh, so the cache stays valid.
         if (event === "SIGNED_OUT") {
           clearAllSessionContext();
           queryClient.clear();
-        } else if (
-          (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") &&
-          newUid
-        ) {
+        } else if (event === "SIGNED_IN" && newUid) {
           clearAllSessionContext();
           queryClient.invalidateQueries({ queryKey: ["session-context", newUid] });
-          queryClient.invalidateQueries({ queryKey: ["session-context"] });
         }
       }
     );
