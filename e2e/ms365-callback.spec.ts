@@ -206,4 +206,120 @@ test.describe("MS365 auth callback", () => {
     await expect(page).toHaveURL(/\/auth$/, { timeout: 10_000 });
     expect(exchangeCalled).toBe(false);
   });
+
+  test("post-login reload keeps session, roles, and routing", async ({ page }) => {
+    await installSupabaseStubs(page);
+
+    // --- Phase 1: complete the MS365 callback to establish a real session. ---
+    await page.goto("/auth");
+    await page.evaluate((state) => {
+      sessionStorage.setItem("ms365_oauth_state", state);
+    }, FAKE_STATE);
+
+    await page.evaluate(
+      ({ code, state }) => {
+        window.history.pushState({}, "", `/auth/callback?code=${code}&state=${state}`);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      },
+      { code: FAKE_CODE, state: FAKE_STATE },
+    );
+
+    // Wait for SPA to land on home and bootstrap session-context.
+    await expect(page).toHaveURL(/\/$|\/#/, { timeout: 15_000 });
+    await page.waitForFunction(
+      (uid) => !!sessionStorage.getItem(`grx10_session_ctx_${uid}`),
+      FAKE_USER_ID,
+      { timeout: 10_000 },
+    );
+
+    // Snapshot what supabase-js persisted to localStorage (sb-<ref>-auth-token).
+    const supabaseAuthKeyValue = await page.evaluate(() => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)!;
+        if (k.startsWith("sb-") && k.endsWith("-auth-token")) {
+          return { key: k, value: localStorage.getItem(k) };
+        }
+      }
+      return null;
+    });
+    expect(supabaseAuthKeyValue, "supabase session token must persist to localStorage").toBeTruthy();
+
+    // --- Phase 2: navigate to a protected route and hard-reload. ---
+    // Pick /financial/accounting — role-gated, requires RolesReadyGate to pass.
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/financial/accounting");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // Reset auth-trace baseline so the post-reload events stand alone.
+    const beforeReloadUrl = page.url();
+    expect(beforeReloadUrl).toContain("/financial/accounting");
+
+    let loadCount = 0;
+    page.on("load", () => {
+      loadCount += 1;
+    });
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    // After reload, exactly ONE load event fired (the reload itself).
+    expect(loadCount).toBeGreaterThanOrEqual(1);
+
+    // --- Phase 3: assert session/roles/superadmin survive the reload. ---
+    // Supabase token still in localStorage.
+    const stillThere = await page.evaluate(() => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)!;
+        if (k.startsWith("sb-") && k.endsWith("-auth-token")) return true;
+      }
+      return false;
+    });
+    expect(stillThere).toBe(true);
+
+    // URL was preserved by the SPA fallback — user is NOT bounced to /auth.
+    await expect(page).toHaveURL(/\/financial\/accounting/, { timeout: 10_000 });
+
+    // Session-context cache re-populates (either from sessionStorage hint or
+    // via a fresh bootstrap RPC) with the same super-admin + roles payload.
+    await page.waitForFunction(
+      (uid) => {
+        const raw = sessionStorage.getItem(`grx10_session_ctx_${uid}`);
+        if (!raw) return false;
+        try {
+          const ctx = JSON.parse(raw);
+          return (
+            ctx?.isSuperAdmin === true &&
+            !!ctx?.organizationId &&
+            Array.isArray(ctx?.roles) &&
+            ctx.roles.length > 0
+          );
+        } catch {
+          return false;
+        }
+      },
+      FAKE_USER_ID,
+      { timeout: 15_000 },
+    );
+
+    const afterReload = await page.evaluate((uid) => {
+      const raw = sessionStorage.getItem(`grx10_session_ctx_${uid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, FAKE_USER_ID);
+
+    expect(afterReload.isSuperAdmin).toBe(true);
+    expect(afterReload.organizationId).toBe(FAKE_ORG_ID);
+    expect(afterReload.roles).toEqual(expect.arrayContaining(["admin", "finance"]));
+
+    // Persistent super-admin hint also survives.
+    const persistedSuper = await page.evaluate(
+      (uid) => localStorage.getItem(`grx10_is_super_admin_${uid}`),
+      FAKE_USER_ID,
+    );
+    expect(persistedSuper).toBe("1");
+
+    // RolesReadyGate must release: no "Loading your workspace…" still visible
+    // and the user is not bounced to /auth or /subscription/activate.
+    await expect(page.locator("text=Loading your workspace…")).toHaveCount(0);
+    expect(page.url()).not.toMatch(/\/auth(\?|$)/);
+    expect(page.url()).not.toMatch(/\/subscription\/activate/);
+  });
 });
