@@ -29,7 +29,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const state = useMemo<SubscriptionState>(() => {
     const degraded = isSessionContextDegraded(data);
 
-    if ((isLoading && !data) || (degraded && isFetching)) {
+    if ((isLoading && !data) || degraded) {
       return {
         needsActivation: false,
         readOnlyMode: false,
