@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEmployeeDetails } from "@/hooks/useEmployeeDetails";
 import { useEmployeeDocuments } from "@/hooks/useEmployeeDocuments";
 import { useMyChangeRequests, useSubmitChangeRequest } from "@/hooks/useProfileChangeRequests";
+import { useMyProfileBasics } from "@/hooks/useMyProfileBasics";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -147,27 +148,22 @@ export default function Profile() {
   const { data: changeRequests = [] } = useMyChangeRequests();
   const submitChange = useSubmitChangeRequest();
 
+  // GBC-22: replaced inline useEffect+supabase.from with React Query hook.
+  // The effect below now only mirrors the query result into the local form
+  // state on first load (form fields stay independently editable after that).
+  const { data: profileBasics } = useMyProfileBasics();
   useEffect(() => {
-    if (!user) return;
-    const loadProfile = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, department, job_title, phone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (data) {
-        setFullName(data.full_name || user?.user_metadata?.full_name || "");
-        setDepartment(data.department || "");
-        setJobTitle(data.job_title || "");
-        setPhone(data.phone || "");
-      } else {
-        setFullName(user?.user_metadata?.full_name || "");
-      }
-      setProfileLoaded(true);
-    };
-    loadProfile();
-  }, [user]);
+    if (profileBasics) {
+      setFullName(profileBasics.full_name || user?.user_metadata?.full_name || "");
+      setDepartment(profileBasics.department || "");
+      setJobTitle(profileBasics.job_title || "");
+      setPhone(profileBasics.phone || "");
+    } else if (profileBasics === null) {
+      // explicit null = query ran, no row
+      setFullName(user?.user_metadata?.full_name || "");
+    }
+    if (profileBasics !== undefined) setProfileLoaded(true);
+  }, [profileBasics, user]);
 
   const getInitials = () => {
     const name = fullName || user?.user_metadata?.full_name || user?.email || "U";

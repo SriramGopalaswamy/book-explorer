@@ -63,7 +63,12 @@ export default function Auth() {
 
   const from = location.state?.from?.pathname || "/";
 
-  // Check SSO-only mode from org settings
+  // GBC-22: intentional inline useEffect — this is a PRE-AUTH bootstrap
+  // query on the sign-in page itself. There's no `user` yet, so neither
+  // useUserOrganization nor the typical React Query org-scoped hook
+  // pattern applies. The "default" org id is hard-coded for the
+  // self-hosted single-tenant deployment and the query is one-shot per
+  // page mount.
   useEffect(() => {
     (async () => {
       try {
