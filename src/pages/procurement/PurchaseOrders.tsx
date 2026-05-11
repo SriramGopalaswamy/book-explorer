@@ -176,6 +176,7 @@ export default function PurchaseOrders() {
         const { error: itemErr } = await supabase.from("purchase_order_items").insert(
           validItems.map(i => ({
             purchase_order_id: editingPO.id,
+            organization_id: orgId,
             description: i.description,
             quantity: i.quantity,
             unit_price: i.unit_price,
