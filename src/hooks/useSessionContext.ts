@@ -45,6 +45,10 @@ function superAdminKey(uid: string) {
   return SUPER_ADMIN_PREFIX + uid;
 }
 
+function isDegradedContext(ctx: SessionContext) {
+  return !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+}
+
 /**
  * Persistent (across reloads/sign-ins) hint that a user is a super admin.
  * Used to bypass loading guards immediately on subsequent sessions before
@@ -72,7 +76,12 @@ export function readCachedSessionContext(uid: string): SessionContext | null {
   try {
     const raw = sessionStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    return JSON.parse(raw) as SessionContext;
+    const ctx = JSON.parse(raw) as SessionContext;
+    if (isDegradedContext(ctx)) {
+      sessionStorage.removeItem(storageKey(uid));
+      return null;
+    }
+    return ctx;
   } catch {
     return null;
   }
@@ -143,8 +152,7 @@ export function useSessionContext() {
         // with no organization_id or no roles is almost always a transient
         // failure (RPC race with a migration, partial profile recreation,
         // network hiccup). Caching it locks the user out until sign-out.
-        const isDegraded =
-          !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
+        const isDegraded = isDegradedContext(ctx);
         if (user.id && !isDegraded) writeCachedSessionContext(user.id, ctx);
         if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
         return ctx;
