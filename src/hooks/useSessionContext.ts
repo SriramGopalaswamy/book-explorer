@@ -298,12 +298,21 @@ export function useSessionContext() {
     queryFn: async () => {
       if (!user) return EMPTY;
       const ctx = await bootstrapSession(user.id);
-      const isDegraded =
-        !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
-      // Always cache so the UI never gets stuck in a loading spinner. Degraded
-      // results are short-lived; the next focus/refetch self-heals.
+      const isDegraded = isSessionContextDegraded(ctx);
+      // Healthy snapshots are safe to reuse across a reload. Degraded snapshots
+      // (no super-admin + missing org/roles) are transient bootstrap failures:
+      // never persist them, or the subscription guard can misread them as a
+      // real "no subscription" state and bounce the user to activation.
       if (user.id) writeCachedSessionContext(user.id, ctx);
       if (user.id) writePersistedSuperAdmin(user.id, ctx.isSuperAdmin);
+      if (isDegraded) {
+        removeCachedSessionContext(user.id);
+        authTrace("session", "degraded_resolved_uncached", {
+          uid: user.id,
+          orgId: ctx.organizationId,
+          roles: ctx.roles.length,
+        });
+      }
       // eslint-disable-next-line no-console
       console.log("[session-ctx] resolved", {
         orgId: ctx.organizationId,
@@ -323,11 +332,9 @@ export function useSessionContext() {
       return degraded ? 0 : 5 * 60_000;
     },
     gcTime: Infinity,
-    // Avoid focus storms — bootstrap is expensive and roles do not change
-    // while the tab sits in the background.
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: true,
+    refetchOnWindowFocus: "always",
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
     retry: (failureCount, error: any) => {
       if (error?.name === "AbortError") return false;
       const code = error?.code || error?.cause?.code;
