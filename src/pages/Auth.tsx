@@ -193,7 +193,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-dark p-4">
+    <main className="min-h-screen flex items-center justify-center bg-gradient-dark p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <img src={grx10Logo} alt="GRX10" width={193} height={48} fetchPriority="high" decoding="async" className="h-12 w-auto mb-4" />
