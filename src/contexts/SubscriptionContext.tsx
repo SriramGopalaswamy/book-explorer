@@ -24,7 +24,7 @@ const SubscriptionContext = createContext<SubscriptionState>({
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading, isFetching, isError } = useSessionContext();
+  const { data, isLoading, isError } = useSessionContext();
 
   const state = useMemo<SubscriptionState>(() => {
     const degraded = isSessionContextDegraded(data);
@@ -90,7 +90,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       organizationId: orgId,
       enabledModules: subscription?.enabled_modules ?? null,
     };
-  }, [data, isLoading, isFetching, isError]);
+  }, [data, isLoading, isError]);
 
   return (
     <SubscriptionContext.Provider value={state}>
