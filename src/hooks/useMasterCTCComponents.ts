@@ -26,7 +26,7 @@ export function useMasterCTCComponents() {
     queryKey: ["master-ctc-components", orgId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("master_ctc_components" as any)
+        .from("master_ctc_components")
         .select("*")
         .eq("organization_id", orgId!)
         .order("component_type")
@@ -103,7 +103,7 @@ export function useCreateMasterComponent() {
       if (!orgId) throw new Error("Organization not found");
 
       const { data, error } = await supabase
-        .from("master_ctc_components" as any)
+        .from("master_ctc_components")
         .insert({
           organization_id: orgId,
           ...input,
@@ -135,7 +135,7 @@ export function useUpdateMasterComponent() {
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
-        .from("master_ctc_components" as any)
+        .from("master_ctc_components")
         .update({ ...updates, updated_at: new Date().toISOString() } as any)
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
@@ -163,7 +163,7 @@ export function useDeleteMasterComponent() {
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase
-        .from("master_ctc_components" as any)
+        .from("master_ctc_components")
         .delete()
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id);

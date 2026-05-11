@@ -30,7 +30,7 @@ export default function MaterialConsumptionPage() {
       if (!orgId) return [];
       // GBC-24: join work_orders so the Work Order # column has data.
       const { data, error } = await supabase
-        .from("material_consumption" as any)
+        .from("material_consumption")
         .select("*, work_orders!work_order_id(wo_number, status)")
         .eq("organization_id", orgId)
         .order("consumed_at", { ascending: false });

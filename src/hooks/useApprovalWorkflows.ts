@@ -67,7 +67,7 @@ export function useApprovalWorkflowSteps(workflowIds: string[]) {
     queryFn: async () => {
       if (workflowIds.length === 0) return [];
       const { data, error } = await supabase
-        .from("approval_workflow_steps" as any)
+        .from("approval_workflow_steps")
         .select("*")
         .in("workflow_id", workflowIds)
         .order("step_order", { ascending: true });
@@ -126,7 +126,7 @@ export function useCreateApprovalWorkflow() {
           required_role: s.role,
         }));
         const { error: stepErr } = await supabase
-          .from("approval_workflow_steps" as any)
+          .from("approval_workflow_steps")
           .insert(stepRows as any);
         if (stepErr) {
           // Rollback: delete the workflow
@@ -166,7 +166,7 @@ export function useApprovalRequests() {
     queryKey: ["approval-requests", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("approval_requests" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("approval_requests").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as ApprovalRequest[];
     },
@@ -186,7 +186,7 @@ export function useApproveRequest() {
 
       // Double-review guard
       const { data: current, error: fetchErr } = await supabase
-        .from("approval_requests" as any)
+        .from("approval_requests")
         .select("status, document_type, document_id, requested_by, current_step, total_steps, workflow_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
@@ -206,7 +206,7 @@ export function useApproveRequest() {
 
       if (currentStep < totalSteps) {
         // Advance to next step — not fully approved yet
-        const { error } = await supabase.from("approval_requests" as any).update({
+        const { error } = await supabase.from("approval_requests").update({
           current_step: currentStep + 1,
           notes: `Step ${currentStep} approved by ${user.id} at ${new Date().toISOString()}. ${(current as any)?.notes || ""}`.trim(),
           updated_at: new Date().toISOString(),
@@ -217,7 +217,7 @@ export function useApproveRequest() {
       }
 
       // Final step — fully approve
-      const { error } = await supabase.from("approval_requests" as any).update({
+      const { error } = await supabase.from("approval_requests").update({
         status: "approved",
         approved_by: user.id,
         approved_at: new Date().toISOString(),
@@ -279,7 +279,7 @@ export function useRejectRequest() {
 
       // Double-review guard
       const { data: current, error: fetchErr } = await supabase
-        .from("approval_requests" as any)
+        .from("approval_requests")
         .select("status, requested_by")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
@@ -294,7 +294,7 @@ export function useRejectRequest() {
         throw new Error("You cannot reject your own request.");
       }
 
-      const { error } = await supabase.from("approval_requests" as any).update({
+      const { error } = await supabase.from("approval_requests").update({
         status: "rejected",
         rejected_by: user.id,
         rejected_at: new Date().toISOString(),

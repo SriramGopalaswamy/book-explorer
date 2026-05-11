@@ -72,7 +72,7 @@ export default function GoodsReceipts() {
     queryKey: ["goods-receipts", orgId],
     enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("goods_receipts" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("goods_receipts").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as GoodsReceipt[];
     },
@@ -88,7 +88,7 @@ export default function GoodsReceipts() {
   const deleteGR = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
-      const { data: deleted, error } = await supabase.from("goods_receipts" as any).delete().eq("id", id).eq("organization_id", orgId).select("id");
+      const { data: deleted, error } = await supabase.from("goods_receipts").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0)
         throw new Error("Receipt not found or could not be deleted. You may not have permission.");
@@ -107,7 +107,7 @@ export default function GoodsReceipts() {
     setPoLinesLoading(true);
     try {
       const { data: poItems, error } = await supabase
-        .from("purchase_order_items" as any)
+        .from("purchase_order_items")
         .select("item_id, description, quantity, received_quantity, unit_price")
         .eq("purchase_order_id", poId);
       if (error) throw error;
@@ -201,7 +201,7 @@ export default function GoodsReceipts() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={async () => {
               setViewingGR(r);
-              const { data } = await supabase.from("goods_receipt_items" as any).select("*").eq("goods_receipt_id", r.id);
+              const { data } = await supabase.from("goods_receipt_items").select("*").eq("goods_receipt_id", r.id);
               setViewGRItems((data as any[]) || []);
             }}>
               <Eye className="h-4 w-4 mr-2" /> View Receipt

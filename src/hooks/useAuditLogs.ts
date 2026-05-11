@@ -87,7 +87,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
     queryKey: ["audit-logs", orgId, JSON.stringify(filters), page, pageSize],
     queryFn: async () => {
       let query = supabase
-        .from("audit_logs" as any)
+        .from("audit_logs")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
@@ -117,7 +117,7 @@ export function useAuditLogs(filters: AuditLogFilters = {}, page = 1, pageSize =
       // avoid pulling the entire audit log on every render. For deeper history
       // counts, build a server-side aggregate view.
       let actorsQuery = supabase
-        .from("audit_logs" as any)
+        .from("audit_logs")
         .select("actor_id")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })

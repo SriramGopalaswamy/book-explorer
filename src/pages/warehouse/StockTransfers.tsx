@@ -89,7 +89,7 @@ export default function StockTransfers() {
 
   const openView = async (t: StockTransfer) => {
     setViewTransfer(t);
-    const { data } = await supabase.from("stock_transfer_items" as any).select("*").eq("transfer_id", t.id);
+    const { data } = await supabase.from("stock_transfer_items").select("*").eq("transfer_id", t.id);
     setViewItems((data as any[]) || []);
   };
 

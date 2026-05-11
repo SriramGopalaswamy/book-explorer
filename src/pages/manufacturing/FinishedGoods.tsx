@@ -37,7 +37,7 @@ export default function FinishedGoods() {
     queryKey: ["finished-goods", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("finished_goods_entries" as any).select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
+      const { data, error } = await supabase.from("finished_goods_entries").select("*").eq("organization_id", orgId).order("posted_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as FinishedGoodsEntry[];
     },

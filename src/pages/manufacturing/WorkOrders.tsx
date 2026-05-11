@@ -98,7 +98,7 @@ export default function WorkOrders() {
     enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finished_goods_entries" as any)
+        .from("finished_goods_entries")
         .select("work_order_id")
         .eq("organization_id", orgId);
       if (error) return [];

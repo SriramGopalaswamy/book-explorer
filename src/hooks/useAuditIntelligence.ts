@@ -124,7 +124,7 @@ export function useComplianceRuns(financialYear?: string) {
     queryKey: ["audit-compliance-runs", orgId, financialYear],
     queryFn: async () => {
       let query = supabase
-        .from("audit_compliance_runs" as any)
+        .from("audit_compliance_runs")
         .select("*")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
@@ -151,7 +151,7 @@ export function useLatestComplianceRun(financialYear?: string) {
     queryKey: ["audit-latest-run", orgId, financialYear],
     queryFn: async () => {
       let query = supabase
-        .from("audit_compliance_runs" as any)
+        .from("audit_compliance_runs")
         .select("*")
         .eq("organization_id", orgId)
         .eq("status", "completed")
@@ -178,7 +178,7 @@ export function useComplianceChecks(runId: string | null) {
     queryKey: ["audit-compliance-checks", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_compliance_checks" as any)
+        .from("audit_compliance_checks")
         .select("*")
         .eq("run_id", runId)
         .order("severity", { ascending: true });
@@ -197,7 +197,7 @@ export function useRiskThemes(runId: string | null) {
     queryKey: ["audit-risk-themes", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_risk_themes" as any)
+        .from("audit_risk_themes")
         .select("*")
         .eq("run_id", runId)
         .order("risk_score", { ascending: false });
@@ -216,7 +216,7 @@ export function useAiAnomalies(runId: string | null) {
     queryKey: ["audit-ai-anomalies", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_ai_anomalies" as any)
+        .from("audit_ai_anomalies")
         .select("*")
         .eq("run_id", runId)
         .order("risk_score", { ascending: false });
@@ -235,7 +235,7 @@ export function useAiSamples(runId: string | null) {
     queryKey: ["audit-ai-samples", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_ai_samples" as any)
+        .from("audit_ai_samples")
         .select("*")
         .eq("run_id", runId)
         .order("risk_weight", { ascending: false });
@@ -254,7 +254,7 @@ export function useAiNarratives(runId: string | null) {
     queryKey: ["audit-ai-narratives", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_ai_narratives" as any)
+        .from("audit_ai_narratives")
         .select("*")
         .eq("run_id", runId)
         .order("narrative_type");
@@ -273,7 +273,7 @@ export function useIfcAssessments(runId: string | null) {
     queryKey: ["audit-ifc-assessments", runId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("audit_ifc_assessments" as any)
+        .from("audit_ifc_assessments")
         .select("*")
         .eq("run_id", runId)
         .order("severity", { ascending: true });

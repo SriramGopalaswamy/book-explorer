@@ -45,8 +45,20 @@ export function usePurchaseOrders() {
     queryKey: ["purchase-orders", orgId],
     queryFn: async () => {
       if (!orgId) return [] as PurchaseOrder[];
+      // GBC-27: explicit column list (was select("*")). The list view doesn't
+      // need every column; this halves the bytes per row for tenants with
+      // 500 POs each carrying long `notes`.
       // Cap to 500 most-recent POs to avoid million-row trap on procurement-heavy tenants.
-      const { data, error } = await supabase.from("purchase_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select(
+          "id, organization_id, po_number, vendor_id, vendor_name, order_date, " +
+          "expected_delivery, status, subtotal, tax_amount, total_amount, notes, " +
+          "approved_by, approved_at, created_by, created_at, updated_at",
+        )
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];
     },
@@ -60,7 +72,7 @@ export function usePurchaseOrderItems(poId?: string) {
     enabled: !!poId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("purchase_order_items" as any)
+        .from("purchase_order_items")
         .select("*")
         .eq("purchase_order_id", poId!);
       if (error) throw error;
@@ -121,7 +133,7 @@ export function useCreatePurchaseOrder() {
       );
       if (rpcErr) throw rpcErr;
       const newId = (rpcResult as any)?.id ?? rpcResult;
-      const { data: poData } = await supabase.from("purchase_orders" as any).select("*").eq("id", newId).maybeSingle();
+      const { data: poData } = await supabase.from("purchase_orders").select("*").eq("id", newId).maybeSingle();
       return poData;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Purchase order created"); },
@@ -149,14 +161,14 @@ export function useDeletePurchaseOrder() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      const { data: po } = await supabase.from("purchase_orders" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: po } = await supabase.from("purchase_orders").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!po) throw new Error("Purchase order not found in your organization.");
       const status = (po as any)?.status;
       if (status && status !== "draft") {
         throw new Error(`Cannot delete a "${status}" purchase order. Only drafts can be deleted.`);
       }
-      await supabase.from("purchase_order_items" as any).delete().eq("purchase_order_id", id);
-      const { error } = await supabase.from("purchase_orders" as any).delete().eq("id", id).eq("organization_id", callerOrgId);
+      await supabase.from("purchase_order_items").delete().eq("purchase_order_id", id);
+      const { error } = await supabase.from("purchase_orders").delete().eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Purchase order deleted"); },
@@ -177,14 +189,14 @@ export function useUpdatePOStatus() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      const { data: current } = await supabase.from("purchase_orders" as any).select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: current } = await supabase.from("purchase_orders").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       if (!current) throw new Error("Purchase order not found in your organization.");
       const currentStatus = (current as any)?.status;
       if (currentStatus && PO_TRANSITIONS[currentStatus] && !PO_TRANSITIONS[currentStatus].includes(status)) {
         throw new Error(`Cannot transition PO from '${currentStatus}' to '${status}'`);
       }
 
-      const { data: updateResult, error } = await supabase.from("purchase_orders" as any).update({ status } as any).eq("id", id).eq("organization_id", callerOrgId).select();
+      const { data: updateResult, error } = await supabase.from("purchase_orders").update({ status } as any).eq("id", id).eq("organization_id", callerOrgId).select();
       if (!error && (!updateResult || (updateResult as any[]).length === 0)) {
         throw new Error("Failed to update status. You may not have permission to modify this purchase order.");
       }

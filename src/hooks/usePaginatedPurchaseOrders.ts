@@ -46,7 +46,7 @@ export function usePaginatedPurchaseOrders({
       const to = from + pageSize - 1;
 
       let q = supabase
-        .from("purchase_orders" as any)
+        .from("purchase_orders")
         .select("*", { count: "exact" })
         .eq("organization_id", orgId);
 

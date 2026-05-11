@@ -29,7 +29,7 @@ export function useMyChangeRequests() {
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -69,7 +69,7 @@ export function useSubmitChangeRequest() {
 
       // Check for existing pending request on same field (org-scoped)
       const { data: existing } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .select("id")
         .eq("profile_id", input.profile_id)
         .eq("field_name", input.field_name)
@@ -81,7 +81,7 @@ export function useSubmitChangeRequest() {
       }
 
       const { error } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .insert({
           ...input,
           user_id: user.id,
@@ -120,7 +120,7 @@ export function useAllChangeRequests() {
       if (!profile?.organization_id) return [];
 
       const { data, error } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .select("*")
         .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
@@ -153,7 +153,7 @@ export function useReviewChangeRequest() {
 
       // Double-review guard (org-scoped)
       const { data: current } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .select("status, user_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
@@ -168,7 +168,7 @@ export function useReviewChangeRequest() {
       }
 
       const { error } = await supabase
-        .from("profile_change_requests" as any)
+        .from("profile_change_requests")
         .update({
           status,
           reviewed_by: user.id,

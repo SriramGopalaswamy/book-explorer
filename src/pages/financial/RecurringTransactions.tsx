@@ -32,7 +32,7 @@ function useGLAccountsForRecurring(orgId: string | null | undefined) {
     enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("gl_accounts" as any)
+        .from("gl_accounts")
         .select("id, code, name, account_type")
         .eq("organization_id", orgId as string)
         .eq("is_active", true)

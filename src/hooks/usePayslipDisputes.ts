@@ -56,7 +56,7 @@ export function useMyPayslipDisputes() {
       if (!profile) return [];
 
       const { data, error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .select("*")
         .eq("profile_id", profile.id)
         .order("created_at", { ascending: false });
@@ -90,7 +90,7 @@ export function useRaisePayslipDispute() {
 
       // Prevent duplicate active disputes for the same payroll record
       const { data: existing } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .select("id")
         .eq("payroll_record_id", input.payroll_record_id)
         .not("status", "in", '("rejected","approved")')
@@ -114,7 +114,7 @@ export function useRaisePayslipDispute() {
       if (!orgData?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .insert({
           payroll_record_id: input.payroll_record_id,
           profile_id: profile.id,
@@ -183,7 +183,7 @@ export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance" | n
         if (reportIds.length === 0) return [];
 
         const { data, error } = await supabase
-          .from("payslip_disputes" as any)
+          .from("payslip_disputes")
           .select("*, profiles:profile_id(full_name, email, department)")
           .eq("status", statusMap[role])
           .in("profile_id", reportIds)
@@ -194,7 +194,7 @@ export function usePendingPayslipDisputes(role: "manager" | "hr" | "finance" | n
 
       // HR/Finance: fetch all disputes with the relevant status
       const { data, error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .select("*, profiles:profile_id(full_name, email, department)")
         .eq("status", statusMap[role])
         .order("created_at", { ascending: false });
@@ -221,7 +221,7 @@ export function useManagerReviewDispute() {
 
       // Double-review guard
       const { data: check } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .select("status, profile_id")
         .eq("id", disputeId)
         .single();
@@ -249,7 +249,7 @@ export function useManagerReviewDispute() {
         update.resolution_notes = notes || "Rejected by manager";
       }
       const { error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .update(update)
         .eq("id", disputeId)
         .eq("organization_id", callerProfile.organization_id);
@@ -304,7 +304,7 @@ export function useHRReviewDispute() {
         update.resolution_notes = notes || "Rejected by HR";
       }
       const { error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .update(update)
         .eq("id", disputeId)
         .eq("organization_id", callerProfile.organization_id);
@@ -359,7 +359,7 @@ export function useFinanceReviewDispute() {
         update.resolution_notes = notes || "Rejected by Finance";
       }
       const { error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .update(update)
         .eq("id", disputeId)
         .eq("organization_id", callerProfile.organization_id);
@@ -369,7 +369,7 @@ export function useFinanceReviewDispute() {
       if (action === "approve") {
         // Fetch the dispute to get payroll_record_id
         const { data: dispute } = await supabase
-          .from("payslip_disputes" as any)
+          .from("payslip_disputes")
           .select("payroll_record_id, profile_id, pay_period")
           .eq("id", disputeId)
           .single();
@@ -424,7 +424,7 @@ export function useHasApprovedDispute(payrollRecordId: string | null) {
     queryFn: async () => {
       if (!payrollRecordId) return false;
       const { data, error } = await supabase
-        .from("payslip_disputes" as any)
+        .from("payslip_disputes")
         .select("id")
         .eq("payroll_record_id", payrollRecordId)
         .eq("status", "approved")

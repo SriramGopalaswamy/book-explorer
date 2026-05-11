@@ -148,7 +148,7 @@ function useSubmitCorrectionRequest() {
       queryClient.invalidateQueries({ queryKey: ["my-correction-requests"] });
       toast.success("Correction request submitted — your manager will review it.");
       if (user) {
-        supabase.from("audit_logs" as any).insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "correction_submitted", entity_type: "attendance_correction", entity_id: data.id, metadata: {} } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
+        supabase.from("audit_logs").insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "correction_submitted", entity_type: "attendance_correction", entity_id: data.id, metadata: {} } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
       }
       supabase.functions.invoke("send-notification-email", {
         body: {

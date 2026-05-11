@@ -72,7 +72,7 @@ export default function SalesOrders() {
     queryKey: ["delivery-notes-so-ids", orgId],
     enabled: !!user && !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("delivery_notes" as any).select("sales_order_id").eq("organization_id", orgId);
+      const { data, error } = await supabase.from("delivery_notes").select("sales_order_id").eq("organization_id", orgId);
       if (error) throw error;
       return (data || []).map((d: any) => d.sales_order_id).filter(Boolean) as string[];
     },

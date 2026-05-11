@@ -64,7 +64,7 @@ export function useCompensationRevisionRequests(filter?: "pending" | "all") {
         .maybeSingle();
       if (!profile?.organization_id) return [];
 
-      let query = (supabase.from("compensation_revision_requests" as any) as any)
+      let query = (supabase.from("compensation_revision_requests") as any)
         .select("*")
         .eq("organization_id", profile.organization_id)
         .order("created_at", { ascending: false });
@@ -93,7 +93,7 @@ export function useMyTeamRevisionRequests() {
         .maybeSingle();
       if (!profile?.organization_id) return [];
 
-      const { data, error } = await (supabase.from("compensation_revision_requests" as any) as any)
+      const { data, error } = await (supabase.from("compensation_revision_requests") as any)
         .select("*")
         .eq("requested_by", user.id)
         .eq("organization_id", profile.organization_id)
@@ -148,7 +148,7 @@ export function useCreateRevisionRequest() {
       }
 
       // Prevent duplicate pending requests for same employee
-      const { data: existing } = await (supabase.from("compensation_revision_requests" as any) as any)
+      const { data: existing } = await (supabase.from("compensation_revision_requests") as any)
         .select("id")
         .eq("profile_id", data.profile_id)
         .eq("status", "pending")
@@ -165,7 +165,7 @@ export function useCreateRevisionRequest() {
         .maybeSingle();
       if (!reqProfile?.organization_id) throw new Error("Organization not found");
 
-      const { data: inserted, error } = await (supabase.from("compensation_revision_requests" as any) as any).insert({
+      const { data: inserted, error } = await (supabase.from("compensation_revision_requests") as any).insert({
         profile_id: data.profile_id,
         requested_by: user.id,
         requested_by_role: data.requested_by_role,
@@ -225,7 +225,7 @@ export function useReviewRevisionRequest() {
       if (!callerOrgId) throw new Error("Organization context required");
 
       // Verify request is still pending & org-scoped
-      const { data: current } = await (supabase.from("compensation_revision_requests" as any) as any)
+      const { data: current } = await (supabase.from("compensation_revision_requests") as any)
         .select("status, requested_by")
         .eq("id", data.id)
         .eq("organization_id", callerOrgId)
@@ -240,7 +240,7 @@ export function useReviewRevisionRequest() {
         throw new Error("You cannot review your own compensation revision request.");
       }
 
-      const { error } = await (supabase.from("compensation_revision_requests" as any) as any)
+      const { error } = await (supabase.from("compensation_revision_requests") as any)
         .update({
           status: data.status,
           reviewed_by: user.id,

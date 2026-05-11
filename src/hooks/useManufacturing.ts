@@ -69,7 +69,7 @@ export function useBOMs() {
     queryKey: ["boms", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("bill_of_materials" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("bill_of_materials").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as BOM[];
     },
@@ -82,7 +82,7 @@ export function useBOMLines(bomId?: string) {
     queryKey: ["bom-lines", bomId],
     enabled: !!bomId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("bom_lines" as any).select("*").eq("bom_id", bomId!).order("sort_order");
+      const { data, error } = await supabase.from("bom_lines").select("*").eq("bom_id", bomId!).order("sort_order");
       if (error) throw error;
       return (data || []) as unknown as BOMLine[];
     },
@@ -105,7 +105,7 @@ export function useBOMCostRollup(bomId?: string) {
 
       // Fetch BOM lines
       const { data: lines, error: lErr } = await supabase
-        .from("bom_lines" as any).select("*").eq("bom_id", bomId).order("sort_order");
+        .from("bom_lines").select("*").eq("bom_id", bomId).order("sort_order");
       if (lErr) throw lErr;
       if (!lines || lines.length === 0) return { bomId, totalMaterialCost: 0, totalWithWastage: 0, lineDetails: [] };
 
@@ -114,7 +114,7 @@ export function useBOMCostRollup(bomId?: string) {
       let itemPrices: Record<string, number> = {};
       if (itemIds.length > 0) {
         const { data: items } = await supabase
-          .from("items" as any).select("id, purchase_price, selling_price").in("id", itemIds);
+          .from("items").select("id, purchase_price, selling_price").in("id", itemIds);
         for (const item of (items || []) as any[]) {
           itemPrices[item.id] = Number(item.purchase_price || item.selling_price || 0);
         }
@@ -178,14 +178,14 @@ export function useCreateBOM() {
       if (!profile?.organization_id) throw new Error("No organization found");
       const bomCode = `BOM-${Date.now().toString(36).toUpperCase()}`;
       const { data: bomData, error: bomErr } = await supabase
-        .from("bill_of_materials" as any)
+        .from("bill_of_materials")
         .insert({ bom_code: bomCode, product_name: bom.product_name.trim(), product_item_id: bom.product_item_id || null, notes: bom.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (bomErr) throw bomErr;
 
       if (bom.lines.length > 0) {
         const lines = bom.lines.map((l, i) => ({ bom_id: (bomData as any).id, material_name: l.material_name, quantity: l.quantity, uom: l.uom, wastage_pct: l.wastage_pct, est_cost: (l as any).est_cost || 0, item_id: l.item_id || null, sort_order: i }));
-        const { error } = await supabase.from("bom_lines" as any).insert(lines as any);
+        const { error } = await supabase.from("bom_lines").insert(lines as any);
         if (error) throw error;
       }
       return bomData;
@@ -205,7 +205,7 @@ export function useUpdateBOMStatus() {
       if (!VALID.includes(status as any)) throw new Error(`Invalid BOM status: ${status}`);
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
-      const { error } = await supabase.from("bill_of_materials" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", profile.organization_id);
+      const { error } = await supabase.from("bill_of_materials").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["boms"] }); toast.success("BOM status updated"); },
@@ -222,8 +222,8 @@ export function useDeleteBOM() {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
       // Delete lines first
-      await supabase.from("bom_lines" as any).delete().eq("bom_id", id);
-      const { error } = await supabase.from("bill_of_materials" as any).delete().eq("id", id).eq("organization_id", profile.organization_id);
+      await supabase.from("bom_lines").delete().eq("bom_id", id);
+      const { error } = await supabase.from("bill_of_materials").delete().eq("id", id).eq("organization_id", profile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["boms"] }); toast.success("BOM deleted"); },
@@ -239,7 +239,7 @@ export function useWorkOrders() {
     queryKey: ["work-orders", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("work_orders" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("work_orders").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as WorkOrder[];
     },
@@ -265,7 +265,7 @@ export function useCreateWorkOrder() {
       if (!profile?.organization_id) throw new Error("No organization found");
       const woNum = `WO-${Date.now().toString(36).toUpperCase()}`;
       const { data, error } = await supabase
-        .from("work_orders" as any)
+        .from("work_orders")
         .insert({ wo_number: woNum, product_name: wo.product_name, bom_id: wo.bom_id || null, product_item_id: wo.product_item_id || null, planned_quantity: wo.planned_quantity, priority: wo.priority, planned_start: wo.planned_start || null, planned_end: wo.planned_end || null, warehouse_id: wo.warehouse_id || null, notes: wo.notes || null, created_by: user.id, organization_id: profile.organization_id } as any)
         .select().single();
       if (error) throw error;
@@ -288,11 +288,11 @@ export function useUpdateWorkOrder() {
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found");
 
-      const { data: current } = await supabase.from("work_orders" as any).select("status").eq("id", wo.id).eq("organization_id", profile.organization_id).maybeSingle();
+      const { data: current } = await supabase.from("work_orders").select("status").eq("id", wo.id).eq("organization_id", profile.organization_id).maybeSingle();
       if ((current as any)?.status !== "draft") throw new Error("Only draft work orders can be edited");
 
       const { error } = await supabase
-        .from("work_orders" as any)
+        .from("work_orders")
         .update({
           product_name: wo.product_name,
           bom_id: wo.bom_id || null,
@@ -334,7 +334,7 @@ export function useUpdateWOStatus() {
       if (!callerOrgId) throw new Error("Organization not found");
 
       // Verify transition is allowed
-      const { data: current } = await supabase.from("work_orders" as any).select("status, actual_start, completed_quantity").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
+      const { data: current } = await supabase.from("work_orders").select("status, actual_start, completed_quantity").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
       const currentStatus = (current as any)?.status;
       if (currentStatus && WO_TRANSITIONS[currentStatus] && !WO_TRANSITIONS[currentStatus].includes(status)) {
         throw new Error(`Cannot transition work order from '${currentStatus}' to '${status}'`);
@@ -350,7 +350,7 @@ export function useUpdateWOStatus() {
           throw new Error("Cannot mark work order as completed with zero completed quantity. Record production first.");
         }
       }
-      const { error } = await supabase.from("work_orders" as any).update(updates).eq("id", id).eq("organization_id", callerOrgId);
+      const { error } = await supabase.from("work_orders").update(updates).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
       // ── Auto-consume BOM materials on completion ──
@@ -399,7 +399,7 @@ export function useRecordProduction() {
 
       // Update work order with production data
       const { error } = await supabase
-        .from("work_orders" as any)
+        .from("work_orders")
         .update({
           completed_quantity: params.completed_quantity,
           rejected_quantity: params.rejected_quantity ?? 0,
@@ -413,7 +413,7 @@ export function useRecordProduction() {
 
       // Fetch the work order to get bom_id and warehouse_id
       const { data: wo } = await supabase
-        .from("work_orders" as any)
+        .from("work_orders")
         .select("bom_id, warehouse_id, planned_quantity")
         .eq("id", params.id)
         .single();
@@ -426,7 +426,7 @@ export function useRecordProduction() {
 
         // Fetch BOM lines
         const { data: bomLines } = await supabase
-          .from("bom_lines" as any)
+          .from("bom_lines")
           .select("*")
           .eq("bom_id", bomId)
           .order("sort_order");
@@ -434,7 +434,7 @@ export function useRecordProduction() {
         if (bomLines && bomLines.length > 0) {
           // Delete any existing consumption entries for this WO (allows re-recording)
           await supabase
-            .from("material_consumption" as any)
+            .from("material_consumption")
             .delete()
             .eq("work_order_id", params.id)
             .eq("organization_id", callerOrgId);
@@ -459,7 +459,7 @@ export function useRecordProduction() {
           });
 
           const { error: cErr } = await supabase
-            .from("material_consumption" as any)
+            .from("material_consumption")
             .insert(consumptionRows as any);
           if (cErr) throw new Error(`Failed to create consumption records: ${cErr.message}`);
         }
@@ -498,7 +498,7 @@ export function usePostFinishedGoods() {
 
       // Verify work order belongs to caller's org
       const { data: wo, error: woErr } = await supabase
-        .from("work_orders" as any)
+        .from("work_orders")
         .select("id, status")
         .eq("id", params.work_order_id)
         .eq("organization_id", callerProfile.organization_id)
@@ -510,7 +510,7 @@ export function usePostFinishedGoods() {
 
       // Insert finished goods entry
       const { data: fgEntry, error: fgErr } = await supabase
-        .from("finished_goods_entries" as any)
+        .from("finished_goods_entries")
         .insert({
           work_order_id: params.work_order_id,
           product_name: params.product_name,
@@ -532,13 +532,13 @@ export function usePostFinishedGoods() {
       if (params.product_item_id) {
         let warehouseId = params.warehouse_id;
         if (!warehouseId) {
-          const { data: defaultWh } = await supabase.from("warehouses" as any).select("id").eq("organization_id", callerProfile.organization_id).limit(1);
+          const { data: defaultWh } = await supabase.from("warehouses").select("id").eq("organization_id", callerProfile.organization_id).limit(1);
           warehouseId = (defaultWh as any)?.[0]?.id ?? null;
         }
         if (warehouseId) {
           // Fetch item rate for rate/value fields
           const { data: itemRow } = await supabase
-            .from("items" as any)
+            .from("items")
             .select("purchase_price, selling_price, current_stock")
             .eq("id", params.product_item_id)
             .maybeSingle();
@@ -546,7 +546,7 @@ export function usePostFinishedGoods() {
           const value = rate ? params.quantity * rate : null;
           // Compute running balance_qty (org-scoped to prevent cross-tenant contamination)
           const { data: lastEntry } = await supabase
-            .from("stock_ledger" as any)
+            .from("stock_ledger")
             .select("balance_qty")
             .eq("item_id", params.product_item_id)
             .eq("warehouse_id", warehouseId)
@@ -556,7 +556,7 @@ export function usePostFinishedGoods() {
             .maybeSingle();
           const prevBalance = Number((lastEntry as any)?.balance_qty ?? 0);
           const newBalance = prevBalance + params.quantity;
-          await supabase.from("stock_ledger" as any).insert({
+          await supabase.from("stock_ledger").insert({
             item_id: params.product_item_id,
             warehouse_id: warehouseId,
             quantity: params.quantity,
@@ -574,7 +574,7 @@ export function usePostFinishedGoods() {
           // Update items.current_stock for the finished product
           const currentStock = Number((itemRow as any)?.current_stock ?? 0);
           const { error: stockErr } = await supabase
-            .from("items" as any)
+            .from("items")
             .update({ current_stock: currentStock + params.quantity } as any)
             .eq("id", params.product_item_id);
           if (stockErr) throw new Error(`Failed to update stock count for finished product: ${stockErr.message}`);

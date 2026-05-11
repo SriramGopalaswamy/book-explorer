@@ -86,14 +86,14 @@ export default function PurchaseReturnsPage() {
 
   const openView = async (r: any) => {
     setViewingReturn(r);
-    const { data } = await supabase.from("purchase_return_items" as any).select("*").eq("purchase_return_id", r.id);
+    const { data } = await supabase.from("purchase_return_items").select("*").eq("purchase_return_id", r.id);
     setViewItems((data as any[]) || []);
   };
 
   const openEdit = async (r: any) => {
     setEditingReturn(r);
     setEditForm({ vendor_name: r.vendor_name, return_date: r.return_date, reason: r.reason || "", notes: r.notes || "" });
-    const { data } = await supabase.from("purchase_return_items" as any).select("*").eq("purchase_return_id", r.id);
+    const { data } = await supabase.from("purchase_return_items").select("*").eq("purchase_return_id", r.id);
     const existing = (data as any[]) || [];
     setEditItems(existing.length > 0
       ? existing.map((i: any) => ({ description: i.description, quantity: i.quantity, unit_price: i.unit_price, tax_rate: i.tax_rate || 0, reason: i.reason || "" }))

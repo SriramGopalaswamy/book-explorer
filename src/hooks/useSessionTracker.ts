@@ -102,7 +102,7 @@ export function useSessionTracker() {
         // Check for new device anomaly
         try {
           const { data: recentSessions } = await supabase
-            .from("user_sessions" as any)
+            .from("user_sessions")
             .select("user_agent")
             .eq("user_id", userId)
             .eq("event_type", "sign_in")

@@ -64,7 +64,7 @@ export function useSalesReturns() {
     queryKey: ["sales-returns", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("sales_returns" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("sales_returns").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as SalesReturn[];
     },
@@ -88,7 +88,7 @@ export function useCreateSalesReturn() {
       // If linked to a sales order, validate return quantities don't exceed shipped quantities
       if (r.sales_order_id) {
         const { data: soItems, error: soErr } = await supabase
-          .from("sales_order_items" as any)
+          .from("sales_order_items")
           .select("item_id, quantity, shipped_quantity")
           .eq("sales_order_id", r.sales_order_id);
         if (!soErr && soItems) {
@@ -109,7 +109,7 @@ export function useCreateSalesReturn() {
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const num = `SR-${Date.now().toString(36).toUpperCase()}`;
 
-      const { data, error } = await supabase.from("sales_returns" as any).insert({
+      const { data, error } = await supabase.from("sales_returns").insert({
         return_number: num,
         customer_name: r.customer_name.trim(),
         customer_id: r.customer_id || null,
@@ -138,9 +138,9 @@ export function useCreateSalesReturn() {
       }));
 
       if (items.length > 0) {
-        const { error: ie } = await supabase.from("sales_return_items" as any).insert(items as any);
+        const { error: ie } = await supabase.from("sales_return_items").insert(items as any);
         if (ie) {
-          await supabase.from("sales_returns" as any).delete().eq("id", (data as any).id);
+          await supabase.from("sales_returns").delete().eq("id", (data as any).id);
           throw ie;
         }
       }
@@ -172,7 +172,7 @@ export function useUpdateSalesReturnStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("sales_returns" as any).select("status").eq("id", id).single();
+        .from("sales_returns").select("status").eq("id", id).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = RETURN_TRANSITIONS[currentStatus];
@@ -184,7 +184,7 @@ export function useUpdateSalesReturnStatus() {
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      const { error } = await supabase.from("sales_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
+      const { error } = await supabase.from("sales_returns").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-returns"] }); toast.success("Status updated"); },
@@ -200,7 +200,7 @@ export function usePurchaseReturns() {
     queryKey: ["purchase-returns", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase.from("purchase_returns" as any).select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("purchase_returns").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as PurchaseReturn[];
     },
@@ -224,7 +224,7 @@ export function useCreatePurchaseReturn() {
       // If linked to a PO, validate return quantities don't exceed received quantities
       if (r.purchase_order_id) {
         const { data: poItems, error: poErr } = await supabase
-          .from("purchase_order_items" as any)
+          .from("purchase_order_items")
           .select("item_id, quantity, received_quantity")
           .eq("purchase_order_id", r.purchase_order_id);
         if (!poErr && poItems) {
@@ -245,7 +245,7 @@ export function useCreatePurchaseReturn() {
       const tax = r.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
       const num = `PR-${Date.now().toString(36).toUpperCase()}`;
 
-      const { data, error } = await supabase.from("purchase_returns" as any).insert({
+      const { data, error } = await supabase.from("purchase_returns").insert({
         return_number: num,
         vendor_name: r.vendor_name.trim(),
         vendor_id: r.vendor_id || null,
@@ -274,9 +274,9 @@ export function useCreatePurchaseReturn() {
       }));
 
       if (items.length > 0) {
-        const { error: ie } = await supabase.from("purchase_return_items" as any).insert(items as any);
+        const { error: ie } = await supabase.from("purchase_return_items").insert(items as any);
         if (ie) {
-          await supabase.from("purchase_returns" as any).delete().eq("id", (data as any).id);
+          await supabase.from("purchase_returns").delete().eq("id", (data as any).id);
           throw ie;
         }
       }
@@ -306,7 +306,7 @@ export function useUpdatePurchaseReturnStatus() {
       };
 
       const { data: current, error: fetchErr } = await supabase
-        .from("purchase_returns" as any).select("status").eq("id", id).single();
+        .from("purchase_returns").select("status").eq("id", id).single();
       if (fetchErr) throw fetchErr;
       const currentStatus = (current as any)?.status;
       const allowed = RETURN_TRANSITIONS[currentStatus];
@@ -318,7 +318,7 @@ export function useUpdatePurchaseReturnStatus() {
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      const { error } = await supabase.from("purchase_returns" as any).update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
+      const { error } = await supabase.from("purchase_returns").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-returns"] }); toast.success("Status updated"); },
@@ -332,13 +332,13 @@ export function useCreateCreditNoteFromReturn() {
   return useMutation({
     mutationFn: async (salesReturnId: string) => {
       if (!user) throw new Error("Not authenticated");
-      const { data: ret, error: rErr } = await supabase.from("sales_returns" as any).select("*").eq("id", salesReturnId).single();
+      const { data: ret, error: rErr } = await supabase.from("sales_returns").select("*").eq("id", salesReturnId).single();
       if (rErr) throw rErr;
       if ((ret as any).status !== "approved") throw new Error("Sales return must be approved before creating a credit note.");
       if ((ret as any).credit_note_id) throw new Error("A credit note already exists for this return.");
 
       const cnNumber = `CN-${Date.now().toString(36).toUpperCase()}`;
-      const { data: cn, error: cnErr } = await supabase.from("credit_notes" as any).insert({
+      const { data: cn, error: cnErr } = await supabase.from("credit_notes").insert({
         credit_note_number: cnNumber,
         client_name: (ret as any).customer_name,
         customer_id: (ret as any).customer_id || null,
@@ -350,7 +350,7 @@ export function useCreateCreditNoteFromReturn() {
       } as any).select().single();
       if (cnErr) throw cnErr;
 
-      await supabase.from("sales_returns" as any).update({ credit_note_id: (cn as any).id } as any).eq("id", salesReturnId);
+      await supabase.from("sales_returns").update({ credit_note_id: (cn as any).id } as any).eq("id", salesReturnId);
       return cn;
     },
     onSuccess: () => {
@@ -368,13 +368,13 @@ export function useCreateVendorCreditFromReturn() {
   return useMutation({
     mutationFn: async (purchaseReturnId: string) => {
       if (!user) throw new Error("Not authenticated");
-      const { data: ret, error: rErr } = await supabase.from("purchase_returns" as any).select("*").eq("id", purchaseReturnId).single();
+      const { data: ret, error: rErr } = await supabase.from("purchase_returns").select("*").eq("id", purchaseReturnId).single();
       if (rErr) throw rErr;
       if ((ret as any).status !== "approved") throw new Error("Purchase return must be approved before creating a vendor credit.");
       if ((ret as any).vendor_credit_id) throw new Error("A vendor credit already exists for this return.");
 
       const vcNumber = `VC-${Date.now().toString(36).toUpperCase()}`;
-      const { data: vc, error: vcErr } = await supabase.from("vendor_credits" as any).insert({
+      const { data: vc, error: vcErr } = await supabase.from("vendor_credits").insert({
         vendor_credit_number: vcNumber,
         vendor_name: (ret as any).vendor_name,
         vendor_id: (ret as any).vendor_id || null,
@@ -386,7 +386,7 @@ export function useCreateVendorCreditFromReturn() {
       } as any).select().single();
       if (vcErr) throw vcErr;
 
-      await supabase.from("purchase_returns" as any).update({ vendor_credit_id: (vc as any).id } as any).eq("id", purchaseReturnId);
+      await supabase.from("purchase_returns").update({ vendor_credit_id: (vc as any).id } as any).eq("id", purchaseReturnId);
       return vc;
     },
     onSuccess: () => {

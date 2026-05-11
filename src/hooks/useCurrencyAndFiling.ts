@@ -28,7 +28,7 @@ export function useCurrencies() {
   return useQuery({
     queryKey: ["currencies"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("currencies" as any).select("*").eq("is_active", true).order("code");
+      const { data, error } = await supabase.from("currencies").select("*").eq("is_active", true).order("code");
       if (error) throw error;
       return (data || []) as unknown as Currency[];
     },
@@ -43,7 +43,7 @@ export function useExchangeRates() {
     enabled: !!orgId,
     queryFn: async () => {
       if (!orgId) return [] as ExchangeRate[];
-      const { data, error } = await supabase.from("exchange_rates" as any).select("*").eq("organization_id", orgId).order("effective_date", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("exchange_rates").select("*").eq("organization_id", orgId).order("effective_date", { ascending: false }).limit(500);
       if (error) throw error;
       return (data || []) as unknown as ExchangeRate[];
     },
@@ -58,7 +58,7 @@ export function useCreateExchangeRate() {
       if (!user) throw new Error("Not authenticated");
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!profile?.organization_id) throw new Error("No organization found. Please complete onboarding first or contact your administrator.");
-      const { data, error } = await supabase.from("exchange_rates" as any).insert(
+      const { data, error } = await supabase.from("exchange_rates").insert(
         { ...r, organization_id: profile.organization_id, source: 'manual' } as any
       ).select();
       if (error) {
@@ -80,7 +80,7 @@ export function useGSTFilingStatus(financialYear: string) {
     queryKey: ["gst-filing-status", financialYear, orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("gst_filing_status" as any).select("*").eq("financial_year", financialYear).order("period_month").limit(500);
+      const { data, error } = await supabase.from("gst_filing_status").select("*").eq("financial_year", financialYear).order("period_month").limit(500);
       if (error) throw error;
       return (data || []) as unknown as GSTFilingStatus[];
     },
@@ -115,7 +115,7 @@ export function useUpdateFilingStatus() {
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       if (update.id) {
-        const { error } = await supabase.from("gst_filing_status" as any).update({
+        const { error } = await supabase.from("gst_filing_status").update({
           status: update.status,
           arn_number: update.arn_number || null,
           challan_number: update.challan_number || null,
@@ -127,7 +127,7 @@ export function useUpdateFilingStatus() {
         } as any).eq("id", update.id).eq("organization_id", callerProfile.organization_id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("gst_filing_status" as any).insert({
+        const { error } = await supabase.from("gst_filing_status").insert({
           filing_type: update.filing_type,
           period_month: update.period_month,
           period_year: update.period_year,
