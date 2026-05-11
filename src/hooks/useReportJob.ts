@@ -43,7 +43,7 @@ export function useReportJob() {
     if (!orgId || !user) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("report_jobs")
         .select(
           "id, organization_id, user_id, report_type, params, status, progress_pct, " +
