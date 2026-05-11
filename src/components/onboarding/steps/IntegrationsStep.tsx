@@ -26,6 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useOrgOAuthConfigs } from "@/hooks/useOrgOAuthConfigs";
 import { toast } from "sonner";
 
 interface OAuthConfig {
@@ -61,34 +62,28 @@ export function IntegrationsStep() {
   const [googleSaving, setGoogleSaving] = useState(false);
   const [googleShowSecret, setGoogleShowSecret] = useState(false);
 
-  // Load existing configs
+  // GBC-22: load existing OAuth configs via React Query. The effect below
+  // mirrors the rows into per-field local state for the controlled inputs.
+  const { data: oauthConfigs } = useOrgOAuthConfigs(orgId);
   useEffect(() => {
-    if (!orgId) return;
-    (async () => {
-      const { data } = await supabase
-        .from("organization_oauth_configs")
-        .select("*")
-        .eq("organization_id", orgId);
-      if (data) {
-        for (const row of data) {
-          if (row.provider === "microsoft") {
-            setMsTenantId(row.tenant_id || "");
-            setMsClientId(row.client_id);
-            setMsClientSecret(row.client_secret);
-            setMsSenderEmail(row.sender_email || "");
-            setMsVerified(!!row.is_verified);
-            setMsOpen(true);
-          }
-          if (row.provider === "google") {
-            setGoogleClientId(row.client_id);
-            setGoogleClientSecret(row.client_secret);
-            setGoogleVerified(!!row.is_verified);
-            setGoogleOpen(true);
-          }
-        }
+    if (!oauthConfigs) return;
+    for (const row of oauthConfigs) {
+      if (row.provider === "microsoft") {
+        setMsTenantId(row.tenant_id || "");
+        setMsClientId(row.client_id);
+        setMsClientSecret(row.client_secret);
+        setMsSenderEmail(row.sender_email || "");
+        setMsVerified(!!row.is_verified);
+        setMsOpen(true);
       }
-    })();
-  }, [orgId]);
+      if (row.provider === "google") {
+        setGoogleClientId(row.client_id);
+        setGoogleClientSecret(row.client_secret);
+        setGoogleVerified(!!row.is_verified);
+        setGoogleOpen(true);
+      }
+    }
+  }, [oauthConfigs]);
 
   const saveMicrosoft = async () => {
     if (!orgId || !user) return;

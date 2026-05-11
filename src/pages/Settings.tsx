@@ -50,6 +50,8 @@ import { useUsersAndRolesBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { useOnboardingCompliance, ComplianceData, useOrganizationRoles } from "@/hooks/useOnboardingCompliance";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useOrgBranding } from "@/hooks/useOrgBranding";
+import { useOrgWeekendPolicy } from "@/hooks/useOrgWeekendPolicy";
 // GBC-21 + GBC-20: Settings.tsx extraction starts here. Each Section
 // component lives under src/components/settings/ and uses react-hook-form
 // + zod (the deps are already in package.json). Migrate sections one at
@@ -139,28 +141,16 @@ function BrandingSection() {
     }
   }, [compliance]);
 
+  // GBC-22: branding (logo + favicon + orgId) loaded via React Query hook.
+  // The useEffect below now only mirrors the query result into local state
+  // for the controlled inputs / preview imgs.
+  const { data: branding } = useOrgBranding();
   useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!profile?.organization_id) return;
-      setOrgId(profile.organization_id);
-
-      const { data: settings } = await supabase
-        .from("organization_settings")
-        .select("logo_url, favicon_url")
-        .eq("organization_id", profile.organization_id)
-        .maybeSingle();
-      if (settings) {
-        setLogoUrl(settings.logo_url);
-        setFaviconUrl(settings.favicon_url);
-      }
-    })();
-  }, [user]);
+    if (!branding) return;
+    setOrgId(branding.organization_id);
+    setLogoUrl(branding.logo_url);
+    setFaviconUrl(branding.favicon_url);
+  }, [branding]);
 
   async function handleUpload(type: "logo" | "favicon", file: File) {
     if (!orgId || !user) return;
@@ -378,21 +368,14 @@ function PayrollConfigSection() {
     }
   }, [compliance, initialized]);
 
-  // Fetch weekend_policy from organizations table
+  // GBC-22: weekend_policy via React Query hook. Effect now only mirrors
+  // the query result into the local form state.
+  const { data: weekendPolicy } = useOrgWeekendPolicy();
   useEffect(() => {
-    if (org?.organizationId) {
-      supabase
-        .from("organizations")
-        .select("weekend_policy")
-        .eq("id", org.organizationId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data && (data as any).weekend_policy) {
-            setLocal((prev) => ({ ...prev, weekend_policy: (data as any).weekend_policy }));
-          }
-        });
+    if (weekendPolicy) {
+      setLocal((prev) => ({ ...prev, weekend_policy: weekendPolicy }));
     }
-  }, [org?.organizationId]);
+  }, [weekendPolicy]);
 
   async function handleSave() {
     setSaving(true);
