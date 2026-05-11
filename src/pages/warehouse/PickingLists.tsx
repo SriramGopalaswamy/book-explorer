@@ -202,9 +202,10 @@ export default function PickingLists() {
       if (error) throw error;
       // Replace items
       await supabase.from("picking_list_items").delete().eq("picking_list_id", editList.id);
-      await supabase.from("picking_list_items").insert(
+      await (supabase.from("picking_list_items") as any).insert(
         validItems.map((it) => ({
           picking_list_id: editList.id,
+          organization_id: orgId,
           item_id: it.item_id || null,
           item_name: it.item_name,
           required_quantity: it.quantity,

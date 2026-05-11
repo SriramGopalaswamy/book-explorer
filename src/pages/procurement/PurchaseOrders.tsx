@@ -173,9 +173,10 @@ export default function PurchaseOrders() {
       await supabase.from("purchase_order_items").delete().eq("purchase_order_id", editingPO.id);
       const validItems = editItems.filter(i => i.description.trim());
       if (validItems.length > 0) {
-        const { error: itemErr } = await supabase.from("purchase_order_items").insert(
+        const { error: itemErr } = await (supabase.from("purchase_order_items") as any).insert(
           validItems.map(i => ({
             purchase_order_id: editingPO.id,
+            organization_id: orgId,
             description: i.description,
             quantity: i.quantity,
             unit_price: i.unit_price,
