@@ -56,7 +56,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, UserCheck,
   CheckCircle2, Loader2, History, Lock, UserX, ChevronDown,
-  Clock, Mail, RefreshCw, ShieldCheck,
+  Clock, Mail, RefreshCw, ShieldCheck, ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";

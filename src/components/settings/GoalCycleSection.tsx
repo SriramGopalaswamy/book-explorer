@@ -77,7 +77,13 @@ export default function GoalCycleSection() {
   }, [configs, reset]);
 
   const onSubmit = async (values: GoalCycleForm) => {
-    await upsert.mutateAsync({ cycle_month: "*", ...values });
+    await upsert.mutateAsync({
+      cycle_month: "*",
+      input_start_day: values.input_start_day,
+      input_deadline_day: values.input_deadline_day,
+      scoring_start_day: values.scoring_start_day,
+      scoring_deadline_day: values.scoring_deadline_day,
+    });
     reset(values);
   };
 
