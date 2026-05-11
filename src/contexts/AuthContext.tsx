@@ -117,15 +117,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearClientSessionArtifacts = () => {
     try {
-      sessionStorage.removeItem("grx10_session_id");
-      sessionStorage.removeItem("ms365_oauth_state");
-    } catch {
-      // ignore
-    }
-
-    try {
-      localStorage.removeItem(SIGNIN_LOCKOUT_KEY);
-      localStorage.removeItem(SIGNUP_LOCKOUT_KEY);
+      // Purge every grx10_* and ms365_* artifact across BOTH storages so a
+      // logged-out user cannot silently re-hydrate as super-admin or
+      // resurrect stale roles on the next page load.
+      const sweep = (store: Storage) => {
+        const toRemove: string[] = [];
+        for (let i = 0; i < store.length; i++) {
+          const k = store.key(i);
+          if (!k) continue;
+          if (
+            k.startsWith("grx10_") ||
+            k.startsWith("ms365_") ||
+            k.startsWith("sb-") // supabase-js token cache
+          ) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach((k) => store.removeItem(k));
+      };
+      sweep(sessionStorage);
+      sweep(localStorage);
     } catch {
       // ignore
     }
@@ -165,18 +176,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Best-effort server-side revocation FIRST so refresh tokens are dead
+    // even if local cleanup fails partway through. Fall back to local-only
+    // if the network call rejects.
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (err) {
+      console.warn("[Auth] global sign-out failed, falling back to local:", err);
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch (err2) {
+        console.error("[Auth] local sign-out also failed:", err2);
+      }
+    }
+
     clearClientSessionArtifacts();
     clearAllSessionContext();
     queryClient.clear();
     setSession(null);
     setUser(null);
     setLoading(false);
-
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-
-    if (error) {
-      console.error("[Auth] Local sign out fallback used:", error.message);
-    }
   };
 
   const resetPassword = async (email: string) => {
