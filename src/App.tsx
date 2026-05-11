@@ -11,6 +11,7 @@ import { UserOrgPrefetch } from "@/components/auth/UserOrgPrefetch";
 import { SessionDiagnosticsPanel } from "@/components/session/SessionDiagnosticsPanel";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
+import { RolesReadyGate } from "@/components/auth/RolesReadyGate";
 import { FinanceRoute } from "@/components/auth/FinanceRoute";
 import { HRAdminRoute } from "@/components/auth/HRAdminRoute";
 import { ManagerRoute } from "@/components/auth/ManagerRoute";
@@ -159,7 +160,9 @@ function PageLoader() {
 function Guarded({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
-      <SubscriptionGuard>{children}</SubscriptionGuard>
+      <SubscriptionGuard>
+        <RolesReadyGate>{children}</RolesReadyGate>
+      </SubscriptionGuard>
     </ProtectedRoute>
   );
 }
@@ -173,9 +176,11 @@ function GuardedWithPermission({ resource, children }: { resource: string; child
   return (
     <ProtectedRoute>
       <SubscriptionGuard>
-        <PermissionGate resource={resource as any} pageLevelGate>
-          {children}
-        </PermissionGate>
+        <RolesReadyGate>
+          <PermissionGate resource={resource as any} pageLevelGate>
+            {children}
+          </PermissionGate>
+        </RolesReadyGate>
       </SubscriptionGuard>
     </ProtectedRoute>
   );
