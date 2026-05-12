@@ -176,6 +176,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       window.clearTimeout(bootTimer);
+      // If a session was adopted optimistically (MS365 callback) before
+      // getSession resolved, don't touch state and don't purge — the
+      // adopted session is the source of truth.
+      if (adoptedUidRef.current) {
+        setLoading(false);
+        return;
+      }
       if (session && isFreshBrowserProcess) {
         // Fresh browser process with a leftover token — purge.
         // eslint-disable-next-line no-console
