@@ -325,6 +325,7 @@ Deno.serve(async (req) => {
         }
       } else {
         // New user
+        stage = "create_auth_user";
         const tempPassword = crypto.randomUUID() + "Aa1!";
         const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
           email,
@@ -335,41 +336,46 @@ Deno.serve(async (req) => {
 
         if (createError) {
           if (createError.code === "email_exists" || createError.message?.includes("already been registered")) {
-            console.log("User exists (race fallback), signing in instead");
+            logWarn("ms365-auth", "User exists without matching profile; signing in then repairing profile", { requestId, stage });
+            stage = "create_magic_link_race_fallback";
             const { data: ld2, error: le2 } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
-            if (le2) return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            if (le2) {
+              logError("ms365-auth", le2, { requestId, stage });
+              return errorResponse(requestId, stage, "Failed to authenticate user", 500);
+            }
+            stage = "verify_magic_link_race_fallback";
             const { data: sd2, error: ve2 } = await supabase.auth.verifyOtp({ token_hash: ld2.properties?.hashed_token!, type: "magiclink" });
-            if (ve2) return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            if (ve2) {
+              logError("ms365-auth", ve2, { requestId, stage });
+              return errorResponse(requestId, stage, "Failed to create session", 500);
+            }
             session = sd2.session;
-            const fbUser = await findUserByEmail(supabase, email);
-            if (fbUser) {
-              const { data: fbProfile } = await supabase.from("profiles").select("status").eq("user_id", fbUser.id).maybeSingle();
+            const fallbackUserId = sd2.user?.id ?? sd2.session?.user?.id;
+            if (fallbackUserId) {
+              stage = "repair_profile_race_fallback";
+              const { data: fbProfile } = await supabase.from("profiles").select("id,status").eq("user_id", fallbackUserId).maybeSingle();
               if (fbProfile?.status === "inactive") {
-                return new Response(JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                return errorResponse(requestId, stage, "Your account has been deactivated. Contact your administrator.", 403);
               }
-              if (fbProfile?.status === "pending_approval") await supabase.from("profiles").update({ status: "active" }).eq("user_id", fbUser.id);
-              await syncProfileFromMS365(supabase, fbUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
-              const { data: fbRole } = await supabase.from("user_roles").select("id").eq("user_id", fbUser.id).maybeSingle();
-              if (!fbRole) {
-                await supabase.from("user_roles").insert({
-                  user_id: fbUser.id,
-                  role: isAdminEmail ? "admin" : "employee",
-                  organization_id: organizationId,
-                });
-              }
+              if (fbProfile?.status === "pending_approval") await supabase.from("profiles").update({ status: "active" }).eq("user_id", fallbackUserId);
+              await syncProfileFromMS365(supabase, fallbackUserId, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
+              const { data: fbRole } = await supabase.from("user_roles").select("id").eq("user_id", fallbackUserId).eq("organization_id", organizationId).maybeSingle();
+              if (!fbRole) await supabase.from("user_roles").insert({ user_id: fallbackUserId, role: isAdminEmail ? "admin" : "employee", organization_id: organizationId });
             }
             return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
-          console.error("Create user error:", createError);
-          return new Response(JSON.stringify({ error: "Failed to create user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          logError("ms365-auth", createError, { requestId, stage });
+          return errorResponse(requestId, stage, "Failed to create user", 500);
         }
 
+        stage = "create_role_new_user";
         await supabase.from("user_roles").insert({
           user_id: newUser.user!.id,
           role: isAdminEmail ? "admin" : "employee",
           organization_id: organizationId,
         });
 
+        stage = "sync_profile_new_user";
         await syncProfileFromMS365(supabase, newUser.user!.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
 
         // Block re-creation of an ex-employee whose prior profile is inactive in this org.
@@ -386,25 +392,24 @@ Deno.serve(async (req) => {
             .update({ status: "inactive" })
             .eq("user_id", newUser.user!.id);
           await supabase.auth.admin.updateUserById(newUser.user!.id, { ban_duration: "876600h" });
-          return new Response(
-            JSON.stringify({ error: "This account has been deactivated. Contact your administrator." }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return errorResponse(requestId, stage, "This account has been deactivated. Contact your administrator.", 403);
         }
 
+        stage = "create_magic_link_new_user";
         const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
         if (linkError) {
-          console.error("Generate link error:", linkError);
-          return new Response(JSON.stringify({ error: "Failed to authenticate new user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          logError("ms365-auth", linkError, { requestId, stage });
+          return errorResponse(requestId, stage, "Failed to authenticate new user", 500);
         }
 
+        stage = "verify_magic_link_new_user";
         const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: linkData.properties?.hashed_token!,
           type: "magiclink",
         });
         if (verifyError) {
-          console.error("Verify OTP error:", verifyError);
-          return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          logError("ms365-auth", verifyError, { requestId, stage });
+          return errorResponse(requestId, stage, "Failed to create session", 500);
         }
 
         session = sessionData.session;
