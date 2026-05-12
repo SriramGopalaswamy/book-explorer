@@ -426,13 +426,6 @@ export function useSessionContext() {
           roles: ctx.roles.length,
         });
       }
-      // eslint-disable-next-line no-console
-      console.log("[session-ctx] resolved", {
-        orgId: ctx.organizationId,
-        roles: ctx.roles,
-        isSuperAdmin: ctx.isSuperAdmin,
-        degraded: isDegraded,
-      });
       return ctx;
     },
     enabled: !!user,
