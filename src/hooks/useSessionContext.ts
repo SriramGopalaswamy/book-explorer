@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { authTrace } from "@/lib/auth-trace";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
 export interface SessionOrganization {
   id: string;
   name: string | null;
@@ -168,7 +171,40 @@ async function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Pro
   });
 }
 
-async function fetchViaRpc(): Promise<SessionContext> {
+function authedRestHeaders(accessToken: string): HeadersInit {
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function fetchRestRows<T>(table: string, params: Record<string, string>, accessToken: string): Promise<T[]> {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  const res = await fetch(url.toString(), { headers: authedRestHeaders(accessToken) });
+  if (!res.ok) throw new Error(`${table} HTTP ${res.status}: ${await res.text()}`);
+  return (await res.json()) as T[];
+}
+
+async function fetchViaRpc(accessToken?: string): Promise<SessionContext> {
+  if (accessToken) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_session_context`, {
+      method: "POST",
+      headers: authedRestHeaders(accessToken),
+      body: "{}",
+    });
+    if (!res.ok) throw new Error(`rpc HTTP ${res.status}: ${await res.text()}`);
+    const payload = (await res.json()) ?? {};
+    return {
+      isSuperAdmin: !!payload.is_super_admin,
+      organizationId: payload.organization_id ?? null,
+      roles: Array.isArray(payload.roles) ? payload.roles : [],
+      organization: payload.organization ?? null,
+      subscription: payload.subscription ?? null,
+    };
+  }
+
   const { data, error } = await supabase.rpc("get_my_session_context");
   if (error) throw error;
   const payload = (data ?? {}) as any;
@@ -181,10 +217,86 @@ async function fetchViaRpc(): Promise<SessionContext> {
   };
 }
 
-async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
+async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise<SessionContext> {
   // Parallel, bounded, RLS-respecting reads. Each is independently small;
   // a hang in one does not block the others past the per-call timeout.
-  const [profileRes, rolesRes, superRes] = await Promise.all([
+  if (accessToken) {
+    const [profileRows, memberRows, rolesRows, superRows] = await Promise.all([
+      withTimeout(
+        fetchRestRows<{ organization_id: string | null }>(
+          "profiles",
+          { select: "organization_id", user_id: `eq.${uid}`, limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "profiles",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ organization_id: string | null }>(
+          "organization_members",
+          { select: "organization_id", user_id: `eq.${uid}`, limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "organization_members",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ role: string; organization_id: string | null }>(
+          "user_roles",
+          { select: "role,organization_id", user_id: `eq.${uid}` },
+          accessToken,
+        ),
+        4000,
+        "user_roles",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ role: string }>(
+          "platform_roles",
+          { select: "role", user_id: `eq.${uid}`, role: "eq.super_admin", limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "platform_roles",
+      ).catch(() => []),
+    ]);
+
+    const organizationId = profileRows[0]?.organization_id ?? memberRows[0]?.organization_id ?? null;
+    const roles = rolesRows
+      .filter((r) => !organizationId || !r.organization_id || r.organization_id === organizationId)
+      .map((r) => r.role);
+    const isSuperAdmin = superRows.length > 0;
+
+    let organization: SessionOrganization | null = null;
+    let subscription: SessionSubscription | null = null;
+    if (organizationId) {
+      const [orgRows, subRows] = await Promise.all([
+        withTimeout(
+          fetchRestRows<SessionOrganization>(
+            "organizations",
+            { select: "id,name,status,org_state,created_at", id: `eq.${organizationId}`, limit: "1" },
+            accessToken,
+          ),
+          4000,
+          "organizations",
+        ).catch(() => []),
+        withTimeout(
+          fetchRestRows<SessionSubscription>(
+            "subscriptions",
+            { select: "id,plan,status,source,valid_until,is_read_only,enabled_modules", organization_id: `eq.${organizationId}`, order: "created_at.desc", limit: "1" },
+            accessToken,
+          ),
+          4000,
+          "subscriptions",
+        ).catch(() => []),
+      ]);
+      organization = orgRows[0] ?? null;
+      subscription = subRows[0] ?? null;
+    }
+
+    return { isSuperAdmin, organizationId, roles, organization, subscription };
+  }
+
+  const [profileRes, memberRes, rolesRes, superRes] = await Promise.all([
     withTimeout(
       supabase
         .from("profiles")
@@ -194,6 +306,17 @@ async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
         .then((r) => r),
       4000,
       "profiles",
+    ).catch((e) => ({ data: null, error: e as Error })),
+    withTimeout(
+      supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", uid)
+        .limit(1)
+        .maybeSingle()
+        .then((r) => r),
+      4000,
+      "organization_members",
     ).catch((e) => ({ data: null, error: e as Error })),
     withTimeout(
       supabase
@@ -218,7 +341,7 @@ async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
   ]);
 
   const organizationId: string | null =
-    (profileRes as any)?.data?.organization_id ?? null;
+    (profileRes as any)?.data?.organization_id ?? (memberRes as any)?.data?.organization_id ?? null;
   const allRoles: Array<{ role: string; organization_id: string | null }> =
     ((rolesRes as any)?.data as any[]) ?? [];
   const roles = allRoles
@@ -260,10 +383,10 @@ async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
   return { isSuperAdmin, organizationId, roles, organization, subscription };
 }
 
-async function bootstrapSession(uid: string): Promise<SessionContext> {
+async function bootstrapSession(uid: string, accessToken?: string): Promise<SessionContext> {
   const t0 = performance.now();
   try {
-    const ctx = await withTimeout(fetchViaRpc(), 6000, "rpc");
+    const ctx = await withTimeout(fetchViaRpc(accessToken), 6000, "rpc");
     const degraded = !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
     // eslint-disable-next-line no-console
     console.log("[session-ctx] rpc ok", {
@@ -272,7 +395,7 @@ async function bootstrapSession(uid: string): Promise<SessionContext> {
     });
     if (!degraded) return ctx;
     // RPC succeeded but returned degraded — try direct fallback to confirm.
-    const fallback = await fetchViaDirectQueries(uid);
+    const fallback = await fetchViaDirectQueries(uid, accessToken);
     // eslint-disable-next-line no-console
     console.log("[session-ctx] fallback after degraded rpc", {
       orgId: fallback.organizationId,
@@ -284,12 +407,12 @@ async function bootstrapSession(uid: string): Promise<SessionContext> {
   } catch (err: any) {
     // eslint-disable-next-line no-console
     console.warn("[session-ctx] rpc failed, using direct fallback", err?.message);
-    return fetchViaDirectQueries(uid);
+    return fetchViaDirectQueries(uid, accessToken);
   }
 }
 
 export function useSessionContext() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const uid = user?.id;
 
   return useQuery<SessionContext>({
@@ -297,7 +420,7 @@ export function useSessionContext() {
     initialData: uid ? readCachedSessionContext(uid) ?? undefined : undefined,
     queryFn: async () => {
       if (!user) return EMPTY;
-      const ctx = await bootstrapSession(user.id);
+      const ctx = await bootstrapSession(user.id, session?.access_token);
       const isDegraded = isSessionContextDegraded(ctx);
       // Healthy snapshots are safe to reuse across a reload. Degraded snapshots
       // (no super-admin + missing org/roles) are transient bootstrap failures:

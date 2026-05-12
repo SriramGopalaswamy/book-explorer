@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearAllSessionContext } from "@/hooks/useSessionContext";
 
+const SUPABASE_AUTH_KEY_PREFIX = "sb-";
+const SUPABASE_AUTH_KEY_SUFFIX = "-auth-token";
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -95,6 +98,24 @@ function decodeUserFromJwt(accessToken: string): User | null {
   } catch (err) {
     console.warn("[auth-ctx] decodeUserFromJwt failed:", err);
     return null;
+  }
+}
+
+function persistSessionSnapshot(accessToken: string, refreshToken: string, user: User) {
+  try {
+    const url = new URL(import.meta.env.VITE_SUPABASE_URL as string);
+    const storageKey = `${SUPABASE_AUTH_KEY_PREFIX}${url.hostname.split(".")[0]}${SUPABASE_AUTH_KEY_SUFFIX}`;
+    const payload = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user,
+    };
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("[auth-ctx] persistSessionSnapshot failed:", err);
   }
 }
 
@@ -333,6 +354,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } as unknown as Session;
 
     adoptedUidRef.current = decoded.id;
+    persistSessionSnapshot(accessToken, refreshToken, decoded);
     setSession(syntheticSession);
     setUser(decoded);
     setLoading(false);
