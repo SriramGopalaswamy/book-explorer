@@ -106,7 +106,9 @@ export function useFinancialRecords() {
   });
 }
 
-// Monthly revenue — org-scoped via RLS
+// GBC-50: monthly revenue/expense buckets sourced from the
+// monthly_revenue(p_from, p_to, p_granularity) RPC. Granularity is
+// chosen from the span like the legacy client code did.
 export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
@@ -126,91 +128,34 @@ export function useMonthlyRevenueData(dateRange?: DateRangeFilter) {
       })();
       const toDate = dateRange?.to || new Date();
 
-      const { data, error } = await supabase
-        .from("financial_records")
-        .select("*")
+      const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+      const granularity: "daily" | "weekly" | "monthly" =
+        diffDays <= 31 ? "daily" : diffDays <= 90 ? "weekly" : "monthly";
 
-        .eq("organization_id", orgId)
-        .gte("record_date", fromDate.toISOString().split("T")[0])
-        .lte("record_date", toDate.toISOString().split("T")[0]);
-
+      const { data, error } = await (supabase as any).rpc("monthly_revenue", {
+        p_from: fromDate.toISOString().split("T")[0],
+        p_to: toDate.toISOString().split("T")[0],
+        p_granularity: granularity,
+      });
       if (error) throw error;
 
-      const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-      // Choose granularity based on range span
-      const granularity: "daily" | "weekly" | "monthly" = diffDays <= 31 ? "daily" : diffDays <= 90 ? "weekly" : "monthly";
-
-      const getBucketKey = (dateStr: string): string => {
-        const d = new Date(dateStr);
-        if (granularity === "daily") {
-          return `${d.getDate()} ${months[d.getMonth()]}`;
-        }
-        if (granularity === "weekly") {
-          // Week start (Monday)
-          const day = d.getDay();
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-          const weekStart = new Date(d);
-          weekStart.setDate(diff);
-          return `${weekStart.getDate()} ${months[weekStart.getMonth()]}`;
-        }
-        return `${months[d.getMonth()]} ${d.getFullYear()}`;
-      };
-
-      const bucketMap = new Map<string, { revenue: number; expenses: number }>();
-
-      data.forEach((record) => {
-        const key = getBucketKey(record.record_date);
-        if (!bucketMap.has(key)) {
-          bucketMap.set(key, { revenue: 0, expenses: 0 });
-        }
-        const current = bucketMap.get(key)!;
-        if (record.type === "revenue") {
-          current.revenue += Number(record.amount);
-        } else {
-          current.expenses += Number(record.amount);
-        }
-      });
-
-      // Generate ordered buckets
-      const result: MonthlyData[] = [];
-      const currentDate = new Date(fromDate);
-
-      if (granularity === "daily") {
-        while (currentDate <= toDate) {
-          const key = `${currentDate.getDate()} ${months[currentDate.getMonth()]}`;
-          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
-          result.push({ month: key, ...d });
-          currentDate.setDate(currentDate.getDate() + 1);
-        }
-      } else if (granularity === "weekly") {
-        // Align to Monday
-        const day = currentDate.getDay();
-        const diff = day === 0 ? -6 : 1 - day;
-        currentDate.setDate(currentDate.getDate() + diff);
-        while (currentDate <= toDate) {
-          const key = `${currentDate.getDate()} ${months[currentDate.getMonth()]}`;
-          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
-          result.push({ month: key, ...d });
-          currentDate.setDate(currentDate.getDate() + 7);
-        }
-      } else {
-        while (currentDate <= toDate) {
-          const key = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-          const d = bucketMap.get(key) || { revenue: 0, expenses: 0 };
-          result.push({ month: months[currentDate.getMonth()], ...d });
-          currentDate.setMonth(currentDate.getMonth() + 1);
-        }
-      }
-
-      return result;
+      return ((data ?? []) as Array<{ bucket_label: string; revenue: number; expenses: number }>)
+        .map((r) => ({
+          month: r.bucket_label,
+          revenue: Number(r.revenue),
+          expenses: Number(r.expenses),
+        }));
     },
     enabled: (!!user && !!orgId) || isDevMode,
+    staleTime: 60_000,
   });
 }
 
-// Expense breakdown — pulls from expenses table (source of truth) + financial_records fallback
+// GBC-50: expense breakdown by category sourced from the
+// expense_breakdown(p_from, p_to) RPC. The RPC merges the expenses
+// table (approved + paid) with financial_records (type='expense')
+// server-side via UNION ALL, so the page no longer pulls two full
+// tables to reduce them in the browser.
 export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
@@ -222,57 +167,24 @@ export function useExpenseBreakdown(dateRange?: DateRangeFilter) {
     queryFn: async (): Promise<CategoryData[]> => {
       if (!user || !orgId) return getDefaultExpenseData();
 
-      // Default to all-time so every approved/paid category appears
-      const fromDate = dateRange?.from || new Date("2000-01-01");
-      const toDate = dateRange?.to || new Date();
-      const fromStr = fromDate.toISOString().split("T")[0];
-      const toStr = toDate.toISOString().split("T")[0];
+      const fromStr = dateRange?.from ? dateRange.from.toISOString().split("T")[0] : null;
+      const toStr   = dateRange?.to   ? dateRange.to.toISOString().split("T")[0]   : null;
 
-      // Fetch from both expenses table (approved + paid only) and financial_records — org-scoped
-      const [expensesRes, financialRes] = await Promise.all([
-        supabase
-          .from("expenses")
-          .select("category, amount")
-  
-          .eq("organization_id", orgId)
-          .in("status", ["approved", "paid"])
-          .gte("expense_date", fromStr)
-          .lte("expense_date", toStr),
-        supabase
-          .from("financial_records")
-          .select("category, amount")
-          .eq("type", "expense")
-  
-          .eq("organization_id", orgId)
-          .gte("record_date", fromStr)
-          .lte("record_date", toStr),
-      ]);
-
-      const categoryMap = new Map<string, number>();
-
-      // Primary source: expenses table (approved + paid only, matching KPI logic)
-      (expensesRes.data || []).forEach((record) => {
-        const cat = record.category || "Uncategorized";
-        categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
+      const { data, error } = await (supabase as any).rpc("expense_breakdown", {
+        p_from: fromStr,
+        p_to: toStr,
       });
-
-      // Also merge financial_records (manual journal entries) to capture all categories
-      (financialRes.data || []).forEach((record) => {
-        const cat = record.category || "Uncategorized";
-        categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(record.amount));
-      });
-
-      if (categoryMap.size === 0) {
-        return [];
-      }
-
-      return Array.from(categoryMap.entries()).map(([name, value]) => ({
-        name,
-        value,
-        color: getCategoryColor(name),
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ category: string; total_amount: number }>;
+      if (rows.length === 0) return [];
+      return rows.map((r) => ({
+        name: r.category || "Uncategorized",
+        value: Number(r.total_amount),
+        color: getCategoryColor(r.category || "Uncategorized"),
       }));
     },
     enabled: (!!user && !!orgId) || isDevMode,
+    staleTime: 60_000,
   });
 }
 

@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { usePagination } from "@/hooks/usePagination";
+import { useState, useEffect } from "react";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
@@ -41,7 +40,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, Upload } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownLeft, Plus, Search, CreditCard, Wallet, MoreHorizontal, Trash2, X, Sparkles, Upload } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const staggerContainer = {
@@ -55,7 +54,7 @@ const fadeUp = {
 };
 import {
   useBankAccounts,
-  useBankTransactions,
+  useBankTransactionsSearch,
   useMonthlyTransactionStats,
   useCreateBankAccount,
   useCreateTransaction,
@@ -86,7 +85,6 @@ export default function Banking() {
   const { user } = useAuth();
   
   const { data: accounts = [], isLoading: accountsLoading } = useBankAccounts();
-  const { data: transactions = [], isLoading: transactionsLoading } = useBankTransactions();
   const { data: monthlyStats } = useMonthlyTransactionStats();
   const createAccount = useCreateBankAccount();
   const createTransaction = useCreateTransaction();
@@ -96,31 +94,35 @@ export default function Banking() {
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const [isTransactionDialogOpen, setIsTransactionDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // Sort state
-  type SortField = "transaction_date" | "category" | "amount";
-  type SortDir = "asc" | "desc";
-  const [sortField, setSortField] = useState<SortField>("transaction_date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  // GBC-34: debounce the live search input so a fast typist doesn't
+  // fire one RPC per keystroke.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(searchQuery), 250);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDir("asc");
-    }
-  };
+  // Server-side pagination state — the RPC returns total_count on every
+  // row so we never need to over-fetch.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => { setPage(1); }, [debouncedQuery, typeFilter, dateFrom, dateTo, pageSize]);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40 inline" />;
-    return sortDir === "asc"
-      ? <ArrowUp className="ml-1 h-3 w-3 inline" />
-      : <ArrowDown className="ml-1 h-3 w-3 inline" />;
-  };
+  const { data: txSearch, isLoading: transactionsLoading } = useBankTransactionsSearch({
+    q: debouncedQuery,
+    type: typeFilter,
+    from: dateFrom || null,
+    to: dateTo || null,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+  const transactions = txSearch?.rows ?? [];
+  const totalTransactions = txSearch?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalTransactions / pageSize));
 
   const [accountForm, setAccountForm] = useState({
     name: "",
@@ -140,25 +142,6 @@ export default function Banking() {
   });
 
   const totalBalance = (monthlyStats?.inflow || 0) - (monthlyStats?.outflow || 0);
-
-  const filteredTransactions = transactions
-    .filter((tx) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch = !q || tx.description.toLowerCase().includes(q) || (tx.category || "").toLowerCase().includes(q);
-      const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
-      const matchesFrom = !dateFrom || tx.transaction_date >= dateFrom;
-      const matchesTo = !dateTo || tx.transaction_date <= dateTo;
-      return matchesSearch && matchesType && matchesFrom && matchesTo;
-    })
-    .sort((a, b) => {
-      let cmp = 0;
-      if (sortField === "transaction_date") cmp = a.transaction_date.localeCompare(b.transaction_date);
-      else if (sortField === "category") cmp = (a.category || "").localeCompare(b.category || "");
-      else if (sortField === "amount") cmp = Number(a.amount) - Number(b.amount);
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-
-  const pagination = usePagination(filteredTransactions, 10);
 
   const hasActiveFilters = searchQuery || typeFilter !== "all" || dateFrom || dateTo;
 
@@ -601,7 +584,7 @@ export default function Banking() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as "all" | "credit" | "debit")}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -634,7 +617,7 @@ export default function Banking() {
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground"
-                onClick={() => { setSearchQuery(""); setTypeFilter("all"); setDateFrom(""); setDateTo(""); pagination.setPage(1); }}
+                onClick={() => { setSearchQuery(""); setTypeFilter("all"); setDateFrom(""); setDateTo(""); setPage(1); }}
               >
                 <X className="h-3.5 w-3.5 mr-1" />
                 Clear
@@ -647,7 +630,7 @@ export default function Banking() {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
             </div>
-          ) : filteredTransactions.length === 0 ? (
+          ) : transactions.length === 0 ? (
             <div className="text-center py-8">
               <CreditCard className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-2 text-muted-foreground">No transactions found</p>
@@ -657,26 +640,20 @@ export default function Banking() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("transaction_date")}>
-                      Date <SortIcon field="transaction_date" />
-                    </TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Account</TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
-                      Category <SortIcon field="category" />
-                    </TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort("amount")}>
-                      Amount <SortIcon field="amount" />
-                    </TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.paginatedItems.map((tx) => (
+                  {transactions.map((tx) => (
                     <TableRow key={tx.id}>
                       <TableCell className="font-medium">{tx.transaction_date}</TableCell>
                       <TableCell>{tx.description}</TableCell>
-                      <TableCell>{tx.bank_accounts?.name || "-"}</TableCell>
+                      <TableCell>{tx.account_name || "-"}</TableCell>
                       <TableCell>{tx.category || "—"}</TableCell>
                       <TableCell>
                         <Badge
@@ -700,14 +677,14 @@ export default function Banking() {
               </Table>
               <div className="pt-4">
                 <TablePagination
-                  page={pagination.page}
-                  totalPages={pagination.totalPages}
-                  totalItems={pagination.totalItems}
-                  from={pagination.from}
-                  to={pagination.to}
-                  pageSize={pagination.pageSize}
-                  onPageChange={pagination.setPage}
-                  onPageSizeChange={(s) => { pagination.setPageSize(s); pagination.setPage(1); }}
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={totalTransactions}
+                  from={totalTransactions === 0 ? 0 : (page - 1) * pageSize + 1}
+                  to={Math.min(page * pageSize, totalTransactions)}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
                 />
               </div>
             </>
