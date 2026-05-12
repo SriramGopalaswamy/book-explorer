@@ -24,6 +24,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Browser-close enforcement: Supabase persists tokens in localStorage so
+    // they survive process exit. We use a sessionStorage sentinel (which
+    // dies when the last tab for this origin closes) to detect "fresh
+    // browser open". If there's no sentinel on boot but a Supabase token
+    // exists, treat it as a stale session and force a clean sign-out so
+    // the user lands on /auth.
+    const SESSION_SENTINEL = "grx10_session_alive";
+    const hasSentinel = (() => {
+      try { return sessionStorage.getItem(SESSION_SENTINEL) === "1"; } catch { return false; }
+    })();
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
@@ -32,22 +43,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newSession?.user ?? null);
         setLoading(false);
 
-        // Diagnostic logging — verify that token refreshes are NOT clearing the
-        // session-context cache (which used to leave the user with empty roles).
-        // Visible in the in-app Session Diagnostics panel (Ctrl+Shift+D).
         const willClearCache =
           event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid) || event === "TOKEN_REFRESHED" || event === "USER_UPDATED";
         // eslint-disable-next-line no-console
         console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
 
-        // On sign-out: drop all cached data + sessionStorage bootstrap.
-        // On sign-in: purge any stale snapshot from a previous session and
-        // force a fresh bootstrap.
-        //
-        // IMPORTANT: Auth events must purge session-context snapshots so stale
-        // or degraded role/org payloads cannot survive into the next routing
-        // decision and bounce a valid user to subscription activation.
+        // Mark this browser-tab lifetime as "live" on any signed-in event so
+        // subsequent reloads in the same tab/window do NOT trigger the
+        // stale-session purge.
+        if (newUid) {
+          try { sessionStorage.setItem(SESSION_SENTINEL, "1"); } catch { /* ignore */ }
+        }
+
         if (event === "SIGNED_OUT") {
+          try { sessionStorage.removeItem(SESSION_SENTINEL); } catch { /* ignore */ }
           clearAllSessionContext();
           queryClient.clear();
         } else if (newUid && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
@@ -58,9 +67,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session && !hasSentinel) {
+        // Stale session from a previous browser process — purge.
+        // eslint-disable-next-line no-console
+        console.log("[auth-ctx] stale session detected on fresh browser open — signing out");
+        try { await supabase.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
       setSession(session);
       setUser(session?.user ?? null);
+      if (session) {
+        try { sessionStorage.setItem(SESSION_SENTINEL, "1"); } catch { /* ignore */ }
+      }
       setLoading(false);
     });
 
