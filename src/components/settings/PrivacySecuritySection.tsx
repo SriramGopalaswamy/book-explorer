@@ -38,12 +38,111 @@ export function PrivacySecuritySection() {
 
   return (
     <div className="space-y-6">
+      {isAdmin && <AuthMethodsSection />}
       <ConsentManagement />
       <DataExportSection />
       <DataErasureSection />
       {isAdmin && <SessionPolicySection />}
       {isAdmin && <BreachLogSection />}
     </div>
+  );
+}
+
+// ── Sign-in Methods (admin) ─────────────────────────────────────────
+function AuthMethodsSection() {
+  const ORG_ID = "00000000-0000-0000-0000-000000000001";
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [emailSignin, setEmailSignin] = useState(false);
+  const [emailSignup, setEmailSignup] = useState(false);
+  const [googleSignin, setGoogleSignin] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await (await import("@/integrations/supabase/client")).supabase
+          .from("organization_settings")
+          .select("allow_email_signin, allow_email_signup, allow_google_signin")
+          .eq("organization_id", ORG_ID)
+          .maybeSingle();
+        setEmailSignin(!!data?.allow_email_signin);
+        setEmailSignup(!!data?.allow_email_signup);
+        setGoogleSignin(!!data?.allow_google_signin);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const save = async (patch: { allow_email_signin?: boolean; allow_email_signup?: boolean; allow_google_signin?: boolean }) => {
+    setSaving(true);
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { error } = await supabase
+      .from("organization_settings")
+      .update(patch)
+      .eq("organization_id", ORG_ID);
+    setSaving(false);
+    if (error) {
+      toast.error(`Failed to update: ${error.message}`);
+      return false;
+    }
+    toast.success("Sign-in methods updated");
+    return true;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Lock className="h-5 w-5 text-primary" />
+          Sign-in Methods
+        </CardTitle>
+        <CardDescription>
+          Microsoft 365 is always available. Enable additional sign-in methods below.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-medium">Email &amp; password sign-in</Label>
+                <p className="text-xs text-muted-foreground">Allow existing users to sign in with email and password.</p>
+              </div>
+              <Switch
+                checked={emailSignin}
+                disabled={saving}
+                onCheckedChange={async (v) => { if (await save({ allow_email_signin: v })) setEmailSignin(v); }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-medium">Self-service sign-up</Label>
+                <p className="text-xs text-muted-foreground">Allow new users to create an account from the login page. Requires email sign-in.</p>
+              </div>
+              <Switch
+                checked={emailSignup}
+                disabled={saving || !emailSignin}
+                onCheckedChange={async (v) => { if (await save({ allow_email_signup: v })) setEmailSignup(v); }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-medium">Sign in with Google</Label>
+                <p className="text-xs text-muted-foreground">Show the Google sign-in button on the login page.</p>
+              </div>
+              <Switch
+                checked={googleSignin}
+                disabled={saving}
+                onCheckedChange={async (v) => { if (await save({ allow_google_signin: v })) setGoogleSignin(v); }}
+              />
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
