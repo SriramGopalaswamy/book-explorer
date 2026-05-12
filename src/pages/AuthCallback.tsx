@@ -5,6 +5,24 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { authTrace, authTraceReset } from "@/lib/auth-trace";
 
+const MS365_EXCHANGE_TIMEOUT_MS = 20_000;
+
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -60,24 +78,31 @@ export default function AuthCallback() {
       try {
         const tExchangeStart = performance.now();
         authTrace("ms365", "exchange_start");
-        const { data, error: fnError } = await supabase.functions.invoke("ms365-auth", {
-          body: {
-            action: "exchange_code",
-            code,
-            redirect_uri: `${window.location.origin}/auth/callback`,
-          },
-        });
+        const { data, error: fnError } = await withTimeout(
+          supabase.functions.invoke("ms365-auth", {
+            body: {
+              action: "exchange_code",
+              code,
+              redirect_uri: `${window.location.origin}/auth/callback`,
+            },
+          }),
+          MS365_EXCHANGE_TIMEOUT_MS,
+          "Microsoft 365 authentication",
+        );
         authTrace("ms365", "exchange_complete", {
           elapsedMs: Math.round(performance.now() - tExchangeStart),
           hasSession: !!data?.session,
           pending: !!data?.pending,
           fnError: fnError?.message,
           dataError: data?.error,
+          stage: data?.stage,
+          requestId: data?.requestId,
         });
 
         if (fnError || data?.error) {
-          const msg = data?.error || fnError?.message || "Authentication failed";
-          authTrace("ms365", "exchange_failed", { msg });
+          const detail = data?.stage ? `${data.error || "Authentication failed"} (${data.stage})` : data?.error;
+          const msg = detail || fnError?.message || "Authentication failed";
+          authTrace("ms365", "exchange_failed", { msg, stage: data?.stage, requestId: data?.requestId });
           setError(msg);
           toast.error(msg);
           setTimeout(() => navigate("/auth", { replace: true }), 3000);
@@ -125,8 +150,9 @@ export default function AuthCallback() {
           msg: (err as Error)?.message,
         });
         console.error("[AuthCallback] Error:", err);
-        setError("An unexpected error occurred");
-        toast.error("An unexpected error occurred");
+        const msg = (err as Error)?.message || "An unexpected error occurred";
+        setError(msg);
+        toast.error(msg);
         setTimeout(() => navigate("/auth", { replace: true }), 3000);
       }
     };
