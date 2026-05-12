@@ -194,6 +194,62 @@ export function useBankTransactions(limit = 20) {
   });
 }
 
+/**
+ * GBC-34: server-side filtered + paginated bank-transaction search via
+ * the search_bank_transactions RPC. Drops the client-side filter chain
+ * (Banking.tsx was reducing over the full transactions list per render).
+ */
+export interface BankTxSearchFilters {
+  q?: string;
+  type?: "credit" | "debit" | "all";
+  accountId?: string | null;
+  from?: string | null;
+  to?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+export interface BankTxSearchRow extends BankTransaction {
+  account_name: string | null;
+  total_count: number;
+}
+
+export function useBankTransactionsSearch(filters: BankTxSearchFilters = {}) {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const {
+    q = "",
+    type = "all",
+    accountId = null,
+    from = null,
+    to = null,
+    limit = 25,
+    offset = 0,
+  } = filters;
+
+  return useQuery({
+    queryKey: ["bank-tx-search", user?.id, orgId, q, type, accountId, from, to, limit, offset],
+    queryFn: async () => {
+      if (!user || !orgId) return { rows: [] as BankTxSearchRow[], total: 0 };
+      const { data, error } = await (supabase as any).rpc("search_bank_transactions", {
+        p_q: q ?? "",
+        p_from: from,
+        p_to: to,
+        p_type: type === "all" ? null : type,
+        p_account_id: accountId,
+        p_limit: limit,
+        p_offset: offset,
+      });
+      if (error) throw error;
+      const rows = (data ?? []) as BankTxSearchRow[];
+      return { rows, total: rows[0]?.total_count ?? 0 };
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 15_000,
+  });
+}
+
 export function useCreateTransaction() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -310,7 +366,11 @@ export function useMonthlyTransactionStats() {
   });
 }
 
-// Cash flow data for charts
+// GBC-42: cash flow time-series sourced from the cash_flow_monthly RPC
+// (server-side bucketing via generate_series + date_trunc). The legacy
+// implementation pulled every transaction since `now() - months` and
+// bucketed client-side; this version returns one row per month
+// pre-aggregated, so the page transfers O(months) instead of O(tx).
 export function useCashFlowData(months = 6) {
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
@@ -320,49 +380,25 @@ export function useCashFlowData(months = 6) {
     queryKey: ["cash-flow-data", user?.id, orgId, months],
     queryFn: async () => {
       if (!user || !orgId) return getDefaultCashFlowData();
-
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - months);
-
-      const { data, error } = await supabase
-        .from("bank_transactions")
-        .select("transaction_type, amount, transaction_date")
-        .eq("organization_id", orgId)
-        .gte("transaction_date", startDate.toISOString().split("T")[0]);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) return getDefaultCashFlowData();
-
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const monthlyMap = new Map<string, { inflow: number; outflow: number }>();
-
-      data.forEach((tx) => {
-        const date = new Date(tx.transaction_date);
-        const key = monthNames[date.getMonth()];
-        if (!monthlyMap.has(key)) {
-          monthlyMap.set(key, { inflow: 0, outflow: 0 });
-        }
-        const current = monthlyMap.get(key)!;
-        if (tx.transaction_type === "credit") {
-          current.inflow += Number(tx.amount);
-        } else {
-          current.outflow += Number(tx.amount);
-        }
+      const { data, error } = await (supabase as any).rpc("cash_flow_monthly", {
+        p_months: months,
       });
-
-      const result = [];
-      const now = new Date();
-      for (let i = months - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const month = monthNames[d.getMonth()];
-        const data = monthlyMap.get(month) || { inflow: 0, outflow: 0 };
-        result.push({ month, ...data });
-      }
-
-      return result;
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        bucket_label: string;
+        inflow: number;
+        outflow: number;
+        net_cash: number;
+      }>;
+      if (rows.length === 0) return getDefaultCashFlowData();
+      return rows.map((r) => ({
+        month: r.bucket_label,
+        inflow: Number(r.inflow),
+        outflow: Number(r.outflow),
+      }));
     },
     enabled: !!user && !!orgId,
+    staleTime: 60_000,
   });
 }
 
