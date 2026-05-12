@@ -323,15 +323,7 @@ Deno.serve(async (req) => {
               await syncProfileFromMS365(supabase, existingUserId, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
             }
             if (resolvedProfileId) await resolveWaitingManagerRefs(supabase, email, resolvedProfileId);
-
-            const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", existingUserId).eq("organization_id", organizationId).maybeSingle();
-            if (!existingRole) {
-              await supabase.from("user_roles").insert({
-                user_id: existingUserId,
-                role: isAdminEmail ? "admin" : "employee",
-                organization_id: organizationId,
-              });
-            }
+            await ensureUserRole(supabase, existingUserId, organizationId, isAdminEmail ? "admin" : "employee");
           } catch (e) {
             console.error("ms365-auth background sync failed:", e);
           }
@@ -379,8 +371,7 @@ Deno.serve(async (req) => {
               }
               if (fbProfile?.status === "pending_approval") await supabase.from("profiles").update({ status: "active" }).eq("user_id", fallbackUserId);
               await syncProfileFromMS365(supabase, fallbackUserId, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
-              const { data: fbRole } = await supabase.from("user_roles").select("id").eq("user_id", fallbackUserId).eq("organization_id", organizationId).maybeSingle();
-              if (!fbRole) await supabase.from("user_roles").insert({ user_id: fallbackUserId, role: isAdminEmail ? "admin" : "employee", organization_id: organizationId });
+              await ensureUserRole(supabase, fallbackUserId, organizationId, isAdminEmail ? "admin" : "employee");
             }
             return new Response(JSON.stringify({ session }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
@@ -389,11 +380,7 @@ Deno.serve(async (req) => {
         }
 
         stage = "create_role_new_user";
-        await supabase.from("user_roles").insert({
-          user_id: newUser.user!.id,
-          role: isAdminEmail ? "admin" : "employee",
-          organization_id: organizationId,
-        });
+        await ensureUserRole(supabase, newUser.user!.id, organizationId, isAdminEmail ? "admin" : "employee");
 
         stage = "sync_profile_new_user";
         await syncProfileFromMS365(supabase, newUser.user!.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
