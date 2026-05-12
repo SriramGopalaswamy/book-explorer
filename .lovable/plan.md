@@ -22,19 +22,24 @@ Each piece of the current "rot" is actually load-bearing:
 - `useIsSuperAdmin` (src/hooks/useSuperAdmin.ts) — thin reader + persisted localStorage hint for eager super-admin UX.
 - NOT doing: deleting useUserOrganization.ts and migrating 52 import sites. Pure rename churn, zero behavioral benefit, real regression surface. The wrapper IS the consolidation.
 
-### Phase 2 — Direct-query fallback removal (medium risk)
-- `useSessionContext` currently has both `fetchViaRpc` (6s timeout) AND `fetchViaDirectQueries` (parallel REST). Remove the fallback only after monitoring `[session-ctx] rpc failed` warnings in production for 1 week and confirming zero occurrences.
+### Phase 2 — Direct-query fallback removal — ❌ CANCELLED (2026-05-12)
+- `fetchViaDirectQueries` is NOT dead code. It exists for **client-side 6s timeouts** on slow networks (hotel wifi, 3G), not server failures.
+- Server-side Postgres logs cannot observe this — they only see successful or errored RPC calls, not client requests that never completed within the timeout window.
+- Removing the fallback would silently regress slow-network users to an indefinite hang.
+- Would only be safe with browser-side telemetry (Sentry timing histogram of RPC duration); we don't have that. Not worth installing for this.
 
-### Phase 3 — MS365 optimistic adoption replacement (HIGH risk)
-- Replace `adoptSession` with `await supabase.auth.setSession()` + 8s timeout (NOT 3s — slow networks).
-- Behind a feature flag (`systemFlags.use_strict_ms365_session`).
-- E2E test on throttled network (3G profile) before flipping flag.
-- Rollback path: flip flag, no code revert needed.
+### Phase 3 — MS365 `adoptSession` replacement — ❌ CANCELLED (2026-05-12)
+- Reading the code: `adoptSession` exists because `supabase.auth.setSession()` acquires the GoTrueClient `LockManager` and can hold it indefinitely (upstream supabase-js issue with `navigator.locks` contention).
+- An 8s timeout on `setSession()` does NOT release the lock — it only makes the timeout fire while every subsequent `supabase.from(...)` call still hangs waiting for the lock.
+- The current optimistic-adoption code IS the correct workaround. There is no simpler architecture that doesn't reintroduce the original bug (employees/payroll/payslips hanging right after MS365 callback).
 
-### Phase 4 — DO NOT TOUCH
+### Phase 4 — DO NOT TOUCH (unchanged)
 - Heartbeat-purge: compliance regression (DPDPA + 3-session cap).
 - `refetchOnWindowFocus: "always"`: self-heal rule.
 - RLS policies, org-scoping, audit chain.
+
+## Verdict (2026-05-12)
+The "rot" is load-bearing. Phase 1 hook consolidation is done. Phases 2 & 3 are cancelled — devil's advocate won. Further "simplification" of the auth/session layer would be regression, not progress.
 
 ## What we DID ship today
 - Removed `[useUserOrganization]` per-render `console.log` spam.
