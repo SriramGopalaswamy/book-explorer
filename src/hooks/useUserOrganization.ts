@@ -26,6 +26,17 @@ export function useUserOrganization() {
       : null
     : undefined;
 
+  // eslint-disable-next-line no-console
+  console.log("[useUserOrganization]", {
+    isLoading,
+    isFetching,
+    hasData: !!data,
+    orgIdInData: data?.organizationId ?? null,
+    rolesInData: data?.roles ?? null,
+    isSuperAdmin: data?.isSuperAdmin ?? null,
+    resolvedResult: result,
+  });
+
   return {
     data: result,
     isLoading,
