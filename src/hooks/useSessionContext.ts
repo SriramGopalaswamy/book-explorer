@@ -296,7 +296,7 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
     return { isSuperAdmin, organizationId, roles, organization, subscription };
   }
 
-  const [profileRes, rolesRes, superRes] = await Promise.all([
+  const [profileRes, memberRes, rolesRes, superRes] = await Promise.all([
     withTimeout(
       supabase
         .from("profiles")
@@ -306,6 +306,17 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
         .then((r) => r),
       4000,
       "profiles",
+    ).catch((e) => ({ data: null, error: e as Error })),
+    withTimeout(
+      supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", uid)
+        .limit(1)
+        .maybeSingle()
+        .then((r) => r),
+      4000,
+      "organization_members",
     ).catch((e) => ({ data: null, error: e as Error })),
     withTimeout(
       supabase
@@ -330,7 +341,7 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
   ]);
 
   const organizationId: string | null =
-    (profileRes as any)?.data?.organization_id ?? null;
+    (profileRes as any)?.data?.organization_id ?? (memberRes as any)?.data?.organization_id ?? null;
   const allRoles: Array<{ role: string; organization_id: string | null }> =
     ((rolesRes as any)?.data as any[]) ?? [];
   const roles = allRoles
