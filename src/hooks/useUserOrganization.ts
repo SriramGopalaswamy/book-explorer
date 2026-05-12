@@ -8,18 +8,23 @@ import { useSessionContext } from "@/hooks/useSessionContext";
 export function useUserOrganization() {
   const { data, isLoading, isFetching, isError, error } = useSessionContext();
 
-  const result =
-    data && data.organizationId && data.organization
+  // CRITICAL: gate ONLY on organizationId. The `organization` metadata join
+  // can come back null (transient RLS hiccup, RPC partial result) even when
+  // organizationId is set. Previously we returned `undefined` in that case,
+  // which left every consumer hook (useEmployees, usePayroll, usePayslips,
+  // etc.) with `enabled: false` and the page hung forever waiting for a
+  // request that never fired.
+  const result = data
+    ? data.organizationId
       ? {
           organizationId: data.organizationId,
-          orgName: data.organization.name ?? null,
-          orgStatus: data.organization.status ?? null,
-          orgState: data.organization.org_state ?? null,
-          createdAt: data.organization.created_at ?? null,
+          orgName: data.organization?.name ?? null,
+          orgStatus: data.organization?.status ?? null,
+          orgState: data.organization?.org_state ?? null,
+          createdAt: data.organization?.created_at ?? null,
         }
-      : data && !data.organizationId
-        ? null
-        : undefined;
+      : null
+    : undefined;
 
   return {
     data: result,
