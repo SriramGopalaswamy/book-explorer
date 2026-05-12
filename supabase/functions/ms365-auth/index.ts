@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { logError } from "../_shared/logger.ts";
+import { logError, logInfo, logWarn } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,24 +13,30 @@ const corsHeaders = {
 const domainCache = new Map<string, { organizationId: string; ssoDomain: string }>();
 
 /**
- * Find an auth user by email via paginated listUsers (admin API has no
- * getUserByEmail). Returns the user object or null. Iterates up to 50 pages
- * of 1000 users each.
+ * Resolve an existing application user without scanning auth users. The old
+ * flow used auth.admin.listUsers(email search by pagination), which can fail
+ * with "Database error finding users" and makes MS365 login appear hung.
+ * Profiles are the app-owned identity index and contain auth user_id.
  */
-async function findUserByEmail(supabase: any, email: string): Promise<any | null> {
-  const target = email.toLowerCase();
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) {
-      logError("ms365-auth", error, { stage: "findUserByEmail", page });
-      return null;
-    }
-    const users = data?.users ?? [];
-    const match = users.find((u: any) => (u.email || "").toLowerCase() === target);
-    if (match) return match;
-    if (users.length < 1000) return null;
+async function findExistingProfileByEmail(supabase: any, email: string, organizationId: string): Promise<any | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,user_id,status")
+    .eq("email", email.toLowerCase())
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) {
+    logError("ms365-auth", error, { stage: "findExistingProfileByEmail" });
+    throw new Error(`Failed to look up existing profile: ${error.message}`);
   }
-  return null;
+  return data ?? null;
+}
+
+function errorResponse(requestId: string, stage: string, message: string, status = 400, extra: Record<string, unknown> = {}) {
+  return new Response(
+    JSON.stringify({ error: message, stage, requestId, ...extra }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 }
 
 /**
