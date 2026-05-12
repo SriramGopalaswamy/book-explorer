@@ -15,11 +15,12 @@ Each piece of the current "rot" is actually load-bearing:
 
 ## Phased plan (when we tackle it)
 
-### Phase 1 — Hook consolidation (low risk)
-- Keep `useSessionContext` as the single source.
-- Make `useUserOrganization`, `useCurrentRole`, `useIsSuperAdmin` thin re-exports (already mostly true).
-- Delete `useUserOrganization.ts` only after migrating 52 import sites in a single PR.
-- Tests required: every page in `ROLE_GATED_PREFIXES` (hrms, financial, inventory, manufacturing, procurement, sales, warehouse, performance) must render with org/roles populated.
+### Phase 1 — Hook consolidation ✅ DONE (2026-05-12)
+- `useSessionContext` is the single source of truth.
+- `useUserOrganization` (src/hooks/useUserOrganization.ts) — thin reader, no extra network call.
+- `useRoles` (useIsAdminOrHR / useIsFinance / useIsManager / useCurrentRole) — thin reader.
+- `useIsSuperAdmin` (src/hooks/useSuperAdmin.ts) — thin reader + persisted localStorage hint for eager super-admin UX.
+- NOT doing: deleting useUserOrganization.ts and migrating 52 import sites. Pure rename churn, zero behavioral benefit, real regression surface. The wrapper IS the consolidation.
 
 ### Phase 2 — Direct-query fallback removal (medium risk)
 - `useSessionContext` currently has both `fetchViaRpc` (6s timeout) AND `fetchViaDirectQueries` (parallel REST). Remove the fallback only after monitoring `[session-ctx] rpc failed` warnings in production for 1 week and confirming zero occurrences.
