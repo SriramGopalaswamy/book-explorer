@@ -129,8 +129,40 @@ function engineEntryToPayrollRecord(e: any): PayrollRecord {
 export function usePayrollRecords(payPeriod?: string) {
   const { user } = useAuth();
   const isDevMode = useIsDevModeWithoutAuth();
-  const { data: orgData } = useUserOrganization();
+  const { data: orgData, isLoading: orgLoading, isFetching: orgFetching } = useUserOrganization();
+  const sessionCtx = useSessionContext();
   const orgId = orgData?.organizationId;
+
+  // Watchdog: if Payroll has been mounted >5s with no orgId, dump full state
+  // to console so we capture the hang without asking the user to copy logs.
+  const dumpedRef = useRef(false);
+  useEffect(() => {
+    if (dumpedRef.current || isDevMode || orgId) return;
+    const t = setTimeout(() => {
+      if (dumpedRef.current || orgId) return;
+      dumpedRef.current = true;
+      // eslint-disable-next-line no-console
+      console.warn("[payroll-watchdog] still no orgId after 5s", {
+        hasUser: !!user,
+        userId: user?.id,
+        orgLoading,
+        orgFetching,
+        orgData,
+        sessionStatus: sessionCtx.status,
+        sessionFetchStatus: sessionCtx.fetchStatus,
+        sessionError: sessionCtx.error?.message ?? null,
+        sessionData: sessionCtx.data
+          ? {
+              organizationId: sessionCtx.data.organizationId,
+              roles: sessionCtx.data.roles,
+              isSuperAdmin: sessionCtx.data.isSuperAdmin,
+              hasOrgMeta: !!sessionCtx.data.organization,
+            }
+          : null,
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [user, orgId, orgLoading, orgFetching, orgData, sessionCtx.status, sessionCtx.fetchStatus, sessionCtx.error, sessionCtx.data, isDevMode]);
 
   return useQuery({
     queryKey: ["payroll", user?.id, payPeriod, orgId, isDevMode],
