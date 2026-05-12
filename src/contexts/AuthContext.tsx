@@ -156,6 +156,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("[auth-ctx]", event, { uid: newUid, alreadyAdopted });
 
         if (event === "SIGNED_OUT") {
+          // If we just adopted a session optimistically (MS365 callback),
+          // a stale-session purge fired SIGNED_OUT from the boot path —
+          // ignore it so we don't wipe the freshly adopted user.
+          if (alreadyAdopted) {
+            console.log("[auth-ctx] SIGNED_OUT ignored — session was just adopted");
+            return;
+          }
           adoptedUidRef.current = null;
           clearAllSessionContext();
           queryClient.clear();
