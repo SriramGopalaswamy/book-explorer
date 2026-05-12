@@ -149,6 +149,8 @@ async function resolveWaitingManagerRefs(supabase: any, email: string, profileId
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const requestId = crypto.randomUUID();
+  let stage = "parse_request";
   const AZURE_CLIENT_ID     = Deno.env.get("AZURE_CLIENT_ID")!;
   const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET")!;
   const AZURE_TENANT_ID     = Deno.env.get("AZURE_TENANT_ID")!;
@@ -157,6 +159,7 @@ Deno.serve(async (req) => {
 
   try {
     const { action, code, redirect_uri } = await req.json();
+    logInfo("ms365-auth", "request received", { requestId, action });
 
     // ── Step 1: Return Azure AD authorization URL ──────────────────────────────
     if (action === "get_auth_url") {
@@ -176,6 +179,7 @@ Deno.serve(async (req) => {
 
     // ── Step 2: Exchange code → tokens → session ───────────────────────────────
     if (action === "exchange_code") {
+      stage = "azure_token_exchange";
       const tokenRes = await fetch(
         `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`,
         {
@@ -193,36 +197,30 @@ Deno.serve(async (req) => {
       );
 
       if (!tokenRes.ok) {
-        console.error("Token exchange failed:", await tokenRes.text());
-        return new Response(
-          JSON.stringify({ error: "Token exchange failed" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        const detail = await tokenRes.text();
+        logWarn("ms365-auth", "Token exchange failed", { requestId, stage, status: tokenRes.status, detail });
+        return errorResponse(requestId, stage, "Token exchange failed", 400);
       }
 
       const tokens = await tokenRes.json();
       const authHeader = { Authorization: `Bearer ${tokens.access_token}` };
 
       // Fetch MS365 profile + manager in parallel
+      stage = "microsoft_graph_profile";
       const [profileRes, managerResRaw] = await Promise.all([
         fetch("https://graph.microsoft.com/v1.0/me", { headers: authHeader }),
         fetch("https://graph.microsoft.com/v1.0/me/manager", { headers: authHeader }).catch(() => null),
       ]);
 
       if (!profileRes.ok) {
-        return new Response(
-          JSON.stringify({ error: "Failed to fetch user profile from Microsoft" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        logWarn("ms365-auth", "Microsoft profile fetch failed", { requestId, stage, status: profileRes.status });
+        return errorResponse(requestId, stage, "Failed to fetch user profile from Microsoft", 400);
       }
 
       const ms365Profile = await profileRes.json();
       const email      = ms365Profile.mail || ms365Profile.userPrincipalName;
       if (!email) {
-        return new Response(
-          JSON.stringify({ error: "Microsoft profile did not return an email address" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(requestId, stage, "Microsoft profile did not return an email address", 400);
       }
       const fullName   = ms365Profile.displayName || "";
       const jobTitle   = ms365Profile.jobTitle || null;
@@ -244,72 +242,55 @@ Deno.serve(async (req) => {
       });
 
       // ── Resolve organization from email domain ─────────────────────────────
+      stage = "resolve_organization";
       const orgEntry = await resolveOrgFromEmailDomain(supabase, email);
       if (!orgEntry) {
         console.warn(`[ms365-auth] No organization configured for email domain of: ${email}`);
-        return new Response(
-          JSON.stringify({ error: "Your email domain is not authorized for Microsoft SSO login." }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(requestId, stage, "Your email domain is not authorized for Microsoft SSO login.", 403, { emailDomain: email.split("@")[1]?.toLowerCase() });
       }
       const { organizationId, ssoDomain } = orgEntry;
 
       if (!email?.toLowerCase().endsWith(`@${ssoDomain}`)) {
-        return new Response(
-          JSON.stringify({ error: `Only @${ssoDomain} accounts are allowed` }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(requestId, stage, `Only @${ssoDomain} accounts are allowed`, 403);
       }
 
       const adminEmails = (Deno.env.get("ADMIN_EMAILS") || "")
         .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       const isAdminEmail = adminEmails.includes(email.toLowerCase());
 
-      const existingUser = await findUserByEmail(supabase, email);
+      stage = "find_existing_profile";
+      const existingProfile = await findExistingProfileByEmail(supabase, email, organizationId);
 
       let session;
 
-      if (existingUser) {
-        const { data: profileStatus } = await supabase
-          .from("profiles")
-          .select("id, status")
-          .eq("user_id", existingUser.id)
-          .maybeSingle();
-
-        if (profileStatus?.status === "inactive") {
-          return new Response(
-            JSON.stringify({ error: "Your account has been deactivated. Contact your administrator." }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+      if (existingProfile?.user_id) {
+        const existingUserId = existingProfile.user_id;
+        if (existingProfile.status === "inactive") {
+          return errorResponse(requestId, stage, "Your account has been deactivated. Contact your administrator.", 403);
         }
 
-        if (profileStatus?.status === "pending_approval") {
-          await supabase.from("profiles").update({ status: "active" }).eq("user_id", existingUser.id);
+        if (existingProfile.status === "pending_approval") {
+          await supabase.from("profiles").update({ status: "active" }).eq("user_id", existingUserId);
         }
 
-        let resolvedProfileId: string | null = profileStatus?.id ?? null;
+        let resolvedProfileId: string | null = existingProfile.id ?? null;
         let profileAlreadySynced = false;
 
-        if (!profileStatus) {
-          await syncProfileFromMS365(supabase, existingUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail, "active");
-          profileAlreadySynced = true;
-          const { data: fp } = await supabase.from("profiles").select("id").eq("user_id", existingUser.id).maybeSingle();
-          resolvedProfileId = fp?.id ?? null;
-        }
-
+        stage = "create_magic_link_existing_user";
         const { data, error } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
         if (error) {
-          console.error("Generate link error:", error);
-          return new Response(JSON.stringify({ error: "Failed to authenticate user" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          logError("ms365-auth", error, { requestId, stage });
+          return errorResponse(requestId, stage, "Failed to authenticate user", 500);
         }
 
+        stage = "verify_magic_link_existing_user";
         const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: data.properties?.hashed_token!,
           type: "magiclink",
         });
         if (verifyError) {
-          console.error("Verify OTP error:", verifyError);
-          return new Response(JSON.stringify({ error: "Failed to create session" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          logError("ms365-auth", verifyError, { requestId, stage });
+          return errorResponse(requestId, stage, "Failed to create session", 500);
         }
 
         session = sessionData.session;
@@ -319,14 +300,14 @@ Deno.serve(async (req) => {
         const bgSync = (async () => {
           try {
             if (!profileAlreadySynced) {
-              await syncProfileFromMS365(supabase, existingUser.id, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
+              await syncProfileFromMS365(supabase, existingUserId, organizationId, fullName, jobTitle, department, phone, email, managerEmail);
             }
             if (resolvedProfileId) await resolveWaitingManagerRefs(supabase, email, resolvedProfileId);
 
-            const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", existingUser.id).maybeSingle();
+            const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", existingUserId).eq("organization_id", organizationId).maybeSingle();
             if (!existingRole) {
               await supabase.from("user_roles").insert({
-                user_id: existingUser.id,
+                user_id: existingUserId,
                 role: isAdminEmail ? "admin" : "employee",
                 organization_id: organizationId,
               });
