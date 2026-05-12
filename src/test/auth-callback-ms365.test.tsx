@@ -115,6 +115,33 @@ describe("AuthCallback (MS365)", () => {
     expect(sessionStorage.getItem("ms365_oauth_state")).toBeNull();
   });
 
+  it("does not leave the callback screen stuck if setSession is slow", async () => {
+    setOAuthState("slow");
+    invokeMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "tok-access",
+          refresh_token: "tok-refresh",
+        },
+      },
+      error: null,
+    });
+    setSessionMock.mockReturnValue(new Promise(() => {}));
+
+    renderCallback("?code=xyz&state=slow");
+
+    await waitFor(() => {
+      expect(setSessionMock).toHaveBeenCalledWith({
+        access_token: "tok-access",
+        refresh_token: "tok-refresh",
+      });
+    });
+
+    await waitFor(() => {
+      expect(navigateSpy).toHaveBeenCalledWith("/", { replace: true });
+    }, { timeout: 4000 });
+  });
+
   it("routes pending users to /pending-approval instead of '/'", async () => {
     setOAuthState("s1");
     invokeMock.mockResolvedValue({ data: { pending: true }, error: null });
