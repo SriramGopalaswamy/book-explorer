@@ -309,11 +309,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // supabase.auth.signOut() acquires the GoTrueClient navigator.locks lock
+    // and can hang indefinitely on lock contention (same root cause as the
+    // setSession lock-hang documented in adoptSession). Race it with a short
+    // timeout so the UI never appears frozen — local artifacts are cleared
+    // unconditionally below, and the next page load will reconcile auth state.
+    const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+      Promise.race([
+        p,
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
+      ]);
+
     try {
-      await supabase.auth.signOut({ scope: "global" });
+      const result = await withTimeout(supabase.auth.signOut({ scope: "global" }), 2000);
+      if (result === "timeout") {
+        console.warn("[Auth] global sign-out timed out after 2s — proceeding with local cleanup");
+      }
     } catch (err) {
       console.warn("[Auth] global sign-out failed, falling back to local:", err);
-      try { await supabase.auth.signOut({ scope: "local" }); } catch (err2) {
+      try {
+        await withTimeout(supabase.auth.signOut({ scope: "local" }), 1500);
+      } catch (err2) {
         console.error("[Auth] local sign-out also failed:", err2);
       }
     }
