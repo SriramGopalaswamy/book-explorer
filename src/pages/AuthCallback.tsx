@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { authTrace, authTraceReset } from "@/lib/auth-trace";
 
 const MS365_EXCHANGE_TIMEOUT_MS = 20_000;
+const SESSION_COMMIT_TIMEOUT_MS = 2_500;
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -21,6 +22,30 @@ async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string
       },
     );
   });
+}
+
+async function commitSessionWithoutBlocking(accessToken: string, refreshToken: string) {
+  const commit = supabase.auth
+    .setSession({ access_token: accessToken, refresh_token: refreshToken })
+    .then((result) => ({ ...result, timedOut: false }))
+    .catch((error) => ({ data: null, error, timedOut: false }));
+
+  const result = await Promise.race([
+    commit,
+    new Promise<{ data: null; error: null; timedOut: true }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: null, timedOut: true }), SESSION_COMMIT_TIMEOUT_MS),
+    ),
+  ]);
+
+  if (result.timedOut) {
+    commit.then((late) => {
+      authTrace("ms365", late.error ? "set_session_late_error" : "set_session_late_complete", {
+        msg: late.error?.message,
+      });
+    });
+  }
+
+  return result;
 }
 
 export default function AuthCallback() {
@@ -119,13 +144,22 @@ export default function AuthCallback() {
 
         if (data?.session) {
           const tSetStart = performance.now();
-          await supabase.auth.setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-          });
+          const sessionCommit = await commitSessionWithoutBlocking(
+            data.session.access_token,
+            data.session.refresh_token,
+          );
           authTrace("ms365", "set_session_complete", {
             elapsedMs: Math.round(performance.now() - tSetStart),
+            timedOut: sessionCommit.timedOut,
+            error: sessionCommit.error?.message,
           });
+
+          if (sessionCommit.error) {
+            setError("Failed to create session");
+            toast.error("Failed to create session");
+            setTimeout(() => navigate("/auth", { replace: true }), 3000);
+            return;
+          }
 
           toast.success("Signed in with Microsoft 365!");
 
