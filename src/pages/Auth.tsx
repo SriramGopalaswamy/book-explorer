@@ -77,10 +77,13 @@ export default function Auth() {
       try {
         const { data } = await supabase
           .from("organization_settings")
-          .select("sso_only")
+          .select("sso_only, allow_email_signin, allow_email_signup, allow_google_signin")
           .eq("organization_id", "00000000-0000-0000-0000-000000000001")
           .maybeSingle();
         if (data?.sso_only) setSsoOnly(true);
+        setAllowEmailSignin(!!data?.allow_email_signin);
+        setAllowEmailSignup(!!data?.allow_email_signup);
+        setAllowGoogleSignin(!!data?.allow_google_signin);
       } catch { /* ignore */ }
     })();
   }, []);
