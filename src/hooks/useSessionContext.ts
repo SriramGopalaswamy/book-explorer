@@ -384,27 +384,17 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
 }
 
 async function bootstrapSession(uid: string, accessToken?: string): Promise<SessionContext> {
-  const t0 = performance.now();
   try {
     const ctx = await withTimeout(fetchViaRpc(accessToken), 6000, "rpc");
     const degraded = !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
-    // eslint-disable-next-line no-console
-    console.log("[session-ctx] rpc ok", {
-      ms: Math.round(performance.now() - t0),
-      degraded,
-    });
     if (!degraded) return ctx;
     // RPC succeeded but returned degraded — try direct fallback to confirm.
     const fallback = await fetchViaDirectQueries(uid, accessToken);
-    // eslint-disable-next-line no-console
-    console.log("[session-ctx] fallback after degraded rpc", {
-      orgId: fallback.organizationId,
-      roles: fallback.roles.length,
-    });
     return fallback.organizationId || fallback.roles.length || fallback.isSuperAdmin
       ? fallback
       : ctx;
   } catch (err: any) {
+    // Keep this warn — it's the signal Phase 2 (fallback removal) depends on.
     // eslint-disable-next-line no-console
     console.warn("[session-ctx] rpc failed, using direct fallback", err?.message);
     return fetchViaDirectQueries(uid, accessToken);
