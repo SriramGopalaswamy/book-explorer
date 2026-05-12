@@ -221,7 +221,7 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
   // Parallel, bounded, RLS-respecting reads. Each is independently small;
   // a hang in one does not block the others past the per-call timeout.
   if (accessToken) {
-    const [profileRows, rolesRows, superRows] = await Promise.all([
+    const [profileRows, memberRows, rolesRows, superRows] = await Promise.all([
       withTimeout(
         fetchRestRows<{ organization_id: string | null }>(
           "profiles",
@@ -230,6 +230,15 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
         ),
         4000,
         "profiles",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ organization_id: string | null }>(
+          "organization_members",
+          { select: "organization_id", user_id: `eq.${uid}`, limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "organization_members",
       ).catch(() => []),
       withTimeout(
         fetchRestRows<{ role: string; organization_id: string | null }>(
@@ -251,7 +260,7 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
       ).catch(() => []),
     ]);
 
-    const organizationId = profileRows[0]?.organization_id ?? null;
+    const organizationId = profileRows[0]?.organization_id ?? memberRows[0]?.organization_id ?? null;
     const roles = rolesRows
       .filter((r) => !organizationId || !r.organization_id || r.organization_id === organizationId)
       .map((r) => r.role);
