@@ -363,10 +363,10 @@ async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise
   return { isSuperAdmin, organizationId, roles, organization, subscription };
 }
 
-async function bootstrapSession(uid: string): Promise<SessionContext> {
+async function bootstrapSession(uid: string, accessToken?: string): Promise<SessionContext> {
   const t0 = performance.now();
   try {
-    const ctx = await withTimeout(fetchViaRpc(), 6000, "rpc");
+    const ctx = await withTimeout(fetchViaRpc(accessToken), 6000, "rpc");
     const degraded = !ctx.isSuperAdmin && (!ctx.organizationId || ctx.roles.length === 0);
     // eslint-disable-next-line no-console
     console.log("[session-ctx] rpc ok", {
@@ -375,7 +375,7 @@ async function bootstrapSession(uid: string): Promise<SessionContext> {
     });
     if (!degraded) return ctx;
     // RPC succeeded but returned degraded — try direct fallback to confirm.
-    const fallback = await fetchViaDirectQueries(uid);
+    const fallback = await fetchViaDirectQueries(uid, accessToken);
     // eslint-disable-next-line no-console
     console.log("[session-ctx] fallback after degraded rpc", {
       orgId: fallback.organizationId,
@@ -387,12 +387,12 @@ async function bootstrapSession(uid: string): Promise<SessionContext> {
   } catch (err: any) {
     // eslint-disable-next-line no-console
     console.warn("[session-ctx] rpc failed, using direct fallback", err?.message);
-    return fetchViaDirectQueries(uid);
+    return fetchViaDirectQueries(uid, accessToken);
   }
 }
 
 export function useSessionContext() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const uid = user?.id;
 
   return useQuery<SessionContext>({
@@ -400,7 +400,7 @@ export function useSessionContext() {
     initialData: uid ? readCachedSessionContext(uid) ?? undefined : undefined,
     queryFn: async () => {
       if (!user) return EMPTY;
-      const ctx = await bootstrapSession(user.id);
+      const ctx = await bootstrapSession(user.id, session?.access_token);
       const isDegraded = isSessionContextDegraded(ctx);
       // Healthy snapshots are safe to reuse across a reload. Degraded snapshots
       // (no super-admin + missing org/roles) are transient bootstrap failures:
