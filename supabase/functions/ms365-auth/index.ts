@@ -300,6 +300,7 @@ Deno.serve(async (req) => {
         if (existingProfile.status === "inactive") {
           return errorResponse(requestId, stage, "Your account has been deactivated. Contact your administrator.", 403);
         }
+        await ensureOrganizationMembership(supabase, existingUserId, organizationId);
 
         if (existingProfile.status === "pending_approval") {
           await supabase.from("profiles").update({ status: "active" }).eq("user_id", existingUserId);
