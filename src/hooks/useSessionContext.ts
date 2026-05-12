@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { authTrace } from "@/lib/auth-trace";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
 export interface SessionOrganization {
   id: string;
   name: string | null;
@@ -168,7 +171,40 @@ async function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Pro
   });
 }
 
-async function fetchViaRpc(): Promise<SessionContext> {
+function authedRestHeaders(accessToken: string): HeadersInit {
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function fetchRestRows<T>(table: string, params: Record<string, string>, accessToken: string): Promise<T[]> {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  const res = await fetch(url.toString(), { headers: authedRestHeaders(accessToken) });
+  if (!res.ok) throw new Error(`${table} HTTP ${res.status}: ${await res.text()}`);
+  return (await res.json()) as T[];
+}
+
+async function fetchViaRpc(accessToken?: string): Promise<SessionContext> {
+  if (accessToken) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_session_context`, {
+      method: "POST",
+      headers: authedRestHeaders(accessToken),
+      body: "{}",
+    });
+    if (!res.ok) throw new Error(`rpc HTTP ${res.status}: ${await res.text()}`);
+    const payload = (await res.json()) ?? {};
+    return {
+      isSuperAdmin: !!payload.is_super_admin,
+      organizationId: payload.organization_id ?? null,
+      roles: Array.isArray(payload.roles) ? payload.roles : [],
+      organization: payload.organization ?? null,
+      subscription: payload.subscription ?? null,
+    };
+  }
+
   const { data, error } = await supabase.rpc("get_my_session_context");
   if (error) throw error;
   const payload = (data ?? {}) as any;
