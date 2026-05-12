@@ -57,6 +57,9 @@ export default function Auth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showEmailFallback, setShowEmailFallback] = useState(false);
   const [ssoOnly, setSsoOnly] = useState(false);
+  const [allowEmailSignin, setAllowEmailSignin] = useState(false);
+  const [allowEmailSignup, setAllowEmailSignup] = useState(false);
+  const [allowGoogleSignin, setAllowGoogleSignin] = useState(false);
   const { signIn, signUp, resetPassword, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
