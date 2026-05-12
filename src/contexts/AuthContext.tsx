@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && !hasLiveSentinel()) {
+      if (session && !sentinelAliveAtBoot) {
         // Stale session from a previous browser process — purge.
         // eslint-disable-next-line no-console
         console.log("[auth-ctx] stale session detected on fresh browser open — signing out");
