@@ -366,9 +366,9 @@ export function Sidebar() {
 
   // Never blank the navigation while role/org queries settle.
   // Fall back to a safe self-service role until the org-scoped role query resolves.
-  const rolesStillLoading = superAdminLoading || orgLoading;
-  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? (rolesStillLoading ? null : "employee");
-  const showingFallbackRole = !isSuperAdmin && effectiveRole === null;
+  const rolesStillLoading = superAdminLoading || orgLoading || currentRole === null;
+  const effectiveRole = isSuperAdmin ? "admin" : currentRole ?? "employee";
+  const showingFallbackRole = !isSuperAdmin && rolesStillLoading;
 
   // Restore sidebar scroll position after remount AND after content has rendered
   // We depend on org loading so scroll is restored once the shell is laid out
