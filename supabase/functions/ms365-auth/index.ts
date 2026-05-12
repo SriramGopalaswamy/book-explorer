@@ -134,6 +134,26 @@ async function syncProfileFromMS365(
   }
 }
 
+async function ensureUserRole(supabase: any, userId: string, organizationId: string, role: "admin" | "employee") {
+  const { data: existingRole, error: lookupError } = await supabase
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (lookupError) throw new Error(`Failed to verify user role: ${lookupError.message}`);
+  if (existingRole) return;
+
+  const { error: insertError } = await supabase.from("user_roles").insert({
+    user_id: userId,
+    role,
+    organization_id: organizationId,
+  });
+  if (insertError && insertError.code !== "23505") {
+    throw new Error(`Failed to assign user role: ${insertError.message}`);
+  }
+}
+
 /** Resolve any profiles that were waiting for this email as manager. */
 async function resolveWaitingManagerRefs(supabase: any, email: string, profileId: string) {
   try {
