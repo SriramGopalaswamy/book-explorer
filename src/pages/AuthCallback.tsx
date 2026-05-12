@@ -4,53 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { authTrace, authTraceReset } from "@/lib/auth-trace";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MS365_EXCHANGE_TIMEOUT_MS = 20_000;
-const SESSION_COMMIT_TIMEOUT_MS = 2_500;
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
     Promise.resolve(promise).then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
     );
   });
-}
-
-async function commitSessionWithoutBlocking(accessToken: string, refreshToken: string) {
-  const commit = supabase.auth
-    .setSession({ access_token: accessToken, refresh_token: refreshToken })
-    .then((result) => ({ ...result, timedOut: false }))
-    .catch((error) => ({ data: null, error, timedOut: false }));
-
-  const result = await Promise.race([
-    commit,
-    new Promise<{ data: null; error: null; timedOut: true }>((resolve) =>
-      setTimeout(() => resolve({ data: null, error: null, timedOut: true }), SESSION_COMMIT_TIMEOUT_MS),
-    ),
-  ]);
-
-  if (result.timedOut) {
-    commit.then((late) => {
-      authTrace("ms365", late.error ? "set_session_late_error" : "set_session_late_complete", {
-        msg: late.error?.message,
-      });
-    });
-  }
-
-  return result;
 }
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { adoptSession } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,40 +114,14 @@ export default function AuthCallback() {
         }
 
         if (data?.session) {
-          const tSetStart = performance.now();
-          const sessionCommit = await commitSessionWithoutBlocking(
-            data.session.access_token,
-            data.session.refresh_token,
-          );
-          authTrace("ms365", "set_session_complete", {
-            elapsedMs: Math.round(performance.now() - tSetStart),
-            timedOut: sessionCommit.timedOut,
-            error: sessionCommit.error?.message,
-          });
-
-          if (sessionCommit.error) {
-            setError("Failed to create session");
-            toast.error("Failed to create session");
-            setTimeout(() => navigate("/auth", { replace: true }), 3000);
-            return;
-          }
-
-          // Defensive: if setSession timed out, supabase-js may not have
-          // synchronously fired SIGNED_IN. Poll briefly for the auth state
-          // to materialise before navigating, otherwise / will bounce back
-          // to /auth because AuthContext.user is still null.
-          if (sessionCommit.timedOut) {
-            for (let i = 0; i < 20; i++) {
-              const { data: probe } = await supabase.auth.getSession();
-              if (probe.session?.user?.id) break;
-              await new Promise((r) => setTimeout(r, 100));
-            }
-          }
-
-          toast.success("Signed in with Microsoft 365!");
-          authTrace("ms365", "navigate_home", {
+          // Adopt the session synchronously: decode the JWT, populate
+          // AuthContext state immediately, and commit to supabase-js
+          // storage in the background. UI never blocks on the LockManager.
+          adoptSession(data.session.access_token, data.session.refresh_token);
+          authTrace("ms365", "session_adopted", {
             totalMs: Math.round(performance.now() - tStart),
           });
+          toast.success("Signed in with Microsoft 365!");
           navigate("/", { replace: true });
         } else {
           authTrace("ms365", "no_session_returned");
@@ -184,9 +129,7 @@ export default function AuthCallback() {
           setTimeout(() => navigate("/auth", { replace: true }), 3000);
         }
       } catch (err) {
-        authTrace("ms365", "exchange_exception", {
-          msg: (err as Error)?.message,
-        });
+        authTrace("ms365", "exchange_exception", { msg: (err as Error)?.message });
         console.error("[AuthCallback] Error:", err);
         const msg = (err as Error)?.message || "An unexpected error occurred";
         setError(msg);
@@ -196,7 +139,7 @@ export default function AuthCallback() {
     };
 
     exchangeCode();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, adoptSession]);
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "hsl(270 10% 6%)" }}>

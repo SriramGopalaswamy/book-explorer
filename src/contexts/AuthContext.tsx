@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,32 +13,123 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  /**
+   * Adopt a session optimistically from raw tokens (used by the MS365
+   * OAuth callback). Decodes the JWT to populate user state immediately,
+   * then commits the session to supabase-js in the background. The UI
+   * proceeds without ever blocking on the supabase storage LockManager.
+   */
+  adoptSession: (accessToken: string, refreshToken: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// ---------------------------------------------------------------------------
+// Cross-tab heartbeat
+// ---------------------------------------------------------------------------
+// Every live tab writes `now` to localStorage every HEARTBEAT_INTERVAL_MS.
+// On boot, if the stored heartbeat is older than HEARTBEAT_STALE_MS (i.e. no
+// tab has been alive for that long) AND a Supabase session exists in
+// localStorage, we treat it as a fresh browser process and purge the session.
+//
+// This correctly handles:
+//   - Single tab close + reopen browser   → stale → purge
+//   - Multiple tabs open, one is closed   → heartbeat fresh → keep
+//   - New tab opened from same browser    → heartbeat fresh → keep
+//   - Chrome "Continue where you left off" → no live tabs for >threshold → purge
+const HEARTBEAT_KEY = "grx10_tab_heartbeat";
+const HEARTBEAT_INTERVAL_MS = 3_000;
+const HEARTBEAT_STALE_MS = 8_000;
+
+// Hard ceiling on auth bootstrap. If `supabase.auth.getSession()` or
+// `onAuthStateChange` never fires for any reason, force `loading=false`
+// after this so the app cannot get stuck on "Verifying access".
+const AUTH_BOOTSTRAP_HARD_TIMEOUT_MS = 5_000;
+
+function readHeartbeat(): number | null {
+  try {
+    const raw = localStorage.getItem(HEARTBEAT_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHeartbeat() {
+  try {
+    localStorage.setItem(HEARTBEAT_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Decode a JWT access token into a synthetic `User` object so we can populate
+ * AuthContext state without waiting for `supabase.auth.setSession`. Only the
+ * fields actually consumed by the app are filled in.
+ */
+function decodeUserFromJwt(accessToken: string): User | null {
+  try {
+    const payloadRaw = accessToken.split(".")[1];
+    if (!payloadRaw) return null;
+    const json = JSON.parse(
+      decodeURIComponent(
+        atob(payloadRaw.replace(/-/g, "+").replace(/_/g, "/"))
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join(""),
+      ),
+    );
+    return {
+      id: json.sub,
+      aud: json.aud ?? "authenticated",
+      email: json.email,
+      phone: json.phone ?? "",
+      role: json.role ?? "authenticated",
+      app_metadata: json.app_metadata ?? {},
+      user_metadata: json.user_metadata ?? {},
+      created_at: new Date((json.iat ?? Date.now() / 1000) * 1000).toISOString(),
+    } as unknown as User;
+  } catch (err) {
+    console.warn("[auth-ctx] decodeUserFromJwt failed:", err);
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  const adoptedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Browser-close enforcement: Supabase persists tokens in localStorage so
-    // they survive process exit. We use a sessionStorage sentinel (which
-    // dies when the last tab for this origin closes) to detect "fresh
-    // browser open". If there's no sentinel on boot but a Supabase token
-    // exists, treat it as a stale session and force a clean sign-out so
-    // the user lands on /auth.
-    const SESSION_SENTINEL = "grx10_session_alive";
-    const hasLiveSentinel = () => {
-      try { return sessionStorage.getItem(SESSION_SENTINEL) === "1"; } catch { return false; }
-    };
-    // Snapshot sentinel state BEFORE any auth events fire. Supabase emits
-    // INITIAL_SESSION synchronously after reading the persisted token from
-    // localStorage; if we let that handler write the sentinel, the
-    // stale-session purge below would never trigger on a fresh browser open.
-    const sentinelAliveAtBoot = hasLiveSentinel();
+    // Snapshot heartbeat BEFORE we start writing — this tells us whether
+    // any other tab was alive recently or we're a fresh browser process.
+    const lastBeat = readHeartbeat();
+    const now = Date.now();
+    const isFreshBrowserProcess = lastBeat === null || now - lastBeat > HEARTBEAT_STALE_MS;
+
+    // Start writing our own heartbeat immediately so other tabs see us alive.
+    writeHeartbeat();
+    const beatTimer = window.setInterval(writeHeartbeat, HEARTBEAT_INTERVAL_MS);
+    const onVisibility = () => { if (document.visibilityState === "visible") writeHeartbeat(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", writeHeartbeat);
+    window.addEventListener("pageshow", writeHeartbeat);
+
+    // Hard timeout: never let `loading` stay true forever.
+    const bootTimer = window.setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          // eslint-disable-next-line no-console
+          console.warn("[auth-ctx] bootstrap hard timeout — forcing loading=false");
+        }
+        return false;
+      });
+    }, AUTH_BOOTSTRAP_HARD_TIMEOUT_MS);
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -47,30 +138,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Suppress INITIAL_SESSION on a stale session — let the purge below
         // run and clear it instead of flashing the user into the app.
-        if (event === "INITIAL_SESSION" && newUid && !sentinelAliveAtBoot) {
+        if (event === "INITIAL_SESSION" && newUid && isFreshBrowserProcess) {
           // eslint-disable-next-line no-console
-          console.log("[auth-ctx] INITIAL_SESSION suppressed (stale, awaiting purge)", { uid: newUid });
+          console.log("[auth-ctx] INITIAL_SESSION suppressed (fresh browser process, awaiting purge)", { uid: newUid });
           return;
         }
 
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+        // If we already adopted this session optimistically, don't churn state.
+        const alreadyAdopted = adoptedUidRef.current && adoptedUidRef.current === newUid;
+        if (!alreadyAdopted) {
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+        }
         setLoading(false);
 
-        const willClearCache =
-          event === "SIGNED_OUT" || (event === "SIGNED_IN" && !!newUid) || event === "TOKEN_REFRESHED" || event === "USER_UPDATED";
         // eslint-disable-next-line no-console
-        console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
-
-        // Mark this browser-tab lifetime as "live" only on explicit sign-in
-        // or token refresh — NEVER on INITIAL_SESSION, otherwise the
-        // browser-close logout is defeated on every reload.
-        if (newUid && event !== "INITIAL_SESSION") {
-          try { sessionStorage.setItem(SESSION_SENTINEL, "1"); } catch { /* ignore */ }
-        }
+        console.log("[auth-ctx]", event, { uid: newUid, alreadyAdopted });
 
         if (event === "SIGNED_OUT") {
-          try { sessionStorage.removeItem(SESSION_SENTINEL); } catch { /* ignore */ }
+          adoptedUidRef.current = null;
           clearAllSessionContext();
           queryClient.clear();
         } else if (newUid && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
@@ -82,10 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && !sentinelAliveAtBoot) {
-        // Stale session from a previous browser process — purge.
+      window.clearTimeout(bootTimer);
+      if (session && isFreshBrowserProcess) {
+        // Fresh browser process with a leftover token — purge.
         // eslint-disable-next-line no-console
-        console.log("[auth-ctx] stale session detected on fresh browser open — signing out");
+        console.log("[auth-ctx] fresh browser process detected — signing out stale session");
         try { await supabase.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
         setSession(null);
         setUser(null);
@@ -94,13 +181,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSession(session);
       setUser(session?.user ?? null);
-      if (session) {
-        try { sessionStorage.setItem(SESSION_SENTINEL, "1"); } catch { /* ignore */ }
-      }
+      setLoading(false);
+    }).catch((err) => {
+      window.clearTimeout(bootTimer);
+      console.error("[auth-ctx] getSession failed:", err);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.clearInterval(beatTimer);
+      window.clearTimeout(bootTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", writeHeartbeat);
+      window.removeEventListener("pageshow", writeHeartbeat);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,7 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stored = [];
     }
 
-    // Prune attempts outside the sliding window
     const recent = stored.filter((t) => now - t < AUTH_WINDOW_MS);
 
     if (recent.length >= MAX_AUTH_ATTEMPTS) {
@@ -135,34 +229,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(key, JSON.stringify(recent));
     } catch {
-      // localStorage unavailable — continue without persisting
+      /* ignore */
     }
   };
 
-  // Clear rate-limit counter after a successful login
   const clearRateLimit = () => {
-    try {
-      localStorage.removeItem(SIGNIN_LOCKOUT_KEY);
-    } catch {
-      // ignore
-    }
+    try { localStorage.removeItem(SIGNIN_LOCKOUT_KEY); } catch { /* ignore */ }
   };
 
   const clearClientSessionArtifacts = () => {
     try {
-      // Purge every grx10_* and ms365_* artifact across BOTH storages so a
-      // logged-out user cannot silently re-hydrate as super-admin or
-      // resurrect stale roles on the next page load.
       const sweep = (store: Storage) => {
         const toRemove: string[] = [];
         for (let i = 0; i < store.length; i++) {
           const k = store.key(i);
           if (!k) continue;
-          if (
-            k.startsWith("grx10_") ||
-            k.startsWith("ms365_") ||
-            k.startsWith("sb-") // supabase-js token cache
-          ) {
+          if (k.startsWith("grx10_") || k.startsWith("ms365_") || k.startsWith("sb-")) {
             toRemove.push(k);
           }
         }
@@ -170,62 +252,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       sweep(sessionStorage);
       sweep(localStorage);
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
     checkRateLimit(SIGNUP_LOCKOUT_KEY);
     const redirectUrl = `${window.location.origin}/`;
-    
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-        },
-      },
+      options: { emailRedirectTo: redirectUrl, data: { full_name: fullName } },
     });
-    
     return { error: error as Error | null };
   };
 
   const signIn = async (email: string, password: string) => {
     checkRateLimit(SIGNIN_LOCKOUT_KEY);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (!error) {
-      // Successful login resets the lockout counter
-      clearRateLimit();
-    }
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) clearRateLimit();
     return { error: error as Error | null };
   };
 
   const signOut = async () => {
-    // Best-effort server-side revocation FIRST so refresh tokens are dead
-    // even if local cleanup fails partway through. Fall back to local-only
-    // if the network call rejects.
     try {
       await supabase.auth.signOut({ scope: "global" });
     } catch (err) {
       console.warn("[Auth] global sign-out failed, falling back to local:", err);
-      try {
-        await supabase.auth.signOut({ scope: "local" });
-      } catch (err2) {
+      try { await supabase.auth.signOut({ scope: "local" }); } catch (err2) {
         console.error("[Auth] local sign-out also failed:", err2);
       }
     }
-
     clearClientSessionArtifacts();
     clearAllSessionContext();
     queryClient.clear();
+    adoptedUidRef.current = null;
     setSession(null);
     setUser(null);
     setLoading(false);
@@ -233,24 +293,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const redirectUrl = `${window.location.origin}/reset-password`;
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectUrl,
-    });
-    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
     return { error: error as Error | null };
   };
 
   const updatePassword = async (newPassword: string) => {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-    
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     return { error: error as Error | null };
   };
 
+  const adoptSession = useCallback((accessToken: string, refreshToken: string) => {
+    const decoded = decodeUserFromJwt(accessToken);
+    if (!decoded) {
+      console.warn("[auth-ctx] adoptSession: could not decode access token");
+      return;
+    }
+    // Synthesise just enough of a Session object for downstream consumers.
+    const syntheticSession = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: decoded,
+    } as unknown as Session;
+
+    adoptedUidRef.current = decoded.id;
+    setSession(syntheticSession);
+    setUser(decoded);
+    setLoading(false);
+
+    // Fire-and-forget: commit tokens to supabase-js storage so subsequent
+    // requests are authenticated. We never await this — if the underlying
+    // LockManager stalls, the UI is already moving forward.
+    supabase.auth
+      .setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .then(() => {
+        // eslint-disable-next-line no-console
+        console.log("[auth-ctx] adoptSession: background setSession complete");
+      })
+      .catch((err) => {
+        console.warn("[auth-ctx] adoptSession: background setSession failed:", err);
+      });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, resetPassword, updatePassword }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, resetPassword, updatePassword, adoptSession }}>
       {children}
     </AuthContext.Provider>
   );
