@@ -354,24 +354,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } as unknown as Session;
 
     adoptedUidRef.current = decoded.id;
+    // Persist tokens to the canonical supabase-js storage key BEFORE any
+    // other code path can hit the supabase client. Subsequent calls to
+    // `supabase.from(...)` will read this snapshot via `_useSession()`,
+    // briefly acquiring the auth lock per call and releasing immediately.
+    //
+    // We deliberately DO NOT call `supabase.auth.setSession(...)` here.
+    // setSession() acquires the GoTrueClient LockManager and runs
+    // `_recoverAndRefresh()` + emits `SIGNED_IN`. If that promise stalls
+    // for any reason (slow network, refresh-token roundtrip, browser
+    // navigator.locks contention) the lock stays held and EVERY
+    // subsequent `supabase.from(...)` query hangs indefinitely — which
+    // is exactly the symptom seen on /hrms/employees, /payroll, and
+    // /payslips immediately after MS365 callback adoption.
     persistSessionSnapshot(accessToken, refreshToken, decoded);
     setSession(syntheticSession);
     setUser(decoded);
     setLoading(false);
 
-    // Fire-and-forget: commit tokens to supabase-js storage so subsequent
-    // requests are authenticated. We never await this — if the underlying
-    // LockManager stalls, the UI is already moving forward.
-    supabase.auth
-      .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(() => {
-        // eslint-disable-next-line no-console
-        console.log("[auth-ctx] adoptSession: background setSession complete");
-      })
-      .catch((err) => {
-        console.warn("[auth-ctx] adoptSession: background setSession failed:", err);
-      });
-  }, []);
+    // Manually emit a SIGNED_IN-equivalent React-Query invalidation so
+    // session-context refetches with the new token. The auth-state
+    // listener also fires SIGNED_IN naturally on the next supabase
+    // internal session read; this just primes the UI immediately.
+    queryClient.invalidateQueries({ queryKey: ["session-context", decoded.id] });
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, resetPassword, updatePassword, adoptSession }}>
