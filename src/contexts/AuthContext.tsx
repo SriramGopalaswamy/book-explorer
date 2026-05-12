@@ -31,9 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // exists, treat it as a stale session and force a clean sign-out so
     // the user lands on /auth.
     const SESSION_SENTINEL = "grx10_session_alive";
-    const hasSentinel = (() => {
+    const hasLiveSentinel = () => {
       try { return sessionStorage.getItem(SESSION_SENTINEL) === "1"; } catch { return false; }
-    })();
+    };
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && !hasSentinel) {
+      if (session && !hasLiveSentinel()) {
         // Stale session from a previous browser process — purge.
         // eslint-disable-next-line no-console
         console.log("[auth-ctx] stale session detected on fresh browser open — signing out");
