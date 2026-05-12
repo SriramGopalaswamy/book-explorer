@@ -43,9 +43,15 @@ vi.mock("sonner", () => ({
 import AuthCallback from "@/pages/AuthCallback";
 import { useAuth } from "@/contexts/AuthContext";
 
-// useSessionContext mock setup — used in the bootstrap test below
+// Mock AuthContext so AuthCallback can adopt sessions without the full provider.
+// adoptSession is wired to call the same setSessionMock so existing assertions
+// against setSession continue to work after the rework.
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: vi.fn(),
+  useAuth: () => ({
+    adoptSession: (access_token: string, refresh_token: string) => {
+      setSessionMock({ access_token, refresh_token });
+    },
+  }),
 }));
 
 // ---- Helpers ---------------------------------------------------------------
