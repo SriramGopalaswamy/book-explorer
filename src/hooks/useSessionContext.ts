@@ -217,9 +217,76 @@ async function fetchViaRpc(accessToken?: string): Promise<SessionContext> {
   };
 }
 
-async function fetchViaDirectQueries(uid: string): Promise<SessionContext> {
+async function fetchViaDirectQueries(uid: string, accessToken?: string): Promise<SessionContext> {
   // Parallel, bounded, RLS-respecting reads. Each is independently small;
   // a hang in one does not block the others past the per-call timeout.
+  if (accessToken) {
+    const [profileRows, rolesRows, superRows] = await Promise.all([
+      withTimeout(
+        fetchRestRows<{ organization_id: string | null }>(
+          "profiles",
+          { select: "organization_id", user_id: `eq.${uid}`, limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "profiles",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ role: string; organization_id: string | null }>(
+          "user_roles",
+          { select: "role,organization_id", user_id: `eq.${uid}` },
+          accessToken,
+        ),
+        4000,
+        "user_roles",
+      ).catch(() => []),
+      withTimeout(
+        fetchRestRows<{ role: string }>(
+          "platform_roles",
+          { select: "role", user_id: `eq.${uid}`, role: "eq.super_admin", limit: "1" },
+          accessToken,
+        ),
+        4000,
+        "platform_roles",
+      ).catch(() => []),
+    ]);
+
+    const organizationId = profileRows[0]?.organization_id ?? null;
+    const roles = rolesRows
+      .filter((r) => !organizationId || !r.organization_id || r.organization_id === organizationId)
+      .map((r) => r.role);
+    const isSuperAdmin = superRows.length > 0;
+
+    let organization: SessionOrganization | null = null;
+    let subscription: SessionSubscription | null = null;
+    if (organizationId) {
+      const [orgRows, subRows] = await Promise.all([
+        withTimeout(
+          fetchRestRows<SessionOrganization>(
+            "organizations",
+            { select: "id,name,status,org_state,created_at", id: `eq.${organizationId}`, limit: "1" },
+            accessToken,
+          ),
+          4000,
+          "organizations",
+        ).catch(() => []),
+        withTimeout(
+          fetchRestRows<SessionSubscription>(
+            "subscriptions",
+            { select: "id,plan,status,source,valid_until,is_read_only,enabled_modules", organization_id: `eq.${organizationId}`, order: "created_at.desc", limit: "1" },
+            accessToken,
+          ),
+          4000,
+          "subscriptions",
+        ).catch(() => []),
+      ]);
+      organization = orgRows[0] ?? null;
+      subscription = subRows[0] ?? null;
+    }
+
+    return { isSuperAdmin, organizationId, roles, organization, subscription };
+  }
+
   const [profileRes, rolesRes, superRes] = await Promise.all([
     withTimeout(
       supabase
