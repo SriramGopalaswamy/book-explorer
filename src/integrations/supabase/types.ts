@@ -7691,6 +7691,9 @@ export type Database = {
       }
       organization_settings: {
         Row: {
+          allow_email_signin: boolean
+          allow_email_signup: boolean
+          allow_google_signin: boolean
           favicon_url: string | null
           id: string
           last_ms365_sync_at: string | null
@@ -7703,6 +7706,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          allow_email_signin?: boolean
+          allow_email_signup?: boolean
+          allow_google_signin?: boolean
           favicon_url?: string | null
           id?: string
           last_ms365_sync_at?: string | null
@@ -7715,6 +7721,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          allow_email_signin?: boolean
+          allow_email_signup?: boolean
+          allow_google_signin?: boolean
           favicon_url?: string | null
           id?: string
           last_ms365_sync_at?: string | null
