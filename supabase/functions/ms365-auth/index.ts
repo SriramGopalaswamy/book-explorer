@@ -154,6 +154,18 @@ async function ensureUserRole(supabase: any, userId: string, organizationId: str
   }
 }
 
+async function ensureOrganizationMembership(supabase: any, userId: string, organizationId: string) {
+  const { error } = await supabase
+    .from("organization_members")
+    .upsert(
+      { user_id: userId, organization_id: organizationId, role: "member" },
+      { onConflict: "organization_id,user_id" },
+    );
+  if (error && error.code !== "23505") {
+    throw new Error(`Failed to ensure organization membership: ${error.message}`);
+  }
+}
+
 /** Resolve any profiles that were waiting for this email as manager. */
 async function resolveWaitingManagerRefs(supabase: any, email: string, profileId: string) {
   try {
