@@ -305,6 +305,7 @@ Deno.serve(async (req) => {
         if (existingProfile.status === "pending_approval") {
           await supabase.from("profiles").update({ status: "active" }).eq("user_id", existingUserId);
         }
+        await ensureUserRole(supabase, existingUserId, organizationId, isAdminEmail ? "admin" : "employee");
 
         let resolvedProfileId: string | null = existingProfile.id ?? null;
         let profileAlreadySynced = false;
