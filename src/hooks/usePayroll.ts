@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsDevModeWithoutAuth } from "@/hooks/useDevModeData";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useSessionContext } from "@/hooks/useSessionContext";
 import { mockPayrollRecords } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { createPayrollSchema } from "@/lib/validation-schemas";
