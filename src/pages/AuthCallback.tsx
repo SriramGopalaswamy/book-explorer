@@ -161,15 +161,19 @@ export default function AuthCallback() {
             return;
           }
 
-          toast.success("Signed in with Microsoft 365!");
+          // Defensive: if setSession timed out, supabase-js may not have
+          // synchronously fired SIGNED_IN. Poll briefly for the auth state
+          // to materialise before navigating, otherwise / will bounce back
+          // to /auth because AuthContext.user is still null.
+          if (sessionCommit.timedOut) {
+            for (let i = 0; i < 20; i++) {
+              const { data: probe } = await supabase.auth.getSession();
+              if (probe.session?.user?.id) break;
+              await new Promise((r) => setTimeout(r, 100));
+            }
+          }
 
-          // Navigate immediately. AuthContext's onAuthStateChange handler will
-          // have already fired SIGNED_IN (synchronously inside setSession),
-          // invalidated the session-context query, and updated the user
-          // state. Index.tsx + useSessionContext drive the bootstrap from
-          // here. The previous flow deferred navigation until a separate
-          // effect saw the user state round-trip through React, which
-          // intermittently hung until a hard refresh.
+          toast.success("Signed in with Microsoft 365!");
           authTrace("ms365", "navigate_home", {
             totalMs: Math.round(performance.now() - tStart),
           });

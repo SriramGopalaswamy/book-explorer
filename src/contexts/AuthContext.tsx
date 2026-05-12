@@ -34,11 +34,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hasLiveSentinel = () => {
       try { return sessionStorage.getItem(SESSION_SENTINEL) === "1"; } catch { return false; }
     };
+    // Snapshot sentinel state BEFORE any auth events fire. Supabase emits
+    // INITIAL_SESSION synchronously after reading the persisted token from
+    // localStorage; if we let that handler write the sentinel, the
+    // stale-session purge below would never trigger on a fresh browser open.
+    const sentinelAliveAtBoot = hasLiveSentinel();
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         const newUid = newSession?.user?.id ?? null;
+
+        // Suppress INITIAL_SESSION on a stale session — let the purge below
+        // run and clear it instead of flashing the user into the app.
+        if (event === "INITIAL_SESSION" && newUid && !sentinelAliveAtBoot) {
+          // eslint-disable-next-line no-console
+          console.log("[auth-ctx] INITIAL_SESSION suppressed (stale, awaiting purge)", { uid: newUid });
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setLoading(false);
@@ -48,10 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // eslint-disable-next-line no-console
         console.log("[auth-ctx]", event, { uid: newUid, willClearCache });
 
-        // Mark this browser-tab lifetime as "live" on any signed-in event so
-        // subsequent reloads in the same tab/window do NOT trigger the
-        // stale-session purge.
-        if (newUid) {
+        // Mark this browser-tab lifetime as "live" only on explicit sign-in
+        // or token refresh — NEVER on INITIAL_SESSION, otherwise the
+        // browser-close logout is defeated on every reload.
+        if (newUid && event !== "INITIAL_SESSION") {
           try { sessionStorage.setItem(SESSION_SENTINEL, "1"); } catch { /* ignore */ }
         }
 
@@ -68,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && !hasLiveSentinel()) {
+      if (session && !sentinelAliveAtBoot) {
         // Stale session from a previous browser process — purge.
         // eslint-disable-next-line no-console
         console.log("[auth-ctx] stale session detected on fresh browser open — signing out");
