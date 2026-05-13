@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { toast } from "sonner";
 
 export default function IntegrationsSection() {
@@ -44,7 +44,7 @@ export default function IntegrationsSection() {
     (async () => {
       setChecking(true);
       try {
-        const { data, error } = await supabase.functions.invoke("ms365-sync", {
+        const { data, error } = await invokeEdge("ms365-sync", {
           body: { action: "check_status" },
         });
         if (!error && data && !data.error) {
@@ -63,7 +63,7 @@ export default function IntegrationsSection() {
 
   const handleSyncManagers = async () => {
     setIsSyncing(true);
-    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+    const { data, error } = await invokeEdge("ms365-sync", {
       body: { action: "sync_managers" },
     });
     if (error || data?.error) {
@@ -76,7 +76,7 @@ export default function IntegrationsSection() {
 
   const handleProvision = async () => {
     setIsProvisioning(true);
-    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+    const { data, error } = await invokeEdge("ms365-sync", {
       body: { action: "provision_users" },
     });
     if (error || data?.error) {
@@ -94,7 +94,7 @@ export default function IntegrationsSection() {
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
-    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+    const { data, error } = await invokeEdge("ms365-sync", {
       body: { action: "update_sso_settings", sso_domain: ssoDomain, sso_only: ssoOnly },
     });
     if (error || data?.error) {

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { lovable } from "@/integrations/lovable";
 
 const loginSchema = z.object({
@@ -159,7 +160,7 @@ export default function Auth() {
   const handleMicrosoftSignIn = async () => {
     setIsMsLoading(true);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("ms365-auth", {
+      const { data, error: fnError } = await invokeEdge("ms365-auth", {
         body: {
           action: "get_auth_url",
           redirect_uri: `${window.location.origin}/auth/callback`,
