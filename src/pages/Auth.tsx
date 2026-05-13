@@ -159,7 +159,7 @@ export default function Auth() {
   const handleMicrosoftSignIn = async () => {
     setIsMsLoading(true);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("ms365-auth", {
+      const { data, error: fnError } = await invokeEdge("ms365-auth", {
         body: {
           action: "get_auth_url",
           redirect_uri: `${window.location.origin}/auth/callback`,
