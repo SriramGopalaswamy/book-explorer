@@ -280,15 +280,20 @@ export default function Leaves() {
         ) : (
           leaveBalances
             .filter((leave) => {
-              // Only show KPI cards for active leave types (hide deactivated ones, preserve balance history)
               const activeKeys = new Set(activeLeaveTypes.map((lt) => lt.key));
               return activeKeys.has(leave.leave_type);
             })
             .map((leave) => {
             const config = leaveTypeConfig[leave.leave_type] || { icon: Briefcase, color: "text-muted-foreground", label: leave.leave_type };
             const Icon = config.icon;
-            const remaining = leave.total_days - leave.used_days;
-            
+            // Numeric Supabase values arrive as strings — cast explicitly
+            const total = Number(leave.total_days) || 0;
+            const used = Number(leave.used_days) || 0;
+            const remaining = total - used;
+            const fmt = (n: number) => Number.isInteger(n) ? n.toString() : n.toFixed(2);
+            const isNegative = remaining < 0;
+            const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+
             return (
               <Card key={leave.id}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -299,16 +304,16 @@ export default function Leaves() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold">{remaining}</span>
-                    <span className="text-sm text-muted-foreground">/ {leave.total_days} days</span>
+                    <span className={`text-2xl font-bold ${isNegative ? "text-destructive" : ""}`}>{fmt(remaining)}</span>
+                    <span className="text-sm text-muted-foreground">/ {fmt(total)} days</span>
                   </div>
                   <div className="mt-2 h-2 bg-secondary rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${(leave.used_days / leave.total_days) * 100}%` }}
+                      className={`h-full rounded-full ${isNegative ? "bg-destructive" : "bg-primary"}`}
+                      style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{leave.used_days} days used</p>
+                  <p className="text-xs text-muted-foreground mt-1">{fmt(used)} days used{total === 0 && used > 0 ? " (no allowance)" : ""}</p>
                 </CardContent>
               </Card>
             );
