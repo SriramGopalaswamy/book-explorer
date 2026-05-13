@@ -132,11 +132,11 @@ export async function invokeEdge<T = any>(
       error: { message: err instanceof Error ? err.message : "Edge function error" },
     }));
 
-  const winner = (await Promise.race([sdkCall, timeoutPromise<T>(timeoutMs)])) as
-    | { __timedOut: false; data: T | null; error: { message: string } | null }
+  const winner = await Promise.race([sdkCall, timeoutPromise<T>(timeoutMs)]) as
+    { __timedOut: false; data: T | null; error: { message: string } | null }
     | { __timedOut: true };
 
-  if (!winner.__timedOut) {
+  if (winner.__timedOut === false) {
     return { data: winner.data, error: winner.error };
   }
 
