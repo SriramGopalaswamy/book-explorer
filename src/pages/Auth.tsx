@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import grx10Logo from "@/assets/grx10-logo.webp";
+import { supabase } from "@/integrations/supabase/client";
 import { invokeEdge } from "@/lib/invoke-edge";
 import { lovable } from "@/integrations/lovable";
 
