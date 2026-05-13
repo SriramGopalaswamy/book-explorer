@@ -75,7 +75,7 @@ export function TeamLeaveBalances() {
   const [view, setView] = useState<"pivot" | "by-type">("pivot");
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: leaveTypes = [], isLoading: typesLoading } = useLeaveTypes();
   const { data: rows = [], isLoading: rowsLoading } = useAllLeaveBalances(year);

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -103,6 +103,15 @@ export default function Leaves() {
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
   const { data: isManager } = useIsManager();
   const showMyLeavesTab = isAdminHROrFinance || isManager;
+
+  // Reset to default tab if user loses admin/HR access while viewing the
+  // admin-only Team Balances tab (defence-in-depth — the tab trigger is
+  // already gated, but the activeTab state could otherwise get stuck).
+  useEffect(() => {
+    if (activeTab === "team-balances" && isAdminOrHR === false) {
+      setActiveTab("all");
+    }
+  }, [activeTab, isAdminOrHR]);
 
   // Fetch current user's gender for filtering gender-specific leave types
   const { data: myGender } = useQuery({

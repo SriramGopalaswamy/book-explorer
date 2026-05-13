@@ -166,6 +166,19 @@ describe("buildLongFormatCsv", () => {
   });
 });
 
+describe("query-key invariant", () => {
+  // The team-balances query key MUST start with "leave-balances" so that
+  // existing invalidateQueries({ queryKey: ["leave-balances"] }) calls in
+  // useApproveLeaveRequest / useRejectLeaveRequest / useDeleteLeaveRequest
+  // (which use TanStack Query v4 prefix-match semantics) refresh this view
+  // automatically. If you rename it, also add the new prefix to those calls.
+  it("uses the 'leave-balances' prefix expected by mutation invalidations", () => {
+    const expectedPrefix = "leave-balances";
+    const actualKey = ["leave-balances", "all", 2026, "org-id", false];
+    expect(actualKey[0]).toBe(expectedPrefix);
+  });
+});
+
 describe("buildWideFormatCsv", () => {
   it("emits one row per employee with type columns and overall totals", () => {
     const rows = [

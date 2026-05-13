@@ -165,7 +165,7 @@ export function useAllLeaveBalances(year: number) {
   const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["leave-balances-all", year, orgId, isDevMode],
+    queryKey: ["leave-balances", "all", year, orgId, isDevMode],
     queryFn: async () => {
       if (isDevMode) {
         return mockLeaveBalances.map((b) => ({ ...b, profiles: null }));
