@@ -624,6 +624,7 @@ export default function Leaves() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); pagination.setPage(1); }}>
               <TabsList className="mb-4">
+                <TabsTrigger value="by-type">By Type</TabsTrigger>
                 {showMyLeavesTab && (
                   <TabsTrigger value="mine">My Leaves</TabsTrigger>
                 )}
@@ -632,6 +633,79 @@ export default function Leaves() {
                 <TabsTrigger value="approved">Approved</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
               </TabsList>
+              {activeTab === "by-type" && (
+                <TabsContent value="by-type" forceMount>
+                  {isLoadingMyRequests || isLoadingBalances ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20 w-full" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {leaveBalances
+                        .filter((b) => activeLeaveTypes.some((lt) => lt.key === b.leave_type))
+                        .map((b) => {
+                          const cfg = leaveTypeConfig[b.leave_type] || { icon: Briefcase, color: "text-muted-foreground", label: b.leave_type };
+                          const Icon = cfg.icon;
+                          const total = Number(b.total_days) || 0;
+                          const used = Number(b.used_days) || 0;
+                          const remaining = total - used;
+                          const fmt = (n: number) => Number.isInteger(n) ? n.toString() : n.toFixed(2);
+                          const isNegative = remaining < 0;
+                          const yearStart = `${new Date().getFullYear()}-01-01`;
+                          const requests = myLeaveRequests.filter(
+                            (r: any) => r.leave_type === b.leave_type && r.from_date >= yearStart
+                          );
+                          return (
+                            <div key={b.id} className="rounded-lg border bg-card">
+                              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                                <div className="flex items-center gap-3">
+                                  <Icon className={`h-5 w-5 ${cfg.color}`} />
+                                  <div>
+                                    <p className="font-semibold">{cfg.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      <span className={isNegative ? "text-destructive font-medium" : ""}>{fmt(remaining)}</span> remaining of {fmt(total)} · {fmt(used)} used
+                                    </p>
+                                  </div>
+                                </div>
+                                <Badge variant="outline">{requests.length} request{requests.length === 1 ? "" : "s"}</Badge>
+                              </div>
+                              {requests.length === 0 ? (
+                                <p className="px-4 py-3 text-xs text-muted-foreground">No leave taken under this type this year.</p>
+                              ) : (
+                                <div className="divide-y divide-border/50">
+                                  {requests.map((r: any) => {
+                                    const [fy, fm, fd] = r.from_date.split("-").map(Number);
+                                    const [ty, tm, td] = r.to_date.split("-").map(Number);
+                                    const from = new Date(fy, fm - 1, fd);
+                                    const to = new Date(ty, tm - 1, td);
+                                    return (
+                                      <div key={r.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                                        <span className="text-xs text-muted-foreground">
+                                          {format(from, "MMM d")}{r.from_date !== r.to_date && ` – ${format(to, "MMM d")}`}
+                                        </span>
+                                        <span className="flex items-center gap-3">
+                                          <span className="text-xs">{r.days} day{Number(r.days) === 1 ? "" : "s"}</span>
+                                          <Badge variant="outline" className={getStatusBadge(r.status)}>
+                                            {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                          </Badge>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {leaveBalances.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground text-sm">No leave balances found.</div>
+                      )}
+                    </div>
+                  )}
+                </TabsContent>
+              )}
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">
