@@ -706,6 +706,7 @@ export default function Leaves() {
                   )}
                 </TabsContent>
               )}
+              {activeTab !== "by-type" && (
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">
