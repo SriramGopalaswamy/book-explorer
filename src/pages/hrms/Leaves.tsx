@@ -786,6 +786,7 @@ export default function Leaves() {
                   </>
                 )}
               </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>
