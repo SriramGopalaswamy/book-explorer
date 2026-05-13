@@ -102,7 +102,7 @@ export default function UserManagementSection() {
   const { data: users = [], isLoading: loading, refetch: refreshUsers, error: usersError } = useQuery({
     queryKey: ["user-roles"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-roles", {
+      const { data, error } = await invokeEdge("manage-roles", {
         body: { action: "list_users" },
       });
       if (error) {
@@ -204,7 +204,7 @@ export default function UserManagementSection() {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUser(userId);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
+    const { data, error } = await invokeEdge("manage-roles", {
       body: { action: "set_role", user_id: userId, role: newRole },
     });
     if (error || data?.error) {
@@ -226,7 +226,7 @@ export default function UserManagementSection() {
       // by deactivate_user is restored to whatever role the admin currently sees.
       const restoreRole = u.roles[0] || "employee";
       setUpdatingStatus(u.user_id);
-      const { data, error } = await supabase.functions.invoke("manage-roles", {
+      const { data, error } = await invokeEdge("manage-roles", {
         body: { action: "activate_user", user_id: u.user_id, role: restoreRole },
       });
       if (error || data?.error) {
@@ -242,7 +242,7 @@ export default function UserManagementSection() {
 
   const handleApproveUser = async (userId: string, role: string) => {
     setActionUser(userId);
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
+    const { data, error } = await invokeEdge("manage-roles", {
       body: { action: "approve_user", user_id: userId, role },
     });
     if (error || data?.error) {
@@ -276,7 +276,7 @@ export default function UserManagementSection() {
     setManagerDialogOpen(false);
 
     const actionName = managerDialogAction === "deactivate" ? "deactivate_user" : "delete_user";
-    const { data, error } = await supabase.functions.invoke("manage-roles", {
+    const { data, error } = await invokeEdge("manage-roles", {
       body: {
         action: actionName,
         user_id: userId,
@@ -303,7 +303,7 @@ export default function UserManagementSection() {
 
   const handleSyncManagers = async () => {
     setIsSyncing(true);
-    const { data, error } = await supabase.functions.invoke("ms365-sync", {
+    const { data, error } = await invokeEdge("ms365-sync", {
       body: { action: "sync_managers" },
     });
     if (error || data?.error) {
