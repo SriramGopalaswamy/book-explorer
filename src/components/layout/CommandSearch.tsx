@@ -148,7 +148,7 @@ const ALL_ITEMS: SearchItem[] = [
   { name: "Employees", path: "/hrms/employees", icon: Users, section: "HRMS", keywords: "staff team people directory" },
   { name: "Attendance", path: "/hrms/attendance", icon: Clock, section: "HRMS", keywords: "biometric check-in time" },
   { name: "My Attendance", path: "/hrms/my-attendance", icon: ClipboardCheck, section: "HRMS", keywords: "my time correction biometric" },
-  { name: "Leaves", path: "/hrms/leaves", icon: Calendar, section: "HRMS", keywords: "time off vacation sick leave" },
+  { name: "Leaves", path: "/hrms/leaves", icon: Calendar, section: "HRMS", keywords: "time off vacation sick leave team balances admin master" },
   { name: "Payroll", path: "/hrms/payroll", icon: CreditCard, section: "HRMS", keywords: "salary payslip compensation" },
   { name: "My Payslips", path: "/hrms/my-payslips", icon: FileSpreadsheet, section: "HRMS", keywords: "payslip salary slip" },
   

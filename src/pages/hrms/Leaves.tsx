@@ -54,6 +54,7 @@ import {
   type LeaveRequest,
   type LeaveType,
 } from "@/hooks/useLeaves";
+import { TeamLeaveBalances } from "@/components/leaves/TeamLeaveBalances";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
 import { useAuth } from "@/contexts/AuthContext";
@@ -628,6 +629,9 @@ export default function Leaves() {
                 {showMyLeavesTab && (
                   <TabsTrigger value="mine">My Leaves</TabsTrigger>
                 )}
+                {isAdminOrHR && (
+                  <TabsTrigger value="team-balances">Team Balances</TabsTrigger>
+                )}
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
@@ -706,7 +710,12 @@ export default function Leaves() {
                   )}
                 </TabsContent>
               )}
-              {activeTab !== "by-type" && (
+              {activeTab === "team-balances" && isAdminOrHR && (
+                <TabsContent value="team-balances" forceMount>
+                  <TeamLeaveBalances />
+                </TabsContent>
+              )}
+              {activeTab !== "by-type" && activeTab !== "team-balances" && (
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">
