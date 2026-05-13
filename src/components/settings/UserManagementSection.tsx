@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Shield, Users, AlertCircle, Trash2, Search, UserCheck,
