@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -54,6 +54,7 @@ import {
   type LeaveRequest,
   type LeaveType,
 } from "@/hooks/useLeaves";
+import { TeamLeaveBalances } from "@/components/leaves/TeamLeaveBalances";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
 import { useAuth } from "@/contexts/AuthContext";
@@ -102,6 +103,15 @@ export default function Leaves() {
   const { data: isAdminHROrFinance } = useIsAdminHROrFinance();
   const { data: isManager } = useIsManager();
   const showMyLeavesTab = isAdminHROrFinance || isManager;
+
+  // Reset to default tab if user loses admin/HR access while viewing the
+  // admin-only Team Balances tab (defence-in-depth — the tab trigger is
+  // already gated, but the activeTab state could otherwise get stuck).
+  useEffect(() => {
+    if (activeTab === "team-balances" && isAdminOrHR === false) {
+      setActiveTab("all");
+    }
+  }, [activeTab, isAdminOrHR]);
 
   // Fetch current user's gender for filtering gender-specific leave types
   const { data: myGender } = useQuery({
@@ -628,6 +638,9 @@ export default function Leaves() {
                 {showMyLeavesTab && (
                   <TabsTrigger value="mine">My Leaves</TabsTrigger>
                 )}
+                {isAdminOrHR && (
+                  <TabsTrigger value="team-balances">Team Balances</TabsTrigger>
+                )}
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
@@ -706,7 +719,12 @@ export default function Leaves() {
                   )}
                 </TabsContent>
               )}
-              {activeTab !== "by-type" && (
+              {activeTab === "team-balances" && isAdminOrHR && (
+                <TabsContent value="team-balances" forceMount>
+                  <TeamLeaveBalances />
+                </TabsContent>
+              )}
+              {activeTab !== "by-type" && activeTab !== "team-balances" && (
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">

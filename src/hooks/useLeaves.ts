@@ -158,6 +158,36 @@ export function useLeaveBalances() {
   });
 }
 
+export function useAllLeaveBalances(year: number) {
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["leave-balances", "all", year, orgId, isDevMode],
+    queryFn: async () => {
+      if (isDevMode) {
+        return mockLeaveBalances.map((b) => ({ ...b, profiles: null }));
+      }
+      if (!orgId) return [];
+
+      const { data, error } = await supabase
+        .from("leave_balances")
+        .select(
+          `id, profile_id, leave_type, total_days, used_days, year,
+           profiles!profile_id(full_name, employee_id, department, location, status)`,
+        )
+        .eq("organization_id", orgId)
+        .eq("year", year);
+
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: (!!user && !!orgId) || isDevMode,
+  });
+}
+
 export function useHolidays() {
   const currentYear = new Date().getFullYear();
   const isDevMode = useIsDevModeWithoutAuth();
