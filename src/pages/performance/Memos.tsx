@@ -189,6 +189,7 @@ export default function Memos() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
   const { data: currentRole } = useCurrentRole();
   const isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "hr";
   const { data: memos = [], isLoading } = useMemos(activeTab);
