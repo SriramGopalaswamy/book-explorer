@@ -145,6 +145,13 @@ export async function exportPurchaseOrdersCsv(orgId: string, filter: ExportRange
   );
 
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(`purchase-orders-export-${stamp}.csv`, csv, "text/csv");
+  const fileName = `purchase-orders-export-${stamp}.csv`;
+  await logExportEvent({
+    organizationId: orgId,
+    exportType: "purchase_orders_csv",
+    fileName,
+    rowCount: all.length,
+  });
+  downloadBlob(fileName, csv, "text/csv");
   return all.length;
 }
