@@ -545,14 +545,22 @@ export function useGeneratePayroll() {
 
       return { run, entriesCount: entries.length, warnings: [] as string[] };
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-entries"] });
+      if (data.claimStatus === "already_completed") {
+        toast.info(data.warnings?.[0] || "Payroll already completed for this period.");
+        return;
+      }
+      if (data.claimStatus === "already_processing") {
+        toast.info(data.warnings?.[0] || "Payroll generation already in progress.");
+        return;
+      }
       toast.success(`Payroll generated for ${data.entriesCount} employees`);
-      data.warnings?.forEach((w) => toast.warning(w));
+      data.warnings?.forEach((w: string) => toast.warning(w));
     },
     onError: (err: any) => {
-      if (err.message?.includes("duplicate key")) {
+      if (err.message?.includes("duplicate key") || err.message?.includes("already exists")) {
         toast.error("Payroll already exists for this period");
       } else {
         toast.error("Failed to generate payroll: " + err.message);
