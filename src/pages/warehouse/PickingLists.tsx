@@ -541,6 +541,42 @@ export default function PickingLists() {
           </DialogContent>
         </Dialog>
 
+        {/* Confirm Pick Dialog (GBC-68) */}
+        <Dialog open={!!confirmList} onOpenChange={(v) => { if (!v) setConfirmList(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Confirm Pick — {confirmList?.pick_number}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              <p className="text-sm text-muted-foreground">Enter the actual quantity picked for each line. Inventory will be deducted by the picked amount only.</p>
+              <Table>
+                <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right w-32">Picked</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {confirmRows.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-foreground">{r.item_name}</TableCell>
+                      <TableCell className="text-right">{r.ordered_qty}</TableCell>
+                      <TableCell className="text-right">
+                        <Input type="number" min={0} max={r.ordered_qty} value={r.picked_qty}
+                          onChange={(e) => {
+                            const v = Math.max(0, parseFloat(e.target.value) || 0);
+                            setConfirmRows((rows) => rows.map((x, idx) => idx === i ? { ...x, picked_qty: v } : x));
+                          }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmList(null)}>Cancel</Button>
+              <Button onClick={submitConfirmPick} disabled={confirmSubmitting}>
+                {confirmSubmitting ? "Confirming…" : "Confirm & Complete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Generate Pick List Dialog */}
         <PickListFormInner
           dialogOpen={dialogOpen} setDialogOpen={setDialogOpen}
