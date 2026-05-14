@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { logExportEvent } from "@/lib/log-export";
 
 const BATCH_SIZE = 1000;
 
