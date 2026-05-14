@@ -399,8 +399,8 @@ export default function PickingLists() {
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("completed") && (
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: list.id, status: "completed" }); }}>
-                                <CheckCircle className="h-4 w-4 mr-2" /> Completed
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openConfirmPick(list); }}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Confirm Pick
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("cancelled") && (
