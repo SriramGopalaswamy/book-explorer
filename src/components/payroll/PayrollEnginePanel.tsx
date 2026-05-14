@@ -268,8 +268,14 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
               </SelectContent>
             </Select>
             <Button
-              onClick={() => generate.mutate(selectedPeriod)}
-              disabled={generate.isPending || !!existingRun}
+              onClick={() => {
+                if (readiness && !readiness.ready) {
+                  toast.error(`Cannot generate: ${readiness.missing_count} employee(s) missing salary structure`);
+                  return;
+                }
+                generate.mutate(selectedPeriod);
+              }}
+              disabled={generate.isPending || !!existingRun || (readiness ? !readiness.ready : false)}
             >
               <Zap className="h-4 w-4 mr-1" />
               {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
