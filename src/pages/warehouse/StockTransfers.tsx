@@ -215,21 +215,23 @@ export default function StockTransfers() {
                   <div className="flex items-center justify-between"><Label className="text-base font-semibold">Items</Label><Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
                     <div key={i} className="space-y-2 rounded-lg border p-3">
-                      <div className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-end">
+                      <div className="grid grid-cols-[1fr_100px_32px] gap-2 items-end">
                         <div>
-                          <Label className="text-xs">Item</Label>
+                          <Label className="text-xs">Item *</Label>
                           <Select value={item.item_id || ""} onValueChange={(v) => {
                             const found = itemMaster.find((it: any) => it.id === v);
                             const u = [...items];
-                            u[i] = { ...u[i], item_id: v, item_name: (found as any)?.name || (found as any)?.item_name || u[i].item_name };
+                            u[i] = { ...u[i], item_id: v, item_name: (found as any)?.name || (found as any)?.item_name || "" };
                             setItems(u);
                           }}>
-                            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                            <SelectContent>{itemMaster.filter((it: any) => it.is_active !== false).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}</SelectContent>
+                            <SelectTrigger><SelectValue placeholder="Select catalog item" /></SelectTrigger>
+                            <SelectContent>{itemMaster.filter((it: any) => it.is_active !== false).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name} <span className="text-muted-foreground">(stock: {Number(it.current_stock || 0)})</span></SelectItem>)}</SelectContent>
                           </Select>
+                          {item.item_id && (
+                            <p className="text-xs text-muted-foreground mt-1">Available: {itemStock(item.item_id) ?? "—"}</p>
+                          )}
                         </div>
-                        <div><Label className="text-xs">Or custom name</Label><Input value={item.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} placeholder="Item name" /></div>
-                        <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
+                        <div><Label className="text-xs">Qty *</Label><Input type="number" min={0} value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
                         <Button variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
