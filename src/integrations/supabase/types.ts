@@ -14378,6 +14378,10 @@ export type Database = {
       is_admin_hr_or_manager:
         | { Args: { _user_id: string }; Returns: boolean }
         | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
+      is_admin_in_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_admin_or_finance:
         | { Args: { _user_id: string }; Returns: boolean }
         | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
