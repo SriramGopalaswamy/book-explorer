@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { logExportEvent } from "@/lib/log-export";
 
 const BATCH_SIZE = 1000;
 
@@ -89,7 +90,14 @@ export async function exportInvoicesCsv(orgId: string, filter: ExportRangeFilter
   );
 
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(`invoices-export-${stamp}.csv`, csv, "text/csv");
+  const fileName = `invoices-export-${stamp}.csv`;
+  await logExportEvent({
+    organizationId: orgId,
+    exportType: "invoices_csv",
+    fileName,
+    rowCount: all.length,
+  });
+  downloadBlob(fileName, csv, "text/csv");
   return all.length;
 }
 
@@ -137,6 +145,13 @@ export async function exportPurchaseOrdersCsv(orgId: string, filter: ExportRange
   );
 
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(`purchase-orders-export-${stamp}.csv`, csv, "text/csv");
+  const fileName = `purchase-orders-export-${stamp}.csv`;
+  await logExportEvent({
+    organizationId: orgId,
+    exportType: "purchase_orders_csv",
+    fileName,
+    rowCount: all.length,
+  });
+  downloadBlob(fileName, csv, "text/csv");
   return all.length;
 }

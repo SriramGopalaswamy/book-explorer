@@ -516,7 +516,10 @@ function PayrollEntriesDialog({ run, open, onOpenChange }: { run: PayrollRun; op
 
           {/* Export buttons */}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportPayrollCSV(entries, run.pay_period)} disabled={entries.length === 0}>
+            <Button variant="outline" size="sm" onClick={async () => {
+              try { await exportPayrollCSV(entries, run.pay_period, run.organization_id); }
+              catch (err) { toast.error(`Payroll CSV export failed: ${err instanceof Error ? err.message : "Unknown error"}`); }
+            }} disabled={entries.length === 0}>
               <Download className="h-4 w-4 mr-1" /> Payroll CSV
             </Button>
             <Button variant="outline" size="sm" onClick={async () => {
