@@ -183,6 +183,25 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
+  // GBC-87: payroll readiness — block Generate if any active employee is missing a salary structure
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const periodStartDate = `${selectedPeriod}-01`;
+  const { data: readiness } = useQuery({
+    queryKey: ["payroll-readiness", orgId, periodStartDate],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase.rpc("check_payroll_readiness" as any, {
+        p_org_id: orgId,
+        p_period_start: periodStartDate,
+      });
+      if (error) throw error;
+      return data as unknown as { ready: boolean; missing_count: number; missing_employees: any[] };
+    },
+    enabled: !!orgId && !existingRun,
+    staleTime: 30_000,
+  });
+
   const isHR = currentRole === "hr";
   const isFinanceOrAdmin = isFinance || currentRole === "admin";
 
