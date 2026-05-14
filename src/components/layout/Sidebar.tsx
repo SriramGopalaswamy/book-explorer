@@ -219,7 +219,7 @@ function NavSection({
   title,
   items,
   sectionId,
-  defaultOpen = true,
+  defaultOpen = false,
   collapsed,
   onItemClick,
 }: {
