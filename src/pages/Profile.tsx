@@ -27,6 +27,8 @@ import { useEmployeeDetails } from "@/hooks/useEmployeeDetails";
 import { useEmployeeDocuments } from "@/hooks/useEmployeeDocuments";
 import { useMyChangeRequests, useSubmitChangeRequest } from "@/hooks/useProfileChangeRequests";
 import { useMyProfileBasics } from "@/hooks/useMyProfileBasics";
+import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
