@@ -14068,6 +14068,10 @@ export type Database = {
       get_current_org: { Args: never; Returns: string }
       get_current_user_profile_id: { Args: never; Returns: string }
       get_effective_uid: { Args: never; Returns: string }
+      get_finance_kpi_stats: {
+        Args: { p_org_id: string; p_period_end: string; p_period_start: string }
+        Returns: Json
+      }
       get_fiscal_period: {
         Args: { _d: string; _org_id: string }
         Returns: string
@@ -14094,6 +14098,8 @@ export type Database = {
         Args: { _code: string; _org_id: string }
         Returns: string
       }
+      get_hrms_kpi_stats: { Args: { p_org_id: string }; Returns: Json }
+      get_inventory_kpi_stats: { Args: { p_org_id: string }; Returns: Json }
       get_invoice_kpis: {
         Args: { p_org_id: string }
         Returns: {
@@ -14105,6 +14111,10 @@ export type Database = {
         }[]
       }
       get_my_session_context: { Args: never; Returns: Json }
+      get_org_kpi_stats: {
+        Args: { p_org_id: string; p_period_end: string; p_period_start: string }
+        Returns: Json
+      }
       get_org_timezone: { Args: { p_org_id?: string }; Returns: string }
       get_payroll_unique_record_count: {
         Args: { p_org_id: string }
