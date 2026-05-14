@@ -1,8 +1,26 @@
 # Payroll Table Consolidation: `payroll_records` → `payroll_entries`
 
-**Status:** Phase 1 complete (observability live). Phases 2–4 pending.
+**Status:** Phases 1–3 complete (observability + write freeze + backfill). Phase 4 pending one full payroll cycle of read-log silence.
 **Owner:** Engineering
 **Risk if not done:** Two sources of truth for payroll → silent divergence between approval queue and statutory reports → audit-grade defect under Companies Act 2013 / Ind AS.
+
+## Phase 2 — DONE (2026-05-14, retro-confirmed)
+
+Audit of `rg payroll_records src/` confirmed all INSERT paths were already removed in item 46:
+- `useCreatePayroll` writes only to `payroll_runs` + `payroll_entries`.
+- `useBulkUpload.ts` writes only to engine path (lines 241/261).
+- Only remaining `payroll_records` writes are UPDATE/DELETE on legacy ids — kept as-is for backwards-compat with old row ids in URLs/links.
+- `payroll_records_write_log` confirmed **zero** writes since trigger went live.
+
+## Phase 3 — DONE (2026-05-14)
+
+Backfill executed:
+- 22 orphan legacy rows (deleted profiles from chaos-test org) deleted.
+- 33 valid legacy rows (org `00000000…0001`, `2026-03`) imported into a new `payroll_runs` row (`status='completed'`, notes `Backfilled from legacy payroll_records on 2026-05-14`) with one `payroll_entries` row per record. Run totals auto-computed by `trg_refresh_payroll_run_totals`: `employee_count=33`, `total_net=1,250,484.95`.
+- All migrated `payroll_records` rows marked `is_superseded=true` with notes `[migrated to payroll_entries 2026-05-14]`.
+- **Active legacy row count: 0.**
+
+Suffix policy applied: original `pay_period` reused when no engine run existed for that period (case here for `2026-03`). When a collision would occur, suffix `-LEGACY` would be appended (no occurrences in this batch).
 
 ---
 
