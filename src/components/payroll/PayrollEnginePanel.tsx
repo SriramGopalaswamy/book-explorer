@@ -297,10 +297,16 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
                 }
                 generate.mutate(selectedPeriod);
               }}
-              disabled={generate.isPending || !!existingRun || (readiness ? !readiness.ready : false)}
+              disabled={generate.isPending || isProcessing || (existingRun && !isProcessing) || (readiness ? !readiness.ready : false)}
             >
               <Zap className="h-4 w-4 mr-1" />
-              {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
+              {isProcessing
+                ? "Processing…"
+                : generate.isPending
+                  ? "Generating…"
+                  : existingRun
+                    ? "Already Generated"
+                    : "Generate Payroll"}
             </Button>
             <span className="text-muted-foreground text-sm hidden sm:inline">or</span>
             <BulkUploadDialog config={registerUploadConfig} label="Upload Register" />
