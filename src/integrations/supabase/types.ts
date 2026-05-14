@@ -14421,6 +14421,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      storage_path_org_id: { Args: { object_name: string }; Returns: string }
       trial_balance: {
         Args: { p_as_of?: string }
         Returns: {
@@ -14497,6 +14498,7 @@ export type Database = {
         }
         Returns: string
       }
+      user_in_path_org: { Args: { object_name: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "hr" | "manager" | "employee" | "finance" | "payroll"
