@@ -149,8 +149,49 @@ export default function PickingLists() {
   const [editWarehouseId, setEditWarehouseId] = useState("");
   const [editPickItems, setEditPickItems] = useState<PickItemRow[]>([]);
   const [editItemsLoading, setEditItemsLoading] = useState(false);
-
   const [viewItemsLoading, setViewItemsLoading] = useState(false);
+
+  // GBC-68: Confirm Pick dialog
+  const [confirmList, setConfirmList] = useState<PickingList | null>(null);
+  const [confirmRows, setConfirmRows] = useState<{ item_id: string | null; item_name: string; ordered_qty: number; picked_qty: number }[]>([]);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+
+  const openConfirmPick = async (list: PickingList) => {
+    if (!orgId) { toast.error("Organization not found"); return; }
+    const { data } = await supabase.from("picking_list_items").select("*").eq("picking_list_id", list.id);
+    const rows = ((data as any[]) || []).map((it) => ({
+      item_id: it.item_id || null,
+      item_name: it.item_name || "",
+      ordered_qty: Number(it.required_quantity || 0),
+      picked_qty: Number(it.required_quantity || 0),
+    }));
+    setConfirmRows(rows);
+    setConfirmList(list);
+  };
+
+  const submitConfirmPick = async () => {
+    if (!confirmList || !orgId) return;
+    setConfirmSubmitting(true);
+    try {
+      const { error } = await (supabase as any).rpc("confirm_pick", {
+        p_picking_list_id: confirmList.id,
+        p_org_id: orgId,
+        p_confirmations: confirmRows.map((r) => ({
+          item_id: r.item_id,
+          ordered_qty: r.ordered_qty,
+          picked_qty: r.picked_qty,
+        })),
+      });
+      if (error) throw error;
+      toast.success("Pick confirmed");
+      await qc.invalidateQueries({ queryKey: ["picking-lists"] });
+      setConfirmList(null);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to confirm pick");
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };
 
   const openView = async (list: PickingList) => {
     setViewList(list);
