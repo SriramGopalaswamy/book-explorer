@@ -690,8 +690,9 @@ export default function Bills() {
     setAiWarnings([]);
 
     try {
+      if (!orgId) { toast.error("Workspace not ready — please retry."); setUploading(false); return; }
       const ext = file.name.split(".").pop();
-      const path = `bills/${user.id}/${Date.now()}.${ext}`;
+      const path = `${orgId}/bills/${user.id}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("bill-attachments")
         .upload(path, file, { contentType: file.type });
