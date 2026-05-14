@@ -90,7 +90,14 @@ export async function exportInvoicesCsv(orgId: string, filter: ExportRangeFilter
   );
 
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(`invoices-export-${stamp}.csv`, csv, "text/csv");
+  const fileName = `invoices-export-${stamp}.csv`;
+  await logExportEvent({
+    organizationId: orgId,
+    exportType: "invoices_csv",
+    fileName,
+    rowCount: all.length,
+  });
+  downloadBlob(fileName, csv, "text/csv");
   return all.length;
 }
 
