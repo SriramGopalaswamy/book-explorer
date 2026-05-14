@@ -284,13 +284,17 @@ export default function Employees() {
     });
   };
 
+  const [salaryPromptEmployeeId, setSalaryPromptEmployeeId] = useState<string | null>(null);
+
   const handleAddEmployee = () => {
     if (!formData.full_name || !formData.email) return;
     const { manager_id, ...rest } = formData;
     createEmployee.mutate({ ...rest, manager_id: manager_id || null }, {
-      onSuccess: () => {
+      onSuccess: (created: any) => {
         resetForm();
         setIsAddDialogOpen(false);
+        // GBC-87: prompt HR to set up salary structure
+        if (created?.id) setSalaryPromptEmployeeId(created.id);
       },
     });
   };
