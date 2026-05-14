@@ -688,19 +688,35 @@ export default function Profile() {
                         <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
                         Job Title
                       </Label>
-                      <Input id="jobtitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Senior Engineer" disabled={!profileLoaded} />
+                      {canEditRoleFields ? (
+                        <Input id="jobtitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Senior Engineer" disabled={!profileLoaded} />
+                      ) : (
+                        <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground cursor-not-allowed">
+                            {jobTitle || "—"}
+                          </div>
+                        </TooltipTrigger><TooltipContent>Contact HR to update this field</TooltipContent></Tooltip></TooltipProvider>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                         Department
                       </Label>
-                      <Select value={department} onValueChange={setDepartment} disabled={!profileLoaded}>
-                        <SelectTrigger><SelectValue placeholder="Select your department" /></SelectTrigger>
-                        <SelectContent>
-                          {DEPARTMENTS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
+                      {canEditRoleFields ? (
+                        <Select value={department} onValueChange={setDepartment} disabled={!profileLoaded}>
+                          <SelectTrigger><SelectValue placeholder="Select your department" /></SelectTrigger>
+                          <SelectContent>
+                            {DEPARTMENTS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground cursor-not-allowed">
+                            {department || "—"}
+                          </div>
+                        </TooltipTrigger><TooltipContent>Contact HR to update this field</TooltipContent></Tooltip></TooltipProvider>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="flex items-center gap-2">
