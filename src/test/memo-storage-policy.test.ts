@@ -98,15 +98,17 @@ describe("GBC-17: memo-attachments cross-tenant leak regression", () => {
     ).toEqual([]);
   });
 
-  it("uploadMemoAttachment writes objects under the user's auth.uid() folder", () => {
+  it("uploadMemoAttachment writes objects under the org id folder (GBC-17 cross-tenant fix)", () => {
     const src = fs.readFileSync(HOOK_PATH, "utf-8");
-    // The path template must start with `${userId}/`. We allow any suffix.
+    // Path layout MUST start with `${orgId}/` so user_in_path_org() can decode
+    // the first segment as the owning organisation. The previous `${userId}/`
+    // layout allowed cross-tenant filename collisions.
     const fnMatch = src.match(/uploadMemoAttachment[\s\S]+?return\s+fileName/);
     expect(fnMatch, "uploadMemoAttachment helper not found").toBeTruthy();
     const fnBody = fnMatch![0];
     expect(
-      /const\s+fileName\s*=\s*`\$\{userId\}\//.test(fnBody),
-      "uploadMemoAttachment must build a path beginning with `${userId}/` so the folder-based RLS branch keeps working",
+      /const\s+fileName\s*=\s*`\$\{orgId\}\//.test(fnBody),
+      "uploadMemoAttachment must build a path beginning with `${orgId}/` so the org-scoped RLS policy admits the object",
     ).toBe(true);
   });
 });
