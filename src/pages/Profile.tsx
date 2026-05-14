@@ -102,6 +102,8 @@ const statusStyles: Record<string, string> = {
 export default function Profile() {
   const { user, updatePassword } = useAuth();
   const queryClient = useQueryClient();
+  const { data: isAdminOrHR } = useIsAdminOrHR();
+  const canEditRoleFields = !!isAdminOrHR;
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
