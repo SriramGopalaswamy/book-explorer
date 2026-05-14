@@ -14115,6 +14115,14 @@ export type Database = {
       }
       complete_phase1_onboarding: { Args: { _org_id: string }; Returns: Json }
       complete_tenant_onboarding: { Args: { _org_id: string }; Returns: Json }
+      confirm_pick: {
+        Args: {
+          p_confirmations: Json
+          p_org_id: string
+          p_picking_list_id: string
+        }
+        Returns: Json
+      }
       controlled_org_reinitialize: { Args: { _org_id: string }; Returns: Json }
       convert_quote_to_invoice: {
         Args: { p_due_date?: string; p_quote_id: string }
@@ -14473,6 +14481,18 @@ export type Database = {
       }
       process_payroll_entries_batch: {
         Args: { p_payroll_ids: string[] }
+        Returns: Json
+      }
+      process_stock_transfer: {
+        Args: {
+          p_from_warehouse: string
+          p_initiated_by: string
+          p_item_id: string
+          p_org_id: string
+          p_quantity: number
+          p_to_warehouse: string
+          p_transfer_id: string
+        }
         Returns: Json
       }
       propagate_leave_type_defaults: {

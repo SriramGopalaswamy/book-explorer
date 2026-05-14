@@ -202,16 +202,30 @@ export function useUpdateTransferStatus() {
       const { error } = await supabase.from("stock_transfers").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
       if (error) throw error;
 
-      // ── Auto stock ledger entries when transfer is received ──
+      // ── Atomic stock movement when transfer is received (GBC-67) ──
+      // Fetch all items for this transfer and call process_stock_transfer per line
+      // so the inventory check, deduct/add, and ledger inserts all happen
+      // server-side under a single transaction per item — no partial frontend state.
       if (status === "received") {
-        try {
-          await postStockTransferEntries(
-            id,
-            (current as any).from_warehouse_id,
-            (current as any).to_warehouse_id
-          );
-        } catch (stockErr: any) {
-          toast.error(`Stock ledger sync failed: ${stockErr?.message ?? stockErr}`);
+        const { data: lineItems, error: liErr } = await supabase
+          .from("stock_transfer_items")
+          .select("id, item_id, quantity")
+          .eq("transfer_id", id);
+        if (liErr) throw liErr;
+        for (const li of (lineItems as any[]) || []) {
+          if (!li.item_id) {
+            throw new Error("Cannot receive: a transfer line has no catalog item linked.");
+          }
+          const { error: rpcErr } = await (supabase as any).rpc("process_stock_transfer", {
+            p_org_id: callerOrgId,
+            p_item_id: li.item_id,
+            p_from_warehouse: (current as any).from_warehouse_id,
+            p_to_warehouse: (current as any).to_warehouse_id,
+            p_quantity: Number(li.quantity),
+            p_initiated_by: user.id,
+            p_transfer_id: id,
+          });
+          if (rpcErr) throw new Error(rpcErr.message);
         }
       }
     },

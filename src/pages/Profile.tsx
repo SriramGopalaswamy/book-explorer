@@ -27,6 +27,8 @@ import { useEmployeeDetails } from "@/hooks/useEmployeeDetails";
 import { useEmployeeDocuments } from "@/hooks/useEmployeeDocuments";
 import { useMyChangeRequests, useSubmitChangeRequest } from "@/hooks/useProfileChangeRequests";
 import { useMyProfileBasics } from "@/hooks/useMyProfileBasics";
+import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -100,6 +102,8 @@ const statusStyles: Record<string, string> = {
 export default function Profile() {
   const { user, updatePassword } = useAuth();
   const queryClient = useQueryClient();
+  const { data: isAdminOrHR } = useIsAdminOrHR();
+  const canEditRoleFields = !!isAdminOrHR;
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -175,18 +179,18 @@ export default function Profile() {
     if (!user) return;
     setIsSavingProfile(true);
     try {
+      const payload: any = {
+        user_id: user.id,
+        full_name: fullName,
+        phone: phone || null,
+      };
+      if (canEditRoleFields) {
+        payload.department = department || null;
+        payload.job_title = jobTitle || null;
+      }
       const { error } = await supabase
         .from("profiles")
-        .upsert(
-          {
-            user_id: user.id,
-            full_name: fullName,
-            department: department || null,
-            job_title: jobTitle || null,
-            phone: phone || null,
-          },
-          { onConflict: "user_id" }
-        );
+        .upsert(payload, { onConflict: "user_id" });
       if (error) throw error;
       await supabase.auth.updateUser({ data: { full_name: fullName } });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -686,19 +690,35 @@ export default function Profile() {
                         <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
                         Job Title
                       </Label>
-                      <Input id="jobtitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Senior Engineer" disabled={!profileLoaded} />
+                      {canEditRoleFields ? (
+                        <Input id="jobtitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Senior Engineer" disabled={!profileLoaded} />
+                      ) : (
+                        <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground cursor-not-allowed">
+                            {jobTitle || "—"}
+                          </div>
+                        </TooltipTrigger><TooltipContent>Contact HR to update this field</TooltipContent></Tooltip></TooltipProvider>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                         Department
                       </Label>
-                      <Select value={department} onValueChange={setDepartment} disabled={!profileLoaded}>
-                        <SelectTrigger><SelectValue placeholder="Select your department" /></SelectTrigger>
-                        <SelectContent>
-                          {DEPARTMENTS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
+                      {canEditRoleFields ? (
+                        <Select value={department} onValueChange={setDepartment} disabled={!profileLoaded}>
+                          <SelectTrigger><SelectValue placeholder="Select your department" /></SelectTrigger>
+                          <SelectContent>
+                            {DEPARTMENTS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                          <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground cursor-not-allowed">
+                            {department || "—"}
+                          </div>
+                        </TooltipTrigger><TooltipContent>Contact HR to update this field</TooltipContent></Tooltip></TooltipProvider>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="flex items-center gap-2">

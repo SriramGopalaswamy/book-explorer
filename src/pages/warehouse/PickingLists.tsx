@@ -80,14 +80,13 @@ function PickListFormInner({ dialogOpen, setDialogOpen, warehouses, allItems, wa
             <div className="space-y-2">
               {pickItems.map((row, i) => (
                 <div key={i} className="space-y-2 rounded-lg border p-3">
-                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
                     <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                      <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select catalog item" /></SelectTrigger>
                       <SelectContent>
                         {allItems.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} />
                     <Input type="number" value={row.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
                     <Button size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={pickItems.length === 1}>
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -150,8 +149,49 @@ export default function PickingLists() {
   const [editWarehouseId, setEditWarehouseId] = useState("");
   const [editPickItems, setEditPickItems] = useState<PickItemRow[]>([]);
   const [editItemsLoading, setEditItemsLoading] = useState(false);
-
   const [viewItemsLoading, setViewItemsLoading] = useState(false);
+
+  // GBC-68: Confirm Pick dialog
+  const [confirmList, setConfirmList] = useState<PickingList | null>(null);
+  const [confirmRows, setConfirmRows] = useState<{ item_id: string | null; item_name: string; ordered_qty: number; picked_qty: number }[]>([]);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+
+  const openConfirmPick = async (list: PickingList) => {
+    if (!orgId) { toast.error("Organization not found"); return; }
+    const { data } = await supabase.from("picking_list_items").select("*").eq("picking_list_id", list.id);
+    const rows = ((data as any[]) || []).map((it) => ({
+      item_id: it.item_id || null,
+      item_name: it.item_name || "",
+      ordered_qty: Number(it.required_quantity || 0),
+      picked_qty: Number(it.required_quantity || 0),
+    }));
+    setConfirmRows(rows);
+    setConfirmList(list);
+  };
+
+  const submitConfirmPick = async () => {
+    if (!confirmList || !orgId) return;
+    setConfirmSubmitting(true);
+    try {
+      const { error } = await (supabase as any).rpc("confirm_pick", {
+        p_picking_list_id: confirmList.id,
+        p_org_id: orgId,
+        p_confirmations: confirmRows.map((r) => ({
+          item_id: r.item_id,
+          ordered_qty: r.ordered_qty,
+          picked_qty: r.picked_qty,
+        })),
+      });
+      if (error) throw error;
+      toast.success("Pick confirmed");
+      await qc.invalidateQueries({ queryKey: ["picking-lists"] });
+      setConfirmList(null);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to confirm pick");
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };
 
   const openView = async (list: PickingList) => {
     setViewList(list);
@@ -359,8 +399,8 @@ export default function PickingLists() {
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("completed") && (
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: list.id, status: "completed" }); }}>
-                                <CheckCircle className="h-4 w-4 mr-2" /> Completed
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openConfirmPick(list); }}>
+                                <CheckCircle className="h-4 w-4 mr-2" /> Confirm Pick
                               </DropdownMenuItem>
                             )}
                             {nextStates.includes("cancelled") && (
@@ -477,14 +517,13 @@ export default function PickingLists() {
                 ) : (
                   <div className="space-y-2">
                     {editPickItems.map((row, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center rounded-lg border p-3">
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center rounded-lg border p-3">
                         <Select value={row.item_id || ""} onValueChange={(v) => handleSelectEditItem(i, v)}>
-                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Select catalog item" /></SelectTrigger>
                           <SelectContent>
                             {(items as any[]).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateEditItem(i, "item_name", e.target.value)} />
                         <Input type="number" value={row.quantity} onChange={(e) => updateEditItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
                         <Button size="icon" variant="ghost" onClick={() => removeEditItem(i)} disabled={editPickItems.length === 1}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -498,6 +537,42 @@ export default function PickingLists() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditList(null)}>Cancel</Button>
               <Button onClick={handleSaveEdit}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirm Pick Dialog (GBC-68) */}
+        <Dialog open={!!confirmList} onOpenChange={(v) => { if (!v) setConfirmList(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Confirm Pick — {confirmList?.pick_number}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              <p className="text-sm text-muted-foreground">Enter the actual quantity picked for each line. Inventory will be deducted by the picked amount only.</p>
+              <Table>
+                <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right w-32">Picked</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {confirmRows.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-foreground">{r.item_name}</TableCell>
+                      <TableCell className="text-right">{r.ordered_qty}</TableCell>
+                      <TableCell className="text-right">
+                        <Input type="number" min={0} max={r.ordered_qty} value={r.picked_qty}
+                          onChange={(e) => {
+                            const v = Math.max(0, parseFloat(e.target.value) || 0);
+                            setConfirmRows((rows) => rows.map((x, idx) => idx === i ? { ...x, picked_qty: v } : x));
+                          }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmList(null)}>Cancel</Button>
+              <Button onClick={submitConfirmPick} disabled={confirmSubmitting}>
+                {confirmSubmitting ? "Confirming…" : "Confirm & Complete"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
