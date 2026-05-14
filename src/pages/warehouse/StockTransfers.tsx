@@ -71,8 +71,38 @@ export default function StockTransfers() {
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => setItems(items.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
 
+  // Available stock per item (current_stock from items master) for picker hint
+  const itemStock = (id?: string) => {
+    if (!id) return null;
+    const it = (itemMaster as any[]).find((m) => m.id === id);
+    return it ? Number(it.current_stock || 0) : null;
+  };
+
   const handleCreate = () => {
-    if (!form.from_warehouse_id || !form.to_warehouse_id || items.some((i) => !i.item_name)) return;
+    if (!form.from_warehouse_id || !form.to_warehouse_id) {
+      toast.error("Select source and destination warehouses");
+      return;
+    }
+    if (form.from_warehouse_id === form.to_warehouse_id) {
+      toast.error("Source and destination warehouses must differ");
+      return;
+    }
+    if (items.some((i) => !i.item_id)) {
+      toast.error("Pick a catalog item for every line");
+      return;
+    }
+    if (items.some((i) => !i.quantity || i.quantity <= 0)) {
+      toast.error("Each line must have a quantity greater than 0");
+      return;
+    }
+    // Prevent transferring more than current stock (RPC will also enforce)
+    for (const i of items) {
+      const avail = itemStock(i.item_id);
+      if (avail !== null && i.quantity > avail) {
+        toast.error(`Quantity exceeds available stock (${avail}) for ${i.item_name}`);
+        return;
+      }
+    }
     createTransfer.mutate({ ...form, items }, {
       onSuccess: () => {
         setDialogOpen(false);
