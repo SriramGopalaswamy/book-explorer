@@ -55,6 +55,7 @@ import {
   type LeaveType,
 } from "@/hooks/useLeaves";
 import { TeamLeaveBalances } from "@/components/leaves/TeamLeaveBalances";
+import AdminLeaveConsolidated from "@/components/leaves/AdminLeaveConsolidated";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
 import { useAuth } from "@/contexts/AuthContext";
@@ -108,7 +109,7 @@ export default function Leaves() {
   // admin-only Team Balances tab (defence-in-depth — the tab trigger is
   // already gated, but the activeTab state could otherwise get stuck).
   useEffect(() => {
-    if (activeTab === "team-balances" && isAdminOrHR === false) {
+    if ((activeTab === "team-balances" || activeTab === "consolidated") && isAdminOrHR === false) {
       setActiveTab("all");
     }
   }, [activeTab, isAdminOrHR]);
@@ -641,6 +642,9 @@ export default function Leaves() {
                 {isAdminOrHR && (
                   <TabsTrigger value="team-balances">Team Balances</TabsTrigger>
                 )}
+                {isAdminOrHR && (
+                  <TabsTrigger value="consolidated">Consolidated (Admin)</TabsTrigger>
+                )}
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
@@ -724,7 +728,12 @@ export default function Leaves() {
                   <TeamLeaveBalances />
                 </TabsContent>
               )}
-              {activeTab !== "by-type" && activeTab !== "team-balances" && (
+              {activeTab === "consolidated" && isAdminOrHR && (
+                <TabsContent value="consolidated" forceMount>
+                  <AdminLeaveConsolidated />
+                </TabsContent>
+              )}
+              {activeTab !== "by-type" && activeTab !== "team-balances" && activeTab !== "consolidated" && (
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">

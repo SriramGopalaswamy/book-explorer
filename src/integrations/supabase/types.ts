@@ -6832,6 +6832,84 @@ export type Database = {
           },
         ]
       }
+      leave_balance_adjustments: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          field: string
+          id: string
+          leave_type: string
+          new_value: number
+          old_value: number
+          organization_id: string
+          profile_id: string
+          reason: string
+          year: number
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          field: string
+          id?: string
+          leave_type: string
+          new_value: number
+          old_value: number
+          organization_id: string
+          profile_id: string
+          reason: string
+          year: number
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          field?: string
+          id?: string
+          leave_type?: string
+          new_value?: number
+          old_value?: number
+          organization_id?: string
+          profile_id?: string
+          reason?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_balance_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leave_balances: {
         Row: {
           created_at: string
@@ -7016,6 +7094,7 @@ export type Database = {
           color: string
           created_at: string
           default_days: number
+          gender_eligibility: string
           icon: string
           id: string
           is_active: boolean
@@ -7029,6 +7108,7 @@ export type Database = {
           color?: string
           created_at?: string
           default_days?: number
+          gender_eligibility?: string
           icon?: string
           id?: string
           is_active?: boolean
@@ -7042,6 +7122,7 @@ export type Database = {
           color?: string
           created_at?: string
           default_days?: number
+          gender_eligibility?: string
           icon?: string
           id?: string
           is_active?: boolean
