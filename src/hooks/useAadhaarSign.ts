@@ -98,7 +98,7 @@ export function useInitiateAadhaarSign() {
       const pdfBlob = await fetchInvoicePdfBytes(invoiceId);
 
       // Upload to Supabase Storage (invoice-assets bucket — always exists)
-      const storagePath = `esign/${orgId}/${invoiceId}/original.pdf`;
+      const storagePath = `${orgId}/esign/${invoiceId}/original.pdf`;
       const { error: uploadError } = await supabase.storage
         .from(SIGNING_BUCKET)
         .upload(storagePath, pdfBlob, {
