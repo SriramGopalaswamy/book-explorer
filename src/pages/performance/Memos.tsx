@@ -248,7 +248,12 @@ export default function Memos() {
     try {
       let attachment_url: string | null = existingAttachmentUrl;
       if (attachmentFile && user) {
-        attachment_url = await uploadMemoAttachment(attachmentFile, user.id);
+        if (!org?.organizationId) {
+          toast.error("Workspace not ready — please retry in a moment.");
+          setIsSubmitting(false);
+          return;
+        }
+        attachment_url = await uploadMemoAttachment(attachmentFile, user.id, org.organizationId);
       }
 
       if (editingDraftId) {
