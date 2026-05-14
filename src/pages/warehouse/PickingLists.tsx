@@ -476,14 +476,13 @@ export default function PickingLists() {
                 ) : (
                   <div className="space-y-2">
                     {editPickItems.map((row, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center rounded-lg border p-3">
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center rounded-lg border p-3">
                         <Select value={row.item_id || ""} onValueChange={(v) => handleSelectEditItem(i, v)}>
-                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Select catalog item" /></SelectTrigger>
                           <SelectContent>
                             {(items as any[]).map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateEditItem(i, "item_name", e.target.value)} />
                         <Input type="number" value={row.quantity} onChange={(e) => updateEditItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
                         <Button size="icon" variant="ghost" onClick={() => removeEditItem(i)} disabled={editPickItems.length === 1}>
                           <Trash2 className="h-4 w-4 text-destructive" />
