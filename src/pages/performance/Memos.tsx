@@ -51,6 +51,7 @@ import {
   type Memo,
 } from "@/hooks/useMemos";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
