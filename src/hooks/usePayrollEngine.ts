@@ -756,7 +756,11 @@ function getWorkingDays(year: number, month: number, holidayDates?: Set<string>,
   return working;
 }
 
-export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
+export async function exportPayrollCSV(
+  entries: PayrollEntry[],
+  payPeriod: string,
+  orgId?: string,
+) {
   const headers = [
     "Employee Name", "Department", "Job Title", "Annual CTC",
     "Gross Earnings", "PF (Employee)", "PF (Employer)", "TDS",
@@ -799,11 +803,27 @@ export function exportPayrollCSV(entries: PayrollEntry[], payPeriod: string) {
   ]);
 
   const csv = [headers.map(escapeCSV).join(","), ...rows.map((r) => r.map(escapeCSV).join(","))].join("\n");
+  const fileName = `payroll_${payPeriod}.csv`;
+
+  // GBC-13: server-side audit BEFORE download — block on failure.
+  if (orgId) {
+    const { logExportEvent } = await import("@/lib/log-export");
+    await logExportEvent({
+      organizationId: orgId,
+      exportType: "payroll_csv",
+      fileName,
+      rowCount: entries.length,
+    });
+  } else if (typeof window !== "undefined") {
+    console.warn("[audit] exportPayrollCSV called without orgId — export not logged.");
+  }
+
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `payroll_${payPeriod}.csv`;
+  a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
 }
+
