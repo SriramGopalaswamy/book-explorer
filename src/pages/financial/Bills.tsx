@@ -423,6 +423,26 @@ export default function Bills() {
   const [vendorSearch, setVendorSearch] = useState("");
   const [vendorPopoverOpen, setVendorPopoverOpen] = useState(false);
 
+  // ─── GBC-88: Vendor credit availability for selected vendor ────────────────
+  const selectedVendorId = useMemo(
+    () => (vendors as any[]).find((v: any) => v.name === form.vendor_name?.trim())?.id ?? null,
+    [vendors, form.vendor_name],
+  );
+  const { data: vendorCredits } = useQuery({
+    queryKey: ["vendor-credits-available", orgId, selectedVendorId],
+    queryFn: async () => {
+      if (!orgId || !selectedVendorId) return null;
+      const { data, error } = await supabase.rpc("get_vendor_available_credits" as any, {
+        p_vendor_id: selectedVendorId,
+        p_org_id: orgId,
+      });
+      if (error) throw error;
+      return data as unknown as { total_available: number; credits: any[] } | null;
+    },
+    enabled: !!orgId && !!selectedVendorId,
+    staleTime: 30_000,
+  });
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
