@@ -187,13 +187,20 @@ export function useMemoStats() {
 
 const ALLOWED_ATTACHMENT_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg", "gif", "txt"];
 
-// Upload a file to memo-attachments bucket, returns storage path
-export async function uploadMemoAttachment(file: File, userId: string): Promise<string> {
+// Upload a file to memo-attachments bucket, returns storage path.
+// Path layout MUST be `${orgId}/${userId}/...` so that the cross-tenant RLS
+// helper user_in_path_org() can decode the first segment as the owning org.
+export async function uploadMemoAttachment(
+  file: File,
+  userId: string,
+  orgId: string,
+): Promise<string> {
+  if (!orgId) throw new Error("uploadMemoAttachment requires an organization id");
   const ext = (file.name.split(".").pop() ?? "").toLowerCase();
   if (!ALLOWED_ATTACHMENT_EXTENSIONS.includes(ext)) {
     throw new Error(`File type .${ext} is not allowed. Permitted types: ${ALLOWED_ATTACHMENT_EXTENSIONS.join(", ")}`);
   }
-  const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const fileName = `${orgId}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   
   const { error } = await supabase.storage
     .from("memo-attachments")

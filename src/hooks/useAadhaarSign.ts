@@ -98,7 +98,7 @@ export function useInitiateAadhaarSign() {
       const pdfBlob = await fetchInvoicePdfBytes(invoiceId);
 
       // Upload to Supabase Storage (invoice-assets bucket — always exists)
-      const storagePath = `esign/${orgId}/${invoiceId}/original.pdf`;
+      const storagePath = `${orgId}/esign/${invoiceId}/original.pdf`;
       const { error: uploadError } = await supabase.storage
         .from(SIGNING_BUCKET)
         .upload(storagePath, pdfBlob, {
@@ -189,7 +189,7 @@ export function useUploadSignedPdf() {
         throw new Error("File is too large. Signed PDFs must be under 10 MB.");
       }
 
-      const storagePath = `esign/${orgId}/${invoiceId}/signed.pdf`;
+      const storagePath = `${orgId}/esign/${invoiceId}/signed.pdf`;
 
       // Upload to Storage
       const { error: uploadError } = await supabase.storage

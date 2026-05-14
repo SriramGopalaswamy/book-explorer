@@ -51,6 +51,7 @@ import {
   type Memo,
 } from "@/hooks/useMemos";
 import { useCurrentRole } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -188,6 +189,7 @@ export default function Memos() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
   const { data: currentRole } = useCurrentRole();
   const isManager = currentRole === "manager" || currentRole === "admin" || currentRole === "hr";
   const { data: memos = [], isLoading } = useMemos(activeTab);
@@ -246,7 +248,12 @@ export default function Memos() {
     try {
       let attachment_url: string | null = existingAttachmentUrl;
       if (attachmentFile && user) {
-        attachment_url = await uploadMemoAttachment(attachmentFile, user.id);
+        if (!org?.organizationId) {
+          toast.error("Workspace not ready — please retry in a moment.");
+          setIsSubmitting(false);
+          return;
+        }
+        attachment_url = await uploadMemoAttachment(attachmentFile, user.id, org.organizationId);
       }
 
       if (editingDraftId) {

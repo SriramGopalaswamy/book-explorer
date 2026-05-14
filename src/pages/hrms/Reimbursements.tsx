@@ -172,10 +172,7 @@ export default function Reimbursements() {
         .upload(path, file, { contentType: file.type });
       if (upErr) throw upErr;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("reimbursement-attachments")
-        .getPublicUrl(path);
-
+      // Bucket is private — never use getPublicUrl. Signed URL is generated below.
       // Get signed URL for viewing
       const { data: signedData } = await supabase.storage
         .from("reimbursement-attachments")
