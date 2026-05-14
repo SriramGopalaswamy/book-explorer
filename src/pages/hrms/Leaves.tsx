@@ -109,7 +109,7 @@ export default function Leaves() {
   // admin-only Team Balances tab (defence-in-depth — the tab trigger is
   // already gated, but the activeTab state could otherwise get stuck).
   useEffect(() => {
-    if (activeTab === "team-balances" && isAdminOrHR === false) {
+    if ((activeTab === "team-balances" || activeTab === "consolidated") && isAdminOrHR === false) {
       setActiveTab("all");
     }
   }, [activeTab, isAdminOrHR]);
