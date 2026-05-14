@@ -219,7 +219,7 @@ function NavSection({
   title,
   items,
   sectionId,
-  defaultOpen = true,
+  defaultOpen = false,
   collapsed,
   onItemClick,
 }: {
@@ -477,7 +477,7 @@ export function Sidebar() {
         )}
 
         {visibleMainNav.length > 0 && (
-          <NavSection title="Main" items={visibleMainNav} sectionId="main" collapsed={collapsed} onItemClick={closeMobile} />
+          <NavSection title="Main" items={visibleMainNav} sectionId="main" defaultOpen collapsed={collapsed} onItemClick={closeMobile} />
         )}
         {visibleFinancialNav.length > 0 && (
           <NavSection title="Financial Suite" items={visibleFinancialNav} sectionId="financial" collapsed={collapsed} onItemClick={closeMobile} />

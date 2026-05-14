@@ -145,11 +145,32 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   // Module-level gating: if this org's plan doesn't include the module for this path,
   // redirect to activation so they can upgrade. Only enforced once subscription is loaded.
   if (!loading && !isModuleAllowed(location.pathname, enabledModules)) {
-    decide("redirect:activate:module_blocked", {
+    const required = MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[1];
+    decide("block:module_not_in_plan", {
       matchedPrefix: MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[0],
-      requiredModule: MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[1],
+      requiredModule: required,
     });
-    return <Navigate to="/subscription/activate" replace state={{ moduleRequired: true, from: location.pathname }} />;
+    // Do NOT silently redirect — show a clear, non-redirecting reason.
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full rounded-xl border border-border bg-card p-6 text-center space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">Module not enabled</h2>
+          <p className="text-sm text-muted-foreground">
+            The <span className="font-medium text-foreground">{required ?? "requested"}</span> module is not part of your current plan
+            ({(enabledModules ?? []).join(", ") || "no modules"}).
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Path: <code className="font-mono">{location.pathname}</code>
+          </p>
+          <a
+            href="/subscription/activate"
+            className="inline-block text-sm font-medium text-primary hover:underline"
+          >
+            Upgrade subscription →
+          </a>
+        </div>
+      </div>
+    );
   }
 
   decide("allow:ok");
