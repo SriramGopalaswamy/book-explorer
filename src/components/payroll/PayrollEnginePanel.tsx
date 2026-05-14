@@ -29,6 +29,7 @@ import {
   exportPayrollCSV,
   type PayrollRun,
 } from "@/hooks/usePayrollEngine";
+import { usePayrollRunRealtime } from "@/hooks/usePayrollRunRealtime";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
@@ -186,6 +187,12 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
+  // GBC-11: subscribe to live updates on the in-flight run so a page refresh
+  //         shows current progress instead of resetting the button.
+  const liveRunId = existingRun?.status === "processing" ? existingRun.id : null;
+  usePayrollRunRealtime(liveRunId);
+  const isProcessing = existingRun?.status === "processing";
+
   // GBC-87: payroll readiness — block Generate if any active employee is missing a salary structure
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
@@ -290,10 +297,16 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
                 }
                 generate.mutate(selectedPeriod);
               }}
-              disabled={generate.isPending || !!existingRun || (readiness ? !readiness.ready : false)}
+              disabled={generate.isPending || isProcessing || (existingRun && !isProcessing) || (readiness ? !readiness.ready : false)}
             >
               <Zap className="h-4 w-4 mr-1" />
-              {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}
+              {isProcessing
+                ? "Processing…"
+                : generate.isPending
+                  ? "Generating…"
+                  : existingRun
+                    ? "Already Generated"
+                    : "Generate Payroll"}
             </Button>
             <span className="text-muted-foreground text-sm hidden sm:inline">or</span>
             <BulkUploadDialog config={registerUploadConfig} label="Upload Register" />

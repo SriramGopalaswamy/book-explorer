@@ -118,32 +118,45 @@ export function useGeneratePayroll() {
       if (!orgId) throw new Error("Organization not found");
       const f = flags || { pf_applicable: false, esi_applicable: false, professional_tax_applicable: false, gratuity_applicable: false } as PayrollFlags;
 
-      // 1. Guard: reject if a non-failed run already exists for this org+period
-      const { data: existingRuns } = await supabase
-        .from("payroll_runs")
-        .select("id, status")
-        .eq("organization_id", orgId)
-        .eq("pay_period", payPeriod)
-        .neq("status", "failed")
-        .neq("status", "cancelled");
-      if (existingRuns && existingRuns.length > 0) {
-        const s = existingRuns[0].status;
-        throw new Error(
-          `A payroll run for ${payPeriod} already exists (status: ${s}). ` +
-          `Delete or cancel the existing run before generating a new one.`
-        );
+      // 1+2. Atomically claim the run via server-side RPC. Prevents duplicate
+      //      runs when the button is double-clicked or the page is refreshed.
+      const { data: claim, error: claimErr } = await supabase.rpc("start_payroll_run", {
+        org_id: orgId,
+        p_pay_period: payPeriod,
+        initiated_by: user.id,
+      });
+      if (claimErr) throw claimErr;
+      const claimRow = Array.isArray(claim) ? claim[0] : claim;
+      if (!claimRow) throw new Error("Failed to claim payroll run");
+
+      if (claimRow.status === "invalid_period") {
+        throw new Error(`Invalid pay period format: ${payPeriod}`);
+      }
+      if (claimRow.status === "future_period") {
+        throw new Error("Cannot generate payroll for a future period");
+      }
+      if (claimRow.status === "already_completed") {
+        return {
+          run: { id: claimRow.payroll_run_id } as any,
+          entriesCount: 0,
+          warnings: [`Payroll for ${payPeriod} is already completed.`],
+          claimStatus: "already_completed" as const,
+        };
+      }
+      if (claimRow.status === "already_processing") {
+        return {
+          run: { id: claimRow.payroll_run_id } as any,
+          entriesCount: 0,
+          warnings: [`Payroll for ${payPeriod} is already being generated. Watching progress…`],
+          claimStatus: "already_processing" as const,
+        };
       }
 
-      // 2. Create payroll run
+      // claimRow.status === "started" — fetch the freshly-created run
       const { data: run, error: runErr } = await supabase
         .from("payroll_runs")
-        .insert({
-          organization_id: orgId,
-          pay_period: payPeriod,
-          generated_by: user.id,
-          status: "processing",
-        })
-        .select()
+        .select("*")
+        .eq("id", claimRow.payroll_run_id)
         .single();
       if (runErr) throw runErr;
 
@@ -532,14 +545,22 @@ export function useGeneratePayroll() {
 
       return { run, entriesCount: entries.length, warnings: [] as string[] };
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-entries"] });
+      if (data.claimStatus === "already_completed") {
+        toast.info(data.warnings?.[0] || "Payroll already completed for this period.");
+        return;
+      }
+      if (data.claimStatus === "already_processing") {
+        toast.info(data.warnings?.[0] || "Payroll generation already in progress.");
+        return;
+      }
       toast.success(`Payroll generated for ${data.entriesCount} employees`);
-      data.warnings?.forEach((w) => toast.warning(w));
+      data.warnings?.forEach((w: string) => toast.warning(w));
     },
     onError: (err: any) => {
-      if (err.message?.includes("duplicate key")) {
+      if (err.message?.includes("duplicate key") || err.message?.includes("already exists")) {
         toast.error("Payroll already exists for this period");
       } else {
         toast.error("Failed to generate payroll: " + err.message);

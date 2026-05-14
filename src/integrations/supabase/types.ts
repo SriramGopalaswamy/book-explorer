@@ -14590,6 +14590,13 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      start_payroll_run: {
+        Args: { initiated_by: string; org_id: string; p_pay_period: string }
+        Returns: {
+          payroll_run_id: string
+          status: string
+        }[]
+      }
       storage_path_org_id: { Args: { object_name: string }; Returns: string }
       trial_balance: {
         Args: { p_as_of?: string }
