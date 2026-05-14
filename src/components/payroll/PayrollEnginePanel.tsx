@@ -244,6 +244,21 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
           </AlertDescription>
         </Alert>
       )}
+      {!existingRun && readiness && !readiness.ready && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {readiness.missing_count} active employee(s) have no salary structure for {periodLabel(selectedPeriod)}:{" "}
+            <span className="font-medium">
+              {(readiness.missing_employees || []).slice(0, 5).map((e: any) => e.full_name).join(", ")}
+              {readiness.missing_employees && readiness.missing_employees.length > 5
+                ? ` +${readiness.missing_employees.length - 5} more`
+                : ""}
+            </span>
+            . Set up compensation before generating payroll.
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="glass-card">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
