@@ -21,6 +21,7 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
+import { convertToBase } from "@/lib/currency";
 
 interface UnrealizedFXLine {
   id: string;
