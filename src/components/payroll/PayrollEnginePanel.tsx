@@ -48,6 +48,9 @@ import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { toast } from "sonner";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
