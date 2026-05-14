@@ -1075,6 +1075,20 @@ export default function Bills() {
                 </Popover>
               </div>
 
+              {vendorCredits && Number(vendorCredits.total_available) > 0 && (
+                <div className="col-span-2 rounded-md border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+                  <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium text-foreground">
+                      ₹{Number(vendorCredits.total_available).toLocaleString("en-IN", { minimumFractionDigits: 2 })} in unused credits available from this vendor
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {vendorCredits.credits?.length || 0} credit note(s). After saving the bill, open it to apply credits.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label>Bill / Invoice Number</Label>
                 <Input
