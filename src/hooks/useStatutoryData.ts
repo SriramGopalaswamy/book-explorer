@@ -99,12 +99,13 @@ async function fetchDualSourceStatutoryPayroll(
   }
 
   // ── Legacy path ───────────────────────────────────────────────────────────
-  const { data: legacyRows } = await supabase
-    .from("payroll_records")
-    .select(`*, profiles!profile_id(${profileSelect})`)
-    .gte("created_at", from)
-    .lte("created_at", to + "T23:59:59")
-    .in("status", statuses);
+      const { data: legacyRows } = await supabase
+        .from("payroll_records")
+        .select(`*, profiles!profile_id(${profileSelect})`)
+        .is("deleted_at", null)
+        .gte("created_at", from)
+        .lte("created_at", to + "T23:59:59")
+        .in("status", statuses);
 
   // De-duplicate: engine row wins for same (profile_id, pay_period)
   const engineKeys = new Set(
@@ -273,6 +274,7 @@ export function useGSTR1Data(from: string, to: string) {
       const { data, error } = await supabase
         .from("invoices")
         .select("*, invoice_items(*)")
+        .is("deleted_at", null)
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .in("status", ["sent", "paid"])
@@ -362,6 +364,7 @@ export function useGSTR3BData(from: string, to: string) {
       const { data: invoices } = await supabase
         .from("invoices")
         .select("subtotal, cgst_total, sgst_total, igst_total, total_amount")
+        .is("deleted_at", null)
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .in("status", ["sent", "paid"]);
@@ -370,6 +373,7 @@ export function useGSTR3BData(from: string, to: string) {
       const { data: bills } = await supabase
         .from("bills")
         .select("amount, tax_amount, total_amount")
+        .is("deleted_at", null)
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .in("status", ["approved", "paid"]);
@@ -480,6 +484,7 @@ export function useTDS26QData(from: string, to: string) {
       const { data, error } = await supabase
         .from("bills")
         .select("*, vendors!vendor_id(name)")
+        .is("deleted_at", null)
         .gte("created_at", from)
         .lte("created_at", to + "T23:59:59")
         .in("status", ["approved", "paid"]);
