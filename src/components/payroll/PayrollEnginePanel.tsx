@@ -186,6 +186,12 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
+  // GBC-11: subscribe to live updates on the in-flight run so a page refresh
+  //         shows current progress instead of resetting the button.
+  const liveRunId = existingRun?.status === "processing" ? existingRun.id : null;
+  usePayrollRunRealtime(liveRunId);
+  const isProcessing = existingRun?.status === "processing";
+
   // GBC-87: payroll readiness — block Generate if any active employee is missing a salary structure
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
