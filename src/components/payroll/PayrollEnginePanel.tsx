@@ -29,6 +29,7 @@ import {
   exportPayrollCSV,
   type PayrollRun,
 } from "@/hooks/usePayrollEngine";
+import { usePayrollRunRealtime } from "@/hooks/usePayrollRunRealtime";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
