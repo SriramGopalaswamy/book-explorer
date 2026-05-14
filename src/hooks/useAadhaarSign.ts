@@ -189,7 +189,7 @@ export function useUploadSignedPdf() {
         throw new Error("File is too large. Signed PDFs must be under 10 MB.");
       }
 
-      const storagePath = `esign/${orgId}/${invoiceId}/signed.pdf`;
+      const storagePath = `${orgId}/esign/${invoiceId}/signed.pdf`;
 
       // Upload to Storage
       const { error: uploadError } = await supabase.storage
