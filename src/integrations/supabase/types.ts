@@ -8470,6 +8470,36 @@ export type Database = {
           },
         ]
       }
+      payroll_records_write_log: {
+        Row: {
+          actor_user_id: string | null
+          id: number
+          occurred_at: string
+          operation: string
+          organization_id: string | null
+          record_id: string | null
+          source_app: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          id?: number
+          occurred_at?: string
+          operation: string
+          organization_id?: string | null
+          record_id?: string | null
+          source_app?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          id?: number
+          occurred_at?: string
+          operation?: string
+          organization_id?: string | null
+          record_id?: string | null
+          source_app?: string | null
+        }
+        Relationships: []
+      }
       payroll_runs: {
         Row: {
           approved_at: string | null
