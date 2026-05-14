@@ -160,9 +160,10 @@ export default function ExchangeRatesPage() {
     return foreignRecords.map((rec: any) => {
       const bookRate = Number(rec.exchange_rate) || 1;
       const amount = Number(rec.amount) || 0;
-      const bookValueINR = amount * bookRate;
+      // KAN-767: use canonical multiplication formula via convertToBase.
+      const bookValueINR = convertToBase({ amount, currency: rec.currency_code, exchangeRate: bookRate });
       const currentRate = latestRates[`${rec.currency_code}_INR`] || bookRate;
-      const currentValueINR = amount * currentRate;
+      const currentValueINR = convertToBase({ amount, currency: rec.currency_code, exchangeRate: currentRate });
       const unrealizedGainLoss = currentValueINR - bookValueINR;
 
       return {
