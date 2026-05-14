@@ -179,18 +179,18 @@ export default function Profile() {
     if (!user) return;
     setIsSavingProfile(true);
     try {
+      const payload: any = {
+        user_id: user.id,
+        full_name: fullName,
+        phone: phone || null,
+      };
+      if (canEditRoleFields) {
+        payload.department = department || null;
+        payload.job_title = jobTitle || null;
+      }
       const { error } = await supabase
         .from("profiles")
-        .upsert(
-          {
-            user_id: user.id,
-            full_name: fullName,
-            department: department || null,
-            job_title: jobTitle || null,
-            phone: phone || null,
-          },
-          { onConflict: "user_id" }
-        );
+        .upsert(payload, { onConflict: "user_id" });
       if (error) throw error;
       await supabase.auth.updateUser({ data: { full_name: fullName } });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
