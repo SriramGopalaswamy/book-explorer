@@ -728,7 +728,12 @@ export default function Leaves() {
                   <TeamLeaveBalances />
                 </TabsContent>
               )}
-              {activeTab !== "by-type" && activeTab !== "team-balances" && (
+              {activeTab === "consolidated" && isAdminOrHR && (
+                <TabsContent value="consolidated" forceMount>
+                  <AdminLeaveConsolidated />
+                </TabsContent>
+              )}
+              {activeTab !== "by-type" && activeTab !== "team-balances" && activeTab !== "consolidated" && (
               <TabsContent value={activeTab} forceMount={undefined}>
                 {isLoadingDisplayed ? (
                   <div className="space-y-3">
