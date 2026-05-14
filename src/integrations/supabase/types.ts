@@ -1723,46 +1723,58 @@ export type Database = {
       audit_logs: {
         Row: {
           action: string
-          actor_id: string
+          actor_id: string | null
           actor_name: string | null
           actor_role: string | null
           created_at: string
           entity_id: string | null
           entity_type: string
           id: string
+          is_system_operation: boolean
           metadata: Json | null
+          new_data: Json | null
+          old_data: Json | null
           organization_id: string
           search_vector: unknown
+          table_name: string | null
           target_name: string | null
           target_user_id: string | null
         }
         Insert: {
           action: string
-          actor_id: string
+          actor_id?: string | null
           actor_name?: string | null
           actor_role?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type: string
           id?: string
+          is_system_operation?: boolean
           metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
           organization_id?: string
           search_vector?: unknown
+          table_name?: string | null
           target_name?: string | null
           target_user_id?: string | null
         }
         Update: {
           action?: string
-          actor_id?: string
+          actor_id?: string | null
           actor_name?: string | null
           actor_role?: string | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string
           id?: string
+          is_system_operation?: boolean
           metadata?: Json | null
+          new_data?: Json | null
+          old_data?: Json | null
           organization_id?: string
           search_vector?: unknown
+          table_name?: string | null
           target_name?: string | null
           target_user_id?: string | null
         }
