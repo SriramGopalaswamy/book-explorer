@@ -6059,6 +6059,74 @@ export type Database = {
           },
         ]
       }
+      inventory_reservations: {
+        Row: {
+          id: string
+          item_id: string
+          organization_id: string
+          released_at: string | null
+          reserved_at: string
+          reserved_qty: number
+          sales_order_id: string
+          sales_order_item_id: string | null
+          status: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          organization_id: string
+          released_at?: string | null
+          reserved_at?: string
+          reserved_qty: number
+          sales_order_id: string
+          sales_order_item_id?: string | null
+          status?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          organization_id?: string
+          released_at?: string | null
+          reserved_at?: string
+          reserved_qty?: number
+          sales_order_id?: string
+          sales_order_item_id?: string | null
+          status?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_reservations_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_reservations_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_reservations_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       investment_declarations: {
         Row: {
           approved_amount: number | null
@@ -11579,6 +11647,77 @@ export type Database = {
           },
         ]
       }
+      vendor_credit_applications: {
+        Row: {
+          applied_amount: number
+          applied_at: string
+          applied_by: string | null
+          bill_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          reversed_at: string | null
+          reversed_by: string | null
+          status: string
+          vendor_credit_id: string
+        }
+        Insert: {
+          applied_amount: number
+          applied_at?: string
+          applied_by?: string | null
+          bill_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          vendor_credit_id: string
+        }
+        Update: {
+          applied_amount?: number
+          applied_at?: string
+          applied_by?: string | null
+          bill_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          vendor_credit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_credit_applications_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_applications_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_applications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_applications_vendor_credit_id_fkey"
+            columns: ["vendor_credit_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_credits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_credits: {
         Row: {
           amount: number
@@ -11588,6 +11727,7 @@ export type Database = {
           issue_date: string
           organization_id: string
           reason: string | null
+          remaining_amount: number
           status: string
           updated_at: string
           user_id: string
@@ -11603,6 +11743,7 @@ export type Database = {
           issue_date?: string
           organization_id?: string
           reason?: string | null
+          remaining_amount?: number
           status?: string
           updated_at?: string
           user_id: string
@@ -11618,6 +11759,7 @@ export type Database = {
           issue_date?: string
           organization_id?: string
           reason?: string | null
+          remaining_amount?: number
           status?: string
           updated_at?: string
           user_id?: string
@@ -13897,6 +14039,15 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: string
       }
+      apply_vendor_credit_to_bill: {
+        Args: {
+          p_amount: number
+          p_bill_id: string
+          p_credit_id: string
+          p_org_id: string
+        }
+        Returns: Json
+      }
       approve_reimbursement: {
         Args: {
           p_bank_account_id?: string
@@ -13926,6 +14077,10 @@ export type Database = {
       check_org_access: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
+      }
+      check_payroll_readiness: {
+        Args: { p_org_id: string; p_period_start: string }
+        Returns: Json
       }
       claim_workflow_runs: {
         Args: { p_claim_until: string; p_limit?: number; p_now: string }
@@ -14175,6 +14330,10 @@ export type Database = {
       get_user_org: { Args: { _user_id: string }; Returns: string }
       get_user_org_id: { Args: { _user_id: string }; Returns: string }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
+      get_vendor_available_credits: {
+        Args: { p_org_id: string; p_vendor_id: string }
+        Returns: Json
+      }
       gl_account_balance: {
         Args: { p_account_id: string; p_as_of?: string }
         Returns: {

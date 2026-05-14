@@ -48,6 +48,9 @@ import { usePayrollFlags } from "@/hooks/usePayrollFlags";
 import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { toast } from "sonner";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -183,6 +186,25 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
 
   const existingRun = runs.find((r) => r.pay_period === selectedPeriod);
 
+  // GBC-87: payroll readiness — block Generate if any active employee is missing a salary structure
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const periodStartDate = `${selectedPeriod}-01`;
+  const { data: readiness } = useQuery({
+    queryKey: ["payroll-readiness", orgId, periodStartDate],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase.rpc("check_payroll_readiness" as any, {
+        p_org_id: orgId,
+        p_period_start: periodStartDate,
+      });
+      if (error) throw error;
+      return data as unknown as { ready: boolean; missing_count: number; missing_employees: any[] };
+    },
+    enabled: !!orgId && !existingRun,
+    staleTime: 30_000,
+  });
+
   const isHR = currentRole === "hr";
   const isFinanceOrAdmin = isFinance || currentRole === "admin";
 
@@ -222,6 +244,21 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
           </AlertDescription>
         </Alert>
       )}
+      {!existingRun && readiness && !readiness.ready && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {readiness.missing_count} active employee(s) have no salary structure for {periodLabel(selectedPeriod)}:{" "}
+            <span className="font-medium">
+              {(readiness.missing_employees || []).slice(0, 5).map((e: any) => e.full_name).join(", ")}
+              {readiness.missing_employees && readiness.missing_employees.length > 5
+                ? ` +${readiness.missing_employees.length - 5} more`
+                : ""}
+            </span>
+            . Set up compensation before generating payroll.
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="glass-card">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -246,8 +283,14 @@ export function PayrollEnginePanel({ onMonthChange }: PayrollEnginePanelProps = 
               </SelectContent>
             </Select>
             <Button
-              onClick={() => generate.mutate(selectedPeriod)}
-              disabled={generate.isPending || !!existingRun}
+              onClick={() => {
+                if (readiness && !readiness.ready) {
+                  toast.error(`Cannot generate: ${readiness.missing_count} employee(s) missing salary structure`);
+                  return;
+                }
+                generate.mutate(selectedPeriod);
+              }}
+              disabled={generate.isPending || !!existingRun || (readiness ? !readiness.ready : false)}
             >
               <Zap className="h-4 w-4 mr-1" />
               {generate.isPending ? "Generating..." : existingRun ? "Already Generated" : "Generate Payroll"}

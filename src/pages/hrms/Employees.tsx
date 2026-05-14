@@ -284,13 +284,17 @@ export default function Employees() {
     });
   };
 
+  const [salaryPromptEmployeeId, setSalaryPromptEmployeeId] = useState<string | null>(null);
+
   const handleAddEmployee = () => {
     if (!formData.full_name || !formData.email) return;
     const { manager_id, ...rest } = formData;
     createEmployee.mutate({ ...rest, manager_id: manager_id || null }, {
-      onSuccess: () => {
+      onSuccess: (created: any) => {
         resetForm();
         setIsAddDialogOpen(false);
+        // GBC-87: prompt HR to set up salary structure
+        if (created?.id) setSalaryPromptEmployeeId(created.id);
       },
     });
   };
@@ -658,6 +662,39 @@ export default function Employees() {
         }}
         canEditCompensation={!!hasViewAccess}
       />
+
+      {/* GBC-87: Prompt HR to set up salary structure on new employee */}
+      <AlertDialog
+        open={!!salaryPromptEmployeeId}
+        onOpenChange={(open) => { if (!open) setSalaryPromptEmployeeId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Employee created successfully</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to set up their salary structure now? Without it, they
+              will be flagged as missing in the next payroll run.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSalaryPromptEmployeeId(null)}>
+              Remind me later
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const id = salaryPromptEmployeeId;
+                setSalaryPromptEmployeeId(null);
+                if (id) {
+                  setOpenInEditMode(true);
+                  setViewEmployeeId(id);
+                }
+              }}
+            >
+              Set up salary
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </SessionGate>
     </MainLayout>
   );
