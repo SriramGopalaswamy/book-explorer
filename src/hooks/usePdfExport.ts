@@ -1,48 +1,52 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from "react";
+import { logExportEvent } from "@/lib/log-export";
 
-const usePdfExport = () => {
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+interface ExportPdfArgs {
+  blob: Blob;
+  fileName: string;
+  organizationId: string;
+  exportType: string;        // e.g. "payslip_pdf", "invoice_pdf"
+  rowCount?: number;
+}
 
-    const exportPdf = useCallback(async (data) => {
-        setLoading(true);
-        setError(null);
+/**
+ * GBC-13: Download a PDF blob AFTER recording the export in the server-side
+ * audit log. If the audit call fails, the file is NOT delivered to the user.
+ */
+export function usePdfExport() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-        try {
-            // Create a new worker for PDF generation
-            const worker = new Worker(new URL('../workers/pdfWorker.js', import.meta.url));
+  const exportPdf = useCallback(async (args: ExportPdfArgs) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Audit FIRST — this throws on failure and aborts the download.
+      await logExportEvent({
+        organizationId: args.organizationId,
+        exportType: args.exportType,
+        fileName: args.fileName,
+        rowCount: args.rowCount,
+      });
 
-            // Send data to the worker
-            worker.postMessage(data);
+      const url = URL.createObjectURL(args.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = args.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      setError(e);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-            // Handle the result from the worker
-            worker.onmessage = (event) => {
-                const { pdfBlob, error } = event.data;
-                if (error) {
-                    throw new Error(error);
-                }
-                // Create a URL for the PDF blob and trigger download
-                const url = window.URL.createObjectURL(pdfBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'exported-file.pdf';
-                a.click();
-                window.URL.revokeObjectURL(url);
-                setLoading(false);
-            };
-
-            // Handle worker error
-            worker.onerror = (err) => {
-                setError(err);
-                setLoading(false);
-            };
-        } catch (err) {
-            setError(err);
-            setLoading(false);
-        }
-    }, []);
-
-    return { loading, error, exportPdf };
-};
+  return { exportPdf, loading, error };
+}
 
 export default usePdfExport;
