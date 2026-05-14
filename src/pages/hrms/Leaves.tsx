@@ -55,6 +55,7 @@ import {
   type LeaveType,
 } from "@/hooks/useLeaves";
 import { TeamLeaveBalances } from "@/components/leaves/TeamLeaveBalances";
+import AdminLeaveConsolidated from "@/components/leaves/AdminLeaveConsolidated";
 import { useIsAdminOrHR, useIsAdminHROrFinance } from "@/hooks/useEmployees";
 import { useIsManager } from "@/hooks/useRoles";
 import { useAuth } from "@/contexts/AuthContext";
