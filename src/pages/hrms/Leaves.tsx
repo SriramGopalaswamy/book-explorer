@@ -642,6 +642,9 @@ export default function Leaves() {
                 {isAdminOrHR && (
                   <TabsTrigger value="team-balances">Team Balances</TabsTrigger>
                 )}
+                {isAdminOrHR && (
+                  <TabsTrigger value="consolidated">Consolidated (Admin)</TabsTrigger>
+                )}
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
