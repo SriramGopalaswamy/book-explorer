@@ -45,6 +45,7 @@ export function useScheduledPayments() {
       const { data, error } = await supabase
         .from("scheduled_payments")
         .select("*")
+        .is("deleted_at", null)
         .in("status", ["scheduled", "pending"])
         .order("due_date", { ascending: true });
       if (error) throw error;
@@ -218,6 +219,7 @@ export function useCashFlowSummary() {
       const { data, error } = await supabase
         .from("bank_transactions")
         .select("transaction_type, amount")
+        .is("deleted_at", null)
         .gte("transaction_date", sixMonthsAgo.toISOString().split("T")[0])
         .eq("organization_id", orgId);
 
