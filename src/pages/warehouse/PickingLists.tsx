@@ -80,14 +80,13 @@ function PickListFormInner({ dialogOpen, setDialogOpen, warehouses, allItems, wa
             <div className="space-y-2">
               {pickItems.map((row, i) => (
                 <div key={i} className="space-y-2 rounded-lg border p-3">
-                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
                     <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                      <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select catalog item" /></SelectTrigger>
                       <SelectContent>
                         {allItems.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input placeholder="Or type name" value={row.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} />
                     <Input type="number" value={row.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 1)} className="w-20" min={1} />
                     <Button size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={pickItems.length === 1}>
                       <Trash2 className="h-4 w-4 text-destructive" />
