@@ -303,12 +303,18 @@ export function useUpdateMemo() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Memo> & { id: string }) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Resolve caller org for tenant isolation (used by all queries below)
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Enforce state machine on status transitions
       if (updates.status) {
         const { data: current, error: fetchErr } = await supabase
           .from("memos")
           .select("status")
           .eq("id", id)
+          .eq("organization_id", callerProfile.organization_id)
           .single();
         if (fetchErr || !current) throw fetchErr || new Error("Memo not found.");
         const currentStatus = (current as any).status as string;
@@ -323,10 +329,6 @@ export function useUpdateMemo() {
       const excerpt = updates.content
         ? updates.content.substring(0, 150) + (updates.content.length > 150 ? "..." : "")
         : undefined;
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("memos")
