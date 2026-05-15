@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import {
   GitBranch, Users, ShieldAlert, Building2,
   ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut,
-  Maximize2, X, Mail, Phone, CalendarDays, Expand,
+  Maximize2, X, Mail, Phone, CalendarDays, Expand, RefreshCw,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
 import { useIsFinance } from "@/hooks/useRoles";
@@ -624,46 +624,57 @@ function OrgChartCanvas({
 export default function OrgChart() {
   const isDevMode = useIsDevModeWithoutAuth();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdminOrHR();
   const { data: isFinance, isLoading: financeLoading } = useIsFinance();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDept, setActiveDept] = useState<string | null>(null);
   const [expandAllTrigger, setExpandAllTrigger] = useState(0);
 
-  const { data: profiles = [], isLoading } = useQuery({
+  const { data: profiles = [], isLoading, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["org-chart-profiles", isDevMode, user?.id],
     queryFn: async () => {
       if (isDevMode) {
-        return mockEmployees.map((e) => ({
-          id: e.id,
-          full_name: e.full_name,
-          department: e.department,
-          job_title: e.job_title,
-          avatar_url: e.avatar_url,
-          manager_id: e.manager_id,
-          status: e.status,
-          email: e.email ?? null,
-          phone: e.phone ?? null,
-          join_date: e.join_date ?? null,
-        })) as RawProfile[];
+        return mockEmployees
+          .filter((e) => e.status === "active" || e.status === "on_leave")
+          .map((e) => ({
+            id: e.id,
+            full_name: e.full_name,
+            department: e.department,
+            job_title: e.job_title,
+            avatar_url: e.avatar_url,
+            manager_id: e.manager_id,
+            status: e.status,
+            email: e.email ?? null,
+            phone: e.phone ?? null,
+            join_date: e.join_date ?? null,
+          })) as RawProfile[];
       }
       if (!user) return [] as RawProfile[];
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) return [] as RawProfile[];
       // Bulk load capped at 500 — for orgs above this size, switch
       // to incremental rendering via useDirectReports (GBC-75).
+      // Only active/on_leave employees belong in the current org chart;
+      // inactive and pending_approval are excluded from the live hierarchy.
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, department, job_title, avatar_url, manager_id, status, email, phone, join_date")
         .eq("organization_id", callerProfile.organization_id)
         .eq("is_deleted", false)
+        .in("status", ["active", "on_leave"])
         .order("full_name")
         .limit(500);
       if (error) throw error;
       return data as RawProfile[];
     },
     enabled: isDevMode || !!user,
+    staleTime: 2 * 60 * 1000,
   });
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["org-chart-profiles"] });
+  };
 
   const tree = useMemo(() => buildTree(profiles), [profiles]);
 
@@ -700,6 +711,22 @@ export default function OrgChart() {
   return (
     <MainLayout title="Organization Chart" subtitle="Company hierarchy and reporting structure">
       <div className="space-y-5 h-full">
+        {/* Last-refreshed + manual refresh */}
+        <div className="flex items-center justify-end gap-2">
+          {dataUpdatedAt > 0 && (
+            <span className="text-xs text-muted-foreground">
+              Updated {new Date(dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            {isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
         {/* Stats row */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
