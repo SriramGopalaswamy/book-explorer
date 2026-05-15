@@ -17,8 +17,9 @@ function threeDigits(n: number): string {
 }
 
 export function numberToWords(num: number): string {
-  if (num === 0) return 'Zero';
+  if (!num) return 'Rupees Zero Only';
   const n = Math.abs(Math.round(num));
+  if (n === 0) return 'Rupees Zero Only';
 
   const crore = Math.floor(n / 10000000);
   const lakh = Math.floor((n % 10000000) / 100000);
@@ -29,7 +30,11 @@ export function numberToWords(num: number): string {
   if (crore) result += threeDigits(crore) + ' Crore ';
   if (lakh) result += twoDigits(lakh) + ' Lakh ';
   if (thousand) result += twoDigits(thousand) + ' Thousand ';
-  if (rest) result += threeDigits(rest);
+  if (rest) {
+    const hasHigher = crore || lakh || thousand;
+    if (hasHigher && rest < 100) result += 'and ' + twoDigits(rest);
+    else result += threeDigits(rest);
+  }
 
   return 'Rupees ' + result.trim() + ' Only';
 }
