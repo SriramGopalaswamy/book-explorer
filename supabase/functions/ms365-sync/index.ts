@@ -84,43 +84,64 @@ Deno.serve(async (req) => {
   const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID")!;
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const CRON_SECRET = Deno.env.get("MS365_CRON_SECRET");
 
-  // Verify caller is an authenticated admin
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+  // Allow scheduler/cron callers via shared secret — no user session needed.
+  // Set MS365_CRON_SECRET in Supabase Vault and use it from pg_cron or any
+  // external scheduler. Only sync_managers is permitted via this path.
+  const isCronCall = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
+
+  if (!isCronCall) {
+    // Verify caller is an authenticated admin
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseForAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabaseForAuth.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: roleRow } = await supabaseForAuth
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("organization_id", DEFAULT_ORG_ID)
+      .in("role", ["admin"])
+      .maybeSingle();
+
+    if (!roleRow) {
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
+  // Service-role client shared by all action handlers below.
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const { data: roleRow } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("organization_id", DEFAULT_ORG_ID)
-    .in("role", ["admin"])
-    .maybeSingle();
-
-  if (!roleRow) {
-    return new Response(JSON.stringify({ error: "Admin access required" }), {
+  // Cron calls are only permitted to trigger sync_managers, not provisioning or SSO changes.
+  const body = await req.json().catch(() => ({}));
+  if (isCronCall && body.action !== "sync_managers") {
+    return new Response(JSON.stringify({ error: "Cron secret only permits sync_managers" }), {
       status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   try {
-    const body = await req.json();
     const { action } = body;
 
     const ssoDomain = await getSSODomain(supabase);
@@ -347,7 +368,7 @@ Deno.serve(async (req) => {
             );
 
           // Create profile — auto-activated
-          await supabase.from("profiles").insert({
+          const { data: newProfile } = await supabase.from("profiles").insert({
             user_id: userId,
             email: email,
             full_name: msUser.displayName || null,
@@ -356,7 +377,7 @@ Deno.serve(async (req) => {
             phone: msUser.businessPhones?.[0] || msUser.mobilePhone || null,
             organization_id: DEFAULT_ORG_ID,
             status: "active",
-          });
+          }).select("id").maybeSingle();
 
           // Assign employee role
           await supabase.from("user_roles").insert({
@@ -364,6 +385,15 @@ Deno.serve(async (req) => {
             role: "employee",
             organization_id: DEFAULT_ORG_ID,
           });
+
+          // Resolve any employees waiting on this person as their pending manager.
+          if (newProfile?.id) {
+            await supabase
+              .from("profiles")
+              .update({ manager_id: newProfile.id, pending_manager_email: null })
+              .eq("organization_id", DEFAULT_ORG_ID)
+              .eq("pending_manager_email", email);
+          }
 
           created++;
         } catch (err: any) {

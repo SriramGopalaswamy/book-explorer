@@ -26,8 +26,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { invokeEdge } from "@/lib/invoke-edge";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function IntegrationsSection() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<any>(null);
   const [checking, setChecking] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -70,6 +72,11 @@ export default function IntegrationsSection() {
       toast.error(data?.error || error?.message || "Sync failed");
     } else {
       toast.success(`Sync complete — ${data.synced} manager assignment(s) updated.`);
+      // Invalidate the org chart cache so the updated hierarchy is immediately
+      // visible if the user navigates to the Org Chart page.
+      queryClient.invalidateQueries({ queryKey: ["org-chart-profiles"] });
+      // Refresh the last-sync timestamp shown in this panel.
+      setStatus((prev: any) => prev ? { ...prev, last_sync_at: new Date().toISOString() } : prev);
     }
     setIsSyncing(false);
   };
